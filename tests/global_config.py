@@ -30,6 +30,10 @@ from utilities.constants import (
     INSTANCE_TYPE_STR,
     IPV4_STR,
     IPV6_STR,
+    KUBEVIRT_VMI_CPU_SYSTEM_USAGE_SECONDS_TOTAL_QUERY_STR,
+    KUBEVIRT_VMI_CPU_USAGE_SECONDS_TOTAL_QUERY_STR,
+    KUBEVIRT_VMI_CPU_USER_USAGE_SECONDS_TOTAL_QUERY_STR,
+    KUBEVIRT_VMI_VCPU_DELAY_SECONDS_TOTAL_QUERY_STR,
     LATEST_RELEASE_STR,
     LINUX_BRIDGE,
     OS_STR,
@@ -134,6 +138,13 @@ cnv_vm_resource_requests_units_matrix = [
 ]
 
 
+cnv_cpu_usage_metrics_matrix = [
+    KUBEVIRT_VMI_VCPU_DELAY_SECONDS_TOTAL_QUERY_STR,
+    KUBEVIRT_VMI_CPU_USER_USAGE_SECONDS_TOTAL_QUERY_STR,
+    KUBEVIRT_VMI_CPU_SYSTEM_USAGE_SECONDS_TOTAL_QUERY_STR,
+    KUBEVIRT_VMI_CPU_USAGE_SECONDS_TOTAL_QUERY_STR,
+]
+
 bridge_device_matrix = [LINUX_BRIDGE, OVS_BRIDGE]
 
 storage_class_matrix = [
@@ -192,7 +203,7 @@ data_import_cron_matrix = [
     {"fedora": {"instance_type": "u1.medium", "preference": "fedora"}},
     {"rhel8": {"instance_type": "u1.medium", "preference": "rhel.8"}},
     {"rhel9": {"instance_type": "u1.medium", "preference": "rhel.9"}},
-    {"rhel10-beta": {"instance_type": "u1.medium", "preference": "rhel.10"}},
+    {"rhel10": {"instance_type": "u1.medium", "preference": "rhel.10"}},
 ]
 
 rhel_os_matrix = [
