@@ -292,6 +292,9 @@ def exported_kubeconfig(unprivileged_secret, kubeconfig_export_path):
             LOGGER.info(f"Set: {KUBECONFIG}={kubeconfig_export_path.lower()}")
             os.environ[KUBECONFIG] = kubeconfig_export_path
 
+        else:
+            del os.environ[KUBECONFIG]
+
 
 @pytest.fixture(scope="session")
 def admin_client():
