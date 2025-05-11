@@ -261,21 +261,36 @@ def kubeconfig_export_path():
 def exported_kubeconfig(unprivileged_secret, kubeconfig_export_path):
     if not unprivileged_secret:
         yield
-    else:
-        kubeconfig_path = tempfile.mkdtemp(suffix="-cnv-tests-kubeconfig")
-        LOGGER.info(f"Kubeconfig for this run is: {kubeconfig_path}")
-        if not os.path.isdir(kubeconfig_path):
-            os.mkdir(kubeconfig_path)
 
-        dest_path = os.path.join(kubeconfig_path, KUBECONFIG.lower())
+    else:
+        kube_config_path = os.path.join(os.path.expanduser("~"), ".kube/config")
+        kube_config_exists = os.path.isfile(kube_config_path)
+        if kube_config_exists and kubeconfig_export_path:
+            raise ValueError(
+                f"Both {KUBECONFIG} {kubeconfig_export_path} and {kube_config_path} exist. "
+                f"Only one should be used, Remove {kube_config_path}"
+            )
+
+        orig_kubeconfig_file_path = kubeconfig_export_path or kube_config_path
+
+        tests_kubeconfig_path = tempfile.mkdtemp(suffix="-cnv-tests-kubeconfig")
+        LOGGER.info(f"Kubeconfig for this run is: {tests_kubeconfig_path}")
+        if not os.path.isdir(tests_kubeconfig_path):
+            os.mkdir(tests_kubeconfig_path)
+
+        dest_path = os.path.join(tests_kubeconfig_path, KUBECONFIG.lower())
 
         LOGGER.info(f"Copy {KUBECONFIG} to {dest_path}")
-        shutil.copyfile(src=kubeconfig_export_path, dst=dest_path)
+        shutil.copyfile(src=orig_kubeconfig_file_path, dst=dest_path)
+
         LOGGER.info(f"Set: {KUBECONFIG}={dest_path.lower()}")
         os.environ[KUBECONFIG] = dest_path
+
         yield dest_path
-        LOGGER.info(f"Set: {KUBECONFIG}={kubeconfig_export_path.lower()}")
-        os.environ[KUBECONFIG] = kubeconfig_export_path
+
+        if kubeconfig_export_path:
+            LOGGER.info(f"Set: {KUBECONFIG}={kubeconfig_export_path.lower()}")
+            os.environ[KUBECONFIG] = kubeconfig_export_path
 
 
 @pytest.fixture(scope="session")
@@ -381,28 +396,23 @@ def unprivileged_client(
         yield
 
     else:
-        kube_config_path = os.path.join(os.path.expanduser("~"), ".kube/config")
-        kube_config_exists = os.path.isfile(kube_config_path)
-        if kube_config_exists:  # TODO: Check if this restriction still valid.
-            raise ValueError(
-                f"Both {KUBECONFIG} {exported_kubeconfig} and {kube_config_path} exists. "
-                f"Only one should be used, Remove {kube_config_path}"
-            )
-
-        current_user = check_output("oc whoami", shell=True).decode().strip()  # Get current admin account
+        current_user = check_output("oc whoami", shell=True).decode().strip()  # Get the current admin account
         if login_with_user_password(
             api_address=admin_client.configuration.host,
             user=UNPRIVILEGED_USER,
             password=UNPRIVILEGED_PASSWORD,
-        ):  # Login to unprivileged account
-            with open(exported_kubeconfig, "r") as fd:
+        ):  # Login to an unprivileged account
+            with open(exported_kubeconfig) as fd:
                 kubeconfig_content = yaml.safe_load(fd)
             unprivileged_context = kubeconfig_content["current-context"]
+
+            # Get back to an admin account
             login_with_user_password(
                 api_address=admin_client.configuration.host,
                 user=current_user.strip(),
-            )  # Get back to admin account
+            )
             yield get_client(config_file=exported_kubeconfig, context=unprivileged_context)
+
         else:
             yield admin_client
 
