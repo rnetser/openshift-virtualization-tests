@@ -264,33 +264,35 @@ def exported_kubeconfig(unprivileged_secret, kubeconfig_export_path):
 
     else:
         kube_config_path = os.path.join(os.path.expanduser("~"), ".kube/config")
-        kube_config_exists = os.path.isfile(kube_config_path)
-        if kube_config_exists and kubeconfig_export_path:
-            raise ValueError(
+
+        if os.path.isfile(kube_config_path) and kubeconfig_export_path:
+            LOGGER.warning(
                 f"Both {KUBECONFIG} {kubeconfig_export_path} and {kube_config_path} exist. "
-                f"Only one should be used, Remove {kube_config_path}"
+                f"{kubeconfig_export_path} is used as kubeconfig source for this run."
             )
 
         orig_kubeconfig_file_path = kubeconfig_export_path or kube_config_path
 
-        tests_kubeconfig_path = tempfile.mkdtemp(suffix="-cnv-tests-kubeconfig")
-        LOGGER.info(f"Kubeconfig for this run is: {tests_kubeconfig_path}")
-        if not os.path.isdir(tests_kubeconfig_path):
-            os.mkdir(tests_kubeconfig_path)
+        tests_kubeconfig_dir_path = tempfile.mkdtemp(suffix="-cnv-tests-kubeconfig")
+        LOGGER.info(f"Setting {KUBECONFIG} for this run to point to: {tests_kubeconfig_dir_path}")
+        if not os.path.isdir(tests_kubeconfig_dir_path):
+            os.mkdir(tests_kubeconfig_dir_path)
 
-        dest_path = os.path.join(tests_kubeconfig_path, KUBECONFIG.lower())
+        kubeconfig_file_dest_path = os.path.join(tests_kubeconfig_dir_path, KUBECONFIG.lower())
 
-        LOGGER.info(f"Copy {KUBECONFIG} to {dest_path}")
-        shutil.copyfile(src=orig_kubeconfig_file_path, dst=dest_path)
+        LOGGER.info(f"Copy {KUBECONFIG} to {kubeconfig_file_dest_path}")
+        shutil.copyfile(src=orig_kubeconfig_file_path, dst=kubeconfig_file_dest_path)
 
-        LOGGER.info(f"Set: {KUBECONFIG}={dest_path.lower()}")
-        os.environ[KUBECONFIG] = dest_path
+        LOGGER.info(f"Set: {KUBECONFIG}={kubeconfig_file_dest_path}")
+        os.environ[KUBECONFIG] = kubeconfig_file_dest_path
 
-        yield dest_path
+        yield kubeconfig_file_dest_path
 
         if kubeconfig_export_path:
-            LOGGER.info(f"Set: {KUBECONFIG}={kubeconfig_export_path.lower()}")
+            LOGGER.info(f"Set: {KUBECONFIG}={kubeconfig_export_path}")
             os.environ[KUBECONFIG] = kubeconfig_export_path
+            LOGGER.info(f"Remove: {kubeconfig_file_dest_path}")
+            shutil.rmtree(tests_kubeconfig_dir_path, ignore_errors=True)
 
         else:
             del os.environ[KUBECONFIG]
