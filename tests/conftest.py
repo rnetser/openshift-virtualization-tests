@@ -274,9 +274,7 @@ def exported_kubeconfig(unprivileged_secret, kubeconfig_export_path):
         orig_kubeconfig_file_path = kubeconfig_export_path or kube_config_path
 
         tests_kubeconfig_dir_path = tempfile.mkdtemp(suffix="-cnv-tests-kubeconfig")
-        LOGGER.info(f"Setting {KUBECONFIG} for this run to point to: {tests_kubeconfig_dir_path}")
-        if not os.path.isdir(tests_kubeconfig_dir_path):
-            os.mkdir(tests_kubeconfig_dir_path)
+        LOGGER.info(f"Setting {KUBECONFIG} dir for this run to point to: {tests_kubeconfig_dir_path}")
 
         kubeconfig_file_dest_path = os.path.join(tests_kubeconfig_dir_path, KUBECONFIG.lower())
 
