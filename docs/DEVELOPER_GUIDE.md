@@ -1,6 +1,6 @@
 # Project Structure
 
-openshift-virtualization-tests is a public repository under the RedHatQE organization on GitHub.
+openshift-virtualization-tests is a public repository under the [RedHatQE organization](https://github.com/RedHatQE) on GitHub.
 
 The project is structured as follows:
 - [tests](../tests): Base directory for pytest tests
@@ -24,9 +24,9 @@ To contribute code to the project:
   - Make sure you follow the [Style guide](STYLE_GUIDE.md)
   - Make sure you have [pre-commit](https://pre-commit.com/) package installed
   - Make sure you have [tox](https://tox.readthedocs.io/en/latest/) package installed
-- PRs that are not ready for review (but needed to be pushed for any reason) should have [WIP] in the title and labelled as "wip".
+- PRs that are not ready for review (but needed to be pushed for any reason) should have [WIP] in the title and labeled as "wip".
   - When a PR is ready for review, remove the [WIP] from the title and remove the "wip" label.
-- PRs should be relatively small; if needed, the PRs should be split and depended on each other.
+- PRs should be relatively small; if needed, the PRs should be split and depend on each other.
   - Small PRs will get quicker review.
   - Small PRs comments will be fixed quicker and merged quicker.
   - Both the reviewer and the committer will benefit from this.
@@ -53,7 +53,7 @@ If needed, once your PR is merged to `main`, cherry-pick your PR to the relevant
 - Call functions using argument names to make it clear what is being passed and easier refactoring.
 - Imports: Always use absolute paths
 - Imports: when possible, avoid importing a module but rather import specific functions
-- Do not import from `conftest.py` files. These files must contain fixtures only, and not utility functions, constants etc.
+- Do not import from `conftest.py` files. These files must contain fixtures only and not utility functions, constants etc.
 - Avoid using nested functions.
 - Flexible code is good, but:
   - Should not come at the expense of readability; remember that someone else will need to look/use/maintain the code.
@@ -85,7 +85,7 @@ and the [examples](https://github.com/RedHatQE/openshift-python-wrapper/tree/mai
 
 ## Fixtures
 - Ordering: Always call pytest native fixtures first, then session-scoped fixtures and then any other fixtures.
-- Fixtures should handle setup (and the teardown, if needed) needed for the test(s), including the creation of resources for example.
+- Fixtures should handle setup (and the teardown, if needed) needed for the test(s), including the creation of resources, for example.
 - Fixtures should do one thing only.
 For example, instead of:
 
@@ -148,7 +148,7 @@ secret = Secret(name=request.param["name"], data_dict=request.param["data-dict"]
 - When there's a dependency between tests use pytest dependency plugin to mark the relevant hierarchy between tests (https://github.com/RKrahl/pytest-dependency)
 - When adding a new test, apply relevant marker(s) which may apply.
 Check [pytest.ini](../pytest.ini) for available markers; additional markers can always be added when needed.
-- Classes are good to group related tests together, for example when they share a fixture.
+- Classes are good to group related tests together, for example, when they share a fixture.
 You should NOT group unrelated tests in one class (because it is misleading the reader).
 
 
@@ -201,7 +201,7 @@ pre-commit run --all-files
 
 pre-commit will try to fix the errors.
 If some errors where fixed, git add & git commit is needed again.
-commit-msg use gitlint (<https://jorisroovers.com/gitlint/>)
+commit-msg uses gitlint (<https://jorisroovers.com/gitlint/>)
 
 
 ### tox
@@ -223,7 +223,7 @@ It is essential to have a good commit message if you want your change to be revi
   - `jira-ticket: https://issues.redhat.com/browse/<jira_id>`
   - The card will be automatically closed once PR is merged
 
-### Run the tests via Jenkins job
+### Run the tests via a Jenkins job
 
 #### Build and push a container with your changes
 

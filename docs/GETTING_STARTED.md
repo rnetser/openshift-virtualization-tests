@@ -39,7 +39,7 @@ or by saving the kubeconfig file under `~/.kube/config`
 ### Kubevirtci Kubernetes provider
 
 When you want to run the test on k8s (and not okd/ocp) provider, you need to make sure that the
-cluster can reach outside world to fetch docker images. Usually all that is required is adding the
+cluster can reach the outside world to fetch docker images. Usually all that is required is adding the
 following like to your system `/etc/resolv.conf`:
 
 ```

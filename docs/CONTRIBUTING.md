@@ -11,7 +11,7 @@ To get an overview of the project, read the [README](../README.md).
 ### Create a new issue
 
 If you find a problem with the code, [search if an issue already exists](https://github.com/RedHatQE/openshift-virtualization-tests/issues).
-If you open a pull request to fix the problem, an issue will ba automatically created.
+If you open a pull request to fix the problem, an issue will be automatically created.
 If a related issue doesn't exist, you can open a new issue using a relevant [issue form](https://github.com/RedHatQE/openshift-virtualization-tests/issues/new/choose).
 
 ## Pull requests
