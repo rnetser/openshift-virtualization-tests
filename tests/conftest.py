@@ -286,11 +286,12 @@ def exported_kubeconfig(unprivileged_secret, kubeconfig_export_path):
 
         yield kubeconfig_file_dest_path
 
+        LOGGER.info(f"Remove: {kubeconfig_file_dest_path}")
+        shutil.rmtree(tests_kubeconfig_dir_path, ignore_errors=True)
+
         if kubeconfig_export_path:
             LOGGER.info(f"Set: {KUBECONFIG}={kubeconfig_export_path}")
             os.environ[KUBECONFIG] = kubeconfig_export_path
-            LOGGER.info(f"Remove: {kubeconfig_file_dest_path}")
-            shutil.rmtree(tests_kubeconfig_dir_path, ignore_errors=True)
 
         else:
             del os.environ[KUBECONFIG]
