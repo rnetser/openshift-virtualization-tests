@@ -12,7 +12,7 @@ from utilities.constants import (
     Images,
 )
 from utilities.infra import get_latest_os_dict_list
-from utilities.pytest_utils import generate_os_matrix_dict
+from utilities.os_utils import generate_os_matrix_dict
 
 global config
 global_config = pytest_testconfig.load_python(py_file="tests/global_config.py", encoding="utf-8")
@@ -43,7 +43,7 @@ windows_os_matrix = generate_os_matrix_dict(
 
 fedora_os_matrix = generate_os_matrix_dict(os_name="fedora", supported_operating_systems=["fedora-41"])
 
-centos_os_matrix = generate_os_matrix_dict(os_name="fedora", supported_operating_systems=["centos-stream-9"])
+centos_os_matrix = generate_os_matrix_dict(os_name="centos", supported_operating_systems=["centos-stream-9"])
 
 instance_type_rhel_os_matrix = [
     {
