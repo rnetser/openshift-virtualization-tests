@@ -48,6 +48,11 @@ RHEL_OS_MAPPING = {
         OS_VERSION_STR: "9.4",
         OS_STR: "rhel9.4",
     },
+    "rhel-9-5": {
+        IMAGE_NAME_STR: "RHEL9_5_IMG",
+        OS_VERSION_STR: "9.5",
+        OS_STR: "rhel9.5",
+    },
     "rhel-9-6": {
         IMAGE_NAME_STR: "RHEL9_6_IMG",
         OS_VERSION_STR: "9.6",
