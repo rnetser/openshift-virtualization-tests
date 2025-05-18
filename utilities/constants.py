@@ -124,6 +124,7 @@ class ArchImages:
 
     class S390X:  # noqa: N801
         class Cirros:
+            # TODO: S390X does not support Cirros; this is a workaround until tests are moved to Fedora
             RAW_IMG = "Fedora-Cloud-Base-Generic-41-1.4.s390x.raw"
             RAW_IMG_GZ = "Fedora-Cloud-Base-Generic-41-1.4.s390x.raw.gz"
             RAW_IMG_XZ = "Fedora-Cloud-Base-Generic-41-1.4.s390x.raw.xz"
