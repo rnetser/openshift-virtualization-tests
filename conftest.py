@@ -477,6 +477,9 @@ def pytest_collection_modifyitems(session, config, items):
         add_tier2_marker(item=item)
 
         mark_tests_by_team(item=item)
+
+        # All tests are verified on X86_64 platforms, adding `x86_64` to all tests
+        item.add_marker(marker="x86_64")
     #  Collect only 'upgrade_custom' tests when running pytest with --upgrade_custom
     keep, discard = filter_upgrade_tests(items=items, config=config)
     items[:] = keep

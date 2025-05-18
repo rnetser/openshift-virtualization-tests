@@ -1,4 +1,3 @@
-from copy import deepcopy
 from typing import Any
 
 import pytest_testconfig
@@ -13,7 +12,10 @@ from utilities.constants import (
     StorageClassNames,
 )
 from utilities.infra import get_latest_os_dict_list
-from utilities.os_utils import generate_os_matrix_dict
+from utilities.os_utils import (
+    generate_instance_type_rhel_os_matrix,
+    generate_os_matrix_dict,
+)
 from utilities.storage import HppCsiStorageClass
 
 global config
@@ -40,11 +42,7 @@ storage_class_matrix = [
 rhel_os_matrix = generate_os_matrix_dict(os_name="rhel", supported_operating_systems=["rhel-9-5"])
 latest_rhel_os_dict = get_latest_os_dict_list(os_list=[rhel_os_matrix])[0]
 
-# Modify instance_type_rhel_os_matrix for arm64
-instance_type_rhel_os_matrix = deepcopy(config["instance_type_rhel_os_matrix"])  # noqa: F821
-for os_matrix_dict in instance_type_rhel_os_matrix:
-    for os_params in os_matrix_dict.values():
-        os_params[PREFERENCE_STR] += f".{ARM_64}"
+instance_type_rhel_os_matrix = generate_instance_type_rhel_os_matrix(preference=f"rhel.10.{ARM_64}")
 
 for _dir in dir():
     if not config:  # noqa: F821

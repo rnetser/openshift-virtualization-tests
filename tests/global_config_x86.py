@@ -2,17 +2,8 @@ from typing import Any
 
 import pytest_testconfig
 
-from utilities.constants import (
-    DATA_SOURCE_NAME,
-    DV_SIZE_STR,
-    INSTANCE_TYPE_STR,
-    LATEST_RELEASE_STR,
-    OS_VERSION_STR,
-    PREFERENCE_STR,
-    Images,
-)
 from utilities.infra import get_latest_os_dict_list
-from utilities.os_utils import generate_os_matrix_dict
+from utilities.os_utils import generate_instance_type_rhel_os_matrix, generate_os_matrix_dict
 
 global config
 global_config = pytest_testconfig.load_python(py_file="tests/global_config.py", encoding="utf-8")
@@ -45,18 +36,7 @@ fedora_os_matrix = generate_os_matrix_dict(os_name="fedora", supported_operating
 
 centos_os_matrix = generate_os_matrix_dict(os_name="centos", supported_operating_systems=["centos-stream-9"])
 
-instance_type_rhel_os_matrix = [
-    {
-        "rhel-10": {
-            OS_VERSION_STR: "10",
-            DV_SIZE_STR: Images.Rhel.DEFAULT_DV_SIZE,
-            INSTANCE_TYPE_STR: "u1.medium",
-            PREFERENCE_STR: "rhel.10",
-            DATA_SOURCE_NAME: "rhel10",
-            LATEST_RELEASE_STR: True,
-        }
-    },
-]
+instance_type_rhel_os_matrix = generate_instance_type_rhel_os_matrix(preference="rhel.10")
 
 (
     latest_rhel_os_dict,

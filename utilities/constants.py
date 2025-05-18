@@ -114,6 +114,18 @@ class ArchImages:
             DIR = f"{BASE_IMAGES_DIR}/cdi-test-images"
 
     class ARM64:  # noqa: N801
+        class Cirros:
+            RAW_IMG = "cirros-0.4.0-x86_64-disk.raw"
+            RAW_IMG_GZ = "cirros-0.4.0-x86_64-disk.raw.gz"
+            RAW_IMG_XZ = "cirros-0.4.0-x86_64-disk.raw.xz"
+            QCOW2_IMG = "cirros-0.4.0-x86_64-disk.qcow2"
+            QCOW2_IMG_GZ = "cirros-0.4.0-x86_64-disk.qcow2.gz"
+            QCOW2_IMG_XZ = "cirros-0.4.0-x86_64-disk.qcow2.xz"
+            DISK_DEMO = "cirros-registry-disk-demo"
+            DIR = f"{BASE_IMAGES_DIR}/cirros-images"
+            DEFAULT_DV_SIZE = "1Gi"
+            DEFAULT_MEMORY_SIZE = "64M"
+
         class Rhel:
             RHEL9_5_IMG = "rhel-95-aarch64.qcow2"
             RHEL9_REGISTRY_GUEST_IMG = "registry.redhat.io/rhel9/rhel-guest-image"
@@ -121,6 +133,21 @@ class ArchImages:
             DEFAULT_DV_SIZE = "20Gi"
             DEFAULT_MEMORY_SIZE = "1.5Gi"
             LATEST_RELEASE_STR = RHEL9_5_IMG
+
+        class Fedora:
+            FEDORA41_IMG = "Fedora-Cloud-Base-Generic-41-1.4.x86_64.qcow2"
+            FEDORA_CONTAINER_IMAGE = "quay.io/openshift-cnv/qe-cnv-tests-fedora:41"
+            DISK_DEMO = "fedora-cloud-registry-disk-demo"
+            DIR = f"{BASE_IMAGES_DIR}/fedora-images"
+            DEFAULT_DV_SIZE = "10Gi"
+            DEFAULT_MEMORY_SIZE = "1Gi"
+            LATEST_RELEASE_STR = FEDORA41_IMG
+
+        class CentOS:
+            CENTOS_STREAM_9_IMG = "CentOS-Stream-GenericCloud-9-20220107.0.x86_64.qcow2"
+            DIR = f"{BASE_IMAGES_DIR}/centos-images"
+            DEFAULT_DV_SIZE = "15Gi"
+            LATEST_RELEASE_STR = CENTOS_STREAM_9_IMG
 
     class S390X:  # noqa: N801
         class Cirros:
@@ -138,9 +165,7 @@ class ArchImages:
 
         class Rhel:
             RHEL9_5_IMG = "rhel-95-s390x.qcow2"
-            RHEL8_REGISTRY_GUEST_IMG = "registry.redhat.io/rhel8/rhel-guest-image"
             RHEL9_REGISTRY_GUEST_IMG = "registry.redhat.io/rhel9/rhel-guest-image"
-            RHEL10_REGISTRY_GUEST_IMG = "registry.redhat.io/rhel10-beta/rhel-guest-image"
             DIR = f"{BASE_IMAGES_DIR}/rhel-images"
             DEFAULT_DV_SIZE = "20Gi"
             DEFAULT_MEMORY_SIZE = "1.5Gi"

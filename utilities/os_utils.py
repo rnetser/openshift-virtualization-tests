@@ -4,13 +4,16 @@ from typing import Any
 from ocp_resources.template import Template
 
 from utilities.constants import (
+    DATA_SOURCE_NAME,
     DV_SIZE_STR,
     FLAVOR_STR,
     IMAGE_NAME_STR,
     IMAGE_PATH_STR,
+    INSTANCE_TYPE_STR,
     LATEST_RELEASE_STR,
     OS_STR,
     OS_VERSION_STR,
+    PREFERENCE_STR,
     TEMPLATE_LABELS_STR,
     WIN_2K22,
     WIN_2K25,
@@ -202,3 +205,18 @@ def generate_os_matrix_dict(os_name: str, supported_operating_systems: list[str]
         raise ValueError(f"Unsupported OS versions: {unsupported_versions} for {os_name}")
 
     return os_formatted_list
+
+
+def generate_instance_type_rhel_os_matrix(preference: str) -> list[dict[str, dict[str, Any]]]:
+    return [
+        {
+            "rhel-10": {
+                OS_VERSION_STR: "10",
+                DV_SIZE_STR: Images.Rhel.DEFAULT_DV_SIZE,
+                INSTANCE_TYPE_STR: "u1.medium",
+                PREFERENCE_STR: "rhel.10",
+                DATA_SOURCE_NAME: "rhel10",
+                LATEST_RELEASE_STR: True,
+            }
+        },
+    ]

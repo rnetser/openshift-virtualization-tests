@@ -219,9 +219,9 @@ windows_iterations = 500  # Number of migration iterations of windows VMs
 
 # RHEL container disk image matrix
 cnv_rhel_container_disk_images_matrix = [
-    {"rhel8": {"RHEL_CONTAINER_DISK_IMAGE": Images.Rhel.RHEL8_REGISTRY_GUEST_IMG}},
-    {"rhel9": {"RHEL_CONTAINER_DISK_IMAGE": Images.Rhel.RHEL9_REGISTRY_GUEST_IMG}},
-    {"rhel10": {"RHEL_CONTAINER_DISK_IMAGE": Images.Rhel.RHEL10_REGISTRY_GUEST_IMG}},
+    {"rhel8": {"RHEL_CONTAINER_DISK_IMAGE": getattr(Images.Rhel, "RHEL8_REGISTRY_GUEST_IMG", None)}},
+    {"rhel9": {"RHEL_CONTAINER_DISK_IMAGE": getattr(Images.Rhel, "RHEL9_REGISTRY_GUEST_IMG", None)}},
+    {"rhel10": {"RHEL_CONTAINER_DISK_IMAGE": getattr(Images.Rhel, "RHEL10_REGISTRY_GUEST_IMG", None)}},
 ]
 
 # Tekton resource matrix
