@@ -162,6 +162,14 @@ def generate_os_matrix_dict(os_name: str, supported_operating_systems: list[str]
 
     class_name = "CentOS" if os_name == "centos" else os_name.title()
     os_base_class = getattr(Images, class_name)
+
+    if not os_base_class:
+        raise AttributeError(
+            f"Unsupported OS: {os_name}. "
+            "Make sure it is supported under `utilities.constants.ArchImages` class"
+            " for cluster architecture."
+        )
+
     latest_os_release = getattr(os_base_class, "LATEST_RELEASE_STR")
 
     os_formatted_list = []
