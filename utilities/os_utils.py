@@ -56,7 +56,6 @@ RHEL_OS_MAPPING = {
     "rhel-9-6": {
         IMAGE_NAME_STR: "RHEL9_6_IMG",
         OS_VERSION_STR: "9.6",
-        LATEST_RELEASE_STR: True,
         OS_STR: "rhel9.6",
     },
 }
@@ -79,7 +78,6 @@ WINDOWS_OS_MAPPING = {
     "win-2019": {
         IMAGE_NAME_STR: "WIN2k19_IMG",
         OS_VERSION_STR: "2019",
-        LATEST_RELEASE_STR: True,
         OS_STR: "win2k19",
     },
     "win-11": {
@@ -106,7 +104,6 @@ FEDORA_OS_MAPPING = {
     FLAVOR_STR: Template.Flavor.SMALL,
     "fedora-41": {
         IMAGE_NAME_STR: "FEDORA41_IMG",
-        LATEST_RELEASE_STR: True,
         OS_STR: "fedora41",
     },
 }
@@ -116,7 +113,6 @@ CENTOS_OS_MAPPING = {
     FLAVOR_STR: Template.Flavor.TINY,
     "centos-stream-9": {
         IMAGE_NAME_STR: "CENTOS_STREAM_9_IMG",
-        LATEST_RELEASE_STR: True,
         OS_STR: "centos-stream9",
     },
 }
@@ -166,6 +162,7 @@ def generate_os_matrix_dict(os_name: str, supported_operating_systems: list[str]
 
     class_name = "CentOS" if os_name == "centos" else os_name.title()
     os_base_class = getattr(Images, class_name)
+    latest_os_release = getattr(os_base_class, "LATEST_RELEASE_STR")
 
     os_formatted_list = []
     unsupported_versions = []
@@ -173,21 +170,22 @@ def generate_os_matrix_dict(os_name: str, supported_operating_systems: list[str]
     for version in supported_operating_systems:
         if base_version_dict := base_dict.get(version):
             image_name = getattr(os_base_class, base_dict[version][IMAGE_NAME_STR])
+            os_base_dict = {
+                OS_VERSION_STR: base_version_dict.get(OS_VERSION_STR),
+                IMAGE_NAME_STR: image_name,
+                IMAGE_PATH_STR: os.path.join(getattr(os_base_class, "DIR"), image_name),
+                DV_SIZE_STR: getattr(os_base_class, "DEFAULT_DV_SIZE"),
+                TEMPLATE_LABELS_STR: {
+                    OS_STR: base_version_dict[OS_STR],
+                    WORKLOAD_STR: base_version_dict.get(WORKLOAD_STR, base_dict[WORKLOAD_STR]),
+                    FLAVOR_STR: base_version_dict.get(FLAVOR_STR, base_dict[FLAVOR_STR]),
+                },
+            }
 
-            os_formatted_list.append({
-                version: {
-                    OS_VERSION_STR: base_version_dict.get(OS_VERSION_STR),
-                    IMAGE_NAME_STR: image_name,
-                    IMAGE_PATH_STR: os.path.join(getattr(os_base_class, "DIR"), image_name),
-                    DV_SIZE_STR: getattr(os_base_class, "DEFAULT_DV_SIZE"),
-                    TEMPLATE_LABELS_STR: {
-                        OS_STR: base_version_dict[OS_STR],
-                        WORKLOAD_STR: base_version_dict.get(WORKLOAD_STR, base_dict[WORKLOAD_STR]),
-                        FLAVOR_STR: base_version_dict.get(FLAVOR_STR, base_dict[FLAVOR_STR]),
-                    },
-                    LATEST_RELEASE_STR: base_version_dict.get(LATEST_RELEASE_STR, False),
-                }
-            })
+            if image_name == latest_os_release:
+                os_base_dict[LATEST_RELEASE_STR] = True
+
+            os_formatted_list.append({version: os_base_dict})
 
         else:
             unsupported_versions.append(version)

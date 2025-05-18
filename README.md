@@ -89,6 +89,7 @@ nameserver 192.168.8.1
 The tests can dynamically select test images based on the system's architecture. This is controlled by the environment variable `OPENSHIFT_VIRTUALIZATION_TEST_IMAGES_ARCH`. Supported architectures include:
 
 - `x86_64` (default)
+- `arm64`
 - `s390x` (currently work in progress)
 
 ### Usage

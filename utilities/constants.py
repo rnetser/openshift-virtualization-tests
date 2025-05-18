@@ -55,7 +55,6 @@ class ArchImages:
             RHEL8_10_IMG = "rhel-810.qcow2"
             RHEL9_3_IMG = "rhel-93.qcow2"
             RHEL9_4_IMG = "rhel-94.qcow2"
-            RHEL9_5_ARM64_IMG = "rhel-95-aarch64.qcow2"
             RHEL9_6_IMG = "rhel-96.qcow2"
             RHEL8_REGISTRY_GUEST_IMG = "registry.redhat.io/rhel8/rhel-guest-image"
             RHEL9_REGISTRY_GUEST_IMG = "registry.redhat.io/rhel9/rhel-guest-image"
@@ -64,6 +63,7 @@ class ArchImages:
             DIR = f"{BASE_IMAGES_DIR}/rhel-images"
             DEFAULT_DV_SIZE = "20Gi"
             DEFAULT_MEMORY_SIZE = "1.5Gi"
+            LATEST_RELEASE_STR = RHEL9_6_IMG
 
         class Windows:
             WIN10_IMG = "win_10_uefi.qcow2"
@@ -92,6 +92,7 @@ class ArchImages:
             DEFAULT_MEMORY_SIZE_WSL = "12Gi"
             DEFAULT_CPU_CORES = 4
             DEFAULT_CPU_THREADS = 2
+            LATEST_RELEASE_STR = WIN2k19_IMG
 
         class Fedora:
             FEDORA41_IMG = "Fedora-Cloud-Base-Generic-41-1.4.x86_64.qcow2"
@@ -100,15 +101,26 @@ class ArchImages:
             DIR = f"{BASE_IMAGES_DIR}/fedora-images"
             DEFAULT_DV_SIZE = "10Gi"
             DEFAULT_MEMORY_SIZE = "1Gi"
+            LATEST_RELEASE_STR = FEDORA41_IMG
 
         class CentOS:
             CENTOS_STREAM_9_IMG = "CentOS-Stream-GenericCloud-9-20220107.0.x86_64.qcow2"
             DIR = f"{BASE_IMAGES_DIR}/centos-images"
             DEFAULT_DV_SIZE = "15Gi"
+            LATEST_RELEASE_STR = CENTOS_STREAM_9_IMG
 
         class Cdi:
             QCOW2_IMG = "cirros-qcow2.img"
             DIR = f"{BASE_IMAGES_DIR}/cdi-test-images"
+
+    class ARM64:  # noqa: N801
+        class Rhel:
+            RHEL9_5_IMG = "rhel-95-aarch64.qcow2"
+            RHEL9_REGISTRY_GUEST_IMG = "registry.redhat.io/rhel9/rhel-guest-image"
+            DIR = f"{BASE_IMAGES_DIR}/rhel-images"
+            DEFAULT_DV_SIZE = "20Gi"
+            DEFAULT_MEMORY_SIZE = "1.5Gi"
+            LATEST_RELEASE_STR = RHEL9_5_IMG
 
     class S390X:  # noqa: N801
         class Cirros:
@@ -125,13 +137,13 @@ class ArchImages:
 
         class Rhel:
             RHEL9_5_IMG = "rhel-95-s390x.qcow2"
-            RHEL9_5_ARM64_IMG = "rhel-95-aarch64.qcow2"
             RHEL8_REGISTRY_GUEST_IMG = "registry.redhat.io/rhel8/rhel-guest-image"
             RHEL9_REGISTRY_GUEST_IMG = "registry.redhat.io/rhel9/rhel-guest-image"
             RHEL10_REGISTRY_GUEST_IMG = "registry.redhat.io/rhel10-beta/rhel-guest-image"
             DIR = f"{BASE_IMAGES_DIR}/rhel-images"
             DEFAULT_DV_SIZE = "20Gi"
             DEFAULT_MEMORY_SIZE = "1.5Gi"
+            LATEST_RELEASE_STR = RHEL9_5_IMG
 
         class Fedora:
             FEDORA41_IMG = "Fedora-Cloud-Base-Generic-41-1.4.s390x.qcow2"
@@ -140,6 +152,7 @@ class ArchImages:
             DIR = f"{BASE_IMAGES_DIR}/fedora-images"
             DEFAULT_DV_SIZE = "10Gi"
             DEFAULT_MEMORY_SIZE = "1Gi"
+            LATEST_RELEASE_STR = FEDORA41_IMG
 
         class Cdi:
             QCOW2_IMG = "Fedora-Cloud-Base-Generic-41-1.4.s390x.qcow2"
@@ -156,7 +169,7 @@ S390X = "s390x"
 
 def get_test_images_arch_class() -> Any:
     arch = os.environ.get("OPENSHIFT_VIRTUALIZATION_TEST_IMAGES_ARCH", X86_64)
-    if arch not in (X86_64, S390X):
+    if arch not in (X86_64, S390X, ARM_64):
         raise ValueError(f"{arch} architecture in not supported")
     return getattr(ArchImages, arch.title())
 
