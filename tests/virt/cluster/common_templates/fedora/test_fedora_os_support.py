@@ -32,6 +32,9 @@ LOGGER = logging.getLogger(__name__)
 TESTS_CLASS_NAME = "TestCommonTemplatesFedora"
 
 
+pytestmark = [pytest.mark.x86_vanilla]
+
+
 HYPERV_DICT = {
     "spec": {
         "template": {

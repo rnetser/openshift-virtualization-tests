@@ -187,6 +187,7 @@ def verify_annotations_match(obj_annotations, expected):
 
 
 @pytest.mark.gating
+@pytest.mark.x86_vanilla
 @pytest.mark.polarion("CNV-1069")
 def test_base_templates_annotations(base_templates, common_templates_expected_list):
     """

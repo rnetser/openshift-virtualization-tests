@@ -14,7 +14,7 @@ from tests.install_upgrade_operators.relationship_labels.utils import (
 )
 from utilities.constants import VERSION_LABEL_KEY
 
-pytestmark = [pytest.mark.post_upgrade, pytest.mark.sno, pytest.mark.gating]
+pytestmark = [pytest.mark.post_upgrade, pytest.mark.sno, pytest.mark.gating, pytest.mark.x86_vanilla]
 LOGGER = logging.getLogger(__name__)
 
 

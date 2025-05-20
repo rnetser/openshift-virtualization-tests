@@ -109,6 +109,7 @@ def test_pc_q35_vm_machine_type(vm, expected):
     indirect=True,
 )
 @pytest.mark.gating
+@pytest.mark.x86_vanilla
 def test_migrate_vm(skip_access_mode_rwo_scope_function, machine_type_from_kubevirt_config, vm):
     migrate_vm_and_verify(vm=vm)
 
@@ -127,6 +128,7 @@ def test_migrate_vm(skip_access_mode_rwo_scope_function, machine_type_from_kubev
     indirect=True,
 )
 @pytest.mark.gating
+@pytest.mark.x86_vanilla
 def test_machine_type_after_vm_restart(
     machine_type_from_kubevirt_config,
     vm,
@@ -197,6 +199,7 @@ def test_unsupported_machine_type(namespace, unprivileged_client):
 
 
 @pytest.mark.gating
+@pytest.mark.x86_vanilla
 @pytest.mark.polarion("CNV-5658")
 def test_major_release_machine_type(machine_type_from_kubevirt_config):
     # CNV should always use a major release for machine type, for example: pc-q35-rhel8.3.0

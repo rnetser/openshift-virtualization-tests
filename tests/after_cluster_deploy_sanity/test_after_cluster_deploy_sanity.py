@@ -21,6 +21,9 @@ from utilities.storage import get_data_sources_managed_by_data_import_cron
 LOGGER = logging.getLogger(__name__)
 
 
+pytestmark = [pytest.mark.x86_vanilla]
+
+
 def wait_for_terminating_pvc(admin_client):
     def _get_terminating_pvcs():
         terminating_pvcs = []
