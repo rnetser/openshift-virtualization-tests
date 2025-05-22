@@ -32,7 +32,7 @@ LOGGER = logging.getLogger(__name__)
 TESTS_CLASS_NAME = "TestCommonTemplatesFedora"
 
 
-pytestmark = [pytest.mark.x86_vanilla]
+pytestmark = [pytest.mark.core_setup]
 
 
 HYPERV_DICT = {

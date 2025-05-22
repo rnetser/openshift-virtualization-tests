@@ -664,19 +664,29 @@ It is essential to have a good commit message if you want your change to be revi
 To run tests on a standard cluster configuration (more than 1 node is required), use the following command:
 
 ```bash
-pytest -m "x86_default_setup" --default-storage-class <cluster default storage class> --skip-artifactory-check
+pytest -m "core_setup" --default-storage-class <cluster default storage class> --skip-artifactory-check
 ```
 
 To run on single-node cluster, use the following command:
 ```bash
-pytest -m "x86_default_setup and not sno" --default-storage-class <cluster default storage class> --skip-artifactory-check
+pytest -m "core_setup and sno" --default-storage-class <cluster default storage class> --skip-artifactory-check
 ```
 
-The fedefault storage classes that are covered include: `ocs-storagecluster-ceph-rbd-virtualization`, `hostpath-csi-basic` and `hostpath-csi--pvc-block`
+To run on single-nic cluster, use the following command:
+```bash
+pytest -m "core_setup and single_nic" --default-storage-class <cluster default storage class> --skip-artifactory-check
+```
+
+To run on single-nic cluster, use the following command:
+```bash
+pytest -m "core_setup and sriov" --default-storage-class <cluster default storage class> --skip-artifactory-check
+```
+
+The default storage classes that are covered include: `ocs-storagecluster-ceph-rbd-virtualization`, `hostpath-csi-basic` and `hostpath-csi--pvc-block`
 To modify the set of storage classes that are tested:
-- Make a copy of (global_config.py)[tests/global_config.py] file
+- Make a copy of [global_config.py](tests/global_config.py) file
 - Edit `storage_class_matrix` variable to match the storage classes you want to test
 - Run the tests using the new global_config.py file, example:
 ```bash
-pytest -m "x86_default_setup" --default-storage-class <cluster default storage class> --skip-artifactory-check --tc-file=tests/global_config_new.py
+pytest -m "core_setup" --default-storage-class <cluster default storage class> --skip-artifactory-check --tc-file=tests/global_config_new.py
 ```

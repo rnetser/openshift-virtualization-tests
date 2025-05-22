@@ -295,7 +295,7 @@ class TestConnectivityAfterNmstateChanged:
         assert_ssh_alive(ssh_vm=nmstate_linux_bridge_attached_running_vmb, src_ip=vma_src_ip)
 
     @pytest.mark.gating
-    @pytest.mark.x86_vanilla
+    @pytest.mark.core_setup
     @pytest.mark.ipv4
     @pytest.mark.polarion("CNV-5839")
     def test_connectivity_after_nncp_change(

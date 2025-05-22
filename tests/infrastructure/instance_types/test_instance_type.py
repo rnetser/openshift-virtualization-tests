@@ -1,6 +1,6 @@
 import pytest
 
-pytestmark = [pytest.mark.gating, pytest.mark.x86_vanilla]
+pytestmark = [pytest.mark.gating, pytest.mark.core_setup]
 
 MEMORY_REQUESTS_FOR_TEST = {"memory_requests": "2Gi"}
 
