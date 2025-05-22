@@ -12,7 +12,7 @@ Only add comments when necessary. For example, when using complex regex.
 
 ## Typing
 - Add typing to new code; typing is enforced using [mypy](https://mypy-lang.org/)
-- Rules are defined in [our pyproject.toml file](//pyproject.toml#L10)
+- Rules are defined in [pyproject.toml](../pyproject.toml#L10)
 - For more information, see [typing](https://docs.python.org/3/library/typing.html)
 
 # Coding standards

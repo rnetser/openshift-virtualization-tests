@@ -37,13 +37,13 @@ For running tests, you need to have access to artifactory server with images.
 Environment variables `ARTIFACTORY_USER` and `ARTIFACTORY_TOKEN` expected to be set up for local runs.
 
 ```bash
-podman run -v "$(pwd)"/toContainer:/mnt/host:Z -e -e KUBECONFIG=/mnt/host/kubeconfig quay.io/openshift-cnv/openshift-virtualization-tests
+podman run -v "$(pwd)"/toContainer:/mnt/host:Z -e KUBECONFIG=/mnt/host/kubeconfig quay.io/openshift-cnv/openshift-virtualization-tests
 ```
 
 To overwrite the default image server, set the `HTTP_IMAGE_SERVER` environment variable:
 
 ```bash
-podman run -v "$(pwd)"/toContainer:/mnt/host:Z -e -e KUBECONFIG=/mnt/host/kubeconfig -e HTTP_IMAGE_SERVER="X.X.X.X" quay.io/openshift-cnv/openshift-virtualization-tests
+podman run -v "$(pwd)"/toContainer:/mnt/host:Z -e KUBECONFIG=/mnt/host/kubeconfig -e HTTP_IMAGE_SERVER="X.X.X.X" quay.io/openshift-cnv/openshift-virtualization-tests
 
 ```
 
@@ -51,7 +51,7 @@ podman run -v "$(pwd)"/toContainer:/mnt/host:Z -e -e KUBECONFIG=/mnt/host/kubeco
 #### Smoke tests
 
 ```
-podman run -v "$(pwd)"/toContainer:/mnt/host:Z -e -e KUBECONFIG=/mnt/host/kubeconfig quay.io/openshift-cnv/openshift-virtualization-tests \
+podman run -v "$(pwd)"/toContainer:/mnt/host:Z -e KUBECONFIG=/mnt/host/kubeconfig quay.io/openshift-cnv/openshift-virtualization-tests \
 uv run pytest --storage-class-matrix=ocs-storagecluster-ceph-rbd-virtualization --default-storage-class=ocs-storagecluster-ceph-rbd-virtualization \
 --tc default_volume_mode:Block --latest-rhel -m smoke
 ```
@@ -59,6 +59,6 @@ uv run pytest --storage-class-matrix=ocs-storagecluster-ceph-rbd-virtualization 
 #### IBM cloud Win10 tests
 
 ```
-podman run -v "$(pwd)"/toContainer:/mnt/host:Z -e -e KUBECONFIG=/mnt/host/kubeconfig quay.io/openshift-cnv/openshift-virtualization-tests \
+podman run -v "$(pwd)"/toContainer:/mnt/host:Z -e KUBECONFIG=/mnt/host/kubeconfig quay.io/openshift-cnv/openshift-virtualization-tests \
 uv run pytest --tc=server_url:"X.X.X.X" --windows-os-matrix=win-10 --storage-class-matrix=ocs-storagecluster-ceph-rbd-virtualization -m ibm_bare_metal
 ```

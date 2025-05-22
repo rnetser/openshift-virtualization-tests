@@ -21,7 +21,7 @@ To contribute code to the project:
 ## Pull requests
 - Fork the project and work on your forked repository
 - Before submitting a new pull request:
-  - Make sure you follow the [Style guide](STYLE_GUIDE.md)
+  - Make sure you follow the [Coding_and_style guide](CODING_AND_STYLE_GUIDE.md)
   - Check the [prerequisites](#Prerequisites) section under the [Development](#development) section
 - PRs that are not ready for review (but needed to be pushed for any reason) should be set as `Draft` in GitHub.
   - When a PR is ready for review, mark it as ready for review.
