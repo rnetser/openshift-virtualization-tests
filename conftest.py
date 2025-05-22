@@ -311,7 +311,7 @@ def add_polarion_parameters_to_user_properties(item: Item, matrix_name: str) -> 
     values = re.findall("(#.*?#)", item.name)  # Extract all substrings enclosed in '#' from item.name
     for value in values:
         value = value.strip("#")
-        for param in py_config[matrix_name]:
+        for param in py_config.get(matrix_name, {}):
             if isinstance(param, dict):
                 param = [*param][0]
 

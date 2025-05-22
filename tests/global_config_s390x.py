@@ -17,9 +17,10 @@ global_config = pytest_testconfig.load_python(py_file="tests/global_config.py", 
 utilities.constants.OS_FLAVOR_CIRROS = "fedora"
 EXPECTED_CLUSTER_INSTANCE_TYPE_LABELS[PREFERENCE_STR] = f"rhel.9.{S390X}"
 
+rhel_os_matrix = generate_os_matrix_dict(os_name="rhel", supported_operating_systems=["rhel-9-5"])
 fedora_os_matrix = generate_os_matrix_dict(os_name="fedora", supported_operating_systems=["fedora-41"])
 
-latest_fedora_os_dict = get_latest_os_dict_list(os_list=[fedora_os_matrix])[0]
+latest_rhel_os_dict, latest_fedora_os_dict = get_latest_os_dict_list(os_list=[rhel_os_matrix, fedora_os_matrix])
 
 for _dir in dir():
     if not config:  # noqa: F821

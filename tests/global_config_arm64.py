@@ -40,7 +40,15 @@ storage_class_matrix = [
 ]
 
 rhel_os_matrix = generate_os_matrix_dict(os_name="rhel", supported_operating_systems=["rhel-9-5"])
-latest_rhel_os_dict = get_latest_os_dict_list(os_list=[rhel_os_matrix])[0]
+fedora_os_matrix = generate_os_matrix_dict(os_name="fedora", supported_operating_systems=["fedora-41"])
+centos_os_matrix = generate_os_matrix_dict(os_name="centos", supported_operating_systems=["centos-stream-9"])
+
+(
+    latest_rhel_os_dict,
+    latest_fedora_os_dict,
+    latest_centos_os_dict,
+) = get_latest_os_dict_list(os_list=[rhel_os_matrix, fedora_os_matrix, centos_os_matrix])
+
 
 instance_type_rhel_os_matrix = generate_instance_type_rhel_os_matrix(preference=f"rhel.10.{ARM_64}")
 
