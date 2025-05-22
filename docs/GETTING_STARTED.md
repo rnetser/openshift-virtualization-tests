@@ -16,7 +16,7 @@ uv lock --upgrade
 ## Prerequisites
 
 ### Cluster requirements
-This project runs tests against an OpenShift cluster with CNV installed.
+This project runs tests on an OpenShift cluster with Openshift Virtualization (CNV) installed.
 Some tests may require additional StorageClasses to be deployed.
 
 When running Windows tests, the cluster should have at least 16GiB RAM (XL deployment)
@@ -31,20 +31,10 @@ oc login -u user -p password
 Or by setting `KUBECONFIG` variable:
 
 ```bash
-KUBECONFIG=<kubeconfig file>
+export KUBECONFIG=<kubeconfig file>
 ```
 
 or by saving the kubeconfig file under `~/.kube/config`
-
-### Kubevirtci Kubernetes provider
-
-When you want to run the test on k8s (and not okd/ocp) provider, you need to make sure that the
-cluster can reach the outside world to fetch docker images. Usually all that is required is adding the
-following like to your system `/etc/resolv.conf`:
-
-```
-nameserver 192.168.8.1
-```
 
 
 ## Test Images Architecture Support
@@ -66,25 +56,12 @@ If an unsupported architecture is specified, a `ValueError` will be raised.
 
 Images for different architectures are managed under [utilities/constants.py](utilities/constants.py) - `ArchImages`
 
-## Using custom cluster management binaries
-
-If you need to use custom or system `kubectl`, `virtctl` or `oc` instead of wrappers from `local-cluster`,
-define `KUBECTL`, `CNV_TESTS_VIRTCTL_BIN` and `CNV_TESTS_OC_BIN` environment variables to point to the binaries.
 
 ## Python and dependencies
 python >=3.12
 
-The following binaries are needed:
+The Complete list of environment dependencies can be found in [Dockerfile](../Dockerfile)
 
-```bash
-sudo dnf install python3-devel  \
-                 libcurl-devel  \
-                 libxml-devel   \
-                 openssl-devel  \
-                 libxslt-devel  \
-                 libxml++-devel \
-                 libxml2-devel
-```
 
 ## virtctl
 

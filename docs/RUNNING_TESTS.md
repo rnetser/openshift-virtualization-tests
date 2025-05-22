@@ -101,7 +101,7 @@ Matrix fixtures can be added in global_config.py.
 You can run a test using a subset of a simple matrix (i.e flat list), example:
 
 ```bash
---bridge-device-matrix=linux-bridge
+--tc=ip_stack_version_matrix:ipv4
 ```
 
 To run a test using a subset of a complex matrix (e.g list of dicts), you'll also need to add
@@ -116,16 +116,8 @@ Available storage classes can be found in `global_config.py` under `storage_clas
 Example:
 
 ```bash
---storage-class-matrix=ocs-storagecluster-ceph-rbd-virtualization
-```
-Two storage classes hostpath-csi-pvc-block and hostpath-csi-basic can be added to global config's storage_class_matrix, via command-line:
-```bash
---storage-class-matrix=ocs-storagecluster-ceph-rbd-virtualization,hostpath-csi-basic,hostpath-csi-pvc-block
 --storage-class-matrix=ocs-storagecluster-ceph-rbd-virtualization,hostpath-csi-basic
 ```
-
-Note: hostpath-csi-pvc-block and hostpath-csi-basic are not expected to be deployed in the same cluster with lvms-vg1.
-
 ### Using matrix fixtures
 
 Using matrix fixtures requires providing a scope.
@@ -183,21 +175,11 @@ Example:
 @pytest.mark.jira("CNV-1234")
 ```
 
-### Common templates and golden images
-
-As of 2.6, VMs using common templates will require an existing golden image PVC.
-Golden image name - SRC_PVC_NAME
-Golden images namespace parameter — SRC_PVC_NAMESPACE (default: openshift-virtualization-os-images)
-The VM's created PVC will have the same name as the VM (NAME parameter).
-
-- Fixtures prefixed with "golden_image_data_volume" are used to create golden image
-  DV.
-- Fixtures prefixed with "golden_image_vm" are used to create a VM from template, based on a golden
-  image PVC.
-  When using the fixtures, note their scopes. As golden image may be created once per class,
-  it can be used by multiple VMs created under that class (scoped as function).
-
-
+To use jira plugin, you need to set the following environment variables:
+```bash
+export PYTEST_JIRA_URL=<url>
+export PYTEST_JIRA_TOKEN=<your_token>
+```
 
 ## Additional options
 There are other parameters that can be passed to the test suite if needed.
@@ -270,17 +252,4 @@ Check containers/utility/README.md
 ```python
 pod_exec = ExecCommandOnPod(utility_pods=workers_utility_pods, node=node)
 out = pod_exec.exec(command=cmd, ignore_rc=True)
-```
-
-##### Known Issues
-
-pycurl may fail with error:
-ImportError: pycurl: libcurl link-time ssl backend (nss) is different from compile-time ssl backend (none/other)
-
-To fix it:
-
-```bash
-export PYCURL_SSL_LIBRARY=nss # or openssl. depend on the error (link-time ssl backend (nss))
-uv run pip uninstall pycurl
-uv run pip install pycurl --no-cache-dir
 ```
