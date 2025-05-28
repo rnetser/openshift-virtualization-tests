@@ -308,15 +308,16 @@ def pytest_cmdline_main(config):
 
 
 def add_polarion_parameters_to_user_properties(item: Item, matrix_name: str) -> None:
-    values = re.findall("(#.*?#)", item.name)  # Extract all substrings enclosed in '#' from item.name
-    for value in values:
-        value = value.strip("#")
-        for param in py_config.get(matrix_name, {}):
-            if isinstance(param, dict):
-                param = [*param][0]
+    if matrix_config := py_config.get(matrix_name):
+        values = re.findall("(#.*?#)", item.name)  # Extract all substrings enclosed in '#' from item.name
+        for value in values:
+            value = value.strip("#")
+            for param in matrix_config:
+                if isinstance(param, dict):
+                    param = [*param][0]
 
-            if value == param:
-                item.user_properties.append((f"polarion-parameter-{matrix_name}", value))
+                if value == param:
+                    item.user_properties.append((f"polarion-parameter-{matrix_name}", value))
 
 
 def add_test_id_markers(item: Item, marker_name: str) -> None:
