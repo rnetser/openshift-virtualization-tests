@@ -113,7 +113,7 @@ def test_pc_q35_vm_machine_type(vm, expected):
 @pytest.mark.rwx_default_storage
 @pytest.mark.gating
 @pytest.mark.core_setup
-def test_migrate_vm(skip_access_mode_rwo_scope_function, machine_type_from_kubevirt_config, vm):
+def test_migrate_vm(machine_type_from_kubevirt_config, vm):
     migrate_vm_and_verify(vm=vm)
 
     validate_machine_type(vm=vm, expected_machine_type=machine_type_from_kubevirt_config)
