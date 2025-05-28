@@ -106,7 +106,7 @@ def test_dv_template_has_the_same_priority_as_vm_when_not_specified(
                 pytest.mark.polarion("CNV-6811"),
                 pytest.mark.sno(),
                 pytest.mark.gating,
-                pytest.mark.core_setup,
+                pytest.mark.common_provisioned_cluster,
             ),
         ),
     ],

@@ -4,7 +4,7 @@ import pytest
 
 from utilities.constants import SSP_CR_COMMON_TEMPLATES_LIST_KEY_NAME
 
-pytestmark = [pytest.mark.gating, pytest.mark.arm64, pytest.mark.core_setup]
+pytestmark = [pytest.mark.gating, pytest.mark.arm64, pytest.mark.common_provisioned_cluster]
 
 
 @pytest.mark.usefixtures("hyperconverged_spec_scope_session", "hyperconverged_status_scope_session")

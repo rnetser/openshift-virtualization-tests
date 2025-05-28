@@ -79,7 +79,7 @@ def dv_template_api(request):
 
 
 @pytest.mark.gating
-@pytest.mark.core_setup
+@pytest.mark.common_provisioned_cluster
 class TestVmPreference:
     @pytest.mark.parametrize(
         "common_vm_preference_param_dict",
@@ -105,7 +105,7 @@ class TestVmPreference:
 
 
 @pytest.mark.gating
-@pytest.mark.core_setup
+@pytest.mark.common_provisioned_cluster
 class TestVmClusterPreference:
     @pytest.mark.parametrize(
         "common_vm_preference_param_dict",

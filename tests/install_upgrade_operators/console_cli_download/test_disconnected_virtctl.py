@@ -7,7 +7,7 @@ from pyhelper_utils.shell import run_command
 from utilities.constants import AMD_64
 from utilities.infra import get_machine_platform
 
-pytestmark = [pytest.mark.post_upgrade, pytest.mark.sno, pytest.mark.gating, pytest.mark.core_setup]
+pytestmark = [pytest.mark.post_upgrade, pytest.mark.sno, pytest.mark.gating, pytest.mark.common_provisioned_cluster]
 
 ARM_64 = "arm64"
 

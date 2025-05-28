@@ -176,7 +176,7 @@ def verify_reconciled_secret_resource(resource, resource_dict):
 
 
 @pytest.mark.gating
-@pytest.mark.core_setup
+@pytest.mark.common_provisioned_cluster
 @pytest.mark.parametrize(
     ("resource_type", "managed_resource_name"),
     [

@@ -9,7 +9,7 @@ import pytest
 from tests.virt.cluster.utils import check_smbios_defaults
 from utilities.virt import VirtualMachineForTests, check_vm_xml_smbios, fedora_vm_body, running_vm
 
-pytestmark = [pytest.mark.post_upgrade, pytest.mark.gating, pytest.mark.core_setup]
+pytestmark = [pytest.mark.post_upgrade, pytest.mark.gating, pytest.mark.common_provisioned_cluster]
 
 
 @pytest.fixture()
