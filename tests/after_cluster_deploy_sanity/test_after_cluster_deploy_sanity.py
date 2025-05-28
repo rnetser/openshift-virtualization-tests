@@ -21,7 +21,7 @@ from utilities.storage import get_data_sources_managed_by_data_import_cron
 LOGGER = logging.getLogger(__name__)
 
 
-pytestmark = [pytest.mark.common_provisioned_cluster]
+pytestmark = [pytest.mark.conformance]
 
 
 def wait_for_terminating_pvc(admin_client):

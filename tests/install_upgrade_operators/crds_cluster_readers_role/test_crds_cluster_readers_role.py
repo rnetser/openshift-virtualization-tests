@@ -15,7 +15,7 @@ MTV_VOLUME_POPULATOR_CRDS = [
 ]
 
 
-pytestmark = [pytest.mark.sno, pytest.mark.gating, pytest.mark.arm64, pytest.mark.common_provisioned_cluster]
+pytestmark = [pytest.mark.sno, pytest.mark.gating, pytest.mark.arm64, pytest.mark.conformance]
 
 
 @pytest.fixture()

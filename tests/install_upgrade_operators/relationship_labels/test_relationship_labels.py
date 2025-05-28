@@ -19,7 +19,7 @@ pytestmark = [
     pytest.mark.sno,
     pytest.mark.gating,
     pytest.mark.arm64,
-    pytest.mark.common_provisioned_cluster,
+    pytest.mark.conformance,
 ]
 LOGGER = logging.getLogger(__name__)
 
