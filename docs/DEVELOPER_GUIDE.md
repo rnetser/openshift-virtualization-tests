@@ -36,6 +36,7 @@ To contribute code to the project:
       The PR owner can the set the comment as `resolved`.
   - If a comment was addressed and rejected or additional discussion is needed, add your input and do not resolve the comment.
   - To minimize the number of comments, please try to address all comments in one PR.
+- The repository is using [CodeRabbit](https://www.coderabbit.ai/) for PR reviews; all comments must be addressed in the PR.
 - Before a PR can be merged:
   - PRs must be verified and marked with "verified" label.
     - PRs must be reviewed and approved (by adding `/lgtm` comment or using GitHubs' approve) by at least two reviewers other than the committer.

@@ -72,6 +72,7 @@ Only add comments when necessary. For example, when using complex regex.
 ## Fixtures
 - Ordering: Always call pytest native fixtures first, then session-scoped fixtures and then any other fixtures.
 - Fixtures should handle setup (and the teardown, if needed) needed for the test(s), including the creation of resources, for example.
+- Fixtures which call other fixtures but without using their return value should be called using `@pytest.mark.usefixtures(<fixture name>)`
 - Fixtures should do one action/functionality only.
 For example, instead of:
 
