@@ -110,6 +110,7 @@ def test_pc_q35_vm_machine_type(vm, expected):
     indirect=True,
 )
 @pytest.mark.arm64
+@pytest.mark.rwx_default_storage
 @pytest.mark.gating
 @pytest.mark.core_setup
 def test_migrate_vm(skip_access_mode_rwo_scope_function, machine_type_from_kubevirt_config, vm):
@@ -153,13 +154,10 @@ def test_machine_type_after_vm_restart(
     ],
     indirect=True,
 )
+@pytest.mark.rwx_default_storage
 @pytest.mark.gating
 def test_machine_type_after_vm_migrate(
-    skip_access_mode_rwo_scope_function,
-    machine_type_from_kubevirt_config,
-    vm,
-    updated_kubevirt_config_machine_type,
-    migrated_vm,
+    machine_type_from_kubevirt_config, vm, updated_kubevirt_config_machine_type, migrated_vm
 ):
     """Test machine type change in kubevirt_config; existing VM does not get new
     value after migration"""
