@@ -1902,7 +1902,7 @@ def rhel_latest_os_params():
             "rhel_template_labels": latest_rhel_dict["template_labels"],
         }
 
-    return {}
+    raise ValueError("Failed to get latest RHEL OS parameters")
 
 
 @pytest.fixture(scope="session")

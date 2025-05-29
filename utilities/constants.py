@@ -99,18 +99,10 @@ class ArchImages:
         Rhel.RHEL9_5_IMG = "rhel-95-aarch64.qcow2"
         Rhel.LATEST_RELEASE_STR = Rhel.RHEL9_5_IMG
 
-        Fedora = Fedora()
-        Fedora.FEDORA41_IMG = "Fedora-Cloud-Base-Generic-41-1.4.x86_64.qcow2"
-        Fedora.FEDORA_CONTAINER_IMAGE = "quay.io/openshift-cnv/qe-cnv-tests-fedora:41"
-        Fedora.DISK_DEMO = "fedora-cloud-registry-disk-demo"
-        Fedora.LATEST_RELEASE_STR = Fedora.FEDORA41_IMG
-
-        CentOS = CentOS()
-        CentOS.CENTOS_STREAM_9_IMG = "CentOS-Stream-GenericCloud-9-20220107.0.x86_64.qcow2"
-        CentOS.LATEST_RELEASE_STR = CentOS.CENTOS_STREAM_9_IMG
-
-        Cdi = Cdi()
         Windows = Windows()
+        Fedora = Fedora()
+        CentOS = CentOS()
+        Cdi = Cdi()
 
     class S390X:
         Cirros = Cirros()

@@ -43,6 +43,7 @@ instance_type_rhel_os_matrix = generate_instance_type_rhel_os_matrix(preference=
     latest_centos_os_dict,
 ) = get_latest_os_dict_list(os_list=[rhel_os_matrix, windows_os_matrix, fedora_os_matrix, centos_os_matrix])
 
+
 for _dir in dir():
     if not config:  # noqa: F821
         config: dict[str, Any] = {}
