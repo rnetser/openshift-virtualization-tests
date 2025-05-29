@@ -20,7 +20,7 @@ export IMAGE_TAG=<the image tag to use>              # default "latest"
 ```
 
 You can build the image with specific commit hashes for openshift-python-wrapper, openshift-python-utilities and timeout-sampler.
-The following are supported:
+The following args are supported:
 
 ```
 OPENSHIFT_PYTHON_WRAPPER_COMMIT

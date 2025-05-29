@@ -24,8 +24,8 @@ pytest tests/install_upgrade_operators/product_install/test_install_openshift_vi
 
 ## Upgrade tests
 
-Current upgrade test automation allows us to run just the ocp/cnv/eus upgrade. <br />
-As default, the upgrade will run with pre and post upgrade validation of various components.
+Current upgrade test automation allows us to run just the ocp/cnv/eus upgrade.
+As default, the upgrade will run with pre- and post-upgrade validation of various components.
 
 Note:
 1. Before running upgrade tests, please check "Cluster requirements" section to see minimum requirements in terms of cluster size.
@@ -58,10 +58,10 @@ Command to run only ocp upgrade test, without any pre/post validation:
 -m product_upgrade_test --upgrade ocp --ocp-image <ocp_image_to_upgrade_to>
 ```
 
-To upgrade to ocp version: 4.10.16, using <https://openshift-release.apps.ci.l2s4.p1.openshiftapps.com/releasestream/4-stable/release/4.10.16>, following command can be used:
+To upgrade to ocp version: 4.18.15, using <https://openshift-release.apps.ci.l2s4.p1.openshiftapps.com/releasestream/4-stable/release/4.18.15>, following command can be used:
 
 ```bash
---upgrade ocp --ocp-image quay.io/openshift-release-dev/ocp-release:4.10.16-x86_64
+--upgrade ocp --ocp-image quay.io/openshift-release-dev/ocp-release:4.18.15-x86_64
 ```
 
 Note: OCP images information can be found at: <https://openshift-release.apps.ci.l2s4.p1.openshiftapps.com/>.

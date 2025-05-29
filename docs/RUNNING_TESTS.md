@@ -7,7 +7,7 @@
 To run the chaos tests:
 
 ```bash
-pytest <pytest_args> -m chaos
+uv run pytest <pytest_args> -m chaos
 ```
 
 ### Basic run of all tests
@@ -43,13 +43,13 @@ To run a particular set of tests, you can use name pattern matching.
 For example, to run all tests that contain `test_clone_windows_vm` or `test_migrate_vm` in their names:
 
 ```bash
-pytest <pytest_args> -k "test_clone_windows_vm or test_migrate_vm"
+uv run pytest <pytest_args> -k "test_clone_windows_vm or test_migrate_vm"
 ```
 
 To run all network component tests:
 
 ```bash
-pytest <pytest_args> -m network
+uv run pytest <pytest_args> -m network
 ```
 
 #### Selecting network IP version type tests
@@ -74,9 +74,10 @@ uv run pytest -m "network and not ipv6"
 ### Skip cluster sanity checks
 By default, cluster sanity checks are run to make cluster ready for tests.
 To skip cluster sanity checks, pass `--cluster-sanity-skip-check` to skip all tests.
-To skip specific checks, pass `--cluster-sanity-skip-nodes-check` to skip node checks.
-To skip specific checks, pass `--cluster-sanity-skip-storage-check` to skip storage checks.
-
+To skip specific node checks, pass `--cluster-sanity-skip-nodes-check`.
+To skip specific storage checks, pass `--cluster-sanity-skip-storage-check`.
+To skip virt specific checks, pass `--skip-virt-sanity-check`.
+To skip tests which require access to internal images, pass `--skip-artifactory-check`.
 
 
 ### Custom global_config to override the matrix value
@@ -189,11 +190,6 @@ There are other parameters that can be passed to the test suite if needed.
 --tc-format=python
 --junitxml /tmp/xunit_results.xml
 --jira
---jira-url=<url>
---jira-user=<username>
---jira-token==<token>
---jira-no-ssl-verify
---jira-disable-docs-search
 ```
 
 ### Logging
@@ -220,7 +216,7 @@ Example:
 To see verbose logging of a test run, add the following parameter:
 
 ```bash
-pytest <test_to_run> -o log_cli=true
+uv run pytest <test_to_run> -o log_cli=true
 ```
 
 ### Must-gather and data collection
@@ -228,7 +224,7 @@ openshift-virtualization-tests would collect must-gather data, pexpect logs, ale
 Logs will be available under tests-collected-info/ folder for local runs and /data/tests-collected-info for containerized runs.
 
 ```bash
-pytest <test_to_run> --data-collector
+uv run pytest <test_to_run> --data-collector
 ```
 
 To skip must-gather collection on a given module or test, skip_must_gather_collection can be used:

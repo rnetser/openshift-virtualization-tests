@@ -99,11 +99,12 @@ def model_inference_service(network_attachment_definition):
 
 ```
 
-- Pytest reports failures in fixtures as ERROR
-- A fixture name should be a noun that describes what the fixture provides (i.e. returns or yields), rather than a verb.
+- Pytest reports failures in fixtures as `ERROR`
+- A fixture name should be a noun that describes what the fixture provides (i.e., returns or yields), rather than a verb.
 For example:
   - If a test needs a storage secret, the fixture should be called 'storage_secret' and not 'create_secret'.
   - If a test needs a directory to store user data, the fixture should be called 'user_data_dir' and not 'create_directory'.
+- If there's more than one fixture with the same functionality, but with a different scope, add `_scope_<scope>` as a suffix to the fixture name.`
 - Note fixture scope, test execution times can be reduced by selecting the right scope.
 Pytest default fixture invocation is "function", meaning the code in the fixture will be executed every time the fixture is called.
 Broader scopes (class, module etc) will invoke the code only once within the given scope and all tests within the scope will use the same instance.
@@ -126,7 +127,7 @@ def my_secret(request):
 
 
 ## Tests
-- Pytest reports failures in fixtures as `ERROR` and `FAILED` for test failures.
+- Pytest reports tes failures as `FAILED`.
 - Each test should have a clear purpose and should be easy to understand.
 - Each test should verify a single aspect of the product.
 - Preferably, each test should be independent of other tests.

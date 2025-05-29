@@ -21,8 +21,8 @@ To contribute code to the project:
 ## Pull requests
 - Fork the project and work on your forked repository
 - Before submitting a new pull request:
-  - Make sure you follow the [Coding_and_style guide](CODING_AND_STYLE_GUIDE.md)
-  - Check the [prerequisites](#Prerequisites) section under the [Development](#development) section
+  - Make sure you follow the [Coding and Style Guide](CODING_AND_STYLE_GUIDE.md)
+  - Check the [prerequisites](#prerequisites) section under the [Development](#development) section
 - PRs that are not ready for review (but needed to be pushed for any reason) should be set as `Draft` in GitHub.
   - When a PR is ready for review, mark it as ready for review.
 - PRs should be relatively small; if needed, the PRs should be split and depend on each other.
@@ -58,22 +58,12 @@ If needed, once your PR is merged to `main`, cherry-pick your PR to the relevant
   - Make sure you have [tox](https://tox.readthedocs.io/en/latest/) package installed
 
 ## Coding standards and style guide
-- Refer to the [coding_and_style guide](CODING_AND_STYLE_GUIDE.md) for styleguide.
+- Refer to the [coding_and_style guide](CODING_AND_STYLE_GUIDE.md) for style guide rules.
 
 ## Interacting with Kubernetes/OpenShift APIs
 The project utilizes [openshift-python-wrapper](https://github.com/RedHatQE/openshift-python-wrapper).
 Please refer to the [documentation](https://github.com/RedHatQE/openshift-python-wrapper/blob/main/README.md)
 and the [examples](https://github.com/RedHatQE/openshift-python-wrapper/tree/main/examples) for more information.
-
-
-## Fork openshift-virtualization-tests repo
-
-Open https://github.com/RedHatQE/openshift-virtualization-tests and fork it to your GitHub account.
-
-## Clone your forked repo
-```bash
-git clone https://github.com/<your-github-username>/openshift-virtualization-tests.git
-```
 
 ## How to verify your patch
 
@@ -125,7 +115,7 @@ It is essential to have a good commit message if you want your change to be revi
 
 #### Build and push a container with your changes
 
-Comment your GitHub PR:
+Comment on your GitHub PR:
 
 ```bash
 /build-and-push-container
@@ -134,7 +124,7 @@ Comment your GitHub PR:
 You can add additional arguments when creating the container. Supported arguments can be found in the Dockerfile
 and Makefile of the openshift-virtualization-tests repository.
 
-For example, this command will create a container with the openshift-virtualization-tests PR it was run against and the latest commit of
+For example, this command will create a container with the openshift-virtualization-tests PR it was run against and the a specific commit of
 a wrapper PR:
 
 ```bash
@@ -150,7 +140,7 @@ Open relevant test jobs in jenkins
 Click on Build with Parameters.
 Under `CLUSTER_NAME` enter your cluster's name.
 Under `IMAGE_TAG` enter your image tag, example: openshift-virtualization-tests-github:pr-<pr_number>
-This same field can be used to test a specific container created from a openshift-virtualization-tests PR.
+This same field can be used to test a specific container created from an openshift-virtualization-tests PR.
 
 To pass parameters to pytest command add them to `PYTEST_PARAMS`.
-for example `-k 'network'` will run only tests that match 'network'
+for example `-k 'network'` will run only tests that match 'network' keyword

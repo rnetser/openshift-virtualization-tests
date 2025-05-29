@@ -20,7 +20,7 @@ This project runs tests on an OpenShift cluster with Openshift Virtualization (C
 Some tests may require additional StorageClasses to be deployed.
 
 When running Windows tests, the cluster should have at least 16GiB RAM (XL deployment)
-and 80G volume size (default deployment configuration).
+and 80G volume size.
 
 You can log in into such a cluster via:
 
