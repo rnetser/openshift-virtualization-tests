@@ -44,6 +44,7 @@ To contribute code to the project:
     - PRs must be approved (by adding `/approve` comment) by at least one of the approvers in the root `OWNERS` file.
       If the `OWNERS` file relevant to the modified code contains `root-approvers: False`, the approvers in the root `OWNERS` file are not required to approve the PR.
   - All CI checks must pass.
+    - If `can-be-merged` check is marked as failed, check the job to see the reason(s).
 
 ## Branching strategy
 The project follows Red Hat Openshift Virtualization versions lifecycle.
@@ -124,7 +125,7 @@ Comment on your GitHub PR:
 You can add additional arguments when creating the container. Supported arguments can be found in the Dockerfile
 and Makefile of the openshift-virtualization-tests repository.
 
-For example, this command will create a container with the openshift-virtualization-tests PR it was run against and the a specific commit of
+For example, this command will create a container with the openshift-virtualization-tests PR it was run against and a specific commit of
 a wrapper PR:
 
 ```bash
