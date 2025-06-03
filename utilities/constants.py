@@ -97,7 +97,8 @@ class ArchImages:
 
         Rhel = Rhel()
         Rhel.RHEL9_5_IMG = "rhel-95-aarch64.qcow2"
-        Rhel.LATEST_RELEASE_STR = Rhel.RHEL9_5_IMG
+        Rhel.RHEL9_6_IMG = "rhel-96-aarch64.qcow2"
+        Rhel.LATEST_RELEASE_STR = Rhel.RHEL9_6_IMG
 
         Windows = Windows()
         Fedora = Fedora()

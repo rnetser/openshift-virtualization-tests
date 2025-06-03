@@ -39,7 +39,7 @@ storage_class_matrix = [
     {HppCsiStorageClass.Name.HOSTPATH_CSI_BASIC: HPP_CAPABILITIES},
 ]
 
-rhel_os_matrix = generate_os_matrix_dict(os_name="rhel", supported_operating_systems=["rhel-9-5"])
+rhel_os_matrix = generate_os_matrix_dict(os_name="rhel", supported_operating_systems=["rhel-9-5", "rhel-9-6"])
 
 latest_rhel_os_dict = get_latest_os_dict_list(os_list=[rhel_os_matrix])[0]
 
