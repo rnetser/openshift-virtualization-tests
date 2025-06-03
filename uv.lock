@@ -767,6 +767,7 @@ dependencies = [
     { name = "pytest" },
     { name = "pytest-benchmark" },
     { name = "pytest-dependency" },
+    { name = "pytest-html-reporter" },
     { name = "pytest-jira" },
     { name = "pytest-order" },
     { name = "pytest-progress" },
@@ -820,6 +821,7 @@ requires-dist = [
     { name = "pytest", specifier = ">=8.3.3" },
     { name = "pytest-benchmark", specifier = ">=5.1.0" },
     { name = "pytest-dependency", specifier = ">=0.6.0" },
+    { name = "pytest-html-reporter", specifier = ">=0.2.9" },
     { name = "pytest-jira", specifier = "~=0.3.21" },
     { name = "pytest-order", specifier = ">=1.3.0" },
     { name = "pytest-progress", specifier = ">=1.3.0" },
@@ -1170,6 +1172,16 @@ dependencies = [
     { name = "setuptools" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/7e/3b/317cc04e77d707d338540ca67b619df8f247f3f4c9f40e67bf5ea503ad94/pytest-dependency-0.6.0.tar.gz", hash = "sha256:934b0e6a39d95995062c193f7eaeed8a8ffa06ff1bcef4b62b0dc74a708bacc1", size = 19499, upload-time = "2023-12-31T20:38:54.991Z" }
+
+[[package]]
+name = "pytest-html-reporter"
+version = "0.2.9"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "pillow" },
+    { name = "pytest" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/ed/d0/a35a17d6d5a265316252819c30e075bf39a57461e0f17418e7ecefa480fc/pytest-html-reporter-0.2.9.tar.gz", hash = "sha256:0f1c526d1533c40961ebe3b7af6127e2f0c7719f22d49d93d94e635af7bc280b", size = 24754, upload-time = "2022-02-13T18:45:42.366Z" }
 
 [[package]]
 name = "pytest-jira"

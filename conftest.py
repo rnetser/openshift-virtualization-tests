@@ -491,20 +491,31 @@ def pytest_report_teststatus(report, config):
     test_name = report.head_line
     when = report.when
     call_str = "call"
+
     if report.passed:
         if when == call_str:
             BASIC_LOGGER.info(f"\nTEST: {test_name} STATUS: \033[0;32mPASSED\033[0m")
+        return None
 
     elif report.skipped:
-        BASIC_LOGGER.info(f"\nTEST: {test_name} STATUS: \033[1;33mSKIPPED\033[0m")
+        type = "XFAILED" if report.wasxfail else "SKIPPED"
+        BASIC_LOGGER.info(f"\nTEST: {test_name} STATUS: \033[1;33m{type}\033[0m")
+
+        if getattr(report, "quarantined", False):
+            return "quarantined", report.wasxfail, ("XFAILED", {"yellow": True})
+        return None
 
     elif report.failed:
         if when != call_str:
             BASIC_LOGGER.info(f"\nTEST: {test_name} [{when}] STATUS: \033[0;31mERROR\033[0m")
+            return None
         else:
             BASIC_LOGGER.info(f"\nTEST: {test_name} STATUS: \033[0;31mFAILED\033[0m")
+            return None
+    return None
 
 
+@pytest.hookimpl(hookwrapper=True)
 def pytest_runtest_makereport(item, call):
     """
     incremental tests implementation
@@ -512,6 +523,12 @@ def pytest_runtest_makereport(item, call):
     if call.excinfo is not None and "incremental" in item.keywords:
         parent = item.parent
         parent._previousfailed = item
+
+    outcome = yield
+    report = outcome.get_result()
+
+    if report.when == "setup" and "quarantined" in report.wasxfail and call.excinfo.typename == "XFailed":
+        setattr(report, "quarantined", True)
 
 
 def pytest_fixture_setup(fixturedef, request):
