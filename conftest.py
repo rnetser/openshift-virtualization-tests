@@ -87,8 +87,14 @@ NAMESPACE_COLLECTION = {
     "network": ["openshift-nmstate"],
     "virt": [],
 }
-MUST_GATHER_IGNORE_EXCEPTION_LIST = [MissingEnvironmentVariableError, StorageSanityError, ConflictError]
+MUST_GATHER_IGNORE_EXCEPTION_LIST = [
+    MissingEnvironmentVariableError,
+    StorageSanityError,
+    ConflictError,
+]
 INSPECT_BASE_COMMAND = "oc adm inspect"
+
+QUARANTINED = "quarantined"
 
 
 def pytest_addoption(parser):
@@ -111,7 +117,9 @@ def pytest_addoption(parser):
         help="Run OCP or CNV or EUS upgrade tests",
     )
     install_upgrade_group.addoption(
-        "--upgrade_custom", choices=["cnv", "ocp"], help="Run OCP or CNV upgrade tests with custom lanes"
+        "--upgrade_custom",
+        choices=["cnv", "ocp"],
+        help="Run OCP or CNV upgrade tests with custom lanes",
     )
 
     # CNV upgrade options
@@ -501,8 +509,8 @@ def pytest_report_teststatus(report, config):
         type = "XFAILED" if report.wasxfail else "SKIPPED"
         BASIC_LOGGER.info(f"\nTEST: {test_name} STATUS: \033[1;33m{type}\033[0m")
 
-        if getattr(report, "quarantined", False):
-            return "quarantined", report.wasxfail, ("XFAILED", {"yellow": True})
+        if getattr(report, QUARANTINED, False):
+            return QUARANTINED, report.wasxfail, ("XFAILED", {"yellow": True})
         return None
 
     elif report.failed:
@@ -527,8 +535,13 @@ def pytest_runtest_makereport(item, call):
     outcome = yield
     report = outcome.get_result()
 
-    if report.when == "setup" and "quarantined" in report.wasxfail and call.excinfo.typename == "XFailed":
-        setattr(report, "quarantined", True)
+    if (
+        report.when == "setup"
+        and hasattr(report, "wasxfail")
+        and QUARANTINED in report.wasxfail
+        and call.excinfo.typename == "XFailed"
+    ):
+        setattr(report, QUARANTINED, True)
 
 
 def pytest_fixture_setup(fixturedef, request):
@@ -761,7 +774,8 @@ def pytest_exception_interact(node: Item | Collector, call: CallInfo[Any], repor
             try:
                 collection_dir = os.path.join(get_data_collector_dir(), "pytest_exception_interact")
                 collect_default_cnv_must_gather_with_vm_gather(
-                    since_time=calculate_must_gather_timer(test_start_time=test_start_time), target_dir=collection_dir
+                    since_time=calculate_must_gather_timer(test_start_time=test_start_time),
+                    target_dir=collection_dir,
                 )
                 if inspect_str:
                     target_dir = os.path.join(collection_dir, "inspect_collection")
