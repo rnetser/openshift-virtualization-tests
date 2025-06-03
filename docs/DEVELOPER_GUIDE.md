@@ -31,9 +31,9 @@ To contribute code to the project:
   - Both the reviewer and the committer will benefit from this.
 - When a refactor is needed as part of the current PR, the refactor should be done in another PR and the current PR should be rebased on it.
 - Please address each comment in code review
-  - If a comment was addressed and accepted, please comment as done.
-      If the commentator agrees with the resolution, they should then mark with 👍.
-      The PR owner can the set the comment as `resolved`.
+  - If a comment is addressed and accepted:
+      - The author should comment “done” and add 👍 if they agree with the resolution.
+      - The author can then mark that comment as `resolved`.
   - If a comment was addressed and rejected or additional discussion is needed, add your input and do not resolve the comment.
   - To minimize the number of comments, please try to address all comments in one PR.
 - The repository is using [CodeRabbit](https://www.coderabbit.ai/) for PR reviews; all comments must be addressed in the PR.
