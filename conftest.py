@@ -504,16 +504,18 @@ def pytest_report_teststatus(report, config):
             BASIC_LOGGER.info(f"\nTEST: {test_name} STATUS: \033[0;32mPASSED\033[0m")
         return None
 
-    elif report.skipped:
+    if report.skipped:
         quarantined = getattr(report, QUARANTINED, False)
-        skip_type = QUARANTINED.upper() if quarantined else "XFAILED" if report.wasxfail else "SKIPPED"
+        test_xfailed = getattr(report, "wasxfail", False)
+
+        skip_type = QUARANTINED.upper() if quarantined else "XFAILED" if test_xfailed else "SKIPPED"
         BASIC_LOGGER.info(f"\nTEST: {test_name} STATUS: \033[1;33m{skip_type}\033[0m")
 
         if quarantined:
             return QUARANTINED, report.wasxfail, (QUARANTINED, {"yellow": True})
         return None
 
-    elif report.failed:
+    if report.failed:
         if when != call_str:
             BASIC_LOGGER.info(f"\nTEST: {test_name} [{when}] STATUS: \033[0;31mERROR\033[0m")
             return None
