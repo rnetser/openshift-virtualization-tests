@@ -15,6 +15,7 @@ from ocp_resources.pod_metrics import PodMetrics
 from ocp_resources.resource import Resource, ResourceEditor, get_client
 from ocp_resources.storage_class import StorageClass
 from ocp_resources.virtual_machine import VirtualMachine
+from ocp_resources.virtual_machine_instance_migration import VirtualMachineInstanceMigration
 from ocp_resources.virtual_machine_restore import VirtualMachineRestore
 from pyhelper_utils.shell import run_command, run_ssh_commands
 from pytest_testconfig import py_config
@@ -28,9 +29,12 @@ from tests.observability.metrics.constants import (
     KUBEVIRT_CONSOLE_ACTIVE_CONNECTIONS_BY_VMI,
     KUBEVIRT_VM_CREATED_TOTAL_STR,
     KUBEVIRT_VMI_MEMORY_DOMAIN_BYTE,
+    KUBEVIRT_VMI_MIGRATIONS_IN_RUNNING_PHASE,
+    KUBEVIRT_VMI_MIGRATIONS_IN_SCHEDULING_PHASE,
     KUBEVIRT_VMI_PHASE_COUNT_STR,
     KUBEVIRT_VMI_STATUS_ADDRESSES,
     KUBEVIRT_VNC_ACTIVE_CONNECTIONS_BY_VMI,
+    RSS_MEMORY_COMMAND,
 )
 from tests.observability.metrics.utils import (
     SINGLE_VM,
@@ -64,6 +68,7 @@ from utilities.constants import (
     CDI_UPLOAD_TMP_PVC,
     CLUSTER_NETWORK_ADDONS_OPERATOR,
     COUNT_FIVE,
+    MIGRATION_POLICY_VM_LABEL,
     ONE_CPU_CORE,
     OS_FLAVOR_FEDORA,
     PVC,
@@ -72,7 +77,9 @@ from utilities.constants import (
     TCP_TIMEOUT_30SEC,
     TIMEOUT_1MIN,
     TIMEOUT_2MIN,
+    TIMEOUT_3MIN,
     TIMEOUT_4MIN,
+    TIMEOUT_5MIN,
     TIMEOUT_5SEC,
     TIMEOUT_10MIN,
     TIMEOUT_15SEC,
@@ -108,7 +115,6 @@ UPLOAD_STR = "upload"
 CDI_UPLOAD_PRIME = "cdi-upload-prime"
 IP_RE_PATTERN_FROM_INTERFACE = r"eth0.*?inet (\d+\.\d+\.\d+\.\d+)/\d+"
 IP_ADDR_SHOW_COMMAND = shlex.split("ip addr show")
-RSS_MEMORY_COMMAND = shlex.split("bash -c \"cat /sys/fs/cgroup/memory.stat | grep '^anon ' | awk '{print $2}'\"")
 LOGGER = logging.getLogger(__name__)
 
 
@@ -803,53 +809,6 @@ def vm_for_test_with_resource_limits(namespace):
         yield vm
 
 
-@pytest.fixture(scope="class")
-def highest_memory_usage_virt_api_pod(hco_namespace, admin_client):
-    oc_adm_top_pod_output = (
-        run_command(command=shlex.split(f"oc adm top pod -n {hco_namespace.name} -l kubevirt.io=virt-api"))[1]
-        .strip()
-        .split("\n")[1:]
-    )
-    virt_api_with_highest_memory_usage = max(
-        {pod.split()[0]: int(bitmath.parse_string_unsafe(pod.split()[2])) for pod in oc_adm_top_pod_output}.items(),
-        key=lambda pod: pod[1],
-    )
-    return {
-        "virt_api_pod": virt_api_with_highest_memory_usage[0],
-        "memory_usage": virt_api_with_highest_memory_usage[1],
-    }
-
-
-@pytest.fixture(scope="class")
-def virt_api_requested_memory(hco_namespace, admin_client, highest_memory_usage_virt_api_pod):
-    return float(
-        bitmath.parse_string_unsafe(
-            get_pod_by_name_prefix(
-                dyn_client=admin_client,
-                pod_prefix=highest_memory_usage_virt_api_pod["virt_api_pod"],
-                namespace=hco_namespace.name,
-            )
-            .instance.spec.containers[0]
-            .resources.requests.memory
-        )
-    )
-
-
-@pytest.fixture()
-def virt_api_rss_memory(admin_client, hco_namespace, highest_memory_usage_virt_api_pod):
-    return int(
-        bitmath.Byte(
-            int(
-                get_pod_by_name_prefix(
-                    dyn_client=admin_client,
-                    pod_prefix=highest_memory_usage_virt_api_pod["virt_api_pod"],
-                    namespace=hco_namespace.name,
-                ).execute(command=RSS_MEMORY_COMMAND)
-            )
-        ).MiB
-    )
-
-
 @pytest.fixture()
 def vm_memory_working_set_bytes(vm_for_test, virt_launcher_pod_metrics_resource_exists):
     samples = TimeoutSampler(
@@ -1131,3 +1090,78 @@ def windows_vm_for_test(namespace, unprivileged_client):
         storage_class=py_config["default_storage_class"],
     ) as vm:
         yield vm
+
+
+@pytest.fixture()
+def initial_migration_metrics_values(prometheus):
+    yield {
+        metric: get_metric_sum_value(prometheus=prometheus, metric=metric)
+        for metric in [KUBEVIRT_VMI_MIGRATIONS_IN_SCHEDULING_PHASE, KUBEVIRT_VMI_MIGRATIONS_IN_RUNNING_PHASE]
+    }
+
+
+@pytest.fixture(scope="class")
+def vm_for_migration_metrics_test(namespace, cpu_for_migration):
+    name = "vm-for-migration-metrics-test"
+    with VirtualMachineForTests(
+        name=name,
+        namespace=namespace.name,
+        body=fedora_vm_body(name=name),
+        cpu_model=cpu_for_migration,
+        additional_labels=MIGRATION_POLICY_VM_LABEL,
+    ) as vm:
+        running_vm(vm=vm, check_ssh_connectivity=False)
+        yield vm
+
+
+@pytest.fixture()
+def vm_migration_metrics_vmim(vm_for_migration_metrics_test):
+    with VirtualMachineInstanceMigration(
+        name="vm-migration-metrics-vmim",
+        namespace=vm_for_migration_metrics_test.namespace,
+        vmi_name=vm_for_migration_metrics_test.vmi.name,
+    ) as vmim:
+        vmim.wait_for_status(status=vmim.Status.RUNNING, timeout=TIMEOUT_3MIN)
+        yield vmim
+
+
+@pytest.fixture(scope="class")
+def vm_migration_metrics_vmim_scope_class(vm_for_migration_metrics_test):
+    with VirtualMachineInstanceMigration(
+        name="vm-migration-metrics-vmim",
+        namespace=vm_for_migration_metrics_test.namespace,
+        vmi_name=vm_for_migration_metrics_test.vmi.name,
+    ) as vmim:
+        vmim.wait_for_status(status=vmim.Status.RUNNING, timeout=TIMEOUT_3MIN)
+        yield vmim
+
+
+@pytest.fixture()
+def vm_with_node_selector(namespace, worker_node1):
+    name = "vm-with-node-selector"
+    with VirtualMachineForTests(
+        name=name,
+        namespace=namespace.name,
+        body=fedora_vm_body(name=name),
+        additional_labels=MIGRATION_POLICY_VM_LABEL,
+        node_selector=get_node_selector_dict(node_selector=worker_node1.name),
+    ) as vm:
+        running_vm(vm=vm)
+        yield vm
+
+
+@pytest.fixture()
+def vm_with_node_selector_vmim(vm_with_node_selector):
+    with VirtualMachineInstanceMigration(
+        name="vm-with-node-selector-vmim",
+        namespace=vm_with_node_selector.namespace,
+        vmi_name=vm_with_node_selector.vmi.name,
+    ) as vmim:
+        yield vmim
+
+
+@pytest.fixture(scope="class")
+def migration_succeeded_scope_class(vm_migration_metrics_vmim_scope_class):
+    vm_migration_metrics_vmim_scope_class.wait_for_status(
+        status=vm_migration_metrics_vmim_scope_class.Status.SUCCEEDED, timeout=TIMEOUT_5MIN
+    )
