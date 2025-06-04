@@ -53,7 +53,7 @@ export OPENSHIFT_VIRTUALIZATION_TEST_IMAGES_ARCH=<desired-architecture>
 
 If an unsupported architecture is specified, a `ValueError` will be raised.
 
-Images for different architectures are managed under [utilities/constants.py](utilities/constants.py) - `ArchImages`
+Images for different architectures are managed under [utilities/constants.py](../utilities/constants.py) - `ArchImages`
 
 
 ## Python and dependencies
