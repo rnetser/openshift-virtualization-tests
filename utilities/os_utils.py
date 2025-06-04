@@ -107,6 +107,7 @@ FEDORA_OS_MAPPING: dict[str, dict[str, str | Any]] = {
     FLAVOR_STR: Template.Flavor.SMALL,
     "fedora-41": {
         IMAGE_NAME_STR: "FEDORA41_IMG",
+        OS_VERSION_STR: "41",
         OS_STR: "fedora41",
     },
 }
@@ -116,6 +117,7 @@ CENTOS_OS_MAPPING: dict[str, dict[str, str | Any]] = {
     FLAVOR_STR: Template.Flavor.TINY,
     "centos-stream-9": {
         IMAGE_NAME_STR: "CENTOS_STREAM_9_IMG",
+        OS_VERSION_STR: "9",
         OS_STR: "centos-stream9",
     },
 }
@@ -198,9 +200,7 @@ def generate_os_matrix_dict(os_name: str, supported_operating_systems: list[str]
                 raise ValueError(f"{os_name} is missing {image_name_str} attribute")
 
             os_base_dict = {
-                OS_VERSION_STR: base_version_dict.get(
-                    OS_VERSION_STR
-                ),  # OS_VERSION_STR is not mandatory; missing in Fedora and Centos
+                OS_VERSION_STR: base_version_dict[OS_VERSION_STR],
                 IMAGE_NAME_STR: image_name,
                 IMAGE_PATH_STR: os.path.join(image_path_str, image_name),
                 DV_SIZE_STR: dv_size,
