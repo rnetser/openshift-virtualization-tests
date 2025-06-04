@@ -542,9 +542,9 @@ def pytest_runtest_makereport(item, call):
 
         extras = getattr(report, "extras", [])
         if match := re.search(r"CNV-\d+", report.wasxfail):
+            extras = getattr(report, "extras", [])
             extras.append(pytest_html.extras.url(f"https://issues.redhat.com/browse/{match.group(0)}"))
-
-        report.extras = extras
+            report.extras = extras
 
 
 def pytest_fixture_setup(fixturedef, request):
