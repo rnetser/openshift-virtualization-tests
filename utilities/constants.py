@@ -252,6 +252,7 @@ CDI_CONFIGMAPS = [
 UTILITY = "utility"
 WORKERS_TYPE = "WORKERS_TYPE"
 FILTER_BY_OS_OPTION = f"filter-by-os=linux/{AMD_64}"
+QUARANTINED = "quarantined"
 
 # Kernel Device Driver
 # Compute: GPU Devices are bound to this Kernel Driver for GPU Passthrough.
@@ -817,4 +818,3 @@ OS_STR = "os"
 WORKLOAD_STR = "workload"
 LATEST_RELEASE_STR = "latest_released"
 OS_VERSION_STR = "os_version"
-QUARANTINED = "quarantined"
