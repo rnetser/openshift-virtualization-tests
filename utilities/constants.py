@@ -26,7 +26,15 @@ from urllib3.exceptions import (
     ResponseError,
 )
 
-from libs.infra.images import BASE_IMAGES_DIR, Cdi, CentOS, Cirros, Fedora, Rhel, Windows
+from libs.infra.images import (
+    BASE_IMAGES_DIR,
+    Cdi,
+    Centos,
+    Cirros,
+    Fedora,
+    Rhel,
+    Windows,
+)
 
 # Images
 NON_EXISTS_IMAGE = "non-exists-image-test-cnao-alerts"
@@ -39,101 +47,106 @@ X86_64 = "x86_64"
 
 class ArchImages:
     class X86_64:  # noqa: N801
-        Cirros = Cirros()
-        Cirros.RAW_IMG = "cirros-0.4.0-x86_64-disk.raw"
-        Cirros.RAW_IMG_GZ = "cirros-0.4.0-x86_64-disk.raw.gz"
-        Cirros.RAW_IMG_XZ = "cirros-0.4.0-x86_64-disk.raw.xz"
-        Cirros.QCOW2_IMG = "cirros-0.4.0-x86_64-disk.qcow2"
-        Cirros.QCOW2_IMG_GZ = "cirros-0.4.0-x86_64-disk.qcow2.gz"
-        Cirros.QCOW2_IMG_XZ = "cirros-0.4.0-x86_64-disk.qcow2.xz"
-        Cirros.DISK_DEMO = "cirros-registry-disk-demo"
+        Cirros = Cirros(
+            RAW_IMG="cirros-0.4.0-x86_64-disk.raw",
+            RAW_IMG_GZ="cirros-0.4.0-x86_64-disk.raw.gz",
+            RAW_IMG_XZ="cirros-0.4.0-x86_64-disk.raw.xz",
+            QCOW2_IMG="cirros-0.4.0-x86_64-disk.qcow2",
+            QCOW2_IMG_GZ="cirros-0.4.0-x86_64-disk.qcow2.gz",
+            QCOW2_IMG_XZ="cirros-0.4.0-x86_64-disk.qcow2.xz",
+            DISK_DEMO="cirros-registry-disk-demo",
+        )
 
-        Rhel = Rhel()
-        Rhel.RHEL7_8_IMG = "rhel-78.qcow2"
-        Rhel.RHEL7_9_IMG = "rhel-79.qcow2"
-        Rhel.RHEL8_0_IMG = "rhel-8.qcow2"
-        Rhel.RHEL8_2_IMG = "rhel-82.qcow2"
-        Rhel.RHEL8_8_IMG = "rhel-88.qcow2"
-        Rhel.RHEL8_9_IMG = "rhel-89.qcow2"
-        Rhel.RHEL8_10_IMG = "rhel-810.qcow2"
-        Rhel.RHEL9_3_IMG = "rhel-93.qcow2"
-        Rhel.RHEL9_4_IMG = "rhel-94.qcow2"
-        Rhel.RHEL9_6_IMG = "rhel-96.qcow2"
-        Rhel.LATEST_RELEASE_STR = Rhel.RHEL9_6_IMG
+        Rhel = Rhel(
+            RHEL7_8_IMG="rhel-78.qcow2",
+            RHEL7_9_IMG="rhel-79.qcow2",
+            RHEL8_0_IMG="rhel-8.qcow2",
+            RHEL8_2_IMG="rhel-82.qcow2",
+            RHEL8_8_IMG="rhel-88.qcow2",
+            RHEL8_9_IMG="rhel-89.qcow2",
+            RHEL8_10_IMG="rhel-810.qcow2",
+            RHEL9_3_IMG="rhel-93.qcow2",
+            RHEL9_4_IMG="rhel-94.qcow2",
+            RHEL9_6_IMG="rhel-96.qcow2",
+            LATEST_RELEASE_STR=Rhel.RHEL9_6_IMG,
+        )
 
-        Windows = Windows()
-        Windows.WIN10_IMG = "win_10_uefi.qcow2"
-        Windows.WIN10_WSL2_IMG = "win_10_wsl2_uefi.qcow2"
-        Windows.WIN10_ISO_IMG = "Win10_22H2_English_x64.iso"
-        Windows.WIN2k16_IMG = "win_2k16_uefi.qcow2"
-        Windows.WIN2k19_IMG = "win_2k19_uefi.qcow2"
-        Windows.WIN2k25_IMG = "win_2k25_uefi.qcow2"
-        Windows.WIN2k19_HA_IMG = "win_2019_virtio.qcow2"
-        Windows.WIN11_IMG = "win_11.qcow2"
-        Windows.WIN11_WSL2_IMG = "win_11_wsl2.qcow2"
-        Windows.WIN11_ISO_IMG = "en-us_windows_11_business_editions_version_24h2_x64_dvd_59a1851e.iso"
-        Windows.WIN19_RAW = "win_2k19_uefi.raw"
-        Windows.WIN2022_IMG = "win_2022.qcow2"
-        Windows.WIN2022_ISO_IMG = "Windows_Server_2022_x64FRE_en-us.iso"
-        Windows.WIN2025_ISO_IMG = "windows_server_2025_x64_dvd_eval.iso"
-        Windows.LATEST_RELEASE_STR = Windows.WIN2k19_IMG
+        Windows = Windows(
+            WIN10_IMG="win_10_uefi.qcow2",
+            WIN10_WSL2_IMG="win_10_wsl2_uefi.qcow2",
+            WIN10_ISO_IMG="Win10_22H2_English_x64.iso",
+            WIN2k16_IMG="win_2k16_uefi.qcow2",
+            WIN2k19_IMG="win_2k19_uefi.qcow2",
+            WIN2k25_IMG="win_2k25_uefi.qcow2",
+            WIN2k19_HA_IMG="win_2019_virtio.qcow2",
+            WIN11_IMG="win_11.qcow2",
+            WIN11_WSL2_IMG="win_11_wsl2.qcow2",
+            WIN11_ISO_IMG="en-us_windows_11_business_editions_version_24h2_x64_dvd_59a1851e.iso",
+            WIN19_RAW="win_2k19_uefi.raw",
+            WIN2022_IMG="win_2022.qcow2",
+            WIN2022_ISO_IMG="Windows_Server_2022_x64FRE_en-us.iso",
+            WIN2025_ISO_IMG="windows_server_2025_x64_dvd_eval.iso",
+            LATEST_RELEASE_STR=Windows.WIN2k19_IMG,
+        )
 
-        Fedora = Fedora()
-        Fedora.FEDORA41_IMG = "Fedora-Cloud-Base-Generic-41-1.4.x86_64.qcow2"
-        Fedora.FEDORA_CONTAINER_IMAGE = "quay.io/openshift-cnv/qe-cnv-tests-fedora:41"
-        Fedora.DISK_DEMO = "fedora-cloud-registry-disk-demo"
-        Fedora.LATEST_RELEASE_STR = Fedora.FEDORA41_IMG
+        Fedora = Fedora(
+            FEDORA41_IMG="Fedora-Cloud-Base-Generic-41-1.4.x86_64.qcow2",
+            FEDORA_CONTAINER_IMAGE="quay.io/openshift-cnv/qe-cnv-tests-fedora:41",
+            DISK_DEMO="fedora-cloud-registry-disk-demo",
+            LATEST_RELEASE_STR=Fedora.FEDORA41_IMG,
+        )
 
-        CentOS = CentOS()
-        CentOS.CENTOS_STREAM_9_IMG = "CentOS-Stream-GenericCloud-9-20220107.0.x86_64.qcow2"
-        CentOS.LATEST_RELEASE_STR = CentOS.CENTOS_STREAM_9_IMG
+        Centos = Centos(
+            CENTOS_STREAM_9_IMG="CentOS-Stream-GenericCloud-9-20220107.0.x86_64.qcow2",
+            LATEST_RELEASE_STR=Centos.CENTOS_STREAM_9_IMG,
+        )
 
-        Cdi = Cdi()
-        Cdi.QCOW2_IMG = "cirros-qcow2.img"
+        Cdi = Cdi(QCOW2_IMG="cirros-qcow2.img")
 
     class ARM64:
-        Cirros = Cirros()
-        Cirros.RAW_IMG_XZ = "cirros-0.4.0-aarch64-disk.raw.xz"
+        Cirros = Cirros(RAW_IMG_XZ="cirros-0.4.0-aarch64-disk.raw.xz")
 
-        Rhel = Rhel()
-        Rhel.RHEL9_5_IMG = "rhel-95-aarch64.qcow2"
-        Rhel.RHEL9_6_IMG = "rhel-96-aarch64.qcow2"
-        Rhel.LATEST_RELEASE_STR = Rhel.RHEL9_6_IMG
+        Rhel = Rhel(
+            RHEL9_5_IMG="rhel-95-aarch64.qcow2",
+            RHEL9_6_IMG="rhel-96-aarch64.qcow2",
+            LATEST_RELEASE_STR=Rhel.RHEL9_6_IMG,
+        )
 
         Windows = Windows()
         Fedora = Fedora()
-        CentOS = CentOS()
+        Centos = Centos()
         Cdi = Cdi()
 
     class S390X:
-        Cirros = Cirros()
-        # TODO: S390X does not support Cirros; this is a workaround until tests are moved to Fedora
-        Cirros.RAW_IMG = "Fedora-Cloud-Base-Generic-41-1.4.s390x.raw"
-        Cirros.RAW_IMG_GZ = "Fedora-Cloud-Base-Generic-41-1.4.s390x.raw.gz"
-        Cirros.RAW_IMG_XZ = "Fedora-Cloud-Base-Generic-41-1.4.s390x.raw.xz"
-        Cirros.QCOW2_IMG = "Fedora-Cloud-Base-Generic-41-1.4.s390x.qcow2"
-        Cirros.QCOW2_IMG_GZ = "Fedora-Cloud-Base-Generic-41-1.4.s390x.qcow2.gz"
-        Cirros.QCOW2_IMG_XZ = "Fedora-Cloud-Base-Generic-41-1.4.s390x.qcow2.xz"
-        Cirros.DISK_DEMO = "fedora-cloud-registry-disk-demo"
-        Cirros.DIR = f"{BASE_IMAGES_DIR}/fedora-images"
-        Cirros.DEFAULT_DV_SIZE = "10Gi"
-        Cirros.DEFAULT_MEMORY_SIZE = "1Gi"
+        Cirros = Cirros(
+            # TODO: S390X does not support Cirros; this is a workaround until tests are moved to Fedora
+            RAW_IMG="Fedora-Cloud-Base-Generic-41-1.4.s390x.raw",
+            RAW_IMG_GZ="Fedora-Cloud-Base-Generic-41-1.4.s390x.raw.gz",
+            RAW_IMG_XZ="Fedora-Cloud-Base-Generic-41-1.4.s390x.raw.xz",
+            QCOW2_IMG="Fedora-Cloud-Base-Generic-41-1.4.s390x.qcow2",
+            QCOW2_IMG_GZ="Fedora-Cloud-Base-Generic-41-1.4.s390x.qcow2.gz",
+            QCOW2_IMG_XZ="Fedora-Cloud-Base-Generic-41-1.4.s390x.qcow2.xz",
+            DISK_DEMO="fedora-cloud-registry-disk-demo",
+            DIR=f"{BASE_IMAGES_DIR}/fedora-images",
+            DEFAULT_DV_SIZE="10Gi",
+            DEFAULT_MEMORY_SIZE="1Gi",
+        )
 
-        Rhel = Rhel()
-        Rhel.RHEL9_5_IMG = "rhel-95-s390x.qcow2"
-        Rhel.LATEST_RELEASE_STR = Rhel.RHEL9_5_IMG
+        Rhel = Rhel(RHEL9_5_IMG="rhel-95-s390x.qcow2", LATEST_RELEASE_STR=Rhel.RHEL9_5_IMG)
 
-        Fedora = Fedora()
-        Fedora.FEDORA41_IMG = "Fedora-Cloud-Base-Generic-41-1.4.s390x.qcow2"
-        Fedora.FEDORA_CONTAINER_IMAGE = "quay.io/openshift-cnv/qe-cnv-tests-fedora:41"
-        Fedora.DISK_DEMO = "fedora-cloud-registry-disk-demo"
-        Fedora.LATEST_RELEASE_STR = Fedora.FEDORA41_IMG
+        Fedora = Fedora(
+            FEDORA41_IMG="Fedora-Cloud-Base-Generic-41-1.4.s390x.qcow2",
+            FEDORA_CONTAINER_IMAGE="quay.io/openshift-cnv/qe-cnv-tests-fedora:41",
+            DISK_DEMO="fedora-cloud-registry-disk-demo",
+            LATEST_RELEASE_STR=Fedora.FEDORA41_IMG,
+        )
 
-        Cdi = Cdi()
-        # TODO: S390X does not support Cirros; this is a workaround until tests are moved to Fedora
-        Cdi.QCOW2_IMG = "Fedora-Cloud-Base-Generic-41-1.4.s390x.qcow2"
-        Cdi.DIR = f"{BASE_IMAGES_DIR}/fedora-images"
-        Cdi.DEFAULT_DV_SIZE = "10Gi"
+        Cdi = Cdi(
+            # TODO: S390X does not support Cirros; this is a workaround until tests are moved to Fedora
+            QCOW2_IMG="Fedora-Cloud-Base-Generic-41-1.4.s390x.qcow2",
+            DIR=f"{BASE_IMAGES_DIR}/fedora-images",
+            DEFAULT_DV_SIZE="10Gi",
+        )
 
         Windows = Windows()
 
@@ -770,7 +783,14 @@ POD_CONTAINER_SPEC = {
 # Penryn - does not support WSL2
 EXCLUDED_CPU_MODELS = ["Opteron", "Penryn"]
 # Latest windows can't boot with old cpu models
-EXCLUDED_OLD_CPU_MODELS = [*EXCLUDED_CPU_MODELS, "Westmere", "SandyBridge", "Nehalem", "IvyBridge", "Skylake"]
+EXCLUDED_OLD_CPU_MODELS = [
+    *EXCLUDED_CPU_MODELS,
+    "Westmere",
+    "SandyBridge",
+    "Nehalem",
+    "IvyBridge",
+    "Skylake",
+]
 
 AAQ_VIRTUAL_RESOURCES = "VirtualResources"
 AAQ_VMI_POD_USAGE = "VmiPodUsage"

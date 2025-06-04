@@ -83,7 +83,7 @@ class Fedora:
 
 
 @dataclass
-class CentOS:
+class Centos:
     CENTOS_STREAM_9_IMG: str | None = None
     DIR: str = f"{BASE_IMAGES_DIR}/centos-images"
     DEFAULT_DV_SIZE: str = "15Gi"
@@ -94,4 +94,4 @@ class CentOS:
 class Cdi:
     QCOW2_IMG: str | None = None
     DIR: str = f"{BASE_IMAGES_DIR}/cdi-test-images"
-    DEFAULT_DV_SIZE = "1Gi"
+    DEFAULT_DV_SIZE: str = "1Gi"

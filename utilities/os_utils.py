@@ -23,7 +23,7 @@ from utilities.constants import (
     Images,
 )
 
-RHEL_OS_MAPPING = {
+RHEL_OS_MAPPING: dict[str, dict[str, Any]] = {
     WORKLOAD_STR: Template.Workload.SERVER,
     FLAVOR_STR: Template.Flavor.TINY,
     "rhel-7-8": {
@@ -63,7 +63,7 @@ RHEL_OS_MAPPING = {
     },
 }
 
-WINDOWS_OS_MAPPING = {
+WINDOWS_OS_MAPPING: dict[str, dict[str, str | Any]] = {
     WORKLOAD_STR: Template.Workload.SERVER,
     FLAVOR_STR: Template.Flavor.MEDIUM,
     "win-10": {
@@ -102,7 +102,7 @@ WINDOWS_OS_MAPPING = {
     },
 }
 
-FEDORA_OS_MAPPING = {
+FEDORA_OS_MAPPING: dict[str, dict[str, str | Any]] = {
     WORKLOAD_STR: Template.Workload.SERVER,
     FLAVOR_STR: Template.Flavor.SMALL,
     "fedora-41": {
@@ -111,7 +111,7 @@ FEDORA_OS_MAPPING = {
     },
 }
 
-CENTOS_OS_MAPPING = {
+CENTOS_OS_MAPPING: dict[str, dict[str, str | Any]] = {
     WORKLOAD_STR: Template.Workload.SERVER,
     FLAVOR_STR: Template.Flavor.TINY,
     "centos-stream-9": {
@@ -152,40 +152,56 @@ def generate_os_matrix_dict(os_name: str, supported_operating_systems: list[str]
     Raises:
         ValueError: If the OS name is not supported or if the supported operating systems list is empty.
     """
-    if os_name == "rhel":
-        base_dict = RHEL_OS_MAPPING
-    elif os_name == "windows":
-        base_dict = WINDOWS_OS_MAPPING
-    elif os_name == "fedora":
-        base_dict = FEDORA_OS_MAPPING
-    elif os_name == "centos":
-        base_dict = CENTOS_OS_MAPPING
-    else:
-        raise ValueError(f"Unsupported OS: {os_name}. Supported: rhel, win, fedora and centos")
+    match os_name:
+        case "rhel":
+            base_dict = RHEL_OS_MAPPING
 
-    class_name = "CentOS" if os_name == "centos" else os_name.title()
+        case "windows":
+            base_dict = WINDOWS_OS_MAPPING
 
-    try:
-        os_base_class = getattr(Images, class_name)
-    except AttributeError:
+        case "fedora":
+            base_dict = FEDORA_OS_MAPPING
+
+        case "centos":
+            base_dict = CENTOS_OS_MAPPING
+
+        case _:
+            raise ValueError(f"Unsupported OS: {os_name}. Supported: rhel, win, fedora and centos")
+
+    os_base_class = getattr(Images, os_name.title(), None)
+    if not os_base_class:
         raise ValueError(
             f"Unsupported OS: {os_name}. "
             "Make sure it is supported under `utilities.constants.ArchImages` class for cluster architecture."
         )
 
-    latest_os_release = getattr(os_base_class, "LATEST_RELEASE_STR")
+    latest_os_release = getattr(os_base_class, "LATEST_RELEASE_STR", None)
+    if not latest_os_release:
+        raise ValueError(f"{os_name} is missing `LATEST_RELEASE_STR` attribute")
 
-    os_formatted_list = []
-    unsupported_versions = []
+    image_path_str = getattr(os_base_class, "DIR", None)
+    if not image_path_str:
+        raise ValueError(f"{os_name} is missing `DIR` attribute")
+
+    dv_size = getattr(os_base_class, "DEFAULT_DV_SIZE", None)
+    if not dv_size:
+        raise ValueError(f"{os_name} is missing `DEFAULT_DV_SIZE` attribute")
+
+    os_formatted_list: list[dict[str, dict[str, str | bool]]] = []
+    unsupported_versions: list[str] = []
 
     for version in supported_operating_systems:
         if base_version_dict := base_dict.get(version):
-            image_name = getattr(os_base_class, base_dict[version][IMAGE_NAME_STR])
+            image_name_str = base_dict[version][IMAGE_NAME_STR]
+            image_name = getattr(os_base_class, image_name_str, None)
+            if not image_name:
+                raise ValueError(f"{os_name} is missing {image_name_str} attribute")
+
             os_base_dict = {
-                OS_VERSION_STR: base_version_dict.get(OS_VERSION_STR),
+                OS_VERSION_STR: base_version_dict[OS_VERSION_STR],
                 IMAGE_NAME_STR: image_name,
-                IMAGE_PATH_STR: os.path.join(getattr(os_base_class, "DIR"), image_name),
-                DV_SIZE_STR: getattr(os_base_class, "DEFAULT_DV_SIZE"),
+                IMAGE_PATH_STR: os.path.join(image_path_str, image_name),
+                DV_SIZE_STR: dv_size,
                 TEMPLATE_LABELS_STR: {
                     OS_STR: base_version_dict[OS_STR],
                     WORKLOAD_STR: base_version_dict.get(WORKLOAD_STR, base_dict[WORKLOAD_STR]),
@@ -207,14 +223,14 @@ def generate_os_matrix_dict(os_name: str, supported_operating_systems: list[str]
     return os_formatted_list
 
 
-def generate_instance_type_rhel_os_matrix(preference: str) -> list[dict[str, dict[str, Any]]]:
+def generate_instance_type_rhel_os_matrix(preference: str) -> list[dict[str, dict[str, str | bool]]]:
     return [
         {
             "rhel-10": {
                 OS_VERSION_STR: "10",
                 DV_SIZE_STR: Images.Rhel.DEFAULT_DV_SIZE,
                 INSTANCE_TYPE_STR: "u1.medium",
-                PREFERENCE_STR: "rhel.10",
+                PREFERENCE_STR: preference,
                 DATA_SOURCE_NAME: "rhel10",
                 LATEST_RELEASE_STR: True,
             }
