@@ -29,7 +29,7 @@ from pytest_testconfig import config as py_config
 
 import utilities.infra
 from utilities.bitwarden import get_cnv_tests_secret_by_name
-from utilities.constants import TIMEOUT_5MIN, NamespacesNames
+from utilities.constants import QUARANTINED, TIMEOUT_5MIN, NamespacesNames
 from utilities.data_collector import (
     collect_default_cnv_must_gather_with_vm_gather,
     get_data_collector_dir,
@@ -94,8 +94,6 @@ MUST_GATHER_IGNORE_EXCEPTION_LIST = [
     ConflictError,
 ]
 INSPECT_BASE_COMMAND = "oc adm inspect"
-
-QUARANTINED = "quarantined"
 
 
 def pytest_addoption(parser):
