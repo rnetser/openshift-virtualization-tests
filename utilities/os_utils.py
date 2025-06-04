@@ -198,7 +198,9 @@ def generate_os_matrix_dict(os_name: str, supported_operating_systems: list[str]
                 raise ValueError(f"{os_name} is missing {image_name_str} attribute")
 
             os_base_dict = {
-                OS_VERSION_STR: base_version_dict[OS_VERSION_STR],
+                OS_VERSION_STR: base_version_dict.get(
+                    OS_VERSION_STR
+                ),  # OS_VERSION_STR is not mandatory; missing in Fedora and Centos
                 IMAGE_NAME_STR: image_name,
                 IMAGE_PATH_STR: os.path.join(image_path_str, image_name),
                 DV_SIZE_STR: dv_size,

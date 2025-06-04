@@ -68,8 +68,8 @@ class ArchImages:
             RHEL9_3_IMG="rhel-93.qcow2",
             RHEL9_4_IMG="rhel-94.qcow2",
             RHEL9_6_IMG="rhel-96.qcow2",
-            LATEST_RELEASE_STR=Rhel.RHEL9_6_IMG,
         )
+        Rhel.LATEST_RELEASE_STR = Rhel.RHEL9_6_IMG
 
         Windows = Windows(
             WIN10_IMG="win_10_uefi.qcow2",
@@ -86,20 +86,18 @@ class ArchImages:
             WIN2022_IMG="win_2022.qcow2",
             WIN2022_ISO_IMG="Windows_Server_2022_x64FRE_en-us.iso",
             WIN2025_ISO_IMG="windows_server_2025_x64_dvd_eval.iso",
-            LATEST_RELEASE_STR=Windows.WIN2k19_IMG,
         )
+        Windows.LATEST_RELEASE_STR = Windows.WIN2k19_IMG
 
         Fedora = Fedora(
             FEDORA41_IMG="Fedora-Cloud-Base-Generic-41-1.4.x86_64.qcow2",
             FEDORA_CONTAINER_IMAGE="quay.io/openshift-cnv/qe-cnv-tests-fedora:41",
             DISK_DEMO="fedora-cloud-registry-disk-demo",
-            LATEST_RELEASE_STR=Fedora.FEDORA41_IMG,
         )
+        Fedora.LATEST_RELEASE_STR = Fedora.FEDORA41_IMG
 
-        Centos = Centos(
-            CENTOS_STREAM_9_IMG="CentOS-Stream-GenericCloud-9-20220107.0.x86_64.qcow2",
-            LATEST_RELEASE_STR=Centos.CENTOS_STREAM_9_IMG,
-        )
+        Centos = Centos(CENTOS_STREAM_9_IMG="CentOS-Stream-GenericCloud-9-20220107.0.x86_64.qcow2")
+        Centos.LATEST_RELEASE_STR = Centos.CENTOS_STREAM_9_IMG
 
         Cdi = Cdi(QCOW2_IMG="cirros-qcow2.img")
 
@@ -109,8 +107,8 @@ class ArchImages:
         Rhel = Rhel(
             RHEL9_5_IMG="rhel-95-aarch64.qcow2",
             RHEL9_6_IMG="rhel-96-aarch64.qcow2",
-            LATEST_RELEASE_STR=Rhel.RHEL9_6_IMG,
         )
+        Rhel.LATEST_RELEASE_STR = Rhel.RHEL9_6_IMG
 
         Windows = Windows()
         Fedora = Fedora()
@@ -132,14 +130,15 @@ class ArchImages:
             DEFAULT_MEMORY_SIZE="1Gi",
         )
 
-        Rhel = Rhel(RHEL9_5_IMG="rhel-95-s390x.qcow2", LATEST_RELEASE_STR=Rhel.RHEL9_5_IMG)
+        Rhel = Rhel(RHEL9_5_IMG="rhel-95-s390x.qcow2")
+        Rhel.LATEST_RELEASE_STR = Rhel.RHEL9_5_IMG
 
         Fedora = Fedora(
             FEDORA41_IMG="Fedora-Cloud-Base-Generic-41-1.4.s390x.qcow2",
             FEDORA_CONTAINER_IMAGE="quay.io/openshift-cnv/qe-cnv-tests-fedora:41",
             DISK_DEMO="fedora-cloud-registry-disk-demo",
-            LATEST_RELEASE_STR=Fedora.FEDORA41_IMG,
         )
+        Fedora.LATEST_RELEASE_STR = Fedora.FEDORA41_IMG
 
         Cdi = Cdi(
             # TODO: S390X does not support Cirros; this is a workaround until tests are moved to Fedora
