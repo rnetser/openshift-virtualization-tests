@@ -17,19 +17,30 @@ def test_2():
     return
 
 
-@pytest.mark.xfail(
-    reason=(
-        "Network infrastructure is slow from time to time. "
-        "Due to that, test might fail with packet loss greater than 2%"
-    ),
-    raises=HighPacketLossError,
-)
+@pytest.mark.xfail(reason="quarantined, CNV-1111, my reason", run=False)
 @pytest.mark.polarion("CNV-113")
 def test_3():
     return
 
 
-@pytest.mark.xfail(reason="test4 fail")
-@pytest.mark.polarion("CNV-114")
+@pytest.mark.polarion("CNV-1124")
 def test_4():
-    raise ValueError("yy")
+    return
+
+
+# @pytest.mark.xfail(
+#     reason=(
+#         "Network infrastructure is slow from time to time. "
+#         "Due to that, test might fail with packet loss greater than 2%"
+#     ),
+#     raises=HighPacketLossError,
+# )
+# @pytest.mark.polarion("CNV-113")
+# def test_3():
+#     return
+#
+#
+# @pytest.mark.xfail(reason="test4 fail")
+# @pytest.mark.polarion("CNV-114")
+# def test_4():
+#     raise ValueError("yy")

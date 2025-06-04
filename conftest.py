@@ -15,6 +15,7 @@ import traceback
 from typing import Any
 
 import pytest
+import pytest_html
 import shortuuid
 from _pytest.config import Config
 from _pytest.nodes import Collector, Node
@@ -506,11 +507,12 @@ def pytest_report_teststatus(report, config):
         return None
 
     elif report.skipped:
-        type = "XFAILED" if report.wasxfail else "SKIPPED"
-        BASIC_LOGGER.info(f"\nTEST: {test_name} STATUS: \033[1;33m{type}\033[0m")
+        quarantined = getattr(report, QUARANTINED, False)
+        skip_type = QUARANTINED.upper() if quarantined else "XFAILED" if report.wasxfail else "SKIPPED"
+        BASIC_LOGGER.info(f"\nTEST: {test_name} STATUS: \033[1;33m{skip_type}\033[0m")
 
-        if getattr(report, QUARANTINED, False):
-            return QUARANTINED, report.wasxfail, ("XFAILED", {"yellow": True})
+        if quarantined:
+            return QUARANTINED, report.wasxfail, (QUARANTINED, {"yellow": True})
         return None
 
     elif report.failed:
@@ -535,13 +537,14 @@ def pytest_runtest_makereport(item, call):
     outcome = yield
     report = outcome.get_result()
 
-    if (
-        report.when == "setup"
-        and hasattr(report, "wasxfail")
-        and QUARANTINED in report.wasxfail
-        and call.excinfo.typename == "XFailed"
-    ):
+    if report.when == "setup" and hasattr(report, "wasxfail") and QUARANTINED in report.wasxfail:
         setattr(report, QUARANTINED, True)
+
+        extras = getattr(report, "extras", [])
+        if match := re.search(r"CNV-\d+", report.wasxfail):
+            extras.append(pytest_html.extras.url(f"https://issues.redhat.com/browse/{match.group(0)}"))
+
+        report.extras = extras
 
 
 def pytest_fixture_setup(fixturedef, request):
@@ -792,3 +795,17 @@ def pytest_exception_interact(node: Item | Collector, call: CallInfo[Any], repor
                     )
             except Exception as current_exception:
                 LOGGER.warning(f"Failed to collect logs: {test_name}: {current_exception} {traceback.format_exc()}")
+
+
+@pytest.mark.optionalhook
+def pytest_html_results_table_header(cells):
+    cells.insert(2, f"<th>{QUARANTINED.title()} Reason</th>")
+
+
+@pytest.mark.optionalhook
+def pytest_html_results_table_row(report, cells):
+    if getattr(report, QUARANTINED, False) and "reason" in report.wasxfail:
+        cells.insert(2, f"<th>{report.wasxfail}</th>")
+
+    else:
+        cells.insert(2, "<th></th>")
