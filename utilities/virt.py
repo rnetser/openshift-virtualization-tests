@@ -1549,7 +1549,7 @@ def get_guest_os_info(vmi):
         raise
 
 
-def get_windows_os_dict(windows_version: str) -> dict[str, str | bool]:
+def get_windows_os_dict(windows_version: str) -> dict[str, Any]:
     """
     Returns a dictionary of Windows os information from the system_windows_os_matrix in py_config.
 
@@ -1576,7 +1576,7 @@ def get_windows_os_dict(windows_version: str) -> dict[str, str | bool]:
     return {}
 
 
-def get_rhel_os_dict(rhel_version: str) -> dict[str, str | bool]:
+def get_rhel_os_dict(rhel_version: str) -> dict[str, Any]:
     """
     Returns a dictionary of RHEL os information from the system_rhel_os_matrix in py_config.
 
