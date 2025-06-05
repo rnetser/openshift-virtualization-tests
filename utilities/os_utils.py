@@ -72,16 +72,19 @@ WINDOWS_OS_MAPPING: dict[str, dict[str, str | Any]] = {
         OS_STR: WIN_10,
         WORKLOAD_STR: Template.Workload.DESKTOP,
         FLAVOR_STR: Template.Flavor.MEDIUM,
+        "uefi": True,
     },
     "win-2016": {
         IMAGE_NAME_STR: "WIN2k16_IMG",
         OS_VERSION_STR: "2016",
         OS_STR: "win2k16",
+        "uefi": True,
     },
     "win-2019": {
         IMAGE_NAME_STR: "WIN2k19_IMG",
         OS_VERSION_STR: "2019",
         OS_STR: "win2k19",
+        "uefi": True,
     },
     "win-11": {
         IMAGE_NAME_STR: "WIN11_IMG",
@@ -99,6 +102,7 @@ WINDOWS_OS_MAPPING: dict[str, dict[str, str | Any]] = {
         IMAGE_NAME_STR: "WIN2k25_IMG",
         OS_VERSION_STR: "2025",
         OS_STR: WIN_2K25,
+        "uefi": True,
     },
 }
 
@@ -198,6 +202,11 @@ def generate_os_matrix_dict(os_name: str, supported_operating_systems: list[str]
             image_name = getattr(os_base_class, image_name_str, None)
             if not image_name:
                 raise ValueError(f"{os_name} is missing {image_name_str} attribute")
+
+            if base_version_dict.get("uefi"):
+                image_path_str = getattr(os_base_class, "UEFI_WIN_DIR", None)
+                if not image_path_str:
+                    raise ValueError(f"{os_name} is missing `UEFI_WIN_DIR` attribute")
 
             os_base_dict = {
                 OS_VERSION_STR: base_version_dict[OS_VERSION_STR],
