@@ -67,7 +67,8 @@ def get_matrix_params(pytest_config, matrix_name):
 
         # Do not raise when running --collect-only or --setup-plan
         if not _base_matrix_params and not _skip_if_pytest_flags_exists:
-            raise ValueError(missing_matrix_error)
+            LOGGER.warning(missing_matrix_error)
+            return []
 
         # When running --collect-only or --setup-plan we cannot execute functions from pytest_matrix_utils
         if _skip_if_pytest_flags_exists:
@@ -79,11 +80,12 @@ def get_matrix_params(pytest_config, matrix_name):
                 sys.modules[module_name] = importlib.import_module(name=module_name)
 
             pytest_matrix_utils = sys.modules[module_name]
-            matrix_func = getattr(pytest_matrix_utils, _matrix_func_name)
+            matrix_func = getattr(pytest_matrix_utils, _matrix_func_name, None)
             return matrix_func(matrix=_base_matrix_params)
 
     if not _matrix_params and not _skip_if_pytest_flags_exists:
-        raise ValueError(missing_matrix_error)
+        LOGGER.warning(missing_matrix_error)
+        return []
 
     return _matrix_params if isinstance(_matrix_params, list) else [_matrix_params]
 
