@@ -1549,7 +1549,19 @@ def get_guest_os_info(vmi):
         raise
 
 
-def get_windows_os_dict(windows_version):
+def get_windows_os_dict(windows_version: str) -> dict[str, str | bool]:
+    """
+    Returns a dictionary of Windows os information from the system_windows_os_matrix in py_config.
+
+    Args:
+        windows_version: The version of windows to get the os information for.
+
+    Returns:
+        dict: OS dictionary for the version, or empty dict if matrix is missing
+
+    Raises:
+        KeyError: If matrix exists but version is not found
+    """
     if system_windows_os_matrix := py_config.get("system_windows_os_matrix"):
         windows_os_dict = [
             os_dict
@@ -1564,7 +1576,19 @@ def get_windows_os_dict(windows_version):
     return {}
 
 
-def get_rhel_os_dict(rhel_version):
+def get_rhel_os_dict(rhel_version: str) -> dict[str, str | bool]:
+    """
+    Returns a dictionary of RHEL os information from the system_rhel_os_matrix in py_config.
+
+    Args:
+        rhel_version: The version of RHEL to get the os information for.
+
+    Returns:
+        dict: OS dictionary for the version, or empty dict if matrix is missing
+
+    Raises:
+        KeyError: If matrix exists but version is not found
+    """
     if py_system_rhel_os_matrix := py_config.get("system_rhel_os_matrix"):
         rhel_os_dict = [
             os_dict
