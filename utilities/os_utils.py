@@ -185,10 +185,6 @@ def generate_os_matrix_dict(os_name: str, supported_operating_systems: list[str]
     if not latest_os_release:
         raise ValueError(f"{os_name} is missing `LATEST_RELEASE_STR` attribute")
 
-    image_path_str = getattr(os_base_class, "DIR", None)
-    if not image_path_str:
-        raise ValueError(f"{os_name} is missing `DIR` attribute")
-
     dv_size = getattr(os_base_class, "DEFAULT_DV_SIZE", None)
     if not dv_size:
         raise ValueError(f"{os_name} is missing `DEFAULT_DV_SIZE` attribute")
@@ -207,6 +203,11 @@ def generate_os_matrix_dict(os_name: str, supported_operating_systems: list[str]
                 image_path_str = getattr(os_base_class, "UEFI_WIN_DIR", None)
                 if not image_path_str:
                     raise ValueError(f"{os_name} is missing `UEFI_WIN_DIR` attribute")
+
+            else:
+                image_path_str = getattr(os_base_class, "DIR", None)
+                if not image_path_str:
+                    raise ValueError(f"{os_name} is missing `DIR` attribute")
 
             os_base_dict = {
                 OS_VERSION_STR: base_version_dict[OS_VERSION_STR],
