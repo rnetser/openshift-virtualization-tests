@@ -158,21 +158,15 @@ def generate_os_matrix_dict(os_name: str, supported_operating_systems: list[str]
     Raises:
         ValueError: If the OS name is not supported or if the supported operating systems list is empty.
     """
-    match os_name:
-        case "rhel":
-            base_dict = RHEL_OS_MAPPING
-
-        case "windows":
-            base_dict = WINDOWS_OS_MAPPING
-
-        case "fedora":
-            base_dict = FEDORA_OS_MAPPING
-
-        case "centos":
-            base_dict = CENTOS_OS_MAPPING
-
-        case _:
-            raise ValueError(f"Unsupported OS: {os_name}. Supported: rhel, win, fedora and centos")
+    os_mappings = {
+        "rhel": RHEL_OS_MAPPING,
+        "windows": WINDOWS_OS_MAPPING,
+        "fedora": FEDORA_OS_MAPPING,
+        "centos": CENTOS_OS_MAPPING,
+    }
+    base_dict = os_mappings.get(os_name)
+    if not base_dict:
+        raise ValueError(f"Unsupported OS: {os_name}. Supported: rhel, windows, fedora, centos")
 
     os_base_class = getattr(Images, os_name.title(), None)
     if not os_base_class:
