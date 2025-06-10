@@ -27,16 +27,6 @@ EXPECTED_CLUSTER_INSTANCE_TYPE_LABELS[PREFERENCE_STR] = f"rhel.9.{ARM_64}"
 
 storage_class_matrix = [
     {
-        StorageClassNames.CEPH_RBD_VIRTUALIZATION: {
-            "volume_mode": DataVolume.VolumeMode.BLOCK,
-            "access_mode": DataVolume.AccessMode.RWX,
-            "snapshot": True,
-            "online_resize": True,
-            "wffc": False,
-            "default": True,
-        }
-    },
-    {
         StorageClassNames.TRIDENT_CSI_NFS: {
             "volume_mode": DataVolume.VolumeMode.FILE,
             "access_mode": DataVolume.AccessMode.RWX,
@@ -48,6 +38,9 @@ storage_class_matrix = [
     },
     {HppCsiStorageClass.Name.HOSTPATH_CSI_BASIC: HPP_CAPABILITIES},
 ]
+
+storage_class_for_storage_migration_a = StorageClassNames.TRIDENT_CSI_NFS
+storage_class_for_storage_migration_b = StorageClassNames.TRIDENT_CSI_NFS
 
 rhel_os_matrix = generate_os_matrix_dict(os_name="rhel", supported_operating_systems=["rhel-9-5", "rhel-9-6"])
 
