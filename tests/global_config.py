@@ -27,6 +27,7 @@ from utilities.constants import (
     KUBEVIRT_VMI_CPU_USER_USAGE_SECONDS_TOTAL_QUERY_STR,
     KUBEVIRT_VMI_VCPU_DELAY_SECONDS_TOTAL_QUERY_STR,
     LINUX_BRIDGE,
+    MONITORING_METRICS,
     OVS_BRIDGE,
     PRODUCTION_CATALOG_SOURCE,
     TEKTON_AVAILABLE_PIPELINEREF,
@@ -119,6 +120,8 @@ cnv_vm_resource_requests_units_matrix = [
 ]
 
 
+cnv_vmi_monitoring_metrics_matrix = MONITORING_METRICS
+
 cnv_cpu_usage_metrics_matrix = [
     KUBEVIRT_VMI_VCPU_DELAY_SECONDS_TOTAL_QUERY_STR,
     KUBEVIRT_VMI_CPU_USER_USAGE_SECONDS_TOTAL_QUERY_STR,
@@ -183,12 +186,7 @@ auto_update_data_source_matrix = [
 
 data_import_cron_matrix = [
     {"centos-stream9": {"instance_type": "u1.medium", "preference": "centos.stream9"}},
-    {
-        "centos-stream10": {
-            "instance_type": "u1.medium",
-            "preference": "centos.stream10",
-        }
-    },
+    {"centos-stream10": {"instance_type": "u1.medium", "preference": "centos.stream10"}},
     {"fedora": {"instance_type": "u1.medium", "preference": "fedora"}},
     {"rhel8": {"instance_type": "u1.medium", "preference": "rhel.8"}},
     {"rhel9": {"instance_type": "u1.medium", "preference": "rhel.9"}},
