@@ -784,14 +784,7 @@ POD_CONTAINER_SPEC = {
 # Penryn - does not support WSL2
 EXCLUDED_CPU_MODELS = ["Opteron", "Penryn"]
 # Latest windows can't boot with old cpu models
-EXCLUDED_OLD_CPU_MODELS = [
-    *EXCLUDED_CPU_MODELS,
-    "Westmere",
-    "SandyBridge",
-    "Nehalem",
-    "IvyBridge",
-    "Skylake",
-]
+EXCLUDED_OLD_CPU_MODELS = [*EXCLUDED_CPU_MODELS, "Westmere", "SandyBridge", "Nehalem", "IvyBridge", "Skylake"]
 
 AAQ_VIRTUAL_RESOURCES = "VirtualResources"
 AAQ_VMI_POD_USAGE = "VmiPodUsage"
