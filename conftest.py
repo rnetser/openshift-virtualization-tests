@@ -28,7 +28,7 @@ from pytest_testconfig import config as py_config
 
 import utilities.infra
 from utilities.bitwarden import get_cnv_tests_secret_by_name
-from utilities.constants import ERROR, QUARANTINED, TIMEOUT_5MIN, NamespacesNames
+from utilities.constants import QUARANTINED, SETUP_ERROR, TIMEOUT_5MIN, NamespacesNames
 from utilities.data_collector import (
     collect_default_cnv_must_gather_with_vm_gather,
     get_data_collector_dir,
@@ -549,11 +549,11 @@ def pytest_runtest_makereport(item, call):
                 report.wasxfail = wasxfail
 
         elif fail_error := re.search(r"(Failed): (.*?)\n", report.longreprtext):
-            setattr(report, ERROR, fail_error.group(2))
+            setattr(report, SETUP_ERROR, fail_error.group(2))
 
         elif report.failed and getattr(report.longrepr, "reprcrash", None):
             if message := getattr(report.longrepr, "message", None):
-                setattr(report, ERROR, message)
+                setattr(report, SETUP_ERROR, message)
 
 
 def pytest_fixture_setup(fixturedef, request):
@@ -811,7 +811,7 @@ def pytest_html_results_table_header(cells):
     cells.pop()  # Remove the `Links` column
 
     # Add the `Error` and `Quarantined` columns
-    cells.append(f"<th>{ERROR.title()} Reason</th>")
+    cells.append(f"<th>{SETUP_ERROR.title()} Reason</th>")
     cells.append(f"<th>{QUARANTINED.title()} Reason</th>")
 
 
@@ -823,7 +823,7 @@ def pytest_html_results_table_row(report, cells):
         cells.append("<th></th>")
         cells.append(f"<th>{report.wasxfail}</th>")
 
-    elif error_msg := getattr(report, ERROR, False):
+    elif error_msg := getattr(report, SETUP_ERROR, False):
         cells.append(f"<th>{error_msg}</th>")
         cells.append("<th></th>")
 
