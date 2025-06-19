@@ -65,9 +65,6 @@ def vm_from_golden_image(
                 "image": FEDORA_LATEST.get("image_path"),
                 "dv_size": FEDORA_LATEST.get("dv_size"),
             },
-            {
-                "use_full_storage_api": True,
-            },
             marks=pytest.mark.polarion("CNV-5582"),
         ),
     ],
