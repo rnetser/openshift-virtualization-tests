@@ -22,7 +22,6 @@ class Rhel:
     RHEL7_8_IMG: str | None = None
     RHEL7_9_IMG: str | None = None
     RHEL8_0_IMG: str | None = None
-    RHEL8_2_IMG: str | None = None
     RHEL8_8_IMG: str | None = None
     RHEL8_9_IMG: str | None = None
     RHEL8_10_IMG: str | None = None
