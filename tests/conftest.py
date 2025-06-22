@@ -70,7 +70,6 @@ from packaging.version import Version, parse
 from pytest_testconfig import config as py_config
 from timeout_sampler import TimeoutSampler
 
-import utilities.architecture
 import utilities.hco
 from tests.utils import download_and_extract_tar, update_cluster_cpu_model
 from utilities.bitwarden import get_cnv_tests_secret_by_name
@@ -148,6 +147,7 @@ from utilities.infra import (
     get_hyperconverged_resource,
     get_infrastructure,
     get_node_selector_dict,
+    get_nodes_cpu_architecture,
     get_nodes_cpu_model,
     get_nodes_with_label,
     get_pods,
@@ -1150,7 +1150,7 @@ def nodes_cpu_vendor(schedulable_nodes):
 
 @pytest.fixture(scope="session")
 def nodes_cpu_architecture(nodes):
-    return utilities.architecture.get_nodes_cpu_architecture(nodes=nodes)
+    return get_nodes_cpu_architecture(nodes=nodes)
 
 
 @pytest.fixture(scope="session")

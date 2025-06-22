@@ -9,9 +9,9 @@ from ocp_resources.node import Node
 from ocp_resources.virtual_machine import VirtualMachine, VirtualMachineInstance
 from pytest_testconfig import config as py_config
 
-import utilities.architecture
 from libs.vm.spec import CloudInitNoCloud, ContainerDisk, Disk, SpecDisk, VMSpec, Volume
 from utilities import infra
+from utilities.infra import get_nodes_cpu_architecture
 from utilities.virt import CLOUD_INIT_DISK_NAME, get_oc_image_info, vm_console_run_commands
 
 
@@ -80,7 +80,7 @@ def container_image(base_image: str) -> str:
     image_info = get_oc_image_info(
         image=base_image,
         pull_secret=pull_secret,
-        architecture=utilities.architecture.get_nodes_cpu_architecture(nodes=Node.get()),
+        architecture=get_nodes_cpu_architecture(nodes=Node.get()),
     )
     return f"{base_image}@{image_info['digest']}"
 
