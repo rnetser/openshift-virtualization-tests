@@ -1,5 +1,7 @@
 from dataclasses import dataclass
 
+from ocp_resources.resource import Resource
+
 BASE_IMAGES_DIR = "cnv-tests"
 
 
@@ -29,8 +31,8 @@ class Rhel:
     RHEL9_4_IMG: str | None = None
     RHEL9_5_IMG: str | None = None
     RHEL9_6_IMG: str | None = None
-    RHEL8_REGISTRY_GUEST_IMG: str = "registry.redhat.io/rhel8/rhel-guest-image"
-    RHEL9_REGISTRY_GUEST_IMG: str = "registry.redhat.io/rhel9/rhel-guest-image"
+    RHEL8_REGISTRY_GUEST_IMG: str = f"{Resource.ApiGroup.IMAGE_REGISTRY}/rhel8/rhel-guest-image"
+    RHEL9_REGISTRY_GUEST_IMG: str = f"{Resource.ApiGroup.IMAGE_REGISTRY}/rhel9/rhel-guest-image"
     # TODO: change back to registry.redhat.io when rhel10 is available
     RHEL10_REGISTRY_GUEST_IMG: str = "registry.stage.redhat.io/rhel10/rhel-guest-image"
     DIR: str = f"{BASE_IMAGES_DIR}/rhel-images"
