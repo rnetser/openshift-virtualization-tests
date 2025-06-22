@@ -1,20 +1,16 @@
 # Test Images Architecture Support
 
 The tests can dynamically select test images based on the system's architecture.
-This is controlled by the environment variable `OPENSHIFT_VIRTUALIZATION_TEST_IMAGES_ARCH`.
+B default, the architecture is extracted from the node's `arch` label.
+For CI, this is controlled by the environment variable `OPENSHIFT_VIRTUALIZATION_TEST_IMAGES_ARCH`.
 Note: to run on the default architecture `x86_64`, there's no need to set the environment variable.
 
 Supported architectures include:
 
-- `x86_64` (default)
+- `x86_64` (default, also known as `amd64`)
 - `arm64`
 - `s390x` (currently work in progress)
 
-Ensure the environment variable is set correctly before running the tests:
-
-```bash
-export OPENSHIFT_VIRTUALIZATION_TEST_IMAGES_ARCH=<desired-architecture>
-```
 
 ## Test markers and global_config
 To run tests on a specific architecture, add the path to the relevant `global_config` file and add `-m <architecture>` to the pytest command.

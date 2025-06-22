@@ -14,7 +14,8 @@ from ocp_resources.deployment import Deployment
 from ocp_resources.hyperconverged import HyperConverged
 from ocp_resources.kubevirt import KubeVirt
 from ocp_resources.network_addons_config import NetworkAddonsConfig
-from ocp_resources.resource import Resource
+from ocp_resources.node import Node
+from ocp_resources.resource import Resource, get_client
 from ocp_resources.role_binding import RoleBinding
 from ocp_resources.service import Service
 from ocp_resources.service_account import ServiceAccount
@@ -43,6 +44,9 @@ AMD_64 = "amd64"
 ARM_64 = "arm64"
 S390X = "s390x"
 X86_64 = "x86_64"
+
+# Architecture constants
+KUBERNETES_ARCH_LABEL = f"{Resource.ApiGroup.KUBERNETES_IO}/arch"
 
 
 class ArchImages:
@@ -150,7 +154,16 @@ class ArchImages:
 
 
 def get_test_images_arch_class() -> Any:
-    arch = os.environ.get("OPENSHIFT_VIRTUALIZATION_TEST_IMAGES_ARCH", X86_64)
+    # Needed for CI
+    arch = os.environ.get("OPENSHIFT_VIRTUALIZATION_TEST_IMAGES_ARCH")
+
+    if not arch:
+        # TODO: merge with `get_nodes_cpu_architecture`
+        nodes: list[Node] = list(Node.get(dyn_client=get_client()))
+        nodes_cpu_arch = {node.labels[KUBERNETES_ARCH_LABEL] for node in nodes}
+        arch = next(iter(nodes_cpu_arch))
+
+    arch = X86_64 if arch == AMD_64 else arch
 
     if arch not in (X86_64, ARM_64, S390X):
         raise ValueError(f"{arch} architecture in not supported")
