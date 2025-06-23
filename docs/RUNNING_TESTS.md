@@ -227,6 +227,13 @@ Logs will be available under tests-collected-info/ folder for local runs and /da
 uv run pytest <test_to_run> --data-collector
 ```
 
+Logs will be available under tests-collected-info/ folder for local runs and /data/tests-collected-info for containerized runs.
+To overwite the default path, use the --data-collector-path argument.
+
+```bash
+uv run pytest <test_to_run> --data-collector --data-collector-output-dir=<path>
+```
+
 To skip must-gather collection on a given module or test, skip_must_gather_collection can be used:
 
 ```bash
