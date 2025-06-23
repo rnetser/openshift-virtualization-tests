@@ -300,6 +300,11 @@ def pytest_cmdline_main(config):
                 f" Provided images: {eus_ocp_images}"
             )
 
+    if config.getoption("data_collector_output_dir") and not config.getoption("data_collector"):
+        raise ValueError(
+            "Data will not be collected because `--data-collector-output-dir` is set without `--data-collector`"
+        )
+
     # Default value is set as this value is used to set test name in
     # tests.upgrade_params.UPGRADE_TEST_DEPENDENCY_NODE_ID which is needed for pytest dependency marker
     py_config["upgraded_product"] = upgrade_option or config.getoption("--upgrade_custom") or "cnv"
