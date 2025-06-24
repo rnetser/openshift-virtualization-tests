@@ -737,7 +737,7 @@ sdist = { url = "https://files.pythonhosted.org/packages/5a/10/68d9af9cfa8917f3e
 
 [[package]]
 name = "openshift-virtualization-tests-4-20"
-version = "4.20
+version = "4.20"
 source = { editable = "." }
 dependencies = [
     { name = "bcrypt" },
