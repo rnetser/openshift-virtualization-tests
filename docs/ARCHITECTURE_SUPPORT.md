@@ -1,7 +1,7 @@
 # Test Images Architecture Support
 
 The tests can dynamically select test images based on the system's architecture.
-B default, the architecture is extracted from the node's `arch` label.
+By default, the architecture is extracted from the node's `arch` label.
 For CI, this is controlled by the environment variable `OPENSHIFT_VIRTUALIZATION_TEST_IMAGES_ARCH`.
 Note: to run on the default architecture `x86_64`, there's no need to set the environment variable.
 
@@ -40,7 +40,7 @@ To add a new architecture:
 - Add the architecture name to the `ARCHITECTURE_SUPPORT` list under [ARCHITECTURE_SUPPORT.md](ARCHITECTURE_SUPPORT.md)
 - Add a new pytest marker for the architecture
 - Add a new pytest global config file for the architecture under [tests/global_config_<architecture>.py](../tests/global_config_<architecture>.py)
-  - The file should contain the relevant os matrix(es); see [global_config_x86.py](../tests/global_config_x86.py) for an example
+  - The file should contain the relevant OS matrix(es); see [global_config_x86.py](../tests/global_config_x86.py) for an example
 - Add the architecture name as a constant under [constants.py](../utilities/constants.py)
 - Add the architecture name to the list of supported architectures under [get_test_images_arch_class](../utilities/constants.py)
 - Add the architecture name to the `ArchImages` under the relevant architecture and OS under [constants.py](../utilities/constants.py)
