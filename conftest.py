@@ -560,9 +560,13 @@ def pytest_runtest_makereport(item, call):
         elif fail_error := re.search(r"(Failed): (.*?)\n", report.longreprtext):
             setattr(report, SETUP_ERROR, fail_error.group(2))
 
-        elif report.failed and getattr(report.longrepr, "reprcrash", None):
-            if message := getattr(report.longrepr, "message", None):
-                setattr(report, SETUP_ERROR, message)
+        elif report.failed:
+            if reprcrash := getattr(report.longrepr, "reprcrash", None):
+                if message := getattr(report.longrepr, "message", None):
+                    setattr(report, SETUP_ERROR, message)
+
+                elif message := getattr(reprcrash, "message", None):
+                    setattr(report, SETUP_ERROR, message)
 
 
 def pytest_fixture_setup(fixturedef, request):
@@ -762,6 +766,8 @@ def get_inspect_command_namespace_string(node: Node, test_name: str) -> str:
                 namespaces_to_collect.append(NamespacesNames.NVIDIA_GPU_OPERATOR)
             if "swap" in all_markers:
                 namespaces_to_collect.append(NamespacesNames.WASP)
+            if "descheduler" in all_markers:
+                namespaces_to_collect.append(NamespacesNames.OPENSHIFT_KUBE_DESCHEDULER_OPERATOR)
         namespace_str = " ".join([f"namespace/{namespace}" for namespace in namespaces_to_collect])
     return namespace_str
 
