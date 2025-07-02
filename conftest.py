@@ -654,6 +654,9 @@ def pytest_sessionstart(session):
         # Update OS matrix list with the latest OS if running with os_group
         if session.config.getoption("latest_rhel") and rhel_os_matrix:
             py_config["rhel_os_matrix"] = [utilities.infra.generate_latest_os_dict(os_list=rhel_os_matrix)]
+            py_config["instance_type_rhel_os_matrix"] = [
+                utilities.infra.generate_latest_os_dict(os_list=py_config["instance_type_rhel_os_matrix"])
+            ]
 
         if session.config.getoption("latest_windows") and windows_os_matrix:
             py_config["windows_os_matrix"] = [utilities.infra.generate_latest_os_dict(os_list=windows_os_matrix)]

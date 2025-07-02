@@ -54,7 +54,7 @@ rhel_os_matrix = generate_os_matrix_dict(os_name="rhel", supported_operating_sys
 latest_rhel_os_dict = get_latest_os_dict_list(os_list=[rhel_os_matrix])[0]
 
 
-instance_type_rhel_os_matrix = generate_instance_type_rhel_os_matrix(preference=f"rhel.10.{ARM_64}")
+instance_type_rhel_os_matrix = generate_instance_type_rhel_os_matrix(preferences=[f"rhel.10.{ARM_64}"])
 
 for _dir in dir():
     if not config:  # noqa: F821
