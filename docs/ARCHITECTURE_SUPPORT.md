@@ -12,15 +12,14 @@ Supported architectures include:
 - `s390x` (currently work in progress)
 
 
-## Test markers and global_config
-To run tests on a specific architecture, add the path to the relevant `global_config` file and add `-m <architecture>` to the pytest command.
+## Test markers
+To run tests on a specific architecture, add `-m <architecture>` to the pytest command.
 
 For example:
 
 ```bash
-pytest  --tc-file=tests/global_config_x86.py
-pytest -m arm64  --tc-file=tests/global_config_arm64.py ...
-pytest -m s390x  --tc-file=tests/global_config_s390x.py ...
+pytest -m arm64 ...
+pytest -m s390x ...
 ```
 
 Note: to run on the default architecture `x86_64`, there's no need to set any architecture-specific markers.

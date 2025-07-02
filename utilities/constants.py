@@ -1,6 +1,3 @@
-import os
-from typing import Any
-
 from kubernetes.dynamic.exceptions import InternalServerError
 from ocp_resources.aaq import AAQ
 from ocp_resources.api_service import APIService
@@ -14,8 +11,7 @@ from ocp_resources.deployment import Deployment
 from ocp_resources.hyperconverged import HyperConverged
 from ocp_resources.kubevirt import KubeVirt
 from ocp_resources.network_addons_config import NetworkAddonsConfig
-from ocp_resources.node import Node
-from ocp_resources.resource import Resource, get_client
+from ocp_resources.resource import Resource
 from ocp_resources.role_binding import RoleBinding
 from ocp_resources.service import Service
 from ocp_resources.service_account import ServiceAccount
@@ -36,6 +32,7 @@ from libs.infra.images import (
     Rhel,
     Windows,
 )
+from utilities.architecture import get_cluster_architecture
 
 # Images
 NON_EXISTS_IMAGE = "non-exists-image-test-cnao-alerts"
@@ -156,26 +153,8 @@ class ArchImages:
         Windows = Windows()
 
 
-def get_test_images_arch_class() -> Any:
-    # Needed for CI
-    arch = os.environ.get("OPENSHIFT_VIRTUALIZATION_TEST_IMAGES_ARCH")
-
-    if not arch:
-        # TODO: merge with `get_nodes_cpu_architecture`
-        nodes: list[Node] = list(Node.get(dyn_client=get_client()))
-        nodes_cpu_arch = {node.labels[KUBERNETES_ARCH_LABEL] for node in nodes}
-        arch = next(iter(nodes_cpu_arch))
-
-    arch = X86_64 if arch == AMD_64 else arch
-
-    if arch not in (X86_64, ARM_64, S390X):
-        raise ValueError(f"{arch} architecture in not supported")
-
-    return getattr(ArchImages, arch.upper())
-
-
 # Choose the Image class according to the architecture. Default: x86_64
-Images = get_test_images_arch_class()
+Images = getattr(ArchImages, get_cluster_architecture().upper())
 
 
 # Virtctl constants

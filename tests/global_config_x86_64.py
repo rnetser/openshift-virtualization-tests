@@ -1,12 +1,9 @@
 from typing import Any
 
-import pytest_testconfig
-
 from utilities.infra import get_latest_os_dict_list
 from utilities.os_utils import generate_instance_type_rhel_os_matrix, generate_os_matrix_dict
 
 global config
-global_config = pytest_testconfig.load_python(py_file="tests/global_config.py", encoding="utf-8")
 
 rhel_os_matrix = generate_os_matrix_dict(
     os_name="rhel",

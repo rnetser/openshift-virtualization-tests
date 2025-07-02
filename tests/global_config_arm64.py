@@ -1,6 +1,5 @@
 from typing import Any
 
-import pytest_testconfig
 from ocp_resources.datavolume import DataVolume
 
 from utilities.constants import (
@@ -19,7 +18,6 @@ from utilities.os_utils import (
 from utilities.storage import HppCsiStorageClass
 
 global config
-global_config = pytest_testconfig.load_python(py_file="tests/global_config.py", encoding="utf-8")
 
 Images.Cirros.RAW_IMG_XZ = "cirros-0.4.0-aarch64-disk.raw.xz"
 EXPECTED_CLUSTER_INSTANCE_TYPE_LABELS[PREFERENCE_STR] = f"rhel.9.{ARM_64}"

@@ -1,7 +1,5 @@
 from typing import Any
 
-import pytest_testconfig
-
 import utilities.constants
 from utilities.constants import (
     EXPECTED_CLUSTER_INSTANCE_TYPE_LABELS,
@@ -12,7 +10,6 @@ from utilities.infra import get_latest_os_dict_list
 from utilities.os_utils import generate_os_matrix_dict
 
 global config
-global_config = pytest_testconfig.load_python(py_file="tests/global_config.py", encoding="utf-8")
 
 utilities.constants.OS_FLAVOR_CIRROS = "fedora"
 EXPECTED_CLUSTER_INSTANCE_TYPE_LABELS[PREFERENCE_STR] = f"rhel.9.{S390X}"
