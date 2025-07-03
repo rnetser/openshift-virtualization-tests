@@ -278,11 +278,6 @@ To run on single-nic cluster, use the following command:
 uv run pytest -m "conformance and single_nic" --default-storage-class <cluster default storage class> --skip-artifactory-check
 ```
 
-To run on an SR-IOV cluster, use the following command:
-```bash
-uv run pytest -m "conformance and sriov" --default-storage-class <cluster default storage class> --skip-artifactory-check
-```
-
 The default storage classes that are covered include: `ocs-storagecluster-ceph-rbd-virtualization`, `hostpath-csi-basic` and `hostpath-csi-pvc-block`
 To modify the set of storage classes that are tested:
 - Make a copy of [global_config.py](tests/global_config.py) file
