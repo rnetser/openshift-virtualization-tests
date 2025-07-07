@@ -51,7 +51,6 @@ def hotplugged_vm_with_cpu_auto_limits(vm_auto_resource_limits, unprivileged_cli
 
 
 @pytest.mark.gating
-@pytest.mark.conformance
 @pytest.mark.parametrize(
     "resource_quota_for_auto_resource_limits_test, vm_auto_resource_limits, expected_limits",
     [

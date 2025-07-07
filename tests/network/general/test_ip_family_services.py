@@ -105,7 +105,6 @@ def expected_num_families_in_service(request, dual_stack_cluster):
 
 
 @pytest.mark.gating
-@pytest.mark.conformance
 class TestServiceConfigurationViaManifest:
     @pytest.mark.polarion("CNV-5789")
     @pytest.mark.single_nic

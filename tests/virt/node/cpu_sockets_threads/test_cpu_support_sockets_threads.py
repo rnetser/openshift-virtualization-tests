@@ -108,7 +108,6 @@ def test_vm_with_no_cpu_settings(no_cpu_settings_vm):
 
 
 @pytest.mark.gating
-@pytest.mark.conformance
 @pytest.mark.polarion("CNV-2818")
 def test_vm_with_cpu_limitation(namespace, unprivileged_client):
     """
