@@ -2,7 +2,7 @@
 
 The tests can dynamically select test images based on the system's architecture.
 By default, the architecture is extracted from the node's `arch` label.
-For CI, this is controlled by the environment variable `OPENSHIFT_VIRTUALIZATION_TEST_IMAGES_ARCH`.
+For CI, or to run `--collect-only` without cluster access, this is controlled by the environment variable `OPENSHIFT_VIRTUALIZATION_TEST_IMAGES_ARCH`.
 Note: to run on the default architecture `x86_64`, there's no need to set the environment variable.
 
 Supported architectures include:
