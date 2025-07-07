@@ -229,7 +229,7 @@ def generate_os_matrix_dict(os_name: str, supported_operating_systems: list[str]
     return os_formatted_list
 
 
-def generate_instance_type_rhel_os_matrix(preferences: list[str]) -> list[dict[str, dict[str, str | bool]]]:
+def generate_instance_type_rhel_os_matrix(preferences: list[str]) -> list[dict[str, dict[str, Any]]]:
     """
     Generate a list of dictionaries representing the instance type matrix for RHEL OS.
 
@@ -239,7 +239,7 @@ def generate_instance_type_rhel_os_matrix(preferences: list[str]) -> list[dict[s
         preferences (list[str]): A list of preferences for the instance types. Preference format is "rhel-<version>".
 
     Returns:
-        list[dict[str, dict[str, str | bool]]]: A list of dictionaries representing the instance type matrix.
+        list[dict[str, dict[str, Any]]]: A list of dictionaries representing the instance type matrix.
     """
     base_instance_type_spec: dict[str, str] = {
         DV_SIZE_STR: Images.Rhel.DEFAULT_DV_SIZE,
@@ -249,10 +249,10 @@ def generate_instance_type_rhel_os_matrix(preferences: list[str]) -> list[dict[s
     if latest_rhel not in preferences:
         latest_rhel = f"rhel-{max([preference.split('-')[1] for preference in preferences])}"
 
-    instance_types: list[dict[str, dict[str, str | bool]]] = []
+    instance_types: list[dict[str, dict[str, Any]]] = []
 
     for preference in preferences:
-        preference_config: dict[str, str | bool] = {
+        preference_config: dict[str, Any] = {
             **base_instance_type_spec,
             PREFERENCE_STR: preference.replace("-", "."),
             DATA_SOURCE_NAME: preference.replace("-", ""),
