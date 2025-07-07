@@ -236,7 +236,7 @@ def generate_instance_type_rhel_os_matrix(preferences: list[str]) -> list[dict[s
     Each dictionary represents a specific instance type and its configuration.
 
     Args:
-        preferences (list[str]): A list of preferences for the instance types.
+        preferences (list[str]): A list of preferences for the instance types. Preference format is "rhel-<version>".
 
     Returns:
         list[dict[str, dict[str, str | bool]]]: A list of dictionaries representing the instance type matrix.
@@ -246,6 +246,8 @@ def generate_instance_type_rhel_os_matrix(preferences: list[str]) -> list[dict[s
         INSTANCE_TYPE_STR: "u1.medium",
     }
     latest_rhel = "rhel-10"
+    if latest_rhel not in preferences:
+        latest_rhel = f"rhel-{max([preference.split('-')[1] for preference in preferences])}"
 
     instance_types: list[dict[str, dict[str, str | bool]]] = []
 
