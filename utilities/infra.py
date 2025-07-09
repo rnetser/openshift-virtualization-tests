@@ -85,6 +85,7 @@ from utilities.constants import (
     TIMEOUT_10SEC,
     TIMEOUT_30SEC,
     VIRTCTL,
+    X86_64,
     NamespacesNames,
 )
 from utilities.data_collector import (
@@ -1006,7 +1007,7 @@ def download_file_from_cluster(get_console_spec_links_name, dest_dir):
 
 def get_machine_platform():
     os_machine_type = platform.machine()
-    return AMD_64 if os_machine_type == "x86_64" else os_machine_type
+    return AMD_64 if os_machine_type == X86_64 else os_machine_type
 
 
 def get_nodes_with_label(nodes, label):
