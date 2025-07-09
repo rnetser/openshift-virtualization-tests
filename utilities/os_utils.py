@@ -26,30 +26,15 @@ from utilities.constants import (
 RHEL_OS_MAPPING: dict[str, dict[str, Any]] = {
     WORKLOAD_STR: Template.Workload.SERVER,
     FLAVOR_STR: Template.Flavor.TINY,
-    "rhel-7-8": {
-        IMAGE_NAME_STR: "RHEL7_8_IMG",
-        OS_VERSION_STR: "7.8",
-        OS_STR: "rhel7.8",
-    },
     "rhel-7-9": {
         IMAGE_NAME_STR: "RHEL7_9_IMG",
         OS_VERSION_STR: "7.9",
         OS_STR: "rhel7.9",
     },
-    "rhel-8-8": {
-        IMAGE_NAME_STR: "RHEL8_8_IMG",
-        OS_VERSION_STR: "8.8",
-        OS_STR: "rhel8.8",
-    },
     "rhel-8-10": {
         IMAGE_NAME_STR: "RHEL8_10_IMG",
         OS_VERSION_STR: "8.10",
         OS_STR: "rhel8.10",
-    },
-    "rhel-9-4": {
-        IMAGE_NAME_STR: "RHEL9_4_IMG",
-        OS_VERSION_STR: "9.4",
-        OS_STR: "rhel9.4",
     },
     "rhel-9-5": {
         IMAGE_NAME_STR: "RHEL9_5_IMG",
@@ -141,13 +126,13 @@ def generate_os_matrix_dict(os_name: str, supported_operating_systems: list[str]
             Example:
                 [
                     {
-                    "rhel-7-8": {
-                        OS_VERSION_STR: "7.8",
-                        IMAGE_NAME_STR: "rhel-78.qcow2",
-                        IMAGE_PATH_STR: "cnv-tests/rhel-images/rhel-78.qcow2",
+                    "rhel-7-9": {
+                        OS_VERSION_STR: "7.9",
+                        IMAGE_NAME_STR: "rhel-79.qcow2",
+                        IMAGE_PATH_STR: "cnv-tests/rhel-images/rhel-79.qcow2",
                         DV_SIZE_STR:  "20Gi",
                         TEMPLATE_LABELS_STR: {
-                            OS_STR: "rhel7.8",
+                            OS_STR: "rhel7.9",
                             WORKLOAD_STR: "server",
                             FLAVOR_STR: "tiny",
                             },
