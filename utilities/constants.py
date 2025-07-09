@@ -48,13 +48,14 @@ KUBERNETES_ARCH_LABEL = f"{Resource.ApiGroup.KUBERNETES_IO}/arch"
 
 class ArchImages:
     class X86_64:  # noqa: N801
+        BASE_CIRROS_NAME = "cirros-0.4.0-x86_64-disk"
         Cirros = Cirros(
-            RAW_IMG="cirros-0.4.0-x86_64-disk.raw",
-            RAW_IMG_GZ="cirros-0.4.0-x86_64-disk.raw.gz",
-            RAW_IMG_XZ="cirros-0.4.0-x86_64-disk.raw.xz",
-            QCOW2_IMG="cirros-0.4.0-x86_64-disk.qcow2",
-            QCOW2_IMG_GZ="cirros-0.4.0-x86_64-disk.qcow2.gz",
-            QCOW2_IMG_XZ="cirros-0.4.0-x86_64-disk.qcow2.xz",
+            RAW_IMG=f"{BASE_CIRROS_NAME}.raw",
+            RAW_IMG_GZ=f"{BASE_CIRROS_NAME}.raw.gz",
+            RAW_IMG_XZ=f"{BASE_CIRROS_NAME}.raw.xz",
+            QCOW2_IMG=f"{BASE_CIRROS_NAME}.qcow2",
+            QCOW2_IMG_GZ=f"{BASE_CIRROS_NAME}.qcow2.gz",
+            QCOW2_IMG_XZ=f"{BASE_CIRROS_NAME}.qcow2.xz",
             DISK_DEMO="cirros-registry-disk-demo",
         )
 
