@@ -12,8 +12,9 @@ from pytest_testconfig import config as py_config
 
 from libs.vm.spec import CloudInitNoCloud, ContainerDisk, Disk, SpecDisk, VMSpec, Volume
 from utilities import infra
+from utilities.constants import CLOUD_INIT_DISK_NAME
 from utilities.network import IfaceNotFound
-from utilities.virt import CLOUD_INIT_DISK_NAME, get_oc_image_info, vm_console_run_commands
+from utilities.virt import get_oc_image_info, vm_console_run_commands
 
 
 class BaseVirtualMachine(VirtualMachine):

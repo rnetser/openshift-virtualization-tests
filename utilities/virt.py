@@ -11,7 +11,7 @@ from collections import defaultdict
 from contextlib import contextmanager
 from json import JSONDecodeError
 from subprocess import run
-from typing import Any, Dict
+from typing import TYPE_CHECKING, Any, Dict
 
 import bitmath
 import jinja2
@@ -42,7 +42,6 @@ from rrmngmnt import Host, ssh, user
 from timeout_sampler import TimeoutExpiredError, TimeoutSampler
 
 import utilities.infra
-from libs.vm.vm import BaseVirtualMachine
 from utilities.console import Console
 from utilities.constants import (
     CLOUD_INIT_DISK_NAME,
@@ -84,6 +83,10 @@ from utilities.constants import (
 from utilities.data_collector import collect_vnc_screenshot_for_vms
 from utilities.hco import wait_for_hco_conditions
 from utilities.storage import get_default_storage_class
+
+if TYPE_CHECKING:
+    from libs.vm.vm import BaseVirtualMachine
+
 
 LOGGER = logging.getLogger(__name__)
 
