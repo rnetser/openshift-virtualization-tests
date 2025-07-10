@@ -52,13 +52,13 @@ def nncp_localnet() -> Generator[libnncp.NodeNetworkConfigurationPolicy]:
 
 
 @pytest.fixture(scope="module")
-def namespace_localnet_1() -> Generator[Namespace]:
-    yield from create_ns(name="test-localnet-ns1", labels=LOCALNET_TEST_LABEL)  # type: ignore
+def namespace_localnet_1(admin_client) -> Generator[Namespace]:
+    yield from create_ns(admin_client=admin_client, name="test-localnet-ns1", labels=LOCALNET_TEST_LABEL)  # type: ignore
 
 
 @pytest.fixture(scope="module")
-def namespace_localnet_2() -> Generator[Namespace]:
-    yield from create_ns(name="test-localnet-ns2", labels=LOCALNET_TEST_LABEL)  # type: ignore
+def namespace_localnet_2(admin_client) -> Generator[Namespace]:
+    yield from create_ns(admin_client=admin_client, name="test-localnet-ns2", labels=LOCALNET_TEST_LABEL)  # type: ignore
 
 
 @pytest.fixture(scope="module")
