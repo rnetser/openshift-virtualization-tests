@@ -704,7 +704,7 @@ sdist = { url = "https://files.pythonhosted.org/packages/99/a1/c27ec9be241103ef7
 
 [[package]]
 name = "openshift-python-wrapper"
-version = "11.0.71"
+version = "11.0.73"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "cloup" },
@@ -722,7 +722,7 @@ dependencies = [
     { name = "timeout-sampler" },
     { name = "xmltodict" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/ee/dc/2586d6f94cd92df2e87cb8e739b08cfbf99cf02369587f9ab1c3da3f5500/openshift_python_wrapper-11.0.71.tar.gz", hash = "sha256:4b641036ff35d2a60104981bdf004fbda8ab9bc1460dd6d04f9848267d19f22d", size = 13125030, upload-time = "2025-07-10T20:30:35.072Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/91/12/856b63b65a5ba7c377e5030d3f8bb79f7f74e0c41068c29ea89b4e3a354c/openshift_python_wrapper-11.0.73.tar.gz", hash = "sha256:4329f57bb9c1bfd078aba231513ebb05019c1d4a773e9645d30f7249b237bee1", size = 13128018, upload-time = "2025-07-11T09:12:06.904Z" }
 
 [[package]]
 name = "openshift-python-wrapper-data-collector"
@@ -758,7 +758,6 @@ dependencies = [
     { name = "marshmallow" },
     { name = "netaddr" },
     { name = "openshift-python-utilities" },
-    { name = "openshift-python-wrapper" },
     { name = "openstacksdk" },
     { name = "pexpect" },
     { name = "podman" },
@@ -812,7 +811,6 @@ requires-dist = [
     { name = "marshmallow", specifier = "~=3.26.1" },
     { name = "netaddr", specifier = ">=1.3.0" },
     { name = "openshift-python-utilities", specifier = ">=6.0.0" },
-    { name = "openshift-python-wrapper", specifier = ">=11.0.65" },
     { name = "openstacksdk", specifier = ">=4.1.0" },
     { name = "pexpect", specifier = ">=4.9.0" },
     { name = "podman", specifier = ">=5.2.0" },
@@ -1331,7 +1329,7 @@ wheels = [
 
 [[package]]
 name = "python-utility-scripts"
-version = "1.0.22"
+version = "1.0.23"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "ast-comments" },
@@ -1344,7 +1342,7 @@ dependencies = [
     { name = "pyyaml" },
     { name = "tenacity" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/1f/5d/aa4d2216077cbc5effc2ba94c3be244912c4b6dd0bd4d19eb8d616a175d9/python_utility_scripts-1.0.22.tar.gz", hash = "sha256:c112c91df27360422d1987719e6aa3df1923d8add05292830a045f7c5860b8c1", size = 15754, upload-time = "2025-07-06T11:36:56.497Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/7d/93/6a0a14915044fa7b9135fa7046cc824972e356baa0054e0e4d4bda2fe6c5/python_utility_scripts-1.0.23.tar.gz", hash = "sha256:3b6e4bb25ffadf05c9afeb3be9ca2046d039575d5479a62546325ad25f9376a4", size = 15763, upload-time = "2025-07-11T07:47:35.16Z" }
 
 [[package]]
 name = "pytz"
