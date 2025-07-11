@@ -619,6 +619,7 @@ class StorageClassNames:
     OCI = "oci-bv"
     OCI_UHP = "oci-bv-uhp"
     GCP = "sp-balanced-storage"
+    GCNV = "gcnv-flex"
 
 
 # Namespace constants
@@ -694,7 +695,6 @@ LINUX_STR = "linux"
 EXPECTED_CLUSTER_INSTANCE_TYPE_LABELS = {
     INSTANCE_TYPE_STR: U1_MEDIUM_STR,
     PREFERENCE_STR: RHEL9_PREFERENCE,
-    FLAVOR_STR: NONE_STR,
     OS_STR: LINUX_STR,
 }
 
