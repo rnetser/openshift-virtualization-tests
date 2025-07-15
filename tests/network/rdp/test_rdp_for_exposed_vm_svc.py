@@ -9,7 +9,6 @@ from ocp_resources.service import Service
 from pytest_testconfig import config as py_config
 
 from utilities.constants import (
-    OS_FLAVOR_WINDOWS,
     QUARANTINED,
     TIMEOUT_5MIN,
     TIMEOUT_35MIN,
@@ -101,8 +100,8 @@ def test_rdp_for_exposed_win_vm_as_node_port_svc(
         f"WLOG_PREFIX='[%hr:%mi:%se:%ml] [%mn] - ' xvfb-run --server-args='-screen 0 1024x768x24' "
         f"xfreerdp /cert-ignore /auth-only "
         f"/v:{rdp_vm.custom_service.instance.spec.clusterIP}:{rdp_vm.custom_service.port} "
-        f"/u:{py_config['os_login_param'][OS_FLAVOR_WINDOWS]['username']} "
-        f"/p:{py_config['os_login_param'][OS_FLAVOR_WINDOWS]['password']}"
+        f"/u:{rdp_vm.username} "
+        f"/p:{rdp_vm.password}"
     )
     LOGGER.info(f"Checking RDP connection to exposed {Service.Type.NODE_PORT} service, Authentication only...")
     auth_result = rdp_pod.execute(command=["bash", "-c", rdp_auth_cmd], timeout=TIMEOUT_5MIN)
