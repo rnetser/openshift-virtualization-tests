@@ -256,8 +256,8 @@ def ssh_in_background(br1test_nad, running_vma, running_vmb):
         nad=br1test_nad,
         src_vm=running_vma,
         dst_vm=running_vmb,
-        dst_vm_user=running_vmb.username,
-        dst_vm_password=running_vmb.password,
+        dst_vm_user=running_vmb.login_params["username"],
+        dst_vm_password=running_vmb.login_params["password"],
     )
 
 
@@ -271,8 +271,8 @@ def brcnv_ssh_in_background(brcnv_ovs_nad_vlan_1, brcnv_vma_with_vlan_1, brcnv_v
         nad=brcnv_ovs_nad_vlan_1,
         src_vm=brcnv_vma_with_vlan_1,
         dst_vm=brcnv_vm_for_migration,
-        dst_vm_user=brcnv_vm_for_migration.username,
-        dst_vm_password=brcnv_vm_for_migration.password,
+        dst_vm_user=brcnv_vm_for_migration.login_params["username"],
+        dst_vm_password=brcnv_vm_for_migration.login_params["password"],
     )
 
 

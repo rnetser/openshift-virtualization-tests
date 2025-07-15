@@ -1031,15 +1031,15 @@ class VirtualMachineForTests(VirtualMachine):
 
         if not (self.username and self.password):
             self.username = _login_params["username"]
+            self.password = _login_params["password"]
 
             # Do not modify the defaults to OS like Windows where the password is already defined in the image
-            if self.os_flavor in FLAVORS_EXCLUDED_FROM_CLOUD_INIT:
-                self.password = _login_params["password"]
-
-            else:
+            if self.os_flavor not in FLAVORS_EXCLUDED_FROM_CLOUD_INIT:
                 if self.exists:
                     if cloud_init := [
-                        volume for volume in self.instance.spec.template.spec.volumes if volume.get(CLOUD_INIT_NO_CLOUD)
+                        volume[CLOUD_INIT_NO_CLOUD]
+                        for volume in self.instance.spec.template.spec.volumes
+                        if volume.get(CLOUD_INIT_NO_CLOUD)
                     ]:
                         if (user_data := cloud_init[0].get("userData")) and (
                             _match := re.search(r"password: (.*)\n", user_data)
@@ -1047,11 +1047,11 @@ class VirtualMachineForTests(VirtualMachine):
                             self.password = _match.group(1)
 
                 else:
-                    self.password = secrets.token_urlsafe(12)
+                    self.password = secrets.token_urlsafe(nbytes=12)
 
     @property
     def ssh_exec(self):
-        # In order to use this property VM should be created with ssh=True
+        # In order to use this property, VM should be created with ssh=True
         LOGGER.info(f"SSH command: ssh -o 'ProxyCommand={self.virtctl_port_forward_cmd}' {self.username}@{self.name}")
         host = Host(hostname=self.name)
         # For SSH using a key, the public key needs to reside on the server.
@@ -1694,7 +1694,7 @@ def wait_for_running_vm(
 
 
 def running_vm(
-    vm,
+    vm: VirtualMachineForTests,
     wait_for_interfaces=True,
     check_ssh_connectivity=True,
     ssh_timeout=TIMEOUT_2MIN,
@@ -1738,7 +1738,7 @@ def running_vm(
     ]
 
     try:
-        vm.start(wait=False)
+        vm.start()
     except ApiException as exception:
         if any([message in exception.body for message in allowed_vm_start_exceptions_list]):
             LOGGER.warning(f"VM {vm.name} is already running; will not be started.")
