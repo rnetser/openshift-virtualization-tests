@@ -1030,14 +1030,13 @@ class VirtualMachineForTests(VirtualMachine):
         _login_params = deepcopy(py_config["os_login_param"][self.os_flavor])
 
         if not (self.username and self.password):
+            self.username = _login_params["username"]
+
             # Do not modify the defaults to OS like Windows where the password is already defined in the image
             if self.os_flavor in FLAVORS_EXCLUDED_FROM_CLOUD_INIT:
-                self.username = _login_params["username"]
                 self.password = _login_params["password"]
 
             else:
-                self.username = _login_params["username"]
-
                 if self.exists:
                     if cloud_init := [
                         volume for volume in self.instance.spec.template.spec.volumes if volume.get(CLOUD_INIT_NO_CLOUD)
