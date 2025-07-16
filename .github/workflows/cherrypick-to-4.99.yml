@@ -22,6 +22,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: cnv-4.99
+          fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Configure Git user name and email
@@ -37,9 +38,9 @@ jobs:
         run: |
           MERGE_COMMIT_SHA="${{ github.event.pull_request.merge_commit_sha }}"
           PR_NUMBER="${{ github.event.pull_request.number }}"
-          echo "::set-output name=sha::$MERGE_COMMIT_SHA"
-          echo "::set-output name=pr_number::$PR_NUMBER"
-          echo "Attempting to cherry-pick commit: $MERGE_COMMIT_SHA from PR #$PR_NUMBER"
+          echo "sha=$MERGE_COMMIT_SHA" >> $GITHUB_OUTPUT
+          echo "pr_number=$PR_NUMBER" >> $GITHUB_OUTPUT
+          echo "branch_name=$NEW_BRANCH_NAME" >> $GITHUB_OUTPUT
 
       - name: Create new branch for cherry-pick
         id: create_branch
@@ -53,7 +54,7 @@ jobs:
       - name: Attempt Cherry-pick
         id: cherry_pick_action
         run: |
-          git cherry-pick ${{ steps.get_info.outputs.sha }}
+          git cherry-pick -m 1 ${{ steps.get_info.outputs.sha }}
         env:
           GIT_MERGE_AUTOEDIT: no # Prevent Git from opening an editor
         continue-on-error: true # Allow this step to fail without stopping the workflow immediately
@@ -62,8 +63,12 @@ jobs:
         id: pr_details
         run: |
           PR_TITLE="Cherry-pick PR #${{ steps.get_info.outputs.pr_number }} to cnv-4.99"
-          COMMIT_MESSAGE="Cherry-pick PR #${{ steps.get_info.outputs.pr_number }}: ${{ github.event.pull_request.title }}"
-          PR_BODY="This PR automatically cherry-picks the changes from PR #${{ steps.get_info.outputs.pr_number }}\n(\"${{ github.event.pull_request.title }}\") that was merged into \`main\`.\n\nOriginal PR: ${{ github.event.pull_request.html_url }}"
+          printf -v COMMIT_MESSAGE 'Cherry-pick PR #%s: %q' \
+            "${{ steps.get_info.outputs.pr_number }}" \
+            "${{ github.event.pull_request.title }}"
+          printf -v PR_BODY '%s\n\nOriginal PR: %s' \
+            "This PR automatically cherry-picks the changes from PR #${{ steps.get_info.outputs.pr_number }} (\"${{ github.event.pull_request.title }}\") that was merged into \`main\`." \
+            "${{ github.event.pull_request.html_url }}"
 
           # Check if the cherry-pick failed and adjust PR details accordingly
           if [ "${{ steps.cherry_pick_action.outcome }}" == "failure" ]; then
@@ -73,9 +78,11 @@ jobs:
             echo "::warning::Cherry-pick failed with conflicts. Creating PR with conflict indication."
           fi
 
-          echo "::set-output name=pr_title::$PR_TITLE"
-          echo "::set-output name=commit_message::$COMMIT_MESSAGE"
-          echo "::set-output name=pr_body::$PR_BODY"
+          echo "pr_title=$PR_TITLE" >> $GITHUB_OUTPUT
+          echo "commit_message=$COMMIT_MESSAGE" >> $GITHUB_OUTPUT
+          echo "pr_body<<EOF"
+          echo "$PR_BODY"
+          echo "EOF"
 
       - name: Push new branch and create PR
         uses: peter-evans/create-pull-request@v6
