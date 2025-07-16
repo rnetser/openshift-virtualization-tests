@@ -429,6 +429,9 @@ class VirtualMachineForTests(VirtualMachine):
         self.vm_affinity = vm_affinity
         self.annotations = annotations
 
+        # Must be here to apply on existing VMs
+        self.set_login_params()
+
     def deploy(self, wait=False):
         super().deploy(wait=wait)
         return self
@@ -444,7 +447,6 @@ class VirtualMachineForTests(VirtualMachine):
     def to_dict(self):
         super().to_dict()
         self.set_labels()
-        self.set_login_params()
         self.set_rng_device()
         self.generate_body()
         self.set_run_strategy()
