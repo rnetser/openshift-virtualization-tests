@@ -45,7 +45,11 @@ jobs:
           echo "commit_sha=$COMMIT_TO_CHERRY_PICK" >> $GITHUB_OUTPUT # Updated syntax
           echo "is_merge_commit=true" >> $GITHUB_OUTPUT # Updated syntax
           echo "commit_message=$(git log -1 --format=%s "$COMMIT_TO_CHERRY_PICK")" >> $GITHUB_OUTPUT # Updated syntax
-          echo "commit_body=$(git log -1 --format=%b "$COMMIT_TO_CHERRY_PICK")" >> $GITHUB_OUTPUT # Updated syntax
+          {
+            echo 'commit_body<<EOF'
+            git log -1 --format=%b "$COMMIT_TO_CHERRY_PICK"
+            echo 'EOF'
+          } >> "$GITHUB_OUTPUT"
 
       - name: Attempt Cherry-pick and Prepare Branch
         id: prepare_branch
