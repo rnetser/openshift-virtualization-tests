@@ -35,7 +35,15 @@ jobs:
 
           # Removed the merge commit check. The workflow will now always attempt
           # to cherry-pick the latest commit on 'main'.
-          COMMIT_TO_CHERRY_PICK="$LATEST_COMMIT_SHA" # Always target the latest commit
+          # If the latest commit is a merge, keep its 1st parent as mainline
+          if [ "$(git rev-list --parents -n1 "$LATEST_COMMIT_SHA" | wc -w)" -gt 2 ]; then
+            COMMIT_TO_CHERRY_PICK="$LATEST_COMMIT_SHA"
+            echo "note: $LATEST_COMMIT_SHA is a merge commit – will cherry-pick with -m 1"
+            echo "mainline_parent=1" >> "$GITHUB_OUTPUT"
+          else
+            COMMIT_TO_CHERRY_PICK="$LATEST_COMMIT_SHA"
+            echo "mainline_parent=" >> "$GITHUB_OUTPUT"
+          fi
           echo "Commit to cherry-pick: $COMMIT_TO_CHERRY_PICK"
           echo "commit_sha=$COMMIT_TO_CHERRY_PICK" >> "$GITHUB_OUTPUT"
           echo "commit_message=$(git log -1 --format=%s "$COMMIT_TO_CHERRY_PICK")" >> "$GITHUB_OUTPUT"
