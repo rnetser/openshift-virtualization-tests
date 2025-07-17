@@ -9,7 +9,7 @@ jobs:
   cherry-pick-to-4-99:
     permissions:
       contents: write
-      pull-requests: write
+      pull-requests: write # Required for creating PRs
 
     runs-on: ubuntu-latest
 
@@ -24,8 +24,8 @@ jobs:
         # Configure Git user for commits made directly in the workflow
         # The create-pull-request action handles its own commit authorship.
         run: |
-          git config user.name "${{ secrets.GH_BOT_USERNAME }}"
-          git config user.email "${{ secrets.GH_BOT_EMAIL }}"
+          git config user.name "GitHub Actions Bot"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
 
       - name: Get latest merge commit from main
         id: get_merge_commit
@@ -34,18 +34,18 @@ jobs:
           echo "Latest commit on main: $LATEST_COMMIT_SHA"
 
           PARENT_COUNT=$(git rev-list --parents -n 1 "$LATEST_COMMIT_SHA" | wc -w)
-          if [ "$PARENT_COUNT" -lt 2 ]; then
+          if [ "$PARENT_COUNT" -lt 3 ]; then
             echo "The latest commit is not a merge commit. Skipping cherry-pick."
-            echo "::set-output name=is_merge_commit::false"
+            echo "is_merge_commit=false" >> $GITHUB_OUTPUT # Updated syntax
             exit 0
           fi
 
           COMMIT_TO_CHERRY_PICK=$(git rev-parse "${LATEST_COMMIT_SHA}^2")
           echo "Commit to cherry-pick: $COMMIT_TO_CHERRY_PICK"
-          echo "::set-output name=commit_sha::$COMMIT_TO_CHERRY_PICK"
-          echo "::set-output name=is_merge_commit::true"
-          echo "::set-output name=commit_message::$(git log -1 --format=%s "$COMMIT_TO_CHERRY_PICK")"
-          echo "::set-output name=commit_body::$(git log -1 --format=%b "$COMMIT_TO_CHERRY_PICK")" # Get full commit message body
+          echo "commit_sha=$COMMIT_TO_CHERRY_PICK" >> $GITHUB_OUTPUT # Updated syntax
+          echo "is_merge_commit=true" >> $GITHUB_OUTPUT # Updated syntax
+          echo "commit_message=$(git log -1 --format=%s "$COMMIT_TO_CHERRY_PICK")" >> $GITHUB_OUTPUT # Updated syntax
+          echo "commit_body=$(git log -1 --format=%b "$COMMIT_TO_CHERRY_PICK")" >> $GITHUB_OUTPUT # Updated syntax
 
       - name: Attempt Cherry-pick and Prepare Branch
         id: prepare_branch
@@ -70,20 +70,20 @@ jobs:
           if git cherry-pick --no-commit --keep-redundant-commits "$COMMIT_SHA"; then
             echo "Cherry-pick applied successfully to temporary branch."
             git commit -m "Cherry-pick: $COMMIT_MESSAGE_SHORT (from $COMMIT_SHA)"
-            echo "::set-output name=status::success"
+            echo "status=success" >> $GITHUB_OUTPUT # Updated syntax
           else
             echo "Cherry-pick resulted in conflicts. Committing conflicted state to temporary branch."
             # Add all changes, including conflict markers, to the staging area
             git add .
             # Commit the conflicted state. This allows the PR to show the conflicts.
             git commit -m "Cherry-pick Conflicts: $COMMIT_MESSAGE_SHORT (from $COMMIT_SHA)"
-            echo "::set-output name=status::conflicted"
+            echo "status=conflicted" >> $GITHUB_OUTPUT # Updated syntax
           fi
 
           # Push the temporary branch to the remote
           git push origin "$TEMP_BRANCH_NAME"
 
-          echo "::set-output name=temp_branch_name::$TEMP_BRANCH_NAME"
+          echo "temp_branch_name=$TEMP_BRANCH_NAME" >> $GITHUB_OUTPUT # Updated syntax
 
       - name: Create Pull Request for Successful Cherry-pick
         if: steps.prepare_branch.outputs.status == 'success'
@@ -119,7 +119,7 @@ jobs:
             ## Cherry-pick Failed - Manual Intervention Required
 
             The automatic cherry-pick of commit `${{ steps.get_merge_commit.outputs.commit_sha }}`
-            ("${{ steps.get_merge_commit.outputs.commit_message }}") from `main` to `cnv-4.99` has resulted in conflicts.
+            "${{ steps.get_merge_commit.outputs.commit_message }}" from `main` to `cnv-4.99` has resulted in conflicts.
 
             This Pull Request has been created with the conflicted state. Please resolve the conflicts
             and merge this PR into `cnv-4.99`.
