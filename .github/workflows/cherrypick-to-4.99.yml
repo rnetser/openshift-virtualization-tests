@@ -36,15 +36,15 @@ jobs:
           PARENT_COUNT=$(git rev-list --parents -n 1 "$LATEST_COMMIT_SHA" | wc -w)
           if [ "$PARENT_COUNT" -lt 3 ]; then
             echo "The latest commit is not a merge commit. Skipping cherry-pick."
-            echo "is_merge_commit=false" >> $GITHUB_OUTPUT # Updated syntax
+            echo "is_merge_commit=false" >> "$GITHUB_OUTPUT" # Updated syntax
             exit 0
           fi
 
           COMMIT_TO_CHERRY_PICK=$(git rev-parse "${LATEST_COMMIT_SHA}^2")
           echo "Commit to cherry-pick: $COMMIT_TO_CHERRY_PICK"
-          echo "commit_sha=$COMMIT_TO_CHERRY_PICK" >> $GITHUB_OUTPUT # Updated syntax
-          echo "is_merge_commit=true" >> $GITHUB_OUTPUT # Updated syntax
-          echo "commit_message=$(git log -1 --format=%s "$COMMIT_TO_CHERRY_PICK")" >> $GITHUB_OUTPUT # Updated syntax
+          echo "commit_sha=$COMMIT_TO_CHERRY_PICK" >> "$GITHUB_OUTPUT" # Updated syntax
+          echo "is_merge_commit=true" >> "$GITHUB_OUTPUT" # Updated syntax
+          echo "commit_message=$(git log -1 --format=%s "$COMMIT_TO_CHERRY_PICK")" >> "$GITHUB_OUTPUT" # Updated syntax
           {
             echo 'commit_body<<EOF'
             git log -1 --format=%b "$COMMIT_TO_CHERRY_PICK"
@@ -74,20 +74,20 @@ jobs:
           if git cherry-pick --no-commit --keep-redundant-commits "$COMMIT_SHA"; then
             echo "Cherry-pick applied successfully to temporary branch."
             git commit -m "Cherry-pick: $COMMIT_MESSAGE_SHORT (from $COMMIT_SHA)"
-            echo "status=success" >> $GITHUB_OUTPUT # Updated syntax
+            echo "status=success" >> "$GITHUB_OUTPUT" # Updated syntax
           else
             echo "Cherry-pick resulted in conflicts. Committing conflicted state to temporary branch."
             # Add all changes, including conflict markers, to the staging area
             git add .
             # Commit the conflicted state. This allows the PR to show the conflicts.
             git commit -m "Cherry-pick Conflicts: $COMMIT_MESSAGE_SHORT (from $COMMIT_SHA)"
-            echo "status=conflicted" >> $GITHUB_OUTPUT # Updated syntax
+            echo "status=conflicted" >> "$GITHUB_OUTPUT" # Updated syntax
           fi
 
           # Push the temporary branch to the remote
           git push origin "$TEMP_BRANCH_NAME"
 
-          echo "temp_branch_name=$TEMP_BRANCH_NAME" >> $GITHUB_OUTPUT # Updated syntax
+          echo "temp_branch_name=$TEMP_BRANCH_NAME" >> "$GITHUB_OUTPUT" # Updated syntax
 
       - name: Create Pull Request for Successful Cherry-pick
         if: steps.prepare_branch.outputs.status == 'success'
