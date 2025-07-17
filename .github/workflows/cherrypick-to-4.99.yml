@@ -73,7 +73,12 @@ jobs:
           # Attempt to cherry-pick the commit.
           # --no-commit: apply changes but don't commit yet.
           # --keep-redundant-commits: don't skip if commit already exists (useful for re-runs).
-          if git cherry-pick --no-commit --keep-redundant-commits "$COMMIT_SHA"; then
+          MAINLINE_OPT=""
+          if [[ -n "${{ steps.get_latest_commit.outputs.mainline_parent }}" ]]; then
+            MAINLINE_OPT="-m ${{ steps.get_latest_commit.outputs.mainline_parent }}"
+          fi
+
+          if git cherry-pick $MAINLINE_OPT --no-commit --keep-redundant-commits "$COMMIT_SHA"; then
             echo "Cherry-pick applied successfully to temporary branch."
             git commit -m "Cherry-pick: $COMMIT_MESSAGE_SHORT (from $COMMIT_SHA)"
             echo "status=success" >> "$GITHUB_OUTPUT"
