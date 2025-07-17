@@ -1,16 +1,12 @@
 name: Cherry-pick to cnv-4.99 on Main Merge (Create PR)
 
 on:
-  pull_request:
-    types:
-      - closed
+  push:
     branches:
       - main
 
 jobs:
   cherry_pick_and_create_pr:
-    if: github.event.pull_request.merged == true
-
     runs-on: ubuntu-latest
 
     permissions:
@@ -80,7 +76,12 @@ jobs:
 
       - name: Push new branch
         run: |
-          git push origin HEAD:${{ steps.create_branch.outputs.branch_name }}
+          # Only push if there are actual changes to commit (after cherry-pick)
+          if ! git diff --quiet --exit-code; then
+              git push origin HEAD:${{ steps.create_branch.outputs.branch_name }}
+          else
+              echo "No changes after cherry-pick or conflicts. Skipping push."
+          fi
         if: success() || failure()
 
       - name: Create PR
