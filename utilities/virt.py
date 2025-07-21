@@ -10,7 +10,6 @@ import secrets
 import shlex
 from collections import defaultdict
 from contextlib import contextmanager
-from copy import deepcopy
 from functools import cache
 from json import JSONDecodeError
 from subprocess import run
@@ -799,8 +798,8 @@ class VirtualMachineForTests(VirtualMachine):
             login_generated_data = generate_cloud_init_data(
                 data={
                     "userData": {
-                        "user": self.username,
-                        "password": self.password,
+                        "user": self.login_params["username"],
+                        "password": self.login_params["password"],
                         "chpasswd": {"expire": False},
                     }
                 }
@@ -826,10 +825,7 @@ class VirtualMachineForTests(VirtualMachine):
                 "grep ssh-rsa /etc/crypto-policies/back-ends/opensshserver.config || "
                 "sudo update-crypto-policies --set LEGACY || true"
             ),
-            (
-                r"sudo sed -i 's/^#\?PasswordAuthentication no/PasswordAuthentication yes/g' "
-                "/etc/ssh/sshd_config"
-            ),
+            (r"sudo sed -i 's/^#\?PasswordAuthentication no/PasswordAuthentication yes/g' " "/etc/ssh/sshd_config"),
             "sudo systemctl enable sshd",
             "sudo systemctl restart sshd",
         ]
@@ -1014,22 +1010,22 @@ class VirtualMachineForTests(VirtualMachine):
         return (
             self.data_volume.pvc.instance.spec.accessModes
             if self.data_volume
-            else (
-                self.pvc.instance.spec.accessModes
-                if self.pvc
-                else self.data_volume_template["spec"][api_name].get("accessModes")
-                or StorageProfile(name=_sc_name_for_storage_api()).instance.status["claimPropertySets"][0][
-                    "accessModes"
-                ]
-            )
+            else self.pvc.instance.spec.accessModes
+            if self.pvc
+            else self.data_volume_template["spec"][api_name].get("accessModes")
+            or StorageProfile(name=_sc_name_for_storage_api()).instance.status["claimPropertySets"][0]["accessModes"]
         )
 
     @property
     def virtctl_port_forward_cmd(self):
         return f"{VIRTCTL} port-forward --stdio=true vm/{self.name}.{self.namespace} {SSH_PORT_22}"
 
+    @property
+    def login_params(self):
+        return py_config["os_login_param"][self.os_flavor]
+
     def set_login_params(self):
-        _login_params = deepcopy(py_config["os_login_param"][self.os_flavor])
+        _login_params = self.login_params
 
         if not (self.username and self.password):
             self.username = _login_params["username"]
@@ -1038,22 +1034,22 @@ class VirtualMachineForTests(VirtualMachine):
             # Do not modify the defaults to OS like Windows where the password is already defined in the image
             if self.os_flavor not in FLAVORS_EXCLUDED_FROM_CLOUD_INIT:
                 if self.exists:
-                    if cloud_init := [
-                        volume[CLOUD_INIT_NO_CLOUD]
-                        for volume in self.instance.spec.template.spec.volumes
-                        if volume.get(CLOUD_INIT_NO_CLOUD)
-                    ]:
-                        if (user_data := cloud_init[0].get("userData")) and (
-                            _match := re.search(r"password: (.*)\n", user_data)
-                        ):
-                            self.password = _match.group(1)
+                    self.username, self.password = username_password_from_cloud_init(
+                        vm_volumes=self.instance.spec.template.spec.volumes
+                    )
+                    if not self.username or not self.password:
+                        LOGGER.warning("Could not find credentials in cloud-init, using defaults from py_config")
 
                 else:
+                    LOGGER.info("Setting random password")
                     self.password = secrets.token_urlsafe(nbytes=12)
 
     @property
     def ssh_exec(self):
-        # In order to use this property, VM should be created with ssh=True
+        # In order to use this property VM should be created with ssh=True
+        self.username = self.username or self.login_params["username"]
+        self.password = self.password or self.login_params["password"]
+
         LOGGER.info(f"SSH command: ssh -o 'ProxyCommand={self.virtctl_port_forward_cmd}' {self.username}@{self.name}")
         host = Host(hostname=self.name)
         # For SSH using a key, the public key needs to reside on the server.
@@ -1326,20 +1322,26 @@ class VirtualMachineForTestsFromTemplate(VirtualMachineForTests):
         # If existing DV or custom dataVolumeTemplates are used, use mock source PVC name and namespace
         template_kwargs = {
             "NAME": self.name,
-            DATA_SOURCE_NAME: (self.data_source.name if self.data_source else "mock-data-source"),
-            DATA_SOURCE_NAMESPACE: (self.data_source.namespace if self.data_source else "mock-data-source-ns"),
+            DATA_SOURCE_NAME: self.data_source.name if self.data_source else "mock-data-source",
+            DATA_SOURCE_NAMESPACE: self.data_source.namespace if self.data_source else "mock-data-source-ns",
         }
+
+        template_object = self.template_object or get_template_by_labels(
+            admin_client=self.client, template_labels=self.template_labels
+        )
 
         # Set password for non-Windows VMs; for Windows VM, the password is already set in the image
         if OS_FLAVOR_WINDOWS not in self.os_flavor:
+            username, _ = username_password_from_cloud_init(
+                vm_volumes=template_object.instance.objects[0].spec.template.spec.volumes
+            )
+
+            self.username = username
             template_kwargs["CLOUD_USER_PASSWORD"] = self.password
 
         if self.template_params:
             template_kwargs.update(self.template_params)
 
-        template_object = self.template_object or get_template_by_labels(
-            admin_client=self.client, template_labels=self.template_labels
-        )
         resources_list = template_object.process(client=get_client(), **template_kwargs)
         for resource in resources_list:
             if resource["kind"] == VirtualMachine.kind and resource["metadata"]["name"] == self.name:
@@ -1496,9 +1498,7 @@ class ServiceForVirtualMachineForTests(Service):
 
 
 def wait_for_ssh_connectivity(
-    vm: VirtualMachineForTests,
-    timeout: int = TIMEOUT_2MIN,
-    tcp_timeout: int = TIMEOUT_1MIN,
+    vm: VirtualMachineForTests, timeout: int = TIMEOUT_2MIN, tcp_timeout: int = TIMEOUT_1MIN
 ) -> None:
     LOGGER.info(f"Wait for {vm.name} SSH connectivity.")
 
@@ -1643,9 +1643,7 @@ def get_rhel_os_dict(rhel_version: str) -> dict[str, Any]:
 def assert_vm_not_error_status(vm: VirtualMachineForTests, timeout: int = TIMEOUT_5SEC) -> None:
     try:
         for status in TimeoutSampler(
-            wait_timeout=timeout,
-            sleep=TIMEOUT_1SEC,
-            func=lambda: vm.instance.get("status", {}),
+            wait_timeout=timeout, sleep=TIMEOUT_1SEC, func=lambda: vm.instance.get("status", {})
         ):
             if status:
                 printable_status = status.get("printableStatus")
@@ -1847,11 +1845,7 @@ def wait_for_migration_finished(vm, migration, timeout=TIMEOUT_12MIN):
                         namespace=vm.namespace,
                         get_all=True,
                     ):
-                        if pod.status not in (
-                            Pod.Status.RUNNING,
-                            Pod.Status.COMPLETED,
-                            Pod.Status.SUCCEEDED,
-                        ):
+                        if pod.status not in (Pod.Status.RUNNING, Pod.Status.COMPLETED, Pod.Status.SUCCEEDED):
                             pod_events = [
                                 event["raw_object"]["message"]
                                 for event in pod.events(timeout=TIMEOUT_5SEC, field_selector="type==Warning")
@@ -2222,11 +2216,7 @@ def check_migration_process_after_node_drain(dyn_client, vm):
     LOGGER.info(f"The VMI was running on {source_node.name}")
     wait_for_node_schedulable_status(node=source_node, status=False)
     vmim = get_created_migration_job(vm=vm, client=dyn_client, timeout=TIMEOUT_5MIN)
-    wait_for_migration_finished(
-        vm=vm,
-        migration=vmim,
-        timeout=TIMEOUT_30MIN if "windows" in vm.name else TIMEOUT_10MIN,
-    )
+    wait_for_migration_finished(vm=vm, migration=vmim, timeout=TIMEOUT_30MIN if "windows" in vm.name else TIMEOUT_10MIN)
 
     target_pod = vm.privileged_vmi.virt_launcher_pod
     target_pod.wait_for_status(status=Pod.Status.RUNNING, timeout=TIMEOUT_3MIN)
@@ -2306,7 +2296,7 @@ def get_oc_image_info(  # type: ignore[return]
     base_command = f"oc image -o json info {image} --filter-by-os {architecture}"
     if pull_secret:
         base_command = f"{base_command} --registry-config={pull_secret}"
-    sample = None
+
     try:
         for sample in TimeoutSampler(
             wait_timeout=TIMEOUT_10SEC,
@@ -2550,9 +2540,7 @@ def assert_vm_xml_efi(vm: VirtualMachineForTests, secure_boot_enabled: bool = Tr
 
 
 def update_vm_efi_spec_and_restart(
-    vm: VirtualMachineForTests,
-    spec: dict[str, Any] | None = None,
-    wait_for_interfaces: bool = True,
+    vm: VirtualMachineForTests, spec: dict[str, Any] | None = None, wait_for_interfaces: bool = True
 ) -> None:
     ResourceEditor({
         vm: {"spec": {"template": {"spec": {"domain": {"firmware": {"bootloader": {"efi": spec or {}}}}}}}}
@@ -2633,3 +2621,24 @@ def get_vm_boot_time(vm: VirtualMachineForTests) -> str:
 @cache
 def is_jira_64988_bug_open():
     return utilities.infra.is_jira_open(jira_id="CNV-64988")
+
+
+def username_password_from_cloud_init(vm_volumes: list[dict[str, Any]]) -> tuple[str, str]:
+    """
+    Get username and password from cloud-init data.
+
+    Args:
+        vm_volumes (list[dict[str, Any]]): List of volumes with cloud-init data.
+
+    Returns:
+            tuple[str, str]: Username and password. If not found, empty strings.
+    """
+
+    if cloud_init := [volume[CLOUD_INIT_NO_CLOUD] for volume in vm_volumes if volume.get(CLOUD_INIT_NO_CLOUD)]:
+        if (user_data := cloud_init[0].get("userData")) and (
+            _match := re.search(r"user: (?P<user>.*)\npassword: (?P<password>.*)\n", user_data)
+        ):
+            LOGGER.info("Get VM credentials from cloud-init")
+            return _match["user"], _match["password"]
+
+    return "", ""
