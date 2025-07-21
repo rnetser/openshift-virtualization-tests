@@ -1022,14 +1022,18 @@ class VirtualMachineForTests(VirtualMachine):
 
     @property
     def login_params(self):
-        return py_config["os_login_param"][self.os_flavor]
+        os_login_param = py_config["os_login_param"].get(self.os_flavor)
+        if not os_login_param:
+            LOGGER.info(f"`os_login_param` not defined for {self.os_flavor}")
+
+        return os_login_param
 
     def set_login_params(self):
         _login_params = self.login_params
 
         if not (self.username and self.password):
-            self.username = _login_params["username"]
-            self.password = _login_params["password"]
+            self.username = _login_params.get("username")
+            self.password = _login_params.get("password")
 
             # Do not modify the defaults to OS like Windows where the password is already defined in the image
             if self.os_flavor not in FLAVORS_EXCLUDED_FROM_CLOUD_INIT:
@@ -1038,7 +1042,7 @@ class VirtualMachineForTests(VirtualMachine):
                         vm_volumes=self.instance.spec.template.spec.volumes
                     )
                     if not self.username or not self.password:
-                        LOGGER.warning("Could not find credentials in cloud-init, using defaults from py_config")
+                        LOGGER.warning("Could not find credentials in cloud-init")
 
                 else:
                     LOGGER.info("Setting random password")
