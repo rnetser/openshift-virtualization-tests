@@ -798,8 +798,8 @@ class VirtualMachineForTests(VirtualMachine):
             login_generated_data = generate_cloud_init_data(
                 data={
                     "userData": {
-                        "user": self.login_params["username"],
-                        "password": self.login_params["password"],
+                        "user": self.username,
+                        "password": self.password,
                         "chpasswd": {"expire": False},
                     }
                 }
@@ -1024,7 +1024,7 @@ class VirtualMachineForTests(VirtualMachine):
     def login_params(self):
         os_login_param = py_config["os_login_param"].get(self.os_flavor)
         if not os_login_param:
-            LOGGER.info(f"`os_login_param` not defined for {self.os_flavor}")
+            LOGGER.warning(f"`os_login_param` not defined for {self.os_flavor}")
 
         return os_login_param
 
