@@ -22,6 +22,7 @@ jobs:
           fetch-depth: 0
 
       - name: Configure Git
+        # Configure Git user for commits made directly in the workflow
         run: |
           git config user.name "${{ secrets.GH_BOT_USERNAME }}"
           git config user.email "${{ secrets.GH_BOT_EMAIL }}"
@@ -40,11 +41,23 @@ jobs:
             echo "mainline_parent=" >> "$GITHUB_OUTPUT"
           fi
           echo "commit_sha=$LATEST_COMMIT_SHA" >> "$GITHUB_OUTPUT"
-          echo "commit_message=$(git log -1 --format=%s "$LATEST_COMMIT_SHA")" >> "$GITHUB_OUTPUT"
+
+          # Safely set the commit message output, which may contain quotes or other special characters.
+          # We use the heredoc syntax for GITHUB_OUTPUT, which is the most robust method.
+          COMMIT_MESSAGE=$(git log -1 --format=%s "$LATEST_COMMIT_SHA")
+          DELIMITER=$(openssl rand -hex 16)
           {
-            echo 'commit_body<<EOF'
+            echo "commit_message<<$DELIMITER"
+            echo "$COMMIT_MESSAGE"
+            echo "$DELIMITER"
+          } >> "$GITHUB_OUTPUT"
+
+          # Safely set the commit body output using a random delimiter.
+          DELIMITER=$(openssl rand -hex 16)
+          {
+            echo "commit_body<<$DELIMITER"
             git log -1 --format=%b "$LATEST_COMMIT_SHA"
-            echo 'EOF'
+            echo "$DELIMITER"
           } >> "$GITHUB_OUTPUT"
 
       - name: Attempt Cherry-pick and Prepare Branch
