@@ -42,45 +42,48 @@ jobs:
           fi
           echo "commit_sha=$LATEST_COMMIT_SHA" >> "$GITHUB_OUTPUT"
 
-          # Safely set the commit message output, which may contain quotes or other special characters.
+          # Safely set the commit message and body outputs, which may contain special characters.
           # We use the heredoc syntax for GITHUB_OUTPUT, which is the most robust method.
           COMMIT_MESSAGE=$(git log -1 --format=%s "$LATEST_COMMIT_SHA")
-          DELIMITER=$(openssl rand -hex 16)
+          DELIMITER_MSG=$(openssl rand -hex 16)
           {
-            echo "commit_message<<$DELIMITER"
+            echo "commit_message<<$DELIMITER_MSG"
             echo "$COMMIT_MESSAGE"
-            echo "$DELIMITER"
+            echo "$DELIMITER_MSG"
           } >> "$GITHUB_OUTPUT"
 
-          # Safely set the commit body output using a random delimiter.
-          DELIMITER=$(openssl rand -hex 16)
+          COMMIT_BODY=$(git log -1 --format=%b "$LATEST_COMMIT_SHA")
+          DELIMITER_BODY=$(openssl rand -hex 16)
           {
-            echo "commit_body<<$DELIMITER"
-            git log -1 --format=%b "$LATEST_COMMIT_SHA"
-            echo "$DELIMITER"
+            echo "commit_body<<$DELIMITER_BODY"
+            echo "$COMMIT_BODY"
+            echo "$DELIMITER_BODY"
           } >> "$GITHUB_OUTPUT"
 
       - name: Attempt Cherry-pick and Prepare Branch
         id: prepare_branch
         run: |
+          # Capture all workflow expansions into shell variables at the top.
+          # This improves readability and prevents shell re-interpretation issues.
           TARGET_BRANCH="cnv-4.99"
           COMMIT_SHA="${{ steps.get_latest_commit.outputs.commit_sha }}"
           COMMIT_MESSAGE_SHORT="${{ steps.get_latest_commit.outputs.commit_message }}"
+          MAINLINE_PARENT="${{ steps.get_latest_commit.outputs.mainline_parent }}"
           TEMP_BRANCH_NAME="cherry-pick-auto/${{ github.event.after }}-${{ github.run_id }}"
           STATUS="no_change" # Default status
 
           echo "Attempting to cherry-pick $COMMIT_SHA to $TARGET_BRANCH on temporary branch $TEMP_BRANCH_NAME"
 
           # Fetch the target branch to ensure it's up-to-date locally
-          git fetch origin $TARGET_BRANCH
+          git fetch origin "$TARGET_BRANCH"
 
           # Create and switch to the new temporary branch from the target branch
           git checkout -b "$TEMP_BRANCH_NAME" "origin/$TARGET_BRANCH"
 
           # Prepare cherry-pick options
           MAINLINE_OPT=""
-          if [[ -n "${{ steps.get_latest_commit.outputs.mainline_parent }}" ]]; then
-            MAINLINE_OPT="-m ${{ steps.get_latest_commit.outputs.mainline_parent }}"
+          if [[ -n "$MAINLINE_PARENT" ]]; then
+            MAINLINE_OPT="-m $MAINLINE_PARENT"
           fi
 
           # Attempt to cherry-pick the commit. We use --no-commit to inspect the result.
@@ -93,6 +96,8 @@ jobs:
               STATUS="success"
             else
               echo "Cherry-pick was successful but resulted in no changes. The commit may already be on the target branch."
+              # Abort the cherry-pick to clean up the repository state (.git/CHERRY_PICK_HEAD).
+              git cherry-pick --quit
               STATUS="no_change"
             fi
           else
