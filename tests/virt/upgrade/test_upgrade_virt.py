@@ -57,6 +57,7 @@ pytestmark = [
 class TestUpgradeVirt:
     """Pre-upgrade tests"""
 
+    @pytest.mark.gating
     @pytest.mark.ocp_upgrade
     @pytest.mark.sno
     @pytest.mark.polarion("CNV-2974")
@@ -66,6 +67,7 @@ class TestUpgradeVirt:
         for vm in vms_for_upgrade:
             assert vm.vmi.status == VirtualMachineInstance.Status.RUNNING
 
+    @pytest.mark.gating
     @pytest.mark.ocp_upgrade
     @pytest.mark.sno
     @pytest.mark.polarion("CNV-2987")
@@ -79,6 +81,7 @@ class TestUpgradeVirt:
         for vm in vms_for_upgrade:
             vm_console_run_commands(vm=vm, commands=["ls"])
 
+    @pytest.mark.gating
     @pytest.mark.ocp_upgrade
     @pytest.mark.sno
     @pytest.mark.polarion("CNV-4208")
@@ -145,6 +148,7 @@ class TestUpgradeVirt:
 
     """ Post-upgrade tests """
 
+    @pytest.mark.gating
     @pytest.mark.polarion("CNV-5932")
     @pytest.mark.order(after=IUO_CNV_ALERT_ORDERING_NODE_ID, before=AFTER_UPGRADE_STORAGE_ORDERING)
     @pytest.mark.dependency(
@@ -163,6 +167,7 @@ class TestUpgradeVirt:
         """
         assert not unupdated_vmi_pods_names, f"The following VMI Pods were not updated: {unupdated_vmi_pods_names}"
 
+    @pytest.mark.gating
     @pytest.mark.ocp_upgrade
     @pytest.mark.sno
     @pytest.mark.polarion("CNV-2978")
@@ -180,6 +185,7 @@ class TestUpgradeVirt:
             vm.vmi.wait_until_running()
         verify_linux_boot_time(vm_list=vms_for_upgrade, initial_boot_time=linux_boot_time_before_upgrade)
 
+    @pytest.mark.gating
     @pytest.mark.ocp_upgrade
     @pytest.mark.sno
     @pytest.mark.polarion("CNV-2980")
@@ -196,6 +202,7 @@ class TestUpgradeVirt:
         for vm in vms_for_upgrade:
             vm_console_run_commands(vm=vm, commands=["ls"])
 
+    @pytest.mark.gating
     @pytest.mark.ocp_upgrade
     @pytest.mark.sno
     @pytest.mark.polarion("CNV-4209")

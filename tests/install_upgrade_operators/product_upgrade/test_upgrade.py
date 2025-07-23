@@ -42,6 +42,7 @@ class TestUpgrade:
             nodes=nodes,
         )
 
+    @pytest.mark.gating
     @pytest.mark.cnv_upgrade
     @pytest.mark.polarion("CNV-2991")
     @pytest.mark.dependency(name=IUO_UPGRADE_TEST_DEPENDENCY_NODE_ID)
