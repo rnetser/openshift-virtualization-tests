@@ -261,7 +261,7 @@ out = pod_exec.exec(command=cmd, ignore_rc=True)
 ```
 
 
-## Run basic tests on standard cluster
+### Run basic tests on standard cluster
 To run tests on a standard cluster configuration (more than 1 node is required), use the following command:
 
 ```bash
@@ -273,14 +273,9 @@ To run on single-node cluster, use the following command:
 uv run pytest -m "conformance and sno" --default-storage-class <cluster default storage class> --skip-artifactory-check
 ```
 
-To run on single-nic cluster, use the following command:
-```bash
-uv run pytest -m "conformance and single_nic" --default-storage-class <cluster default storage class> --skip-artifactory-check
-```
-
 The default storage classes that are covered include: `ocs-storagecluster-ceph-rbd-virtualization`, `hostpath-csi-basic` and `hostpath-csi-pvc-block`
 To modify the set of storage classes that are tested:
-- Make a copy of [global_config.py](tests/global_config.py) file
+- Make a copy of the [global_config.py](../tests/global_config.py) file
 - Edit `storage_class_matrix` variable to match the storage classes you want to test
 - Run the tests using the new global_config.py file, example:
 ```bash
