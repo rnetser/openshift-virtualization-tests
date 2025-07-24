@@ -1019,7 +1019,7 @@ class VirtualMachineForTests(VirtualMachine):
 
     @property
     def login_params(self):
-        os_login_param = py_config["os_login_param"].get(self.os_flavor)
+        os_login_param = py_config.get("os_login_param", {}).get(self.os_flavor, {})
         if not os_login_param:
             LOGGER.warning(f"`os_login_param` not defined for {self.os_flavor}")
 
@@ -1029,8 +1029,10 @@ class VirtualMachineForTests(VirtualMachine):
         _login_params = self.login_params
 
         if not (self.username and self.password):
-            self.username = _login_params.get("username")
-            self.password = _login_params.get("password")
+            if _login_params:
+                self.username = _login_params.get("username")
+                self.password = _login_params.get("password")
+                return
 
             # Do not modify the defaults to OS like Windows where the password is already defined in the image
             if self.os_flavor not in FLAVORS_EXCLUDED_FROM_CLOUD_INIT:
@@ -1042,7 +1044,8 @@ class VirtualMachineForTests(VirtualMachine):
                         LOGGER.warning("Could not find credentials in cloud-init")
 
                 else:
-                    LOGGER.info("Setting random password")
+                    LOGGER.info("Setting random username and password")
+                    self.username = secrets.token_urlsafe(nbytes=12)
                     self.password = secrets.token_urlsafe(nbytes=12)
 
     @property
@@ -1393,7 +1396,7 @@ def fedora_vm_body(name: str) -> dict[str, Any]:
     # Make sure we can find the file even if utilities was installed via pip.
     yaml_file = os.path.abspath("utilities/manifests/vm-fedora.yaml")
 
-    with open(yaml_file, "r") as fd:
+    with open(yaml_file) as fd:
         data = fd.read()
 
     image = Images.Fedora.FEDORA_CONTAINER_IMAGE
