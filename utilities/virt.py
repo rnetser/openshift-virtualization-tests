@@ -1171,7 +1171,7 @@ class VirtualMachineForTestsFromTemplate(VirtualMachineForTests):
         Returns:
             obj `VirtualMachine`: VM resource
         """
-        # Must be set here to get username and password for running VMs
+        # Must be set here to set VM flavor (used to set username and password)
         self.template_labels = labels
         self.os_flavor = self._extract_os_from_template()
 
