@@ -24,9 +24,10 @@ class VNCConnection:
         for sample in sampler:
             if sample:
                 self.child = sample
-                self.child.logfile = open(f"{self.base_dir}/{self.vm.name}.pexpect.log", "a")
+                self.child.logfile = open(f"{self.base_dir}/{self.vm.name}.pexpect.log", "a", encoding="utf-8")  # noqa: SIM115
                 self.child.expect('"port":', timeout=TIMEOUT_5MIN)
                 return self.child
+        return None
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.child.close()

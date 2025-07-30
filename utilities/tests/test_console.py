@@ -113,18 +113,22 @@ class TestConsole:
         mock_vm.password = "pass"
         mock_vm.login_params = {}
 
-        with patch("console.get_data_collector_base_directory", return_value="/tmp/data"):
-            with patch.dict(os.environ, {"VIRTCTL": "custom-virtctl"}):
-                console = Console(vm=mock_vm)
+        with (
+            patch("console.get_data_collector_base_directory", return_value="/tmp/data"),
+            patch.dict(os.environ, {"VIRTCTL": "custom-virtctl"}),
+        ):
+            console = Console(vm=mock_vm)
 
         # Should use the virtctl from environment
         assert console.cmd == "custom-virtctl console test-vm -n test-ns"
 
         # Test without namespace
         mock_vm.namespace = None
-        with patch("console.get_data_collector_base_directory", return_value="/tmp/data"):
-            with patch("console.VIRTCTL", "virtctl"):
-                console = Console(vm=mock_vm)
+        with (
+            patch("console.get_data_collector_base_directory", return_value="/tmp/data"),
+            patch("console.VIRTCTL", "virtctl"),
+        ):
+            console = Console(vm=mock_vm)
 
         assert console.cmd == "virtctl console test-vm"
 

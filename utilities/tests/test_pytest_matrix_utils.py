@@ -7,11 +7,10 @@ from unittest.mock import MagicMock, patch
 # Add utilities to Python path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-
 # Mock modules to break circular imports
 sys.modules["utilities.infra"] = MagicMock()
 
-from utilities.pytest_matrix_utils import (
+from utilities.pytest_matrix_utils import (  # noqa: E402
     hpp_matrix,
     online_resize_matrix,
     snapshot_matrix,

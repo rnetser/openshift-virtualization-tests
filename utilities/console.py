@@ -95,7 +95,7 @@ class Console:
         for sample in sampler:
             if sample:
                 self.child = sample
-                self.child.logfile = open(f"{self.base_dir}/{self.vm.name}.pexpect.log", "a")
+                self.child.logfile = open(f"{self.base_dir}/{self.vm.name}.pexpect.log", "a", encoding="utf-8")  # noqa: SIM115
                 break
 
     def _generate_cmd(self):

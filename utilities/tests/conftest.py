@@ -20,8 +20,8 @@ resource.get_client = lambda: MagicMock()
 
 # Create mock modules to break circular imports
 sys.modules["utilities.data_collector"] = MagicMock()
-sys.modules["utilities.data_collector"].get_data_collector_base_directory = lambda: "/tmp/data"
-sys.modules["utilities.data_collector"].collect_alerts_data = MagicMock()
+sys.modules["utilities.data_collector"].get_data_collector_base_directory = lambda: "/tmp/data"  # type: ignore
+sys.modules["utilities.data_collector"].collect_alerts_data = MagicMock()  # type: ignore
 
 
 # Mock fixtures for common dependencies

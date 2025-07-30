@@ -7,16 +7,16 @@ import tempfile
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 # Add utilities to Python path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
-
-import pytest
 
 # Mock modules to break circular imports
 sys.modules["utilities.hco"] = MagicMock()
 sys.modules["utilities.infra"] = MagicMock()
 
-from utilities.data_collector import (
+from utilities.data_collector import (  # noqa: E402
     BASE_DIRECTORY_NAME,
     get_data_collector_base,
     get_data_collector_base_directory,

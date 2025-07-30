@@ -5,17 +5,17 @@ import sys
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-# Add utilities to Python path for imports
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
 import pytest
 from timeout_sampler import TimeoutExpiredError
+
+# Add utilities to Python path for imports
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
 # Mock modules to break circular imports
 sys.modules["utilities.virt"] = MagicMock()
 sys.modules["utilities.infra"] = MagicMock()
 
-from utilities.hco import (
+from utilities.hco import (  # noqa: E402
     ResourceEditorValidateHCOReconcile,
     add_labels_to_nodes,
     get_hco_spec,

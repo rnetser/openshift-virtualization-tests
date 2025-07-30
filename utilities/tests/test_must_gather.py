@@ -247,5 +247,5 @@ class TestCollectMustGather:
         mock_run_must_gather.return_value = "must gather output"
         mock_file_open.side_effect = OSError("Cannot write file")
 
-        with pytest.raises(IOError):
+        with pytest.raises(OSError, match="Cannot write file"):
             collect_must_gather("/tmp/test", "quay.io/test/image")

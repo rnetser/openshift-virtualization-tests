@@ -4,18 +4,18 @@ import sys
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-# Add utilities to Python path for imports
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
 import pytest
 from timeout_sampler import TimeoutExpiredError
+
+# Add utilities to Python path for imports
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
 # Mock modules to break circular imports
 sys.modules["utilities.virt"] = MagicMock()
 sys.modules["utilities.infra"] = MagicMock()
 sys.modules["utilities.hco"] = MagicMock()
 
-from utilities.ssp import (
+from utilities.ssp import (  # noqa: E402
     cluster_instance_type_for_hot_plug,
     get_data_import_crons,
     get_ga_version,
