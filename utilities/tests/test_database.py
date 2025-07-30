@@ -2,12 +2,12 @@
 
 import sys
 from pathlib import Path
-from unittest.mock import MagicMock, mock_open, patch
+from unittest.mock import MagicMock, patch
 
 # Add utilities to Python path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from database import Base, CNV_TEST_DB, CnvTestTable, Database
+from database import CNV_TEST_DB, Base, CnvTestTable, Database
 
 
 class TestCnvTestTable:
@@ -46,11 +46,11 @@ class TestDatabase:
         assert db.connection_string == f"sqlite:////tmp/data/{CNV_TEST_DB}"
         assert db.verbose is True
         assert db.engine == mock_engine
-        
+
         # Check engine creation
         mock_create_engine.assert_called_once_with(
             url=f"sqlite:////tmp/data/{CNV_TEST_DB}",
-            echo=True
+            echo=True,
         )
         mock_create_all.assert_called_once_with(bind=mock_engine)
 
@@ -66,13 +66,13 @@ class TestDatabase:
         db = Database(
             database_file_name="test.db",
             verbose=False,
-            base_dir="/custom/dir"
+            base_dir="/custom/dir",
         )
 
         assert db.database_file_path == "/custom/path/test.db"
         assert db.connection_string == "sqlite:////custom/path/test.db"
         assert db.verbose is False
-        
+
         mock_get_base.assert_called_once_with(base_dir="/custom/dir")
 
     @patch("database.Session")
@@ -84,7 +84,7 @@ class TestDatabase:
         mock_get_base.return_value = "/tmp/data/"
         mock_engine = MagicMock()
         mock_create_engine.return_value = mock_engine
-        
+
         # Mock session
         mock_session = MagicMock()
         mock_session_class.return_value.__enter__.return_value = mock_session
@@ -94,11 +94,11 @@ class TestDatabase:
 
         # Check Session was created with the engine
         mock_session_class.assert_called_once_with(bind=mock_engine)
-        
+
         # Check that add and commit were called
         mock_session.add.assert_called_once()
         mock_session.commit.assert_called_once()
-        
+
         # Check the object that was added
         added_obj = mock_session.add.call_args[0][0]
         assert isinstance(added_obj, CnvTestTable)
@@ -114,19 +114,19 @@ class TestDatabase:
         mock_get_base.return_value = "/tmp/data/"
         mock_engine = MagicMock()
         mock_create_engine.return_value = mock_engine
-        
+
         # Mock session and query
         mock_session = MagicMock()
         mock_query = MagicMock()
         mock_with_entities = MagicMock()
         mock_filter_by = MagicMock()
-        
+
         # Setup chain of mocks
         mock_session.query.return_value = mock_query
         mock_query.with_entities.return_value = mock_with_entities
         mock_with_entities.filter_by.return_value = mock_filter_by
         mock_filter_by.one.return_value = [1234567890]
-        
+
         mock_session_class.return_value.__enter__.return_value = mock_session
 
         db = Database()

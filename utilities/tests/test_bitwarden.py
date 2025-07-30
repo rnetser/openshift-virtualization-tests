@@ -29,7 +29,7 @@ class TestGetBitwardenSecretsClient:
             mock_client = MagicMock()
             mock_auth = MagicMock()
             mock_secrets = MagicMock()
-            
+
             mock_client.auth.return_value = mock_auth
             mock_client.secrets.return_value = mock_secrets
             mock_client_class.return_value = mock_client
@@ -44,10 +44,14 @@ class TestGetBitwardenSecretsClient:
 
     def test_get_bitwarden_secrets_client_no_token(self):
         """Test when ACCESS_TOKEN or ORGANIZATION_ID is not set"""
-        with patch.dict(os.environ, {}, clear=True):
-            with pytest.raises(Exception, 
-                             match="Bitwarden client needs ORGANIZATION_ID and ACCESS_TOKEN environment variable set up"):
-                get_bitwarden_secrets_client()
+        with (
+            patch.dict(os.environ, {}, clear=True),
+            pytest.raises(
+                Exception,
+                match="Bitwarden client needs ORGANIZATION_ID and ACCESS_TOKEN environment variable set up",
+            ),
+        ):
+            get_bitwarden_secrets_client()
 
 
 class TestGetAllCnvTestsSecrets:
@@ -62,7 +66,7 @@ class TestGetAllCnvTestsSecrets:
             mock_secret1 = MagicMock()
             mock_secret1.key = "test-secret-1"
             mock_secret1.id = "uuid-1"
-            
+
             mock_secret2 = MagicMock()
             mock_secret2.key = "test-secret-2"
             mock_secret2.id = "uuid-2"
@@ -92,9 +96,9 @@ class TestGetCnvTestsSecretByName:
         # Mock secrets dictionary
         mock_get_all.return_value = {
             "secret1": "uuid-1",
-            "secret2": "uuid-2"
+            "secret2": "uuid-2",
         }
-        
+
         # Mock the secret retrieval
         mock_secret_response = MagicMock()
         mock_secret_response.data.value = json.dumps({"key": "value2"})
@@ -114,8 +118,11 @@ class TestGetCnvTestsSecretByName:
 
         # Mock secrets dictionary without the requested secret
         mock_get_all.return_value = {
-            "existing-secret": "uuid-1"
+            "existing-secret": "uuid-1",
         }
 
-        with pytest.raises(AssertionError, match="secret nonexistent is either not found or does not have valid values"):
+        with pytest.raises(
+            AssertionError,
+            match="secret nonexistent is either not found or does not have valid values",
+        ):
             get_cnv_tests_secret_by_name("nonexistent")

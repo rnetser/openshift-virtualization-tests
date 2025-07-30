@@ -3,8 +3,6 @@
 import sys
 from pathlib import Path
 
-import pytest
-
 # Add utilities to Python path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
@@ -72,7 +70,9 @@ class TestConstants:
     def test_operator_health_impact_values(self):
         """Test operator health impact values are defined"""
         # Check for operator health related metrics
-        assert constants.KUBEVIRT_HYPERCONVERGED_OPERATOR_HEALTH_STATUS == "kubevirt_hyperconverged_operator_health_status"
+        assert (
+            constants.KUBEVIRT_HYPERCONVERGED_OPERATOR_HEALTH_STATUS == "kubevirt_hyperconverged_operator_health_status"
+        )
 
     def test_images_class_exists(self):
         """Test that ArchImages class exists"""
