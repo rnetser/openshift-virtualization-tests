@@ -12,7 +12,7 @@ from collections import defaultdict
 from contextlib import contextmanager
 from json import JSONDecodeError
 from subprocess import run
-from typing import TYPE_CHECKING, Any, Dict
+from typing import TYPE_CHECKING, Any
 
 import bitmath
 import jinja2
@@ -495,7 +495,7 @@ class VirtualMachineForTests(VirtualMachine):
     def set_hugepages_page_size(self, template_spec):
         if self.hugepages_page_size:
             template_spec.setdefault("domain", {}).setdefault("memory", {})["hugepages"] = {
-                "pageSize": self.hugepages_page_size
+                "pageSize": self.hugepages_page_size,
             }
         return template_spec
 
@@ -603,7 +603,8 @@ class VirtualMachineForTests(VirtualMachine):
         # Create rng device so the vm will be able to use /dev/rnd without
         # waiting for entropy collecting.
         self.res.setdefault("spec", {}).setdefault("template", {}).setdefault("spec", {}).setdefault(
-            "domain", {}
+            "domain",
+            {},
         ).setdefault("devices", {}).setdefault("rng", {})
 
     def set_service_accounts(self, template_spec):
@@ -708,11 +709,11 @@ class VirtualMachineForTests(VirtualMachine):
         # (which is meant to reflect VM memory amount)
         if self.memory_guest and self.memory_requests:
             LOGGER.warning(
-                "Setting both memory.guest and requests.memory values! (Users should set VM memory via memory.guest!)"
+                "Setting both memory.guest and requests.memory values! (Users should set VM memory via memory.guest!)",
             )
             if bitmath.parse_string_unsafe(self.memory_guest) > bitmath.parse_string_unsafe(self.memory_requests):
                 LOGGER.warning(
-                    "Setting memory.guest bigger then requests.memory! (This might cause unpredictable issues!)"
+                    "Setting memory.guest bigger then requests.memory! (This might cause unpredictable issues!)",
                 )
 
         if self.memory_guest:
@@ -743,7 +744,7 @@ class VirtualMachineForTests(VirtualMachine):
                 network_dict["macAddress"] = self.macs.get(iface_name)
 
             template_spec.setdefault("domain", {}).setdefault("devices", {}).setdefault("interfaces", []).append(
-                network_dict
+                network_dict,
             )
 
         for iface_name, network in self.networks.items():
@@ -756,7 +757,7 @@ class VirtualMachineForTests(VirtualMachine):
 
         if self.network_multiqueue is not None:
             template_spec.setdefault("domain", {}).setdefault("devices", {}).update({
-                "networkInterfaceMultiqueue": self.network_multiqueue
+                "networkInterfaceMultiqueue": self.network_multiqueue,
             })
 
         return template_spec
@@ -770,7 +771,7 @@ class VirtualMachineForTests(VirtualMachine):
             # If spec already contains cloud init data
             if existing_cloud_init_data:
                 cloud_init_volume[cloud_init_volume_type]["userData"] += generated_cloud_init["userData"].strip(
-                    "#cloud-config"
+                    "#cloud-config",
                 )
             else:
                 cloud_init_volume[cloud_init_volume_type] = generated_cloud_init
@@ -798,8 +799,8 @@ class VirtualMachineForTests(VirtualMachine):
                         "user": self.username,
                         "password": self.password,
                         "chpasswd": {"expire": False},
-                    }
-                }
+                    },
+                },
             )
             # 'ssh_pwaut' field is needed for Fedora38 VMs, where PasswordAuthentication in
             # /etc/ssh/sshd_config.d/50-cloud-init.conf is set to 'no', but to allow ssh connection it should be 'yes'.
@@ -907,7 +908,7 @@ class VirtualMachineForTests(VirtualMachine):
             # (Except when evictionStrategy is explicitly set)
             if not self.eviction_strategy and DataVolume.AccessMode.RWX not in access_mode:
                 LOGGER.info(
-                    f"{EVICTIONSTRATEGY} explicitly set to 'None' in VM because data volume access mode is not RWX"
+                    f"{EVICTIONSTRATEGY} explicitly set to 'None' in VM because data volume access mode is not RWX",
                 )
                 template_spec[EVICTIONSTRATEGY] = "None"
             if self.pvc:
@@ -959,7 +960,7 @@ class VirtualMachineForTests(VirtualMachine):
             "sshPublicKey": {
                 "source": {"secret": {"secretName": self.ssh_secret.name}},
                 "propagationMethod": {"noCloud": {}},
-            }
+            },
         })
         return template_spec
 
@@ -1038,7 +1039,7 @@ class VirtualMachineForTests(VirtualMachine):
             if self.os_flavor not in FLAVORS_EXCLUDED_FROM_CLOUD_INIT:
                 if self.exists:
                     self.username, self.password = username_password_from_cloud_init(
-                        vm_volumes=self.instance.spec.template.spec.volumes
+                        vm_volumes=self.instance.spec.template.spec.volumes,
                     )
                     if not self.username or not self.password:
                         LOGGER.warning("Could not find credentials in cloud-init")
@@ -1272,7 +1273,8 @@ class VirtualMachineForTestsFromTemplate(VirtualMachineForTests):
             self.res["spec"]["dataVolumeTemplates"] = [self.data_volume_template]
             spec = self._update_vm_storage_config(spec=spec, name=self.data_volume_template["metadata"]["name"])
             self.access_modes = self.data_volume_template["spec"].get("pvc", {}).get(
-                "accessModes", []
+                "accessModes",
+                [],
             ) or self.data_volume_template["spec"].get("storage", {}).get("accessModes", [])
         # Otherwise clone volume referenced in self.data_source
         else:
@@ -1334,13 +1336,14 @@ class VirtualMachineForTestsFromTemplate(VirtualMachineForTests):
         }
 
         template_object = self.template_object or get_template_by_labels(
-            admin_client=self.client, template_labels=self.template_labels
+            admin_client=self.client,
+            template_labels=self.template_labels,
         )
 
         # Set password for non-Windows VMs; for Windows VM, the password is already set in the image
         if OS_FLAVOR_WINDOWS not in self.os_flavor:
             username, _ = username_password_from_cloud_init(
-                vm_volumes=template_object.instance.objects[0].spec.template.spec.volumes
+                vm_volumes=template_object.instance.objects[0].spec.template.spec.volumes,
             )
 
             self.username = username
@@ -1505,7 +1508,9 @@ class ServiceForVirtualMachineForTests(Service):
 
 
 def wait_for_ssh_connectivity(
-    vm: VirtualMachineForTests, timeout: int = TIMEOUT_2MIN, tcp_timeout: int = TIMEOUT_1MIN
+    vm: VirtualMachineForTests,
+    timeout: int = TIMEOUT_2MIN,
+    tcp_timeout: int = TIMEOUT_1MIN,
 ) -> None:
     LOGGER.info(f"Wait for {vm.name} SSH connectivity.")
 
@@ -1542,7 +1547,7 @@ def generate_dict_from_yaml_template(stream, **kwargs):
     # Find all template variables
     template_vars = [i.split()[1] for i in re.findall(r"{{ .* }}", data)]
     for var in template_vars:
-        if var not in kwargs.keys():
+        if var not in kwargs:
             raise MissingTemplateVariables(var=var, template=data)
     template = jinja2.Template(data)
     out = template.render(**kwargs)
@@ -1650,7 +1655,9 @@ def get_rhel_os_dict(rhel_version: str) -> dict[str, Any]:
 def assert_vm_not_error_status(vm: VirtualMachineForTests, timeout: int = TIMEOUT_5SEC) -> None:
     try:
         for status in TimeoutSampler(
-            wait_timeout=timeout, sleep=TIMEOUT_1SEC, func=lambda: vm.instance.get("status", {})
+            wait_timeout=timeout,
+            sleep=TIMEOUT_1SEC,
+            func=lambda: vm.instance.get("status", {}),
         ):
             if status:
                 printable_status = status.get("printableStatus")
@@ -1840,7 +1847,7 @@ def wait_for_migration_finished(vm, migration, timeout=TIMEOUT_12MIN):
         for sample in samples:
             if sample == migration.Status.SUCCEEDED:
                 break
-            elif sample == "Scheduling":
+            if sample == "Scheduling":
                 counter += 1
                 # If migration stuck in Scheduling state for more than 4 minutes - most likely it will be failed
                 # Need to collect data before 5 min timeout reached and target POD is removed
@@ -1859,10 +1866,10 @@ def wait_for_migration_finished(vm, migration, timeout=TIMEOUT_12MIN):
                             ]
                             LOGGER.error(
                                 f"POD Conditions:\n {pod.instance.status.conditions[0]}\n"
-                                f"POD Events:\n {', '.join(pod_events)}"
+                                f"POD Events:\n {', '.join(pod_events)}",
                             )
                     raise TimeoutExpiredError(
-                        f"VMIM {migration.name} stuck in Scheduling state and probably will be failed"
+                        f"VMIM {migration.name} stuck in Scheduling state and probably will be failed",
                     )
     except TimeoutExpiredError:
         if sample:
@@ -2094,7 +2101,7 @@ def get_base_templates_list(client):
             dyn_client=client,
             singular_name=Template.singular_name,
             label_selector=Template.Labels.BASE,
-        )
+        ),
     )
     return [
         template
@@ -2157,7 +2164,8 @@ def wait_for_updated_kv_value(admin_client, hco_namespace, path, value, timeout=
                 break
     except TimeoutExpiredError:
         hco_annotations = utilities.infra.get_hyperconverged_resource(
-            client=admin_client, hco_ns_name=hco_namespace.name
+            client=admin_client,
+            hco_ns_name=hco_namespace.name,
         ).instance.metadata.annotations
         LOGGER.error(f"KV CR is not updated, path: {path}, expected value: {value}, HCO annotations: {hco_annotations}")
         raise
@@ -2269,7 +2277,9 @@ def wait_for_kv_stabilize(admin_client, hco_namespace):
 
 
 def get_oc_image_info(  # type: ignore[return]
-    image: str, pull_secret: str | None = None, architecture: str = LINUX_AMD_64
+    image: str,
+    pull_secret: str | None = None,
+    architecture: str = LINUX_AMD_64,
 ) -> dict[str, Any]:
     def _get_image_json(cmd: str) -> dict[str, Any]:
         return json.loads(run_command(command=shlex.split(cmd), check=False)[1])
@@ -2303,11 +2313,11 @@ def taint_node_no_schedule(node):
                             "effect": "NoSchedule",
                             "key": f"{Resource.ApiGroup.KUBEVIRT_IO}/drain",
                             "value": "draining",
-                        }
-                    ]
-                }
-            }
-        }
+                        },
+                    ],
+                },
+            },
+        },
     )
 
 
@@ -2343,7 +2353,7 @@ def start_and_fetch_processid_on_windows_vm(vm, process_name):
     run_ssh_commands(
         host=vm.ssh_exec,
         commands=shlex.split(
-            f"powershell Invoke-WmiMethod -Class Win32_Process -Name Create -ArgumentList {process_name}"
+            f"powershell Invoke-WmiMethod -Class Win32_Process -Name Create -ArgumentList {process_name}",
         ),
         tcp_timeout=TCP_TIMEOUT_30SEC,
     )
@@ -2423,7 +2433,7 @@ def wait_for_vmi_relocation_and_running(initial_node, vm, timeout=TIMEOUT_5MIN):
             if sample:
                 LOGGER.info(
                     f"The VM was created on {initial_node.name}, "
-                    f"and has successfully been relocated to {vm.vmi.node.name}"
+                    f"and has successfully been relocated to {vm.vmi.node.name}",
                 )
                 return True
     except TimeoutExpiredError:
@@ -2438,7 +2448,8 @@ def check_qemu_guest_agent_installed(ssh_exec: Host) -> bool:
 
 def validate_libvirt_persistent_domain(vm):
     domain = vm.privileged_vmi.virt_launcher_pod.execute(
-        command=shlex.split("virsh list --persistent"), container="compute"
+        command=shlex.split("virsh list --persistent"),
+        container="compute",
     )
     assert vm.vmi.Status.RUNNING.lower() in domain
 
@@ -2466,7 +2477,9 @@ def pause_optional_migrate_unpause_and_check_connectivity(vm: VirtualMachineForT
 
 
 def validate_pause_optional_migrate_unpause_linux_vm(
-    vm: VirtualMachineForTests, pre_pause_pid: int | None = None, migrate: bool = False
+    vm: VirtualMachineForTests,
+    pre_pause_pid: int | None = None,
+    migrate: bool = False,
 ) -> None:
     proc_name = OS_PROC_NAME["linux"]
     if not pre_pause_pid:
@@ -2479,7 +2492,7 @@ def validate_pause_optional_migrate_unpause_linux_vm(
     )
 
 
-def check_vm_xml_smbios(vm: VirtualMachineForTests, cm_values: Dict[str, str]) -> None:
+def check_vm_xml_smbios(vm: VirtualMachineForTests, cm_values: dict[str, str]) -> None:
     """
     Verify SMBIOS on VM XML [sysinfo type=smbios][system] match kubevirt-config
     config map.
@@ -2521,15 +2534,17 @@ def assert_vm_xml_efi(vm: VirtualMachineForTests, secure_boot_enabled: bool = Tr
 
 
 def update_vm_efi_spec_and_restart(
-    vm: VirtualMachineForTests, spec: dict[str, Any] | None = None, wait_for_interfaces: bool = True
+    vm: VirtualMachineForTests,
+    spec: dict[str, Any] | None = None,
+    wait_for_interfaces: bool = True,
 ) -> None:
     ResourceEditor({
-        vm: {"spec": {"template": {"spec": {"domain": {"firmware": {"bootloader": {"efi": spec or {}}}}}}}}
+        vm: {"spec": {"template": {"spec": {"domain": {"firmware": {"bootloader": {"efi": spec or {}}}}}}}},
     }).update()
     restart_vm_wait_for_running_vm(vm=vm, wait_for_interfaces=wait_for_interfaces)
 
 
-def delete_guestosinfo_keys(data: Dict[str, Any]) -> Dict[str, Any]:
+def delete_guestosinfo_keys(data: dict[str, Any]) -> dict[str, Any]:
     """
     supportedCommands - removed as the data is used for internal guest agent validations
     fsInfo, userList - checked in validate_fs_info_virtctl_vs_linux_os / validate_user_info_virtctl_vs_linux_os

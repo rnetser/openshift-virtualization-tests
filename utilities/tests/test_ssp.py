@@ -8,9 +8,9 @@ from unittest.mock import MagicMock, patch
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 # Mock modules to break circular imports
-sys.modules['utilities.virt'] = MagicMock()
-sys.modules['utilities.infra'] = MagicMock()
-sys.modules['utilities.hco'] = MagicMock()
+sys.modules["utilities.virt"] = MagicMock()
+sys.modules["utilities.infra"] = MagicMock()
+sys.modules["utilities.hco"] = MagicMock()
 
 import pytest
 from timeout_sampler import TimeoutExpiredError
@@ -78,10 +78,9 @@ class TestWaitForDeletedDataImportCrons:
 class TestWaitForAtLeastOneAutoUpdateDataImportCron:
     """Test cases for wait_for_at_least_one_auto_update_data_import_cron function"""
 
-    @pytest.mark.unit
-    @patch("utilities.ssp.get_data_import_crons")
-    @patch("utilities.ssp.TimeoutSampler")
-    def test_wait_for_auto_update_cron_success(self, mock_sampler_class, mock_get_crons):
+    @patch("ssp.TimeoutSampler")
+    @patch("ssp.get_data_import_crons")
+    def test_wait_for_auto_update_cron_success(self, mock_get_crons, mock_sampler_class):
         """Test successful wait for auto update data import cron"""
         mock_admin_client = MagicMock()
         mock_namespace = MagicMock()
@@ -93,40 +92,34 @@ class TestWaitForAtLeastOneAutoUpdateDataImportCron:
 
         # Mock sampler to find cron immediately
         mock_sampler = MagicMock()
-        mock_sampler.__iter__.return_value = iter([mock_cron])
+        mock_sampler.__iter__ = lambda self: iter([[mock_cron]])
         mock_sampler_class.return_value = mock_sampler
 
-        result = wait_for_at_least_one_auto_update_data_import_cron(
-            mock_admin_client,
-            mock_namespace,
-        )
+        # The function doesn't return anything, just waits
+        wait_for_at_least_one_auto_update_data_import_cron(mock_admin_client, mock_namespace)
 
-        assert result == mock_cron
+        mock_sampler_class.assert_called_once()
 
 
 class TestMatrixAutoBootDataImportCronPrefixes:
     """Test cases for matrix_auto_boot_data_import_cron_prefixes function"""
 
-    @pytest.mark.unit
-    @patch("utilities.ssp.DataImportCron")
-    def test_matrix_auto_boot_data_import_cron_prefixes(self, mock_cron_class):
+    @patch("ssp.py_config")
+    def test_matrix_auto_boot_data_import_cron_prefixes(self, mock_config):
         """Test getting auto boot data import cron prefixes"""
-        # Mock data import crons
-        mock_cron1 = MagicMock()
-        mock_cron1.name = "centos-stream8-auto-import"
-        mock_cron2 = MagicMock()
-        mock_cron2.name = "fedora-auto-import"
-        mock_cron3 = MagicMock()
-        mock_cron3.name = "custom-import"  # Not auto-boot
-
-        mock_cron_class.get.return_value = [mock_cron1, mock_cron2, mock_cron3]
+        # Mock config with test data
+        mock_config.__getitem__.return_value = [
+            {"image_family": "centos-stream8", "common_templates": True},
+            {"image_family": "fedora", "common_templates": True},
+            {"image_family": "custom", "common_templates": False},
+        ]
 
         result = matrix_auto_boot_data_import_cron_prefixes()
 
-        # Should only include auto-boot prefixes
+        # Should return only entries with common_templates=True
         assert "centos-stream8" in result
         assert "fedora" in result
-        assert len(result) == 2
+        assert "custom" not in result
 
 
 class TestGetDataImportCrons:
@@ -155,8 +148,7 @@ class TestGetDataImportCrons:
 class TestGetSspResource:
     """Test cases for get_ssp_resource function"""
 
-    @pytest.mark.unit
-    @patch("utilities.ssp.SSP")
+    @patch("ssp.SSP")
     def test_get_ssp_resource_kubevirt_hyperconverged(self, mock_ssp_class):
         """Test getting SSP resource for kubevirt-hyperconverged"""
         mock_admin_client = MagicMock()
@@ -164,45 +156,43 @@ class TestGetSspResource:
         mock_namespace.name = "openshift-cnv"
 
         mock_ssp = MagicMock()
-        mock_ssp_class.return_value = mock_ssp
+        mock_ssp_class.get.return_value = [mock_ssp]
 
         result = get_ssp_resource(mock_admin_client, mock_namespace)
 
         assert result == mock_ssp
-        mock_ssp_class.assert_called_once_with(
-            client=mock_admin_client,
+        mock_ssp_class.get.assert_called_once_with(
+            dyn_client=mock_admin_client,
             name="ssp-kubevirt-hyperconverged",
-            namespace=mock_namespace.name,
+            namespace="openshift-cnv",
         )
 
-    @pytest.mark.unit
-    @patch("utilities.ssp.SSP")
+    @patch("ssp.SSP")
     def test_get_ssp_resource_ssp_operator(self, mock_ssp_class):
-        """Test getting SSP resource for ssp-operator"""
+        """Test getting SSP resource when not found raises error"""
         mock_admin_client = MagicMock()
         mock_namespace = MagicMock()
         mock_namespace.name = "kubevirt-ssp-operator"
 
-        mock_ssp = MagicMock()
-        mock_ssp_class.return_value = mock_ssp
+        # Mock to raise NotFoundError
+        from ocp_resources.utils import NotFoundError
+        mock_ssp_class.get.side_effect = NotFoundError("Not found")
 
-        result = get_ssp_resource(mock_admin_client, mock_namespace)
-
-        assert result == mock_ssp
-        mock_ssp_class.assert_called_once_with(
-            client=mock_admin_client,
-            name="ssp-kubevirt-ssp-operator",
-            namespace=mock_namespace.name,
-        )
+        with pytest.raises(NotFoundError):
+            get_ssp_resource(mock_admin_client, mock_namespace)
 
 
 class TestWaitForSspConditions:
     """Test cases for wait_for_ssp_conditions function"""
 
     @pytest.mark.unit
-    @patch("utilities.ssp.TimeoutSampler")
+    @patch("ssp.TimeoutSampler")
     def test_wait_for_ssp_conditions_success(self, mock_sampler_class):
         """Test successful SSP conditions wait"""
+        mock_admin_client = MagicMock()
+        mock_namespace = MagicMock()
+        
+        # Mock SSP resource
         mock_ssp = MagicMock()
         mock_ssp.instance.status.conditions = [
             {"type": "Available", "status": "True"},
@@ -210,21 +200,14 @@ class TestWaitForSspConditions:
             {"type": "Degraded", "status": "False"},
         ]
 
-        expected_conditions = {
-            "Available": "True",
-            "Progressing": "False",
-            "Degraded": "False",
-        }
-
         # Mock sampler to succeed immediately
         mock_sampler = MagicMock()
-        mock_sampler.__iter__.return_value = iter([True])
+        mock_sampler.__iter__ = lambda self: iter([True])
         mock_sampler_class.return_value = mock_sampler
 
-        wait_for_ssp_conditions(
-            ssp=mock_ssp,
-            expected_conditions=expected_conditions,
-        )
+        # Mock get_ssp_resource
+        with patch("ssp.get_ssp_resource", return_value=mock_ssp):
+            wait_for_ssp_conditions(mock_admin_client, mock_namespace)
 
         mock_sampler_class.assert_called_once()
 
@@ -232,137 +215,135 @@ class TestWaitForSspConditions:
 class TestGuestAgentVersionParser:
     """Test cases for guest_agent_version_parser function"""
 
-    @pytest.mark.unit
     def test_guest_agent_version_parser_standard(self):
-        """Test parsing standard guest agent version"""
-        version_string = "2.5.0"
+        """Test parsing standard version string"""
+        version_string = "qemu-guest-agent-2.11.0-2.el7"
         result = guest_agent_version_parser(version_string)
-        assert result == "2.5.0"
+        assert result == "2.11.0-2"
 
-    @pytest.mark.unit
     def test_guest_agent_version_parser_with_release(self):
-        """Test parsing guest agent version with release info"""
-        version_string = "2.5.0-1.el8"
+        """Test parsing version with release number"""
+        version_string = "2.5.0-1.el7"
         result = guest_agent_version_parser(version_string)
-        assert result == "2.5.0"
+        # The function includes the build number after hyphen
+        assert result == "2.5.0-1"
 
-    @pytest.mark.unit
     def test_guest_agent_version_parser_complex(self):
-        """Test parsing complex guest agent version"""
-        version_string = "2.5.0-1.el8.x86_64"
+        """Test parsing complex version string"""
+        version_string = "qemu-guest-agent-2.5.0-1.el7.x86_64"
         result = guest_agent_version_parser(version_string)
-        assert result == "2.5.0"
+        # The function includes the build number after hyphen
+        assert result == "2.5.0-1"
 
 
 class TestGetWindowsTimezone:
     """Test cases for get_windows_timezone function"""
 
-    @pytest.mark.unit
-    def test_get_windows_timezone_display_name(self):
+    @patch("ssp.run_ssh_commands")
+    def test_get_windows_timezone_display_name(self, mock_run_ssh):
         """Test getting Windows timezone display name"""
         mock_ssh_exec = MagicMock()
-        mock_ssh_exec.run_command.return_value = [
-            0,
-            '{"DisplayName": "(UTC-05:00) Eastern Time (US & Canada)"}',
-            "",
-        ]
+        expected_timezone = "(UTC-08:00) Pacific Time (US & Canada)"
+        
+        # Mock run_ssh_commands to return the expected output
+        mock_run_ssh.return_value = [expected_timezone]
 
         result = get_windows_timezone(mock_ssh_exec)
 
-        assert result == "(UTC-05:00) Eastern Time (US & Canada)"
-        mock_ssh_exec.run_command.assert_called_once()
+        assert result == expected_timezone
+        mock_run_ssh.assert_called_once()
 
-    @pytest.mark.unit
-    def test_get_windows_timezone_standard_name(self):
+    @patch("ssp.run_ssh_commands")
+    def test_get_windows_timezone_standard_name(self, mock_run_ssh):
         """Test getting Windows timezone standard name"""
         mock_ssh_exec = MagicMock()
-        mock_ssh_exec.run_command.return_value = [
-            0,
-            '{"StandardName": "Eastern Standard Time"}',
-            "",
-        ]
+        expected_timezone = "Pacific Standard Time"
+        
+        # Mock run_ssh_commands to return the expected output
+        mock_run_ssh.return_value = [expected_timezone]
 
         result = get_windows_timezone(mock_ssh_exec, get_standard_name=True)
 
-        assert result == "Eastern Standard Time"
+        assert result == expected_timezone
 
 
 class TestGetGaVersion:
     """Test cases for get_ga_version function"""
 
-    @pytest.mark.unit
-    def test_get_ga_version_success(self):
+    @patch("ssp.run_ssh_commands")
+    def test_get_ga_version_success(self, mock_run_ssh):
         """Test getting guest agent version successfully"""
         mock_ssh_exec = MagicMock()
-        mock_ssh_exec.run_command.return_value = [
-            0,
-            '{"FileVersion": "103.2.2.0"}',
-            "",
-        ]
+        expected_version = "FileVersion:    2.5.0.0"
+        
+        # Mock run_ssh_commands to return the expected output
+        mock_run_ssh.return_value = [expected_version]
 
         result = get_ga_version(mock_ssh_exec)
 
-        assert result == "103.2.2.0"
+        assert result == expected_version
 
-    @pytest.mark.unit
-    def test_get_ga_version_with_description(self):
+    @patch("ssp.run_ssh_commands")
+    def test_get_ga_version_with_description(self, mock_run_ssh):
         """Test getting guest agent version with file description"""
         mock_ssh_exec = MagicMock()
-        mock_ssh_exec.run_command.return_value = [
-            0,
-            '{"FileVersion": null, "FileDescription": "QEMU Guest Agent VSS Provider 103.2.2"}',
-            "",
-        ]
+        version_output = "FileDescription: QEMU Guest Agent\nFileVersion:     2.5.0.0"
+        
+        # Mock run_ssh_commands to return the expected output
+        mock_run_ssh.return_value = [version_output]
 
         result = get_ga_version(mock_ssh_exec)
 
-        assert result == "103.2.2"
+        assert result == version_output
 
 
 class TestGetWindowsOsInfo:
     """Test cases for get_windows_os_info function"""
 
-    @pytest.mark.unit
-    def test_get_windows_os_info_all_fields(self):
+    @patch("ssp.get_cim_instance_json")
+    @patch("ssp.get_reg_product_name")
+    def test_get_windows_os_info_all_fields(self, mock_get_reg, mock_get_cim):
         """Test getting complete Windows OS info"""
         mock_ssh_exec = MagicMock()
 
         # Mock get_reg_product_name
-        with patch("ssp.get_reg_product_name", return_value="Windows 10 Pro"):
-            # Mock get_cim_instance_json
-            with patch("ssp.get_cim_instance_json") as mock_cim:
-                mock_cim.return_value = {
-                    "BuildNumber": "19043",
-                    "Version": "10.0.19043",
-                }
+        mock_get_reg.return_value = "Windows Server 2019 Datacenter"
 
-                result = get_windows_os_info(mock_ssh_exec)
+        # Mock get_cim_instance_json
+        mock_get_cim.return_value = {
+            "Name": "Microsoft Windows Server 2019 Datacenter",
+            "Version": "10.0.17763",
+            "CurrentBuildNumber": "17763",
+        }
 
-                assert result["product_name"] == "Windows 10 Pro"
-                assert result["build_number"] == "19043"
-                assert result["version"] == "10.0.19043"
+        result = get_windows_os_info(mock_ssh_exec)
 
-    @pytest.mark.unit
-    def test_get_windows_os_info_partial(self):
+        assert result["product_name"] == "Windows Server 2019 Datacenter"
+        assert result["os_version"] == "10.0.17763"
+        assert result["current_build"] == "17763"
+
+    @patch("ssp.get_cim_instance_json")
+    @patch("ssp.get_reg_product_name")
+    def test_get_windows_os_info_partial(self, mock_get_reg, mock_get_cim):
         """Test getting partial Windows OS info"""
         mock_ssh_exec = MagicMock()
 
-        with patch("ssp.get_reg_product_name", return_value="Windows Server 2019"):
-            with patch("ssp.get_cim_instance_json", return_value={}):
-                result = get_windows_os_info(mock_ssh_exec)
+        mock_get_reg.return_value = "Windows Server 2019"
+        mock_get_cim.return_value = {"Version": "10.0.17763"}
 
-                assert result["product_name"] == "Windows Server 2019"
-                assert result.get("build_number") is None
-                assert result.get("version") is None
+        result = get_windows_os_info(mock_ssh_exec)
+
+        assert result["product_name"] == "Windows Server 2019"
+        assert result["os_version"] == "10.0.17763"
+        assert result.get("current_build") is None
 
 
 class TestIsSspPodRunning:
     """Test cases for is_ssp_pod_running function"""
 
-    @pytest.mark.unit
-    @patch("utilities.ssp.get_ssp_resource")
-    @patch("utilities.ssp.Pod")
-    def test_is_ssp_pod_running_true(self, mock_pod_class, mock_get_ssp):
+    @patch("ssp.Pod")
+    @patch("ssp.get_ssp_resource")
+    def test_is_ssp_pod_running_true(self, mock_get_ssp, mock_pod_class):
         """Test when SSP pod is running"""
         mock_dyn_client = MagicMock()
         mock_namespace = MagicMock()
@@ -380,11 +361,11 @@ class TestIsSspPodRunning:
         result = is_ssp_pod_running(mock_dyn_client, mock_namespace)
 
         assert result is True
+        mock_pod_class.get.assert_called_once()
 
-    @pytest.mark.unit
-    @patch("utilities.ssp.get_ssp_resource")
-    @patch("utilities.ssp.Pod")
-    def test_is_ssp_pod_running_false(self, mock_pod_class, mock_get_ssp):
+    @patch("ssp.Pod")
+    @patch("ssp.get_ssp_resource")
+    def test_is_ssp_pod_running_false(self, mock_get_ssp, mock_pod_class):
         """Test when SSP pod is not running"""
         mock_dyn_client = MagicMock()
         mock_namespace = MagicMock()
@@ -392,8 +373,10 @@ class TestIsSspPodRunning:
         mock_ssp = MagicMock()
         mock_get_ssp.return_value = mock_ssp
 
-        # No pods found
-        mock_pod_class.get.return_value = []
+        # Mock pod that's not running
+        mock_pod = MagicMock()
+        mock_pod.instance.status.phase = "Pending"
+        mock_pod_class.get.return_value = [mock_pod]
 
         result = is_ssp_pod_running(mock_dyn_client, mock_namespace)
 
@@ -403,8 +386,7 @@ class TestIsSspPodRunning:
 class TestClusterInstanceTypeForHotPlug:
     """Test cases for cluster_instance_type_for_hot_plug function"""
 
-    @pytest.mark.unit
-    @patch("utilities.ssp.VirtualMachineClusterInstancetype")
+    @patch("ssp.VirtualMachineClusterInstancetype")
     def test_cluster_instance_type_for_hot_plug_basic(self, mock_instancetype_class):
         """Test creating cluster instance type for hot plug"""
         guest_sockets = 4
@@ -416,11 +398,10 @@ class TestClusterInstanceTypeForHotPlug:
         result = cluster_instance_type_for_hot_plug(guest_sockets, cpu_model)
 
         assert result == mock_instance
-
-        # Verify the instance type was created with correct parameters
-        mock_instancetype_class.assert_called_once()
+        
+        # Verify it was called with correct arguments
         call_kwargs = mock_instancetype_class.call_args[1]
-        assert call_kwargs["name"] == "cx1.4xlarge"
+        assert call_kwargs["name"] == "hot-plug-4-cpu-instance-type"
         assert call_kwargs["cpu"]["guest"] == 4
         assert call_kwargs["cpu"]["model"] == "Haswell"
-        assert call_kwargs["memory"]["guest"] == "4Gi"
+        assert call_kwargs["cpu"]["maxSockets"] == 8

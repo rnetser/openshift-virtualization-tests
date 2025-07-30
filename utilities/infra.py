@@ -180,7 +180,7 @@ def get_pod_by_name_prefix(dyn_client, pod_prefix, namespace, get_all=False):
     pods = [pod for pod in Pod.get(dyn_client=dyn_client, namespace=namespace) if re.match(pod_prefix, pod.name)]
     if get_all:
         return pods  # Some negative cases check if no pods exists.
-    elif pods:
+    if pods:
         return pods[0]
     raise ResourceNotFoundError(f"A pod with the {pod_prefix} prefix does not exist")
 
@@ -261,7 +261,7 @@ def get_pods(dyn_client: DynamicClient, namespace: Namespace, label: str = "") -
             dyn_client=dyn_client,
             namespace=namespace.name,
             label_selector=label,
-        )
+        ),
     )
 
 
@@ -352,7 +352,7 @@ def wait_for_pods_running(
         if not_running_pods:
             LOGGER.error(
                 f"timeout waiting for all pods in namespace {namespace.name} to reach "
-                f"running state, following pods are in not running state: {not_running_pods}"
+                f"running state, following pods are in not running state: {not_running_pods}",
             )
             raise
 
@@ -437,7 +437,7 @@ def wait_for_consistent_resource_conditions(
                 dyn_client=dynamic_client,
                 namespace=namespace,
                 name=resource_name,
-            )
+            ),
         ),
         exceptions_dict=exceptions_dict,
     )
@@ -445,7 +445,7 @@ def wait_for_consistent_resource_conditions(
     actual_conditions = {}
     LOGGER.info(
         f"Waiting for resource to stabilize: resource_kind={resource_kind.__name__} conditions={expected_conditions} "
-        f"sleep={total_timeout} consecutive_checks_count={consecutive_checks_count}"
+        f"sleep={total_timeout} consecutive_checks_count={consecutive_checks_count}",
     )
     try:
         for sample in samples:
@@ -461,28 +461,27 @@ def wait_for_consistent_resource_conditions(
                     if current_check >= consecutive_checks_count:
                         return
                     continue
-                else:
-                    current_check = 0
-                    if stop_conditions:
-                        actual_conditions = {condition["type"]: condition["reason"] for condition in status_conditions}
-                        matched_stop_conditions = {
-                            type: reason
-                            for type, reason in stop_conditions.items()
-                            if type in actual_conditions and actual_conditions[type] == reason
-                        }
-                        if matched_stop_conditions:
-                            LOGGER.error(
-                                f"Execution halted due to matched stop conditions: {matched_stop_conditions}. "
-                                f"Current status conditions: {status_conditions}."
-                            )
-                            raise TimeoutExpiredError(
-                                f"Stop condition met for {resource_kind.__name__}/{resource_name}."
-                            )
+                current_check = 0
+                if stop_conditions:
+                    actual_conditions = {condition["type"]: condition["reason"] for condition in status_conditions}
+                    matched_stop_conditions = {
+                        type: reason
+                        for type, reason in stop_conditions.items()
+                        if type in actual_conditions and actual_conditions[type] == reason
+                    }
+                    if matched_stop_conditions:
+                        LOGGER.error(
+                            f"Execution halted due to matched stop conditions: {matched_stop_conditions}. "
+                            f"Current status conditions: {status_conditions}.",
+                        )
+                        raise TimeoutExpiredError(
+                            f"Stop condition met for {resource_kind.__name__}/{resource_name}.",
+                        )
 
     except TimeoutExpiredError:
         LOGGER.error(
             f"Timeout expired meeting conditions for resource: resource={resource_kind.kind} "
-            f"expected_conditions={expected_conditions} status_conditions={actual_conditions}"
+            f"expected_conditions={expected_conditions} status_conditions={actual_conditions}",
         )
         raise
 
@@ -617,7 +616,7 @@ def cluster_sanity(
             LOGGER.warning(f"Skipping cluster sanity check, got {skip_cluster_sanity_check}")
             return
         LOGGER.info(
-            f"Running cluster sanity. (To skip cluster sanity check pass {skip_cluster_sanity_check} to pytest)"
+            f"Running cluster sanity. (To skip cluster sanity check pass {skip_cluster_sanity_check} to pytest)",
         )
         # Check storage class only if --cluster-sanity-skip-storage-check not passed to pytest.
         if request.session.config.getoption(skip_storage_classes_check):
@@ -625,12 +624,12 @@ def cluster_sanity(
         else:
             LOGGER.info(
                 f"Check storage classes sanity. (To skip storage class sanity check pass {skip_storage_classes_check} "
-                f"to pytest)"
+                f"to pytest)",
             )
             if not storage_sanity_check(cluster_storage_classes_names=cluster_storage_classes_names):
                 raise StorageSanityError(
                     err_str=f"Cluster is missing storage class.\n"
-                    f"either run with '--storage-class-matrix' or with '{skip_storage_classes_check}'"
+                    f"either run with '--storage-class-matrix' or with '{skip_storage_classes_check}'",
                 )
 
         # Check nodes only if --cluster-sanity-skip-nodes-check not passed to pytest.
@@ -652,7 +651,7 @@ def cluster_sanity(
             except TimeoutExpiredError as timeout_error:
                 LOGGER.error(timeout_error)
                 raise ClusterSanityError(
-                    err_str=f"Timed out waiting for all pods in namespace {hco_namespace.name} to get to running state."
+                    err_str=f"Timed out waiting for all pods in namespace {hco_namespace.name} to get to running state.",
                 )
         # Wait for hco to be healthy
         wait_for_hco_conditions(
@@ -736,7 +735,7 @@ def get_raw_package_manifest(admin_client, name, catalog_source):
     ):
         LOGGER.info(
             f"Found expected packagemanefest: {resource_field.metadata.name}: "
-            f"in catalog: {resource_field.metadata.labels.catalog}"
+            f"in catalog: {resource_field.metadata.labels.catalog}",
         )
         return resource_field
     LOGGER.warning(f"Not able to find any packagemanifest {name} in {catalog_source} source.")
@@ -841,7 +840,7 @@ def get_hco_mismatch_statuses(hco_status_conditions, expected_hco_status):
     for condition_type, condition_status in expected_hco_status.items():
         if current_status[condition_type] != condition_status:
             mismatch_statuses.append(
-                f"Current condition type {condition_type} does not match expected status {condition_status}"
+                f"Current condition type {condition_type} does not match expected status {condition_status}",
             )
 
     return mismatch_statuses
@@ -1061,7 +1060,7 @@ def generate_openshift_pull_secret_file(client: DynamicClient = None) -> str:
 
 def get_node_audit_log_entries(log, node, log_entry):
     return subprocess.getoutput(
-        f"{OC_ADM_LOGS_COMMAND} {node} {AUDIT_LOGS_PATH}/{log} | grep {shlex.quote(log_entry)}"
+        f"{OC_ADM_LOGS_COMMAND} {node} {AUDIT_LOGS_PATH}/{log} | grep {shlex.quote(log_entry)}",
     ).splitlines()
 
 
@@ -1211,7 +1210,7 @@ def login_to_account(login_command):
     except TimeoutExpiredError:
         if login_result:
             LOGGER.warning(
-                f"Login - failed due to the following error: {login_result[0].decode('utf-8')} {login_decoded_result}"
+                f"Login - failed due to the following error: {login_result[0].decode('utf-8')} {login_decoded_result}",
             )
         return False
 
@@ -1378,7 +1377,7 @@ def cleanup_artifactory_secret_and_config_map(artifactory_secret=None, artifacto
 
 def add_scc_to_service_account(namespace, scc_name, sa_name):
     output = subprocess.check_output(
-        shlex.split(f"oc adm policy add-scc-to-user {scc_name} system:serviceaccount:{namespace}:{sa_name}")
+        shlex.split(f"oc adm policy add-scc-to-user {scc_name} system:serviceaccount:{namespace}:{sa_name}"),
     )
     if f'added: "{sa_name}"' not in str(output):
         raise AssertionError(f"Unable to add {sa_name} to {scc_name} scc")
@@ -1408,11 +1407,15 @@ def get_nodes_cpu_model(nodes):
         for label, value in node.labels.items():
             match_object = re.match(rf"{CPU_MODEL_LABEL_PREFIX}/(.*)", label)
             if is_cpu_model_not_in_excluded_list(
-                filter_list=EXCLUDED_CPU_MODELS, match=match_object, label_value=value
+                filter_list=EXCLUDED_CPU_MODELS,
+                match=match_object,
+                label_value=value,
             ):
                 nodes_cpu_model["common"][node.name].add(match_object.group(1))
             if is_cpu_model_not_in_excluded_list(
-                filter_list=EXCLUDED_OLD_CPU_MODELS, match=match_object, label_value=value
+                filter_list=EXCLUDED_OLD_CPU_MODELS,
+                match=match_object,
+                label_value=value,
             ):
                 nodes_cpu_model["modern"][node.name].add(match_object.group(1))
     return nodes_cpu_model
@@ -1440,9 +1443,8 @@ def find_common_cpu_model_for_live_migration(cluster_cpu, host_cpu_model):
         if len(set(host_cpu_model.values())) == 1:
             LOGGER.info(f"Host model cpus for all nodes are same {host_cpu_model}. No common cpus are needed")
             return None
-        else:
-            LOGGER.info(f"Using cluster node cpu: {cluster_cpu}")
-            return cluster_cpu
+        LOGGER.info(f"Using cluster node cpu: {cluster_cpu}")
+        return cluster_cpu
     # if we reach here, it is heterogeneous cluster, we would return None
     LOGGER.warning("This is a heterogeneous cluster with no common cluster cpu.")
     return None

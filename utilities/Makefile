@@ -29,6 +29,9 @@ test-parallel:  ## Run tests in parallel
 test-medium:  ## Run medium priority tests
 	$(UV_BIN) run pytest tests/test_logger.py tests/test_os_utils.py tests/test_monitoring.py tests/test_hco.py tests/test_ssp.py -v
 
+test-low:  ## Run low priority tests
+	$(UV_BIN) run pytest tests/test_architecture.py tests/test_bitwarden.py tests/test_console.py tests/test_constants.py tests/test_database.py -v
+
 lint:  ## Run linting
 	$(UV_BIN) run ruff check .
 	$(UV_BIN) run ruff format --check .

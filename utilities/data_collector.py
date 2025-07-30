@@ -127,7 +127,8 @@ def collect_ocp_must_gather(since_time):
 
 def collect_default_cnv_must_gather_with_vm_gather(since_time, target_dir):
     cnv_csv = utilities.hco.get_installed_hco_csv(
-        admin_client=get_client(), hco_namespace=Namespace(name=py_config["hco_namespace"])
+        admin_client=get_client(),
+        hco_namespace=Namespace(name=py_config["hco_namespace"]),
     )
     LOGGER.info(f"Collecting cnv-must gather using CSV: {cnv_csv.name}")
     must_gather_image = [

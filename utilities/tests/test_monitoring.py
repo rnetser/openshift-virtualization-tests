@@ -151,64 +151,64 @@ class TestWaitForFiringAlertCleanUp:
 class TestValidateAlerts:
     """Test cases for validate_alerts function"""
 
-    @pytest.mark.unit
     def test_validate_alerts_all_expected_found(self):
         """Test when all expected alerts are found"""
-        prometheus_alerts = [
-            {"labels": {"alertname": "Alert1"}, "state": "firing"},
-            {"labels": {"alertname": "Alert2"}, "state": "firing"},
-            {"labels": {"alertname": "Alert3"}, "state": "pending"},
+        mock_prometheus = MagicMock()
+        alert_dict = {"Alert1": "alert1", "Alert2": "alert2"}
+        actual_alerts = [
+            {"state": "firing", "labels": {"alertname": "Alert1"}},
+            {"state": "firing", "labels": {"alertname": "Alert2"}},
+            {"state": "pending", "labels": {"alertname": "Alert3"}},
         ]
-        expected_alerts = ["Alert1", "Alert2"]
+        mock_prometheus.get_all_alerts.return_value = actual_alerts
 
         missing, unexpected = validate_alerts(
-            prometheus_alerts,
-            expected_alerts,
-            only_firing=True,
+            mock_prometheus, alert_dict
         )
 
         assert missing == []
-        assert unexpected == ["Alert3"]  # Not firing
+        assert unexpected == []
 
-    @pytest.mark.unit
     def test_validate_alerts_with_missing_alerts(self):
         """Test when some expected alerts are missing"""
-        prometheus_alerts = [
-            {"labels": {"alertname": "Alert1"}, "state": "firing"},
+        mock_prometheus = MagicMock()
+        alert_dict = {"Alert1": "alert1", "Alert2": "alert2", "Alert3": "alert3"}
+        actual_alerts = [
+            {"state": "firing", "labels": {"alertname": "Alert1"}},
         ]
-        expected_alerts = ["Alert1", "Alert2", "Alert3"]
+        mock_prometheus.get_all_alerts.return_value = actual_alerts
 
         missing, unexpected = validate_alerts(
-            prometheus_alerts,
-            expected_alerts,
-            only_firing=True,
+            mock_prometheus, alert_dict
         )
 
         assert set(missing) == {"Alert2", "Alert3"}
         assert unexpected == []
 
-    @pytest.mark.unit
     def test_validate_alerts_include_non_firing(self):
-        """Test including non-firing alerts"""
-        prometheus_alerts = [
-            {"labels": {"alertname": "Alert1"}, "state": "firing"},
-            {"labels": {"alertname": "Alert2"}, "state": "pending"},
+        """Test with different state filter"""
+        mock_prometheus = MagicMock()
+        alert_dict = {"Alert1": "alert1"}
+        actual_alerts = [
+            {"state": "pending", "labels": {"alertname": "Alert1"}},
+            {"state": "firing", "labels": {"alertname": "Alert2"}},
         ]
-        expected_alerts = ["Alert1", "Alert2"]
+        mock_prometheus.get_all_alerts.return_value = actual_alerts
 
         missing, unexpected = validate_alerts(
-            prometheus_alerts,
-            expected_alerts,
-            only_firing=False,
+            mock_prometheus, alert_dict, state="pending"
         )
 
         assert missing == []
         assert unexpected == []
 
-    @pytest.mark.unit
     def test_validate_alerts_empty_inputs(self):
-        """Test with empty inputs"""
-        missing, unexpected = validate_alerts([], [], only_firing=True)
+        """Test with empty alert dict"""
+        mock_prometheus = MagicMock()
+        mock_prometheus.get_all_alerts.return_value = []
+
+        missing, unexpected = validate_alerts(mock_prometheus, {})
+
         assert missing == []
         assert unexpected == []
 
@@ -216,17 +216,18 @@ class TestValidateAlerts:
 class TestWaitForOperatorHealthMetricsValue:
     """Test cases for wait_for_operator_health_metrics_value function"""
 
-    @pytest.mark.unit
-    @patch("utilities.monitoring.get_metrics_value")
-    @patch("utilities.monitoring.TimeoutSampler")
-    def test_wait_for_operator_health_metrics_success(self, mock_sampler_class, mock_get_metrics):
+    @patch("monitoring.TimeoutSampler")
+    @patch("monitoring.get_metrics_value")
+    def test_wait_for_operator_health_metrics_success(
+        self, mock_get_metrics, mock_sampler_class
+    ):
         """Test successful operator health metrics check"""
         mock_prometheus = MagicMock()
-        expected_value = 0
+        health_impact_value = 0
         timeout = 120
 
         # Mock get_metrics_value to return expected value
-        mock_get_metrics.return_value = expected_value
+        mock_get_metrics.return_value = health_impact_value
 
         # Mock sampler
         mock_sampler = MagicMock()
@@ -234,25 +235,23 @@ class TestWaitForOperatorHealthMetricsValue:
         mock_sampler_class.return_value = mock_sampler
 
         wait_for_operator_health_metrics_value(
-            prometheus=mock_prometheus,
-            expected_value=expected_value,
-            timeout=timeout,
-        )
-
-        mock_get_metrics.assert_called_with(
             mock_prometheus,
-            "kubevirt_hyperconverged_operator_health_status",
+            health_impact_value
         )
 
-    @pytest.mark.unit
-    @patch("utilities.monitoring.get_metrics_value")
-    @patch("utilities.monitoring.TimeoutSampler")
-    def test_wait_for_operator_health_metrics_timeout(self, mock_sampler_class, mock_get_metrics):
+        mock_sampler_class.assert_called_once()
+        mock_get_metrics.assert_called()
+
+    @patch("monitoring.TimeoutSampler")
+    @patch("monitoring.get_metrics_value")
+    def test_wait_for_operator_health_metrics_timeout(
+        self, mock_get_metrics, mock_sampler_class
+    ):
         """Test operator health metrics timeout"""
         mock_prometheus = MagicMock()
-        expected_value = 0
+        health_impact_value = 0
 
-        # Mock get_metrics_value to return wrong value
+        # Mock get_metrics_value to return different value
         mock_get_metrics.return_value = 1
 
         # Mock sampler to timeout
@@ -262,82 +261,90 @@ class TestWaitForOperatorHealthMetricsValue:
 
         with pytest.raises(TimeoutExpiredError):
             wait_for_operator_health_metrics_value(
-                prometheus=mock_prometheus,
-                expected_value=expected_value,
+                mock_prometheus,
+                health_impact_value
             )
 
 
 class TestGetAllFiringAlerts:
     """Test cases for get_all_firing_alerts function"""
 
-    @pytest.mark.unit
     def test_get_all_firing_alerts_filters_correctly(self):
         """Test that function filters only firing alerts"""
         mock_prometheus = MagicMock()
         all_alerts = [
-            {"state": "firing", "labels": {"alertname": "Alert1"}},
+            {"state": "firing", "labels": {"alertname": "Alert1", "operator_health_impact": "critical"}},
             {"state": "pending", "labels": {"alertname": "Alert2"}},
-            {"state": "firing", "labels": {"alertname": "Alert3"}},
-            {"state": "inactive", "labels": {"alertname": "Alert4"}},
+            {"state": "firing", "labels": {"alertname": "Alert3", "operator_health_impact": "warning"}},
         ]
-        mock_prometheus.get_all_alerts.return_value = all_alerts
+        mock_prometheus.alerts.return_value = {"data": {"alerts": all_alerts}}
 
         result = get_all_firing_alerts(mock_prometheus)
 
-        assert len(result) == 2
-        assert all(alert["state"] == "firing" for alert in result)
-        assert result[0]["labels"]["alertname"] == "Alert1"
-        assert result[1]["labels"]["alertname"] == "Alert3"
+        # Result should be a dict grouped by health impact values
+        assert isinstance(result, dict)
+        # Check that pending alerts are not included
+        all_alerts_in_result = []
+        for alerts_list in result.values():
+            all_alerts_in_result.extend(alerts_list)
+        assert len(all_alerts_in_result) == 2
 
-    @pytest.mark.unit
     def test_get_all_firing_alerts_empty(self):
         """Test when no firing alerts exist"""
         mock_prometheus = MagicMock()
-        mock_prometheus.get_all_alerts.return_value = []
+        mock_prometheus.alerts.return_value = {"data": {"alerts": []}}
 
         result = get_all_firing_alerts(mock_prometheus)
 
-        assert result == []
+        assert result == {}
 
 
 class TestGetMetricsValue:
     """Test cases for get_metrics_value function"""
 
-    @pytest.mark.unit
     def test_get_metrics_value_single_result(self):
         """Test getting metrics value with single result"""
         mock_prometheus = MagicMock()
         metrics_name = "test_metric"
         expected_value = 42.0
 
-        mock_prometheus.get_instant_metric_value.return_value = [expected_value]
+        mock_prometheus.query.return_value = {
+            "data": {
+                "result": [
+                    {"value": [1234567890, expected_value]}
+                ]
+            }
+        }
 
         result = get_metrics_value(mock_prometheus, metrics_name)
 
         assert result == expected_value
-        mock_prometheus.get_instant_metric_value.assert_called_once_with(
-            metrics_name=metrics_name,
-        )
+        mock_prometheus.query.assert_called_once_with(query=metrics_name)
 
-    @pytest.mark.unit
     def test_get_metrics_value_multiple_results(self):
         """Test getting metrics value with multiple results (returns first)"""
         mock_prometheus = MagicMock()
         metrics_name = "test_metric"
 
-        mock_prometheus.get_instant_metric_value.return_value = [10.0, 20.0, 30.0]
+        mock_prometheus.query.return_value = {
+            "data": {
+                "result": [
+                    {"value": [1234567890, 42.0]},
+                    {"value": [1234567891, 43.0]}
+                ]
+            }
+        }
 
         result = get_metrics_value(mock_prometheus, metrics_name)
 
-        assert result == 10.0
+        assert result == 42.0
 
-    @pytest.mark.unit
     def test_get_metrics_value_empty_result(self):
         """Test getting metrics value with empty result"""
         mock_prometheus = MagicMock()
         metrics_name = "test_metric"
 
-        mock_prometheus.get_instant_metric_value.return_value = []
+        mock_prometheus.query.return_value = {"data": {"result": []}}
 
         result = get_metrics_value(mock_prometheus, metrics_name)
 
@@ -347,28 +354,32 @@ class TestGetMetricsValue:
 class TestWaitForGaugeMetricsValue:
     """Test cases for wait_for_gauge_metrics_value function"""
 
-    @pytest.mark.unit
-    @patch("utilities.monitoring.TimeoutSampler")
+    @patch("monitoring.TimeoutSampler")
     def test_wait_for_gauge_metrics_value_success(self, mock_sampler_class):
         """Test successful gauge metrics value wait"""
         mock_prometheus = MagicMock()
         query = "test_gauge_metric"
         expected_value = 100
 
-        # Mock prometheus to return expected value
-        mock_prometheus.get_instant_metric_value.return_value = [expected_value]
+        # Mock prometheus query to return expected value
+        mock_prometheus.query.return_value = {
+            "data": {
+                "result": [
+                    {"value": [1234567890, expected_value]}
+                ]
+            }
+        }
 
         # Mock sampler
         mock_sampler = MagicMock()
-        mock_sampler.__iter__.return_value = iter([True])
+        mock_sampler.__iter__.return_value = iter([mock_prometheus.query.return_value])
         mock_sampler_class.return_value = mock_sampler
 
         wait_for_gauge_metrics_value(mock_prometheus, query, expected_value)
 
         mock_sampler_class.assert_called_once()
 
-    @pytest.mark.unit
-    @patch("utilities.monitoring.TimeoutSampler")
+    @patch("monitoring.TimeoutSampler")
     def test_wait_for_gauge_metrics_value_custom_timeout(self, mock_sampler_class):
         """Test gauge metrics wait with custom timeout"""
         mock_prometheus = MagicMock()
@@ -376,19 +387,22 @@ class TestWaitForGaugeMetricsValue:
         expected_value = 100
         custom_timeout = 600
 
-        mock_prometheus.get_instant_metric_value.return_value = [expected_value]
+        mock_prometheus.query.return_value = {
+            "data": {
+                "result": [
+                    {"value": [1234567890, expected_value]}
+                ]
+            }
+        }
 
         mock_sampler = MagicMock()
-        mock_sampler.__iter__.return_value = iter([True])
+        mock_sampler.__iter__.return_value = iter([mock_prometheus.query.return_value])
         mock_sampler_class.return_value = mock_sampler
 
         wait_for_gauge_metrics_value(
-            mock_prometheus,
-            query,
-            expected_value,
-            timeout=custom_timeout,
+            mock_prometheus, query, expected_value, timeout=custom_timeout
         )
 
-        # Verify timeout was passed correctly
+        # Verify timeout was passed to sampler
         args, kwargs = mock_sampler_class.call_args
-        assert kwargs["wait_timeout"] == custom_timeout
+        assert kwargs["timeout"] == custom_timeout

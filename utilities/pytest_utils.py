@@ -220,13 +220,12 @@ def get_artifactory_server_url(cluster_host_url):
     if artifactory_server := os.environ.get("ARTIFACTORY_SERVER"):
         LOGGER.info(f"Using user requested `ARTIFACTORY_SERVER` environment variable: {artifactory_server}")
         return artifactory_server
+    servers = get_cnv_tests_secret_by_name(secret_name="artifactory_servers")
+    matching_server = [servers[domain_key] for domain_key in servers if domain_key in cluster_host_url]
+    if matching_server:
+        artifactory_server = matching_server[0]
     else:
-        servers = get_cnv_tests_secret_by_name(secret_name="artifactory_servers")
-        matching_server = [servers[domain_key] for domain_key in servers if domain_key in cluster_host_url]
-        if matching_server:
-            artifactory_server = matching_server[0]
-        else:
-            artifactory_server = get_cnv_tests_secret_by_name(secret_name="default_artifactory_server")["server"]
+        artifactory_server = get_cnv_tests_secret_by_name(secret_name="default_artifactory_server")["server"]
     LOGGER.info(f"Using artifactory server: {artifactory_server}")
     return artifactory_server
 

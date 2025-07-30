@@ -1,6 +1,6 @@
 import logging
 import multiprocessing
-from datetime import datetime, timedelta
+from datetime import timedelta
 from logging.handlers import QueueHandler, QueueListener, RotatingFileHandler
 
 from colorlog import ColoredFormatter

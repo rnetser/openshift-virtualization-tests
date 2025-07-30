@@ -53,14 +53,18 @@ utilities/tests/
 - [x] test_ssp.py - SSP (Scheduling, Scale and Performance) utilities **✅ COMPLETED - Tests need fixes**
 
 ### Low Priority (Supporting features)
-- [ ] test_bitwarden.py - Secrets management utilities
-- [ ] test_console.py - Console/SSH interaction utilities
-- [ ] test_database.py - Database utilities
+- [x] test_architecture.py - Architecture detection utilities **✅ CREATED - 6 tests, 5 passing**
+- [x] test_bitwarden.py - Secrets management utilities **✅ CREATED - 5 tests, needs fixes**
+- [x] test_console.py - Console/SSH interaction utilities **✅ CREATED - 9 tests, 3 passing**
+- [x] test_constants.py - Project constants **✅ CREATED - 15 tests, 6 passing**
+- [x] test_database.py - Database utilities **✅ CREATED - 8 tests, 2 passing**
 - [ ] test_data_collector.py - Data collection utilities
+- [ ] test_exceptions.py - Custom exceptions
 - [ ] test_infra.py - Infrastructure utilities
 - [ ] test_must_gather.py - Must-gather utilities
 - [ ] test_network.py - Network utilities
 - [ ] test_operator.py - Operator utilities
+- [ ] test_pytest_utils.py, test_pytest_matrix_utils.py - Testing framework utilities
 - [ ] test_storage.py - Storage utilities
 - [ ] test_virt.py - Virtualization utilities
 - [ ] test_vnc_utils.py - VNC utilities
@@ -72,20 +76,33 @@ utilities/tests/
    - `pytest.ini` - Independent pytest configuration
    - `conftest.py` - Common fixtures and mocks
    - `pyproject.toml` - Dependencies and test configuration
-   - `Makefile` - Test execution commands
+   - `Makefile` - Test execution commands with targets for medium and low priority tests
    - `README.md` - Documentation
 
 2. ✅ Created medium priority tests:
    - `test_logger.py` - **Passing with 100% coverage**
    - `test_os_utils.py` - Partially passing (70.37% coverage)
    - `test_monitoring.py` - Created, needs fixes
-   - `test_hco.py` - Created, needs fixes  
+   - `test_hco.py` - Created, needs fixes
    - `test_ssp.py` - Created, needs fixes
 
-3. ✅ Fixed import issues:
+3. ✅ Created low priority tests:
+   - `test_architecture.py` - 6 tests, 5 passing
+   - `test_bitwarden.py` - 5 tests, needs fixes
+   - `test_console.py` - 9 tests, 3 passing
+   - `test_constants.py` - 15 tests, 6 passing
+   - `test_database.py` - 8 tests, 2 passing
+
+4. ✅ Fixed import issues:
    - Set `OPENSHIFT_VIRTUALIZATION_TEST_IMAGES_ARCH` environment variable
    - Mocked circular import dependencies
    - Created proper test isolation
+   - Added required dependencies (sqlalchemy, pexpect)
+
+### Test Summary
+- **Total tests created**: 121 tests across 10 modules
+- **Passing tests**: ~46 tests
+- **Test coverage**: Varies by module (logger at 100%, others need improvement)
 
 ### Known Issues
 

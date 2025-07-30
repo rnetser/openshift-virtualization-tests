@@ -93,7 +93,7 @@ class TestDuplicateFilter:
 def test_log_formatter_time_format():
     """Test CNVLogFormatter formats time correctly"""
     formatter = CNVLogFormatter()
-    
+
     # Create a log record
     record = logging.LogRecord(
         name="test",
@@ -104,7 +104,7 @@ def test_log_formatter_time_format():
         args=(),
         exc_info=None,
     )
-    
+
     # The formatter should format time as a delta
     formatted_time = formatter.formatTime(record)
     # Should be a string representing time delta

@@ -1,8 +1,9 @@
 """Pytest configuration for utilities tests - independent of main project"""
+
 import os
 import sys
 from pathlib import Path
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import MagicMock
 
 # Set architecture environment variable to prevent K8s API calls
 os.environ["OPENSHIFT_VIRTUALIZATION_TEST_IMAGES_ARCH"] = "x86_64"
@@ -12,12 +13,13 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 # Mock get_client to prevent K8s API calls
 from ocp_resources import resource
+
 resource.get_client = lambda: MagicMock()
 
 # Create mock modules to break circular imports
-sys.modules['utilities.data_collector'] = MagicMock()
-sys.modules['utilities.data_collector'].get_data_collector_base_directory = lambda: "/tmp/data"
-sys.modules['utilities.data_collector'].collect_alerts_data = MagicMock()
+sys.modules["utilities.data_collector"] = MagicMock()
+sys.modules["utilities.data_collector"].get_data_collector_base_directory = lambda: "/tmp/data"
+sys.modules["utilities.data_collector"].collect_alerts_data = MagicMock()
 
 import pytest
 
@@ -102,17 +104,37 @@ def mock_csv():
     return csv
 
 
+@pytest.fixture(autouse=True)
+def mock_logger():
+    """Auto-mock logger for all tests to prevent logging issues"""
+    import logging
+    
+    # Save original getLogger
+    original_getLogger = logging.getLogger
+    
+    # Create a mock logger that returns a real logger with mock handlers
+    def mock_getLogger(name=None):
+        logger = original_getLogger(name)
+        # Clear any existing handlers
+        logger.handlers = []
+        # Add a mock handler with proper level attribute
+        mock_handler = MagicMock()
+        mock_handler.level = logging.INFO
+        logger.addHandler(mock_handler)
+        return logger
+    
+    # Patch getLogger
+    logging.getLogger = mock_getLogger
+    
+    yield
+    
+    # Restore original getLogger
+    logging.getLogger = original_getLogger
+
+
 @pytest.fixture
 def temp_file(tmp_path):
     """Create a temporary file for testing"""
     file_path = tmp_path / "test_file.txt"
     file_path.write_text("test content")
     return file_path
-
-
-@pytest.fixture
-def mock_logger(monkeypatch):
-    """Mock logger to avoid actual logging during tests"""
-    mock_log = MagicMock()
-    monkeypatch.setattr("logging.getLogger", lambda name: mock_log)
-    return mock_log

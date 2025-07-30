@@ -173,7 +173,7 @@ def wait_for_dp(dp):
             status = sample.get("status")
             metadata = sample.get("metadata")
             if metadata.get("generation") == status.get("observedGeneration") and status.get("replicas") == status.get(
-                "updatedReplicas"
+                "updatedReplicas",
             ):
                 break
     except TimeoutExpiredError:
@@ -191,7 +191,7 @@ def apply_np_changes(admin_client, hco, hco_namespace, infra_placement=None, wor
             "spec": {
                 "infra": target_infra or None,
                 "workloads": target_workloads or None,
-            }
+            },
         }
         LOGGER.info(f"Updating HCO with node placement. {patch}")
         editor = ResourceEditor(patches={hco: patch})
@@ -267,7 +267,8 @@ def add_labels_to_nodes(nodes, node_labels):
 
 def get_hco_spec(admin_client, hco_namespace):
     return utilities.infra.get_hyperconverged_resource(
-        client=admin_client, hco_ns_name=hco_namespace.name
+        client=admin_client,
+        hco_ns_name=hco_namespace.name,
     ).instance.to_dict()["spec"]
 
 
@@ -406,8 +407,8 @@ def get_json_patch_annotation_values(component, path, value=None, op="add"):
                 "op": op,
                 "path": f"/spec/{component_dict.get('config', '')}{path}",
                 "value": value,
-            }
-        ])
+            },
+        ]),
     }
 
 
@@ -415,8 +416,8 @@ def hco_cr_jsonpatch_annotations_dict(component, path, value=None, op="add"):
     # https://github.com/kubevirt/hyperconverged-cluster-operator/blob/main/docs/cluster-configuration.md#jsonpatch-annotations
     return {
         "metadata": {
-            "annotations": get_json_patch_annotation_values(component=component, path=path, value=value, op=op)
-        }
+            "annotations": get_json_patch_annotation_values(component=component, path=path, value=value, op=op),
+        },
     }
 
 
