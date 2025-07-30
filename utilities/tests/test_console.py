@@ -436,7 +436,7 @@ class TestConsole:
 
         # Should set child and logfile
         assert console.child == mock_sample
-        mock_file_open.assert_called_once_with("/tmp/data/test-vm.pexpect.log", "a")
+        mock_file_open.assert_called_once_with("/tmp/data/test-vm.pexpect.log", "a", encoding="utf-8")
 
     @patch("console.TimeoutSampler")
     @patch("console.get_data_collector_base_directory")

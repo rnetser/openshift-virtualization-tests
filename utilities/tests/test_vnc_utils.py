@@ -55,7 +55,7 @@ class TestVNCConnection:
         assert result == mock_child
         assert vnc_conn.child == mock_child
         mock_child.expect.assert_called_once_with('"port":', timeout=300)
-        mock_file_open.assert_called_once_with("/tmp/test/test-vm.pexpect.log", "a")
+        mock_file_open.assert_called_once_with("/tmp/test/test-vm.pexpect.log", "a", encoding="utf-8")
 
     @patch("utilities.vnc_utils.get_data_collector_base_directory")
     @patch("utilities.vnc_utils.TimeoutSampler")
