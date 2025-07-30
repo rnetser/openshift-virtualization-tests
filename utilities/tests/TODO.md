@@ -28,10 +28,8 @@
 ### Configuration Updates
 - [x] Updated `pyproject.toml` to exclude large modules from coverage calculation
 - [x] Focused coverage on utility modules to achieve 100% target (exceeding 90% requirement)
-- [x] Enhanced `tox.ini` with comprehensive coverage reporting:
-  - `utilities-unittests`: Full test suite with coverage and summary
-  - `utilities-test-quick`: Fast test execution without coverage
-  - `utilities-coverage`: Detailed coverage analysis with multiple output formats
+- [x] Enhanced `tox.ini` with streamlined testing environment:
+  - `utilities-unittests`: Single comprehensive environment with 90% coverage threshold verification
 
 ## 🔄 Remaining Work
 
@@ -129,16 +127,10 @@ uv run pytest tests/test_console.py -v
 uv run pytest tests/test_console.py --cov=console --cov-report=term-missing
 ```
 
-#### Tox environments (from project root directory):
+#### Tox environment (from project root directory):
 ```bash
-# Run utilities unit tests with full coverage reporting
+# Run utilities unit tests with coverage verification (90% minimum required)
 tox -e utilities-unittests
-
-# Run utilities unit tests quickly (no coverage)
-tox -e utilities-test-quick
-
-# Run utilities tests with detailed coverage analysis and reports
-tox -e utilities-coverage
 
 # List all available tox environments
 tox -l
@@ -148,7 +140,8 @@ tox -l
 - **Terminal**: Live coverage summary during test execution
 - **HTML**: Detailed interactive report at `utilities/htmlcov/index.html`
 - **XML**: Machine-readable report for CI/CD integration (`coverage.xml`)
-- **JSON**: Programmatic access to coverage data (`coverage.json`)
+
+The environment will fail if coverage falls below 90%, ensuring quality standards are maintained.
 
 **Note**: Tox environments automatically handle dependencies and provide consistent execution across different environments.
 
