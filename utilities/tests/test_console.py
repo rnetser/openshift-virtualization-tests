@@ -1,10 +1,9 @@
 """Unit tests for console module"""
 
+import os
 import sys
 from pathlib import Path
-from unittest.mock import MagicMock, Mock, patch
-
-import pytest
+from unittest.mock import MagicMock, mock_open, patch
 
 # Add utilities to Python path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -21,8 +20,11 @@ class TestConsole:
         mock_vm.name = "test-vm"
         mock_vm.username = "default-user"
         mock_vm.password = "default-pass"
+        mock_vm.namespace = None
+        mock_vm.login_params = {}
 
-        console = Console(vm=mock_vm)
+        with patch("console.get_data_collector_base_directory", return_value="/tmp/data"):
+            console = Console(vm=mock_vm)
 
         assert console.vm == mock_vm
         assert console.username == "default-user"
@@ -36,14 +38,17 @@ class TestConsole:
         """Test Console initialization with custom values"""
         mock_vm = MagicMock()
         mock_vm.name = "test-vm"
+        mock_vm.namespace = None
+        mock_vm.login_params = {}
 
-        console = Console(
-            vm=mock_vm,
-            username="custom-user",
-            password="custom-pass",
-            timeout=60,
-            prompt=["#", ">"]
-        )
+        with patch("console.get_data_collector_base_directory", return_value="/tmp/data"):
+            console = Console(
+                vm=mock_vm,
+                username="custom-user",
+                password="custom-pass",
+                timeout=60,
+                prompt=["#", ">"],
+            )
 
         assert console.username == "custom-user"
         assert console.password == "custom-pass"
@@ -53,14 +58,17 @@ class TestConsole:
     def test_console_init_with_login_params(self):
         """Test Console initialization with VM login_params"""
         mock_vm = MagicMock()
+        mock_vm.name = "test-vm"
+        mock_vm.namespace = None
         mock_vm.login_params = {
             "username": "login-user",
-            "password": "login-pass"
+            "password": "login-pass",
         }
         mock_vm.username = "default-user"
         mock_vm.password = "default-pass"
 
-        console = Console(vm=mock_vm)
+        with patch("console.get_data_collector_base_directory", return_value="/tmp/data"):
+            console = Console(vm=mock_vm)
 
         # Should prefer login_params over default vm attributes
         assert console.username == "login-user"
@@ -73,103 +81,384 @@ class TestConsole:
         mock_get_dir.return_value = "/tmp/data"
         mock_vm = MagicMock()
         mock_vm.name = "test-vm"
+        mock_vm.namespace = None
         mock_vm.username = "user"
         mock_vm.password = "pass"
+        mock_vm.login_params = {}
 
         mock_child = MagicMock()
         mock_pexpect.spawn.return_value = mock_child
 
         console = Console(vm=mock_vm)
-        
-        with patch.object(console, 'console_eof_sampler') as mock_sampler:
-            with patch.object(console, '_connect') as mock_connect:
-                result = console.connect()
 
-                assert result == console.child
-                mock_sampler.assert_called_once()
-                mock_connect.assert_called_once()
+        with (
+            patch.object(console, "console_eof_sampler") as mock_sampler,
+            patch.object(
+                console,
+                "_connect",
+            ) as mock_connect,
+        ):
+            result = console.connect()
 
-    @patch("console.virtctl_command")
-    def test_console_generate_cmd(self, mock_virtctl):
+            assert result == console.child
+            mock_sampler.assert_called_once()
+            mock_connect.assert_called_once()
+
+    def test_console_generate_cmd(self):
         """Test _generate_cmd method"""
-        mock_virtctl.return_value = "virtctl"
         mock_vm = MagicMock()
         mock_vm.name = "test-vm"
         mock_vm.namespace = "test-ns"
         mock_vm.username = "user"
         mock_vm.password = "pass"
+        mock_vm.login_params = {}
 
-        console = Console(vm=mock_vm)
-        
-        # The cmd should be set during init
-        assert console.cmd is not None
-        assert "virtctl" in console.cmd
-        assert "console" in console.cmd
-        assert mock_vm.name in console.cmd
+        with patch("console.get_data_collector_base_directory", return_value="/tmp/data"):
+            with patch.dict(os.environ, {"VIRTCTL": "custom-virtctl"}):
+                console = Console(vm=mock_vm)
 
-    @patch("console.virtctl_command")
-    def test_console_enter(self, mock_virtctl):
-        """Test context manager __enter__ method"""
-        mock_virtctl.return_value = "virtctl"
+        # Should use the virtctl from environment
+        assert console.cmd == "custom-virtctl console test-vm -n test-ns"
+
+        # Test without namespace
+        mock_vm.namespace = None
+        with patch("console.get_data_collector_base_directory", return_value="/tmp/data"):
+            with patch("console.VIRTCTL", "virtctl"):
+                console = Console(vm=mock_vm)
+
+        assert console.cmd == "virtctl console test-vm"
+
+    @patch("console.pexpect.spawn")
+    @patch("console.get_data_collector_base_directory")
+    def test_console_enter(self, mock_get_dir, mock_spawn):
+        """Test __enter__ method"""
+        mock_get_dir.return_value = "/tmp/data"
         mock_vm = MagicMock()
         mock_vm.name = "test-vm"
+        mock_vm.namespace = None
         mock_vm.username = "user"
         mock_vm.password = "pass"
+        mock_vm.login_params = {}
+
+        mock_child = MagicMock()
+        mock_spawn.return_value = mock_child
 
         console = Console(vm=mock_vm)
-        
-        with patch.object(console, 'connect') as mock_connect:
-            result = console.__enter__()
-            
-            assert result == console
-            mock_connect.assert_called_once()
 
-    @patch("console.virtctl_command")
-    def test_console_exit(self, mock_virtctl):
-        """Test context manager __exit__ method"""
-        mock_virtctl.return_value = "virtctl"
+        with patch.object(console, "console_eof_sampler") as mock_sampler:
+            # Mock that console_eof_sampler sets self.child
+            def set_child(*args, **kwargs):
+                console.child = mock_child
+
+            mock_sampler.side_effect = set_child
+
+            with patch.object(console, "_connect"):
+                result = console.__enter__()
+
+        # __enter__ returns the result of connect(), which returns self.child
+        assert result == mock_child
+
+    @patch("builtins.open", new_callable=mock_open)
+    @patch("console.get_data_collector_base_directory")
+    def test_console_exit(self, mock_get_dir, mock_file_open):
+        """Test __exit__ method"""
+        mock_get_dir.return_value = "/tmp/data"
         mock_vm = MagicMock()
         mock_vm.name = "test-vm"
-        mock_vm.username = "user"  
-        mock_vm.password = "pass"
-
-        console = Console(vm=mock_vm)
-        console.child = MagicMock()
-        
-        console.__exit__(None, None, None)
-        
-        console.child.close.assert_called_once()
-
-    @patch("console.virtctl_command")
-    def test_console_sendline(self, mock_virtctl):
-        """Test sendline method"""
-        mock_virtctl.return_value = "virtctl"
-        mock_vm = MagicMock()
-        mock_vm.name = "test-vm"
+        mock_vm.namespace = None
         mock_vm.username = "user"
         mock_vm.password = "pass"
+        mock_vm.login_params = {}
 
         console = Console(vm=mock_vm)
-        console.child = MagicMock()
-        
-        console.sendline("test command")
-        
-        console.child.sendline.assert_called_once_with("test command")
+        mock_child = MagicMock()
+        mock_child.terminated = False
+        console.child = mock_child
 
-    @patch("console.virtctl_command")
-    def test_console_expect(self, mock_virtctl):
-        """Test expect method"""
-        mock_virtctl.return_value = "virtctl"
+        with patch.object(console, "disconnect") as mock_disconnect:
+            console.__exit__(None, None, None)
+            mock_disconnect.assert_called_once()
+
+    @patch("console.get_data_collector_base_directory")
+    def test_console_sendline_through_child(self, mock_get_dir):
+        """Test sendline through child object"""
+        mock_get_dir.return_value = "/tmp/data"
         mock_vm = MagicMock()
         mock_vm.name = "test-vm"
+        mock_vm.namespace = None
         mock_vm.username = "user"
         mock_vm.password = "pass"
+        mock_vm.login_params = {}
 
         console = Console(vm=mock_vm)
-        console.child = MagicMock()
-        console.child.expect.return_value = 0
-        
-        result = console.expect("test pattern")
-        
+        mock_child = MagicMock()
+        console.child = mock_child
+
+        # The user would call sendline on the child object returned by __enter__
+        console.child.sendline("test command")
+
+        mock_child.sendline.assert_called_once_with("test command")
+
+    @patch("console.get_data_collector_base_directory")
+    def test_console_expect_through_child(self, mock_get_dir):
+        """Test expect through child object"""
+        mock_get_dir.return_value = "/tmp/data"
+        mock_vm = MagicMock()
+        mock_vm.name = "test-vm"
+        mock_vm.namespace = None
+        mock_vm.username = "user"
+        mock_vm.password = "pass"
+        mock_vm.login_params = {}
+
+        console = Console(vm=mock_vm)
+        mock_child = MagicMock()
+        mock_child.expect.return_value = 0
+        console.child = mock_child
+
+        # The user would call expect on the child object returned by __enter__
+        result = console.child.expect(["pattern1", "pattern2"], timeout=60)
+
         assert result == 0
-        console.child.expect.assert_called_once_with("test pattern", timeout=30) 
+        mock_child.expect.assert_called_once_with(["pattern1", "pattern2"], timeout=60)
+
+    @patch("console.get_data_collector_base_directory")
+    def test_console_connect_with_username_and_password(self, mock_get_dir):
+        """Test _connect method with username and password"""
+        mock_get_dir.return_value = "/tmp/data"
+        mock_vm = MagicMock()
+        mock_vm.name = "test-vm"
+        mock_vm.namespace = None
+        mock_vm.username = "testuser"
+        mock_vm.password = "testpass"
+        mock_vm.login_params = {}
+
+        console = Console(vm=mock_vm)
+        console.child = MagicMock()
+
+        console._connect()
+
+        # Verify connection sequence
+        console.child.send.assert_any_call("\n\n")
+        console.child.expect.assert_any_call("login:", timeout=300)
+        console.child.sendline.assert_any_call("testuser")
+        console.child.expect.assert_any_call("Password:")
+        console.child.sendline.assert_any_call("testpass")
+        console.child.expect.assert_any_call([r"\$"], timeout=150)
+
+    @patch("console.get_data_collector_base_directory")
+    def test_console_connect_username_only(self, mock_get_dir):
+        """Test _connect method with username only"""
+        mock_get_dir.return_value = "/tmp/data"
+        mock_vm = MagicMock()
+        mock_vm.name = "test-vm"
+        mock_vm.namespace = None
+        mock_vm.username = "testuser"
+        mock_vm.password = None
+        mock_vm.login_params = {}
+
+        console = Console(vm=mock_vm)
+        console.child = MagicMock()
+
+        console._connect()
+
+        # Verify connection sequence without password
+        console.child.send.assert_any_call("\n\n")
+        console.child.expect.assert_any_call("login:", timeout=300)
+        console.child.sendline.assert_any_call("testuser")
+        # Should not expect or send password
+        password_calls = [call for call in console.child.expect.call_args_list if "Password:" in str(call)]
+        assert len(password_calls) == 0
+
+    @patch("console.get_data_collector_base_directory")
+    def test_console_connect_no_username(self, mock_get_dir):
+        """Test _connect method without username"""
+        mock_get_dir.return_value = "/tmp/data"
+        mock_vm = MagicMock()
+        mock_vm.name = "test-vm"
+        mock_vm.namespace = None
+        mock_vm.username = None
+        mock_vm.password = None
+        mock_vm.login_params = {}
+
+        console = Console(vm=mock_vm)
+        console.child = MagicMock()
+
+        console._connect()
+
+        # Should only send newlines and expect prompt
+        console.child.send.assert_any_call("\n\n")
+        console.child.expect.assert_any_call([r"\$"], timeout=150)
+        # Should not expect login prompt
+        login_calls = [call for call in console.child.expect.call_args_list if "login:" in str(call)]
+        assert len(login_calls) == 0
+
+    @patch("console.get_data_collector_base_directory")
+    def test_console_disconnect_with_username(self, mock_get_dir):
+        """Test disconnect method with username"""
+        mock_get_dir.return_value = "/tmp/data"
+        mock_vm = MagicMock()
+        mock_vm.name = "test-vm"
+        mock_vm.namespace = None
+        mock_vm.username = "testuser"
+        mock_vm.password = "testpass"
+        mock_vm.login_params = {}
+
+        console = Console(vm=mock_vm)
+        console.child = MagicMock()
+        console.child.terminated = False
+
+        console.disconnect()
+
+        console.child.send.assert_any_call("\n\n")
+        console.child.expect.assert_any_call([r"\$"])
+        console.child.send.assert_any_call("exit")
+        console.child.send.assert_any_call("\n\n")
+        console.child.expect.assert_any_call("login:")
+
+    @patch("console.get_data_collector_base_directory")
+    def test_console_disconnect_no_username(self, mock_get_dir):
+        """Test disconnect method without username"""
+        mock_get_dir.return_value = "/tmp/data"
+        mock_vm = MagicMock()
+        mock_vm.name = "test-vm"
+        mock_vm.namespace = None
+        mock_vm.username = None
+        mock_vm.password = None
+        mock_vm.login_params = {}
+
+        console = Console(vm=mock_vm)
+        console.child = MagicMock()
+        console.child.terminated = False
+
+        console.disconnect()
+
+        console.child.send.assert_any_call("\n\n")
+        console.child.expect.assert_any_call([r"\$"])
+        # Should not send exit command
+        exit_calls = [call for call in console.child.send.call_args_list if "exit" in str(call)]
+        assert len(exit_calls) == 0
+
+    @patch("console.pexpect")
+    @patch("console.get_data_collector_base_directory")
+    def test_console_disconnect_terminated_child(self, mock_get_dir, mock_pexpect):
+        """Test disconnect method when child is terminated"""
+        mock_get_dir.return_value = "/tmp/data"
+        mock_vm = MagicMock()
+        mock_vm.name = "test-vm"
+        mock_vm.namespace = None
+        mock_vm.username = "testuser"
+        mock_vm.password = "testpass"
+        mock_vm.login_params = {}
+
+        console = Console(vm=mock_vm)
+        console.child = MagicMock()
+        console.child.terminated = True
+
+        # Mock the console_eof_sampler
+        console.console_eof_sampler = MagicMock()
+
+        console.disconnect()
+
+        # Should call console_eof_sampler when child is terminated
+        console.console_eof_sampler.assert_called_once_with(
+            func=mock_pexpect.spawn,
+            command=console.cmd,
+            timeout=console.timeout,
+        )
+
+    @patch("console.pexpect")
+    @patch("console.get_data_collector_base_directory")
+    def test_console_force_disconnect(self, mock_get_dir, mock_pexpect):
+        """Test force_disconnect method"""
+        mock_get_dir.return_value = "/tmp/data"
+        mock_vm = MagicMock()
+        mock_vm.name = "test-vm"
+        mock_vm.namespace = None
+        mock_vm.username = "testuser"
+        mock_vm.password = "testpass"
+        mock_vm.login_params = {}
+
+        console = Console(vm=mock_vm)
+
+        with (
+            patch.object(console, "console_eof_sampler") as mock_sampler,
+            patch.object(console, "disconnect") as mock_disconnect,
+        ):
+            console.force_disconnect()
+
+            # Should call console_eof_sampler with pexpect.spawn
+            mock_sampler.assert_called_once_with(
+                func=mock_pexpect.spawn,
+                command=console.cmd,
+                timeout=console.timeout,
+            )
+            # Should call disconnect after sampling
+            mock_disconnect.assert_called_once()
+
+    @patch("console.TimeoutSampler")
+    @patch("builtins.open", new_callable=mock_open)
+    @patch("console.get_data_collector_base_directory")
+    def test_console_eof_sampler_success(self, mock_get_dir, mock_file_open, mock_timeout_sampler):
+        """Test console_eof_sampler method when sample is found"""
+        mock_get_dir.return_value = "/tmp/data"
+        mock_vm = MagicMock()
+        mock_vm.name = "test-vm"
+        mock_vm.namespace = None
+        mock_vm.username = "testuser"
+        mock_vm.password = "testpass"
+        mock_vm.login_params = {}
+
+        console = Console(vm=mock_vm)
+
+        # Mock successful sampling
+        mock_sample = MagicMock()
+        mock_sample.logfile = None
+        mock_sampler_instance = MagicMock()
+        mock_sampler_instance.__iter__.return_value = [mock_sample]
+        mock_timeout_sampler.return_value = mock_sampler_instance
+
+        mock_func = MagicMock()
+        command = "test-command"
+        timeout = 30
+
+        console.console_eof_sampler(func=mock_func, command=command, timeout=timeout)
+
+        # Should create TimeoutSampler with correct parameters
+        mock_timeout_sampler.assert_called_once()
+        call_args = mock_timeout_sampler.call_args
+        assert call_args[1]["func"] == mock_func
+        assert call_args[1]["command"] == command
+        assert call_args[1]["timeout"] == timeout
+
+        # Should set child and logfile
+        assert console.child == mock_sample
+        mock_file_open.assert_called_once_with("/tmp/data/test-vm.pexpect.log", "a")
+
+    @patch("console.TimeoutSampler")
+    @patch("console.get_data_collector_base_directory")
+    def test_console_eof_sampler_no_sample(self, mock_get_dir, mock_timeout_sampler):
+        """Test console_eof_sampler method when no sample is found"""
+        mock_get_dir.return_value = "/tmp/data"
+        mock_vm = MagicMock()
+        mock_vm.name = "test-vm"
+        mock_vm.namespace = None
+        mock_vm.username = "testuser"
+        mock_vm.password = "testpass"
+        mock_vm.login_params = {}
+
+        console = Console(vm=mock_vm)
+        original_child = console.child
+
+        # Mock no successful sampling (empty iterator or None values)
+        mock_sampler_instance = MagicMock()
+        mock_sampler_instance.__iter__.return_value = [None]
+        mock_timeout_sampler.return_value = mock_sampler_instance
+
+        mock_func = MagicMock()
+        command = "test-command"
+        timeout = 30
+
+        console.console_eof_sampler(func=mock_func, command=command, timeout=timeout)
+
+        # Should not change child when no valid sample is found
+        assert console.child == original_child

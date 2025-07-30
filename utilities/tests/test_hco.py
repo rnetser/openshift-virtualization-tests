@@ -3,17 +3,17 @@
 import json
 import sys
 from pathlib import Path
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import MagicMock, patch
 
 # Add utilities to Python path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+import pytest
+from timeout_sampler import TimeoutExpiredError
+
 # Mock modules to break circular imports
 sys.modules["utilities.virt"] = MagicMock()
 sys.modules["utilities.infra"] = MagicMock()
-
-import pytest
-from timeout_sampler import TimeoutExpiredError
 
 from utilities.hco import (
     ResourceEditorValidateHCOReconcile,
@@ -30,7 +30,7 @@ from utilities.hco import (
 class TestResourceEditorValidateHCOReconcile:
     """Test cases for ResourceEditorValidateHCOReconcile class"""
 
-    @patch("hco.ResourceEditor")
+    @patch("utilities.hco.ResourceEditor")
     def test_enter_patches_resource(self, mock_resource_editor):
         """Test that __enter__ patches the resource correctly"""
         mock_resource = MagicMock()
@@ -39,8 +39,7 @@ class TestResourceEditorValidateHCOReconcile:
 
         editor = ResourceEditorValidateHCOReconcile(
             patches={"spec": {"certConfig": {"new": "config"}}},
-            resource_object=mock_resource,
-            reconcile_complete=mock_reconcile_complete,
+            resource=mock_resource,
         )
 
         # Call __enter__
@@ -65,14 +64,14 @@ class TestWaitForHcoConditions:
 
         # Mock sampler to succeed immediately
         mock_sampler = MagicMock()
-        
+
         def sampler_iterator():
             yield True
-        
+
         mock_sampler.__iter__ = sampler_iterator
         mock_sampler_class.return_value = mock_sampler
 
-        wait_for_hco_conditions(mock_hco)
+        wait_for_hco_conditions(mock_hco, "openshift-cnv")
 
         mock_sampler_class.assert_called_once()
 
@@ -86,21 +85,21 @@ class TestWaitForHcoConditions:
 
         # Mock sampler to timeout
         mock_sampler = MagicMock()
-        
+
         def sampler_iterator():
             raise TimeoutExpiredError("Timeout")
-        
+
         mock_sampler.__iter__ = sampler_iterator
         mock_sampler_class.return_value = mock_sampler
 
         with pytest.raises(TimeoutExpiredError):
-            wait_for_hco_conditions(mock_hco)
+            wait_for_hco_conditions(mock_hco, "openshift-cnv")
 
 
 class TestAddLabelsToNodes:
     """Test cases for add_labels_to_nodes function"""
 
-    @patch("hco.ResourceEditor")
+    @patch("utilities.hco.ResourceEditor")
     def test_add_labels_to_nodes_single_node(self, mock_editor_class):
         """Test adding labels to a single node"""
         mock_node = MagicMock()
@@ -108,27 +107,28 @@ class TestAddLabelsToNodes:
         mock_node.labels = {"existing": "label"}
         labels = {"new-label": "new-value"}
 
-        add_labels_to_nodes([mock_node], labels)
+        result = add_labels_to_nodes([mock_node], labels)
 
         # Verify ResourceEditor was called with correct patches
         mock_editor_class.assert_called_once()
         args, kwargs = mock_editor_class.call_args
-        assert kwargs["resource_object"] == mock_node
-        assert kwargs["patches"]["metadata"]["labels"]["new-label"] == "new-value"
+        expected_patches = {mock_node: {"metadata": {"labels": {"new-label": "new-value1"}}}}
+        assert kwargs["patches"] == expected_patches
+        assert isinstance(result, dict)
 
-    @patch("hco.ResourceEditor")
+    @patch("utilities.hco.ResourceEditor")
     def test_add_labels_to_nodes_multiple_labels(self, mock_editor_class):
         """Test adding multiple labels to nodes"""
         mock_node = MagicMock()
         mock_node.name = "test-node"
         labels = {"label1": "value1", "label2": "value2"}
 
-        add_labels_to_nodes([mock_node], labels)
+        result = add_labels_to_nodes([mock_node], labels)
 
         args, kwargs = mock_editor_class.call_args
-        patches = kwargs["patches"]["metadata"]["labels"]
-        assert patches["label1"] == "value1"
-        assert patches["label2"] == "value2"
+        expected_patches = {mock_node: {"metadata": {"labels": {"label1": "value11", "label2": "value21"}}}}
+        assert kwargs["patches"] == expected_patches
+        assert isinstance(result, dict)
 
 
 class TestGetHcoSpec:
@@ -141,7 +141,7 @@ class TestGetHcoSpec:
         mock_hco_namespace = MagicMock()
         mock_hco_namespace.name = "openshift-cnv"
         expected_spec = {"certConfig": {"test": "config"}}
-        
+
         mock_hco = MagicMock()
         mock_hco.instance.spec = expected_spec
         mock_utilities.infra.get_hyperconverged_resource.return_value = mock_hco
@@ -150,7 +150,8 @@ class TestGetHcoSpec:
 
         assert result == expected_spec
         mock_utilities.infra.get_hyperconverged_resource.assert_called_once_with(
-            client=mock_admin_client, hco_ns_name=mock_hco_namespace.name
+            client=mock_admin_client,
+            hco_ns_name=mock_hco_namespace.name,
         )
 
 
@@ -164,12 +165,12 @@ class TestGetInstalledHcoCsv:
         mock_admin_client = MagicMock()
         mock_hco_namespace = MagicMock()
         mock_hco_namespace.name = "openshift-cnv"
-        
+
         # Mock subscription
         mock_subscription = MagicMock()
         mock_subscription.instance.status.installedCSV = "hco-operator.v4.14.0"
         mock_utilities.infra.get_subscription.return_value = mock_subscription
-        
+
         # Mock CSV
         mock_csv = MagicMock()
         mock_csv_class.return_value = mock_csv
@@ -188,7 +189,7 @@ class TestGetInstalledHcoCsv:
         """Test when subscription has no installed CSV"""
         mock_admin_client = MagicMock()
         mock_hco_namespace = MagicMock()
-        
+
         # Mock subscription without installedCSV
         mock_subscription = MagicMock()
         mock_subscription.instance.status.installedCSV = None
@@ -208,11 +209,11 @@ class TestGetHcoVersion:
         """Test getting HCO version successfully"""
         mock_client = MagicMock()
         hco_ns_name = "openshift-cnv"
-        
+
         # Mock HCO resource
         mock_hco = MagicMock()
         mock_utilities.infra.get_hyperconverged_resource.return_value = mock_hco
-        
+
         # Mock CSV
         mock_csv = MagicMock()
         mock_csv.instance.spec.version = "4.14.0"
@@ -285,15 +286,17 @@ class TestGetJsonPatchAnnotationValues:
 class TestUpdateCommonBootImageImportSpec:
     """Test cases for update_common_boot_image_import_spec function"""
 
-    @patch("hco.ResourceEditor")
+    @patch("utilities.hco.ResourceEditor")
     @patch("hco.TimeoutSampler")
     def test_update_common_boot_image_import_spec_enable(
-        self, mock_sampler_class, mock_editor_class
+        self,
+        mock_sampler_class,
+        mock_editor_class,
     ):
         """Test enabling common boot image import"""
         mock_hco = MagicMock()
         mock_hco.instance.spec = {"dataImportCronTemplates": []}
-        
+
         # Mock sampler to succeed
         mock_sampler = MagicMock()
         mock_sampler.__iter__ = lambda self: iter([True])
@@ -306,15 +309,17 @@ class TestUpdateCommonBootImageImportSpec:
         args, kwargs = mock_editor_class.call_args
         assert kwargs["patches"]["spec"]["enableCommonBootImageImport"] is True
 
-    @patch("hco.ResourceEditor")
+    @patch("utilities.hco.ResourceEditor")
     @patch("hco.TimeoutSampler")
     def test_update_common_boot_image_import_spec_disable(
-        self, mock_sampler_class, mock_editor_class
+        self,
+        mock_sampler_class,
+        mock_editor_class,
     ):
         """Test disabling common boot image import"""
         mock_hco = MagicMock()
         mock_hco.instance.spec = {"dataImportCronTemplates": []}
-        
+
         # Mock sampler to succeed
         mock_sampler = MagicMock()
         mock_sampler.__iter__ = lambda self: iter([True])

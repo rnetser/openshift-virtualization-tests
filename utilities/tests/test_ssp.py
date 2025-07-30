@@ -7,13 +7,13 @@ from unittest.mock import MagicMock, patch
 # Add utilities to Python path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+import pytest
+from timeout_sampler import TimeoutExpiredError
+
 # Mock modules to break circular imports
 sys.modules["utilities.virt"] = MagicMock()
 sys.modules["utilities.infra"] = MagicMock()
 sys.modules["utilities.hco"] = MagicMock()
-
-import pytest
-from timeout_sampler import TimeoutExpiredError
 
 from utilities.ssp import (
     cluster_instance_type_for_hot_plug,
@@ -176,6 +176,7 @@ class TestGetSspResource:
 
         # Mock to raise NotFoundError
         from ocp_resources.utils import NotFoundError
+
         mock_ssp_class.get.side_effect = NotFoundError("Not found")
 
         with pytest.raises(NotFoundError):
@@ -191,7 +192,7 @@ class TestWaitForSspConditions:
         """Test successful SSP conditions wait"""
         mock_admin_client = MagicMock()
         mock_namespace = MagicMock()
-        
+
         # Mock SSP resource
         mock_ssp = MagicMock()
         mock_ssp.instance.status.conditions = [
@@ -244,7 +245,7 @@ class TestGetWindowsTimezone:
         """Test getting Windows timezone display name"""
         mock_ssh_exec = MagicMock()
         expected_timezone = "(UTC-08:00) Pacific Time (US & Canada)"
-        
+
         # Mock run_ssh_commands to return the expected output
         mock_run_ssh.return_value = [expected_timezone]
 
@@ -258,7 +259,7 @@ class TestGetWindowsTimezone:
         """Test getting Windows timezone standard name"""
         mock_ssh_exec = MagicMock()
         expected_timezone = "Pacific Standard Time"
-        
+
         # Mock run_ssh_commands to return the expected output
         mock_run_ssh.return_value = [expected_timezone]
 
@@ -275,7 +276,7 @@ class TestGetGaVersion:
         """Test getting guest agent version successfully"""
         mock_ssh_exec = MagicMock()
         expected_version = "FileVersion:    2.5.0.0"
-        
+
         # Mock run_ssh_commands to return the expected output
         mock_run_ssh.return_value = [expected_version]
 
@@ -288,7 +289,7 @@ class TestGetGaVersion:
         """Test getting guest agent version with file description"""
         mock_ssh_exec = MagicMock()
         version_output = "FileDescription: QEMU Guest Agent\nFileVersion:     2.5.0.0"
-        
+
         # Mock run_ssh_commands to return the expected output
         mock_run_ssh.return_value = [version_output]
 
@@ -398,7 +399,7 @@ class TestClusterInstanceTypeForHotPlug:
         result = cluster_instance_type_for_hot_plug(guest_sockets, cpu_model)
 
         assert result == mock_instance
-        
+
         # Verify it was called with correct arguments
         call_kwargs = mock_instancetype_class.call_args[1]
         assert call_kwargs["name"] == "hot-plug-4-cpu-instance-type"

@@ -163,7 +163,8 @@ class TestValidateAlerts:
         mock_prometheus.get_all_alerts.return_value = actual_alerts
 
         missing, unexpected = validate_alerts(
-            mock_prometheus, alert_dict
+            mock_prometheus,
+            alert_dict,
         )
 
         assert missing == []
@@ -179,7 +180,8 @@ class TestValidateAlerts:
         mock_prometheus.get_all_alerts.return_value = actual_alerts
 
         missing, unexpected = validate_alerts(
-            mock_prometheus, alert_dict
+            mock_prometheus,
+            alert_dict,
         )
 
         assert set(missing) == {"Alert2", "Alert3"}
@@ -196,7 +198,9 @@ class TestValidateAlerts:
         mock_prometheus.get_all_alerts.return_value = actual_alerts
 
         missing, unexpected = validate_alerts(
-            mock_prometheus, alert_dict, state="pending"
+            mock_prometheus,
+            alert_dict,
+            state="pending",
         )
 
         assert missing == []
@@ -219,12 +223,13 @@ class TestWaitForOperatorHealthMetricsValue:
     @patch("monitoring.TimeoutSampler")
     @patch("monitoring.get_metrics_value")
     def test_wait_for_operator_health_metrics_success(
-        self, mock_get_metrics, mock_sampler_class
+        self,
+        mock_get_metrics,
+        mock_sampler_class,
     ):
         """Test successful operator health metrics check"""
         mock_prometheus = MagicMock()
         health_impact_value = 0
-        timeout = 120
 
         # Mock get_metrics_value to return expected value
         mock_get_metrics.return_value = health_impact_value
@@ -236,7 +241,7 @@ class TestWaitForOperatorHealthMetricsValue:
 
         wait_for_operator_health_metrics_value(
             mock_prometheus,
-            health_impact_value
+            health_impact_value,
         )
 
         mock_sampler_class.assert_called_once()
@@ -245,7 +250,9 @@ class TestWaitForOperatorHealthMetricsValue:
     @patch("monitoring.TimeoutSampler")
     @patch("monitoring.get_metrics_value")
     def test_wait_for_operator_health_metrics_timeout(
-        self, mock_get_metrics, mock_sampler_class
+        self,
+        mock_get_metrics,
+        mock_sampler_class,
     ):
         """Test operator health metrics timeout"""
         mock_prometheus = MagicMock()
@@ -262,7 +269,7 @@ class TestWaitForOperatorHealthMetricsValue:
         with pytest.raises(TimeoutExpiredError):
             wait_for_operator_health_metrics_value(
                 mock_prometheus,
-                health_impact_value
+                health_impact_value,
             )
 
 
@@ -311,9 +318,9 @@ class TestGetMetricsValue:
         mock_prometheus.query.return_value = {
             "data": {
                 "result": [
-                    {"value": [1234567890, expected_value]}
-                ]
-            }
+                    {"value": [1234567890, expected_value]},
+                ],
+            },
         }
 
         result = get_metrics_value(mock_prometheus, metrics_name)
@@ -330,9 +337,9 @@ class TestGetMetricsValue:
             "data": {
                 "result": [
                     {"value": [1234567890, 42.0]},
-                    {"value": [1234567891, 43.0]}
-                ]
-            }
+                    {"value": [1234567891, 43.0]},
+                ],
+            },
         }
 
         result = get_metrics_value(mock_prometheus, metrics_name)
@@ -365,9 +372,9 @@ class TestWaitForGaugeMetricsValue:
         mock_prometheus.query.return_value = {
             "data": {
                 "result": [
-                    {"value": [1234567890, expected_value]}
-                ]
-            }
+                    {"value": [1234567890, expected_value]},
+                ],
+            },
         }
 
         # Mock sampler
@@ -390,9 +397,9 @@ class TestWaitForGaugeMetricsValue:
         mock_prometheus.query.return_value = {
             "data": {
                 "result": [
-                    {"value": [1234567890, expected_value]}
-                ]
-            }
+                    {"value": [1234567890, expected_value]},
+                ],
+            },
         }
 
         mock_sampler = MagicMock()
@@ -400,7 +407,10 @@ class TestWaitForGaugeMetricsValue:
         mock_sampler_class.return_value = mock_sampler
 
         wait_for_gauge_metrics_value(
-            mock_prometheus, query, expected_value, timeout=custom_timeout
+            mock_prometheus,
+            query,
+            expected_value,
+            timeout=custom_timeout,
         )
 
         # Verify timeout was passed to sampler

@@ -71,9 +71,10 @@ class TestGetClusterArchitecture:
     @patch("architecture.get_client")
     def test_get_cluster_architecture_unsupported(self, mock_get_client, mock_node_class):
         """Test unsupported architecture raises ValueError"""
-        with patch.dict(os.environ, {"OPENSHIFT_VIRTUALIZATION_TEST_IMAGES_ARCH": "unsupported"}):
-            with pytest.raises(ValueError, match="Architecture unsupported is not supported"):
-                get_cluster_architecture()
+        with patch.dict(os.environ, {"OPENSHIFT_VIRTUALIZATION_TEST_IMAGES_ARCH": "unsupported"}), pytest.raises(
+            ValueError, match="unsupported architecture in not supported"
+        ):
+            get_cluster_architecture()
 
     @patch("architecture.Node")
     @patch("architecture.get_client")
@@ -89,4 +90,4 @@ class TestGetClusterArchitecture:
 
             result = get_cluster_architecture()
 
-            assert result == "x86_64" 
+            assert result == "x86_64"

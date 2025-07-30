@@ -5,6 +5,8 @@ import sys
 from pathlib import Path
 from unittest.mock import MagicMock
 
+import pytest
+
 # Set architecture environment variable to prevent K8s API calls
 os.environ["OPENSHIFT_VIRTUALIZATION_TEST_IMAGES_ARCH"] = "x86_64"
 
@@ -20,8 +22,6 @@ resource.get_client = lambda: MagicMock()
 sys.modules["utilities.data_collector"] = MagicMock()
 sys.modules["utilities.data_collector"].get_data_collector_base_directory = lambda: "/tmp/data"
 sys.modules["utilities.data_collector"].collect_alerts_data = MagicMock()
-
-import pytest
 
 
 # Mock fixtures for common dependencies
@@ -108,10 +108,10 @@ def mock_csv():
 def mock_logger():
     """Auto-mock logger for all tests to prevent logging issues"""
     import logging
-    
+
     # Save original getLogger
     original_getLogger = logging.getLogger
-    
+
     # Create a mock logger that returns a real logger with mock handlers
     def mock_getLogger(name=None):
         logger = original_getLogger(name)
@@ -122,12 +122,12 @@ def mock_logger():
         mock_handler.level = logging.INFO
         logger.addHandler(mock_handler)
         return logger
-    
+
     # Patch getLogger
     logging.getLogger = mock_getLogger
-    
+
     yield
-    
+
     # Restore original getLogger
     logging.getLogger = original_getLogger
 

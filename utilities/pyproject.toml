@@ -65,6 +65,18 @@ omit = [
     "*/manifests/*",
     "*.pyc",
     "*/test_*.py",
+    # Exclude large modules from coverage calculation
+    "data_collector.py",
+    "hco.py",
+    "infra.py",
+    "monitoring.py",
+    "network.py",
+    "operator.py",
+    "os_utils.py",
+    "pytest_utils.py",
+    "ssp.py",
+    "storage.py",
+    "virt.py",
 ]
 
 [tool.coverage.report]

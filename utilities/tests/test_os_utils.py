@@ -20,7 +20,7 @@ mock_images.WIN2K22 = "windows-2022-image"
 mock_images.WIN2K19 = "windows-2019-image"
 
 # Patch Images before importing
-with patch.dict('sys.modules', {'utilities.constants': MagicMock(Images=mock_images)}):
+with patch.dict("sys.modules", {"utilities.constants": MagicMock(Images=mock_images)}):
     from os_utils import (
         RHEL_OS_MAPPING,
         WINDOWS_OS_MAPPING,
@@ -38,7 +38,7 @@ class TestGenerateOsMatrixDict:
         # Mock Images attributes
         mock_images.RHEL9_5_IMG = "rhel-9-5-image"
         mock_images.RHEL8_10_IMG = "rhel-8-10-image"
-        
+
         os_name = "rhel"
         supported_os = ["rhel-9-5", "rhel-8-10"]
 
@@ -49,16 +49,19 @@ class TestGenerateOsMatrixDict:
         assert any(item["os_version"] == "rhel-8-10" for item in result)
 
     @patch("os_utils.Images")
-    @patch("os_utils.WINDOWS_OS_MAPPING", {
-        "windows-2022": {"IMAGE_NAME_STR": "WIN2K22"},
-        "windows-2019": {"IMAGE_NAME_STR": "WIN2K19"}
-    })
+    @patch(
+        "os_utils.WINDOWS_OS_MAPPING",
+        {
+            "windows-2022": {"IMAGE_NAME_STR": "WIN2K22"},
+            "windows-2019": {"IMAGE_NAME_STR": "WIN2K19"},
+        },
+    )
     def test_generate_os_matrix_dict_windows(self, mock_images):
         """Test generating OS matrix dict for Windows"""
         # Mock Images attributes
         mock_images.WIN2K22 = "windows-2022-image"
         mock_images.WIN2K19 = "windows-2019-image"
-        
+
         os_name = "windows"
         supported_os = ["windows-2022", "windows-2019"]
 
@@ -86,16 +89,19 @@ class TestGenerateOsMatrixDict:
             generate_os_matrix_dict(os_name, supported_os)
 
     @patch("os_utils.Images")
-    @patch("os_utils.RHEL_OS_MAPPING", {
-        "rhel-9-5": {"IMAGE_NAME_STR": "RHEL9_5_IMG"},
-        "rhel-8-10": {"IMAGE_NAME_STR": "RHEL8_10_IMG"}
-    })
+    @patch(
+        "os_utils.RHEL_OS_MAPPING",
+        {
+            "rhel-9-5": {"IMAGE_NAME_STR": "RHEL9_5_IMG"},
+            "rhel-8-10": {"IMAGE_NAME_STR": "RHEL8_10_IMG"},
+        },
+    )
     def test_generate_os_matrix_dict_mixed_supported_unsupported(self, mock_images):
         """Test generating OS matrix dict with mixed supported/unsupported OS versions"""
         # Mock Images attributes
         mock_images.RHEL9_5_IMG = "rhel-9-5-image"
         mock_images.RHEL8_10_IMG = "rhel-8-10-image"
-        
+
         os_name = "rhel"
         supported_os = ["rhel-9-5", "unsupported-version"]
 
@@ -108,7 +114,7 @@ class TestGenerateOsMatrixDict:
         """Test generating OS matrix dict verifies arch images are used"""
         # Mock Images attributes
         mock_images.RHEL8_10_IMG = "mocked_rhel_8_10_image"
-        
+
         os_name = "rhel"
         supported_os = ["rhel-8-10"]
 
@@ -150,7 +156,7 @@ class TestGenerateInstanceTypeRhelOsMatrix:
         preferences = ["invalid", "rhel.9"]
         mock_generate_os.return_value = [{"os_version": "rhel-9"}]
 
-        result = generate_instance_type_rhel_os_matrix(preferences)
+        generate_instance_type_rhel_os_matrix(preferences)
 
         # Should handle invalid preferences gracefully
         mock_generate_os.assert_called_once_with("rhel", ["rhel-9"])
@@ -172,14 +178,15 @@ class TestGenerateInstanceTypeRhelOsMatrix:
         preferences = ["rhel.7", "rhel.8", "rhel.9"]
         mock_generate_os.return_value = [{"os_version": "rhel-9"}]
 
-        result = generate_instance_type_rhel_os_matrix(preferences)
+        generate_instance_type_rhel_os_matrix(preferences)
 
         # Should pick the highest version (rhel-9)
         mock_generate_os.assert_called_once_with("rhel", ["rhel-9"])
 
     @patch("os_utils.generate_os_matrix_dict")
     def test_generate_instance_type_rhel_os_matrix_calls_generate_os_matrix(
-        self, mock_generate_os
+        self,
+        mock_generate_os,
     ):
         """Test that generate_os_matrix_dict is called correctly"""
         preferences = ["rhel.8"]
@@ -195,7 +202,7 @@ class TestGenerateInstanceTypeRhelOsMatrix:
         """Test RHEL_OS_MAPPING has expected structure"""
         assert isinstance(RHEL_OS_MAPPING, dict)
         # Check that entries have expected keys
-        for key, value in RHEL_OS_MAPPING.items():
+        for _, value in RHEL_OS_MAPPING.items():
             assert isinstance(value, dict)
             assert "IMAGE_NAME_STR" in value
 
@@ -203,6 +210,6 @@ class TestGenerateInstanceTypeRhelOsMatrix:
         """Test WINDOWS_OS_MAPPING has expected structure"""
         assert isinstance(WINDOWS_OS_MAPPING, dict)
         # Check that entries have expected keys
-        for key, value in WINDOWS_OS_MAPPING.items():
+        for _, value in WINDOWS_OS_MAPPING.items():
             assert isinstance(value, dict)
             assert "IMAGE_NAME_STR" in value

@@ -60,7 +60,7 @@ class TestDuplicateFilter:
         # First message
         log_filter.filter(record)
         # Multiple duplicates
-        for i in range(5):
+        for _ in range(5):
             log_filter.filter(record)
 
         assert log_filter.repeated_number == 5

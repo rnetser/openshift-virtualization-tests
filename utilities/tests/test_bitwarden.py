@@ -1,5 +1,6 @@
 """Unit tests for bitwarden module"""
 
+import json
 import os
 import sys
 from pathlib import Path
@@ -23,22 +24,29 @@ class TestGetBitwardenSecretsClient:
     @patch("bitwarden.BitwardenClient")
     def test_get_bitwarden_secrets_client_success(self, mock_client_class):
         """Test successful Bitwarden client creation"""
-        with patch.dict(os.environ, {"BW_ACCESS_TOKEN": "test-token"}):
+        with patch.dict(os.environ, {"ACCESS_TOKEN": "test-token", "ORGANIZATION_ID": "test-org"}):
+            # Mock the BitwardenClient instance and its methods
             mock_client = MagicMock()
+            mock_auth = MagicMock()
+            mock_secrets = MagicMock()
+            
+            mock_client.auth.return_value = mock_auth
+            mock_client.secrets.return_value = mock_secrets
             mock_client_class.return_value = mock_client
 
             result = get_bitwarden_secrets_client()
 
-            assert result == mock_client
-            mock_client_class.assert_called_once_with(
-                settings={"api_url": "https://vault.bitwarden.com/api"}
-            )
-            mock_client.access_token_login.assert_called_once_with("test-token")
+            assert result == mock_secrets
+            mock_client_class.assert_called_once_with()
+            mock_client.auth.assert_called_once_with()
+            mock_auth.login_access_token.assert_called_once_with(access_token="test-token")
+            mock_client.secrets.assert_called_once_with()
 
     def test_get_bitwarden_secrets_client_no_token(self):
-        """Test when BW_ACCESS_TOKEN is not set"""
+        """Test when ACCESS_TOKEN or ORGANIZATION_ID is not set"""
         with patch.dict(os.environ, {}, clear=True):
-            with pytest.raises(KeyError):
+            with pytest.raises(Exception, 
+                             match="Bitwarden client needs ORGANIZATION_ID and ACCESS_TOKEN environment variable set up"):
                 get_bitwarden_secrets_client()
 
 
@@ -47,21 +55,27 @@ class TestGetAllCnvTestsSecrets:
 
     def test_get_all_cnv_tests_secrets(self):
         """Test getting all CNV test secrets"""
-        mock_client = MagicMock()
-        
-        # Mock secret response
-        mock_secret = MagicMock()
-        mock_secret.key = "test-secret"
-        mock_secret.value = "secret-value"
-        mock_secret.note = "Test note"
-        
-        mock_client.secrets.list.return_value.data.data = [mock_secret]
+        with patch.dict(os.environ, {"ORGANIZATION_ID": "test-org"}):
+            mock_client = MagicMock()
 
-        result = get_all_cnv_tests_secrets(mock_client)
+            # Mock secret response
+            mock_secret1 = MagicMock()
+            mock_secret1.key = "test-secret-1"
+            mock_secret1.id = "uuid-1"
+            
+            mock_secret2 = MagicMock()
+            mock_secret2.key = "test-secret-2"
+            mock_secret2.id = "uuid-2"
 
-        assert len(result) == 1
-        assert result[0] == mock_secret
-        mock_client.secrets.list.assert_called_once()
+            mock_response = MagicMock()
+            mock_response.data.data = [mock_secret1, mock_secret2]
+            mock_client.list.return_value = mock_response
+
+            result = get_all_cnv_tests_secrets(mock_client)
+
+            assert len(result) == 2
+            assert result == {"test-secret-1": "uuid-1", "test-secret-2": "uuid-2"}
+            mock_client.list.assert_called_once_with(organization_id="test-org")
 
 
 class TestGetCnvTestsSecretByName:
@@ -75,20 +89,21 @@ class TestGetCnvTestsSecretByName:
         mock_client = MagicMock()
         mock_get_client.return_value = mock_client
 
-        # Mock secrets
-        mock_secret1 = MagicMock()
-        mock_secret1.key = "secret1"
-        mock_secret1.value = "value1"
+        # Mock secrets dictionary
+        mock_get_all.return_value = {
+            "secret1": "uuid-1",
+            "secret2": "uuid-2"
+        }
         
-        mock_secret2 = MagicMock()
-        mock_secret2.key = "secret2"
-        mock_secret2.value = "value2"
-        
-        mock_get_all.return_value = [mock_secret1, mock_secret2]
+        # Mock the secret retrieval
+        mock_secret_response = MagicMock()
+        mock_secret_response.data.value = json.dumps({"key": "value2"})
+        mock_client.get.return_value = mock_secret_response
 
         result = get_cnv_tests_secret_by_name("secret2")
 
-        assert result == "value2"
+        assert result == {"key": "value2"}
+        mock_client.get.assert_called_once_with(id="uuid-2")
 
     @patch("bitwarden.get_bitwarden_secrets_client")
     @patch("bitwarden.get_all_cnv_tests_secrets")
@@ -97,11 +112,10 @@ class TestGetCnvTestsSecretByName:
         mock_client = MagicMock()
         mock_get_client.return_value = mock_client
 
-        mock_secret = MagicMock()
-        mock_secret.key = "existing-secret"
-        mock_secret.value = "value"
-        
-        mock_get_all.return_value = [mock_secret]
+        # Mock secrets dictionary without the requested secret
+        mock_get_all.return_value = {
+            "existing-secret": "uuid-1"
+        }
 
-        with pytest.raises(ValueError, match="The secret nonexistent was not found"):
-            get_cnv_tests_secret_by_name("nonexistent") 
+        with pytest.raises(AssertionError, match="secret nonexistent is either not found or does not have valid values"):
+            get_cnv_tests_secret_by_name("nonexistent")

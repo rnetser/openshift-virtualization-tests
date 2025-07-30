@@ -2,14 +2,12 @@
 
 import sys
 from pathlib import Path
-from unittest.mock import MagicMock, Mock, patch
-
-import pytest
+from unittest.mock import MagicMock, mock_open, patch
 
 # Add utilities to Python path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from database import Base, CnvTestTable, Database
+from database import Base, CNV_TEST_DB, CnvTestTable, Database
 
 
 class TestCnvTestTable:
@@ -18,14 +16,13 @@ class TestCnvTestTable:
     def test_cnv_test_table_structure(self):
         """Test CnvTestTable has expected structure"""
         # Check table name
-        assert CnvTestTable.__tablename__ == "cnv_tests"
-        
+        assert CnvTestTable.__tablename__ == "CnvTestTable"
+
         # Check columns exist
         assert hasattr(CnvTestTable, "id")
         assert hasattr(CnvTestTable, "test_name")
-        assert hasattr(CnvTestTable, "result")
-        assert hasattr(CnvTestTable, "run_time")
-        
+        assert hasattr(CnvTestTable, "start_time")
+
         # Check that it inherits from Base
         assert issubclass(CnvTestTable, Base)
 
@@ -34,100 +31,123 @@ class TestDatabase:
     """Test cases for Database class"""
 
     @patch("database.create_engine")
-    def test_database_init_with_uri(self, mock_create_engine):
-        """Test Database initialization with URI"""
+    @patch("database.get_data_collector_base")
+    @patch("database.Base.metadata.create_all")
+    def test_database_init_with_defaults(self, mock_create_all, mock_get_base, mock_create_engine):
+        """Test Database initialization with default parameters"""
+        mock_get_base.return_value = "/tmp/data/"
         mock_engine = MagicMock()
         mock_create_engine.return_value = mock_engine
-        
-        db = Database(uri="sqlite:///test.db")
-        
-        assert db.uri == "sqlite:///test.db"
+
+        db = Database()
+
+        # Check attributes
+        assert db.database_file_path == f"/tmp/data/{CNV_TEST_DB}"
+        assert db.connection_string == f"sqlite:////tmp/data/{CNV_TEST_DB}"
+        assert db.verbose is True
         assert db.engine == mock_engine
-        mock_create_engine.assert_called_once_with("sqlite:///test.db")
+        
+        # Check engine creation
+        mock_create_engine.assert_called_once_with(
+            url=f"sqlite:////tmp/data/{CNV_TEST_DB}",
+            echo=True
+        )
+        mock_create_all.assert_called_once_with(bind=mock_engine)
 
     @patch("database.create_engine")
-    def test_database_init_default_uri(self, mock_create_engine):
-        """Test Database initialization with default URI"""
+    @patch("database.get_data_collector_base")
+    @patch("database.Base.metadata.create_all")
+    def test_database_init_with_custom_params(self, mock_create_all, mock_get_base, mock_create_engine):
+        """Test Database initialization with custom parameters"""
+        mock_get_base.return_value = "/custom/path/"
+        mock_engine = MagicMock()
+        mock_create_engine.return_value = mock_engine
+
+        db = Database(
+            database_file_name="test.db",
+            verbose=False,
+            base_dir="/custom/dir"
+        )
+
+        assert db.database_file_path == "/custom/path/test.db"
+        assert db.connection_string == "sqlite:////custom/path/test.db"
+        assert db.verbose is False
+        
+        mock_get_base.assert_called_once_with(base_dir="/custom/dir")
+
+    @patch("database.Session")
+    @patch("database.create_engine")
+    @patch("database.get_data_collector_base")
+    @patch("database.Base.metadata.create_all")
+    def test_insert_test_start_time(self, mock_create_all, mock_get_base, mock_create_engine, mock_session_class):
+        """Test inserting test start time"""
+        mock_get_base.return_value = "/tmp/data/"
         mock_engine = MagicMock()
         mock_create_engine.return_value = mock_engine
         
-        db = Database()
-        
-        assert db.uri == "sqlite:///cnv-tests.db"
-        assert db.engine == mock_engine
-
-    @patch("database.create_engine")
-    @patch("database.Base")
-    def test_database_connect(self, mock_base, mock_create_engine):
-        """Test database connect method"""
-        mock_engine = MagicMock()
-        mock_create_engine.return_value = mock_engine
-        
-        db = Database()
-        db.connect()
-        
-        # Should create all tables
-        mock_base.metadata.create_all.assert_called_once_with(bind=mock_engine)
-
-    @patch("database.create_engine")
-    @patch("database.sessionmaker")
-    def test_database_session(self, mock_sessionmaker, mock_create_engine):
-        """Test database session creation"""
-        mock_engine = MagicMock()
-        mock_create_engine.return_value = mock_engine
-        
-        mock_session_class = MagicMock()
+        # Mock session
         mock_session = MagicMock()
-        mock_session_class.return_value = mock_session
-        mock_sessionmaker.return_value = mock_session_class
-        
-        db = Database()
-        session = db.session()
-        
-        assert session == mock_session
-        mock_sessionmaker.assert_called_once_with(bind=mock_engine)
-
-    @patch("database.create_engine")
-    @patch("database.sessionmaker")
-    def test_database_add_test_result(self, mock_sessionmaker, mock_create_engine):
-        """Test adding test result to database"""
-        mock_engine = MagicMock()
-        mock_create_engine.return_value = mock_engine
-        
-        mock_session = MagicMock()
-        mock_session_class = MagicMock()
         mock_session_class.return_value.__enter__.return_value = mock_session
-        mock_sessionmaker.return_value = mock_session_class
-        
-        db = Database()
-        
-        # Mock the add_test_result method if it exists
-        with patch.object(db, 'add_test_result', return_value=None) as mock_add:
-            db.add_test_result("test_name", "passed", 10.5)
-            mock_add.assert_called_once_with("test_name", "passed", 10.5)
 
+        db = Database()
+        db.insert_test_start_time("test_example", 1234567890)
+
+        # Check Session was created with the engine
+        mock_session_class.assert_called_once_with(bind=mock_engine)
+        
+        # Check that add and commit were called
+        mock_session.add.assert_called_once()
+        mock_session.commit.assert_called_once()
+        
+        # Check the object that was added
+        added_obj = mock_session.add.call_args[0][0]
+        assert isinstance(added_obj, CnvTestTable)
+        assert added_obj.test_name == "test_example"
+        assert added_obj.start_time == 1234567890
+
+    @patch("database.Session")
     @patch("database.create_engine")
-    def test_database_context_manager(self, mock_create_engine):
-        """Test Database can be used as context manager if implemented"""
+    @patch("database.get_data_collector_base")
+    @patch("database.Base.metadata.create_all")
+    def test_get_test_start_time(self, mock_create_all, mock_get_base, mock_create_engine, mock_session_class):
+        """Test getting test start time"""
+        mock_get_base.return_value = "/tmp/data/"
         mock_engine = MagicMock()
         mock_create_engine.return_value = mock_engine
         
-        db = Database()
+        # Mock session and query
+        mock_session = MagicMock()
+        mock_query = MagicMock()
+        mock_with_entities = MagicMock()
+        mock_filter_by = MagicMock()
         
-        # Check if context manager methods exist
-        if hasattr(db, '__enter__') and hasattr(db, '__exit__'):
-            with db as db_context:
-                assert db_context is not None
+        # Setup chain of mocks
+        mock_session.query.return_value = mock_query
+        mock_query.with_entities.return_value = mock_with_entities
+        mock_with_entities.filter_by.return_value = mock_filter_by
+        mock_filter_by.one.return_value = [1234567890]
+        
+        mock_session_class.return_value.__enter__.return_value = mock_session
+
+        db = Database()
+        result = db.get_test_start_time("test_example")
+
+        assert result == 1234567890
+        mock_session.query.assert_called_once_with(CnvTestTable)
+        mock_query.with_entities.assert_called_once_with(CnvTestTable.start_time)
+        mock_with_entities.filter_by.assert_called_once_with(test_name="test_example")
 
     @patch("database.create_engine")
-    def test_database_close(self, mock_create_engine):
-        """Test database close/cleanup if implemented"""
+    @patch("database.get_data_collector_base")
+    @patch("database.Base.metadata.create_all")
+    def test_database_engine_creation(self, mock_create_all, mock_get_base, mock_create_engine):
+        """Test that database engine is created properly"""
+        mock_get_base.return_value = "/tmp/data/"
         mock_engine = MagicMock()
         mock_create_engine.return_value = mock_engine
-        
+
         db = Database()
-        
-        # Check if close method exists
-        if hasattr(db, 'close'):
-            db.close()
-            mock_engine.dispose.assert_called_once() 
+
+        # The engine should be accessible
+        assert db.engine is not None
+        assert db.engine == mock_engine
