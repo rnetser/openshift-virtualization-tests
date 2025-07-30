@@ -1,6 +1,6 @@
 import logging
 import multiprocessing
-from datetime import datetime
+from datetime import datetime, timedelta
 from logging.handlers import QueueHandler, QueueListener, RotatingFileHandler
 
 from colorlog import ColoredFormatter
@@ -26,9 +26,11 @@ class DuplicateFilter(logging.Filter):
         return False
 
 
-class TestLogFormatter(ColoredFormatter):
-    def formatTime(self, record, datefmt=None):  # noqa: N802
-        return datetime.fromtimestamp(record.created).isoformat()
+class CNVLogFormatter(ColoredFormatter):
+    def formatTime(self, record, datefmt=None):
+        delta_seconds = record.created - logging._startTime
+        time = timedelta(seconds=delta_seconds)
+        return str(time)
 
 
 def setup_logging(log_level, log_file="/tmp/pytest-tests.log"):
@@ -49,7 +51,7 @@ def setup_logging(log_level, log_file="/tmp/pytest-tests.log"):
       basic QueueHandler ┘                         └> FileHandler
     """
     basic_log_formatter = logging.Formatter(fmt="%(message)s")
-    root_log_formatter = TestLogFormatter(
+    root_log_formatter = CNVLogFormatter(
         fmt="%(asctime)s %(name)s %(log_color)s%(levelname)s%(reset)s %(message)s",
         log_colors={
             "DEBUG": "cyan",
