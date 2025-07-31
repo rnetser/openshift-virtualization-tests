@@ -201,6 +201,7 @@ class TestCollectMustGather:
             node_name="",
             flag_names="",
             timeout="",
+            command_timeout=1200,
         )
         mock_file_open.assert_called_once_with("/tmp/test/output.log", "w")
         mock_file_open().write.assert_called_once_with("must gather output")
@@ -231,6 +232,7 @@ class TestCollectMustGather:
             node_name="test-node",
             flag_names="default,logs",
             timeout="1800s",
+            command_timeout=1200,
         )
         assert result == "/tmp/test/output-dir"
 

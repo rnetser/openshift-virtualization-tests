@@ -1,16 +1,10 @@
 """Unit tests for logger.py - independent of main project tests"""
 
 import logging
-
-# Import from parent directory
-import sys
-from pathlib import Path
 from unittest.mock import MagicMock, Mock, patch
 
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
 from logger import (
-    CNVLogFormatter,
+    TestLogFormatter,
     DuplicateFilter,
     setup_logging,
 )
@@ -91,8 +85,8 @@ class TestDuplicateFilter:
 
 
 def test_log_formatter_time_format():
-    """Test CNVLogFormatter formats time correctly"""
-    formatter = CNVLogFormatter()
+    """Test TestLogFormatter formats time correctly"""
+    formatter = TestLogFormatter()
 
     # Create a log record
     record = logging.LogRecord(
