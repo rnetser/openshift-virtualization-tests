@@ -72,13 +72,13 @@ def mock_logger():
 
     # Create a mock logger that returns a real logger with mock handlers
     def mock_get_logger(name=None):
-        logger = original_get_logger(name=name)
+        logger = original_get_logger(name)  # noqa: FCN001
         # Clear any existing handlers
         logger.handlers = []
         # Add a mock handler with proper level attribute
         mock_handler = MagicMock()
         mock_handler.level = logging.INFO
-        logger.addHandler(handler=mock_handler)
+        logger.addHandler(mock_handler)  # noqa: FCN001
         return logger
 
     # Patch getLogger
