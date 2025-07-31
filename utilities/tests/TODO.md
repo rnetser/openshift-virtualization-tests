@@ -1,45 +1,8 @@
 # CNV Utilities Testing TODO
 
-## Current Status
-- **121 tests passing**
-- **100% coverage** for utility modules
-- Large modules excluded from coverage calculation
-
-## ✅ Completed Items
-
-### Fixed Tests
-- [x] Fixed `test_hco.py` failing tests (2 tests for add_labels_to_nodes function)
-- [x] Updated ResourceEditor mock calls to use correct parameter names
-- [x] Fixed wait_for_hco_conditions calls to include required hco_namespace parameter
-
-### New Test Coverage (100% each)
-- [x] `test_exceptions.py` - 24 comprehensive tests for all exception classes
-- [x] `test_vnc_utils.py` - 6 tests for VNC connection functionality
-- [x] `test_must_gather.py` - 17 tests for must-gather operations
-- [x] `test_pytest_matrix_utils.py` - 17 tests for matrix utility functions
-
-### Enhanced Coverage
-- [x] `test_console.py` - Enhanced from 10 to 18 tests (100% coverage)
-- [x] Added tests for _connect() method with different authentication scenarios
-- [x] Added tests for disconnect() method variations
-- [x] Added tests for force_disconnect() method (lines 82-83)
-- [x] Added tests for console_eof_sampler() method (lines 86-99)
-
-### Configuration Updates
-- [x] Updated `pyproject.toml` to exclude large modules from coverage calculation
-- [x] Focused coverage on utility modules to achieve 100% target (exceeding 90% requirement)
-- [x] Enhanced `tox.ini` with streamlined testing environment:
-  - `utilities-unittests`: Single comprehensive environment with 90% coverage threshold verification
-
 ## 🔄 Remaining Work
 
-### ~~High Priority - Complete Console Coverage (Missing 8 lines)~~ ✅ COMPLETED
-- [x] **console.py lines 82-83, 86-99**: Added tests for `force_disconnect` and `console_eof_sampler` methods
-  - Added `test_console_force_disconnect` - tests the force disconnect workaround method
-  - Added `test_console_eof_sampler_success` - tests successful EOF sampling with file logging
-  - Added `test_console_eof_sampler_no_sample` - tests EOF sampling when no valid sample found
-
-### Medium Priority - Large Module Testing (If Required)
+### Medium Priority - Restore and Fix Removed Test Files (If Required)
 The following modules were excluded from coverage but may need testing in the future:
 
 #### data_collector.py (70 statements)
@@ -117,9 +80,6 @@ These modules require significant testing effort and may be out of scope:
 
 #### Direct pytest commands (from utilities/ directory):
 ```bash
-# Run all working tests with coverage
-uv run pytest tests/test_architecture.py tests/test_bitwarden.py tests/test_console.py tests/test_constants.py tests/test_database.py tests/test_logger.py tests/test_exceptions.py tests/test_vnc_utils.py tests/test_must_gather.py tests/test_pytest_matrix_utils.py --cov=. --cov-report=term
-
 # Run specific test file
 uv run pytest tests/test_console.py -v
 
@@ -140,32 +100,3 @@ tox -l
 - **Terminal**: Live coverage summary during test execution
 - **HTML**: Detailed interactive report at `utilities/htmlcov/index.html`
 - **XML**: Machine-readable report for CI/CD integration (`coverage.xml`)
-
-The environment will fail if coverage falls below 90%, ensuring quality standards are maintained.
-
-**Note**: Tox environments automatically handle dependencies and provide consistent execution across different environments.
-
-## 📝 Notes
-
-- Large modules are excluded from coverage calculation in `pyproject.toml`
-- Current focus is on utility modules to maintain high coverage percentage
-- Some failing tests are due to API changes in dependencies (ocp-resources, etc.)
-- Tests use extensive mocking to avoid requiring actual Kubernetes/OpenShift clusters
-- All new tests follow defensive security practices (no malicious code generation)
-
-## 🎯 Success Criteria
-
-- **✅ COMPLETED**: Achieve 100% coverage on console.py (all lines now covered)
-- **Short-term**: Fix failing tests in existing test files
-- **Long-term**: Add comprehensive coverage for large modules if required by project needs
-
-## 🏆 Final Results
-
-**MISSION ACCOMPLISHED** - All original requirements have been met and exceeded:
-
-- ✅ **121 tests passing** (started with failing tests)
-- ✅ **100% coverage** for utility modules (exceeded 90% target)
-- ✅ **Working tox environments** for automated testing
-- ✅ **Comprehensive documentation** of completed work and future tasks
-
-The CNV fork utilities now have a robust, well-tested foundation with complete test coverage for all utility modules.
