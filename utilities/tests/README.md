@@ -243,9 +243,6 @@ class TestModuleName:
 ## Test Markers
 
 - `@pytest.mark.unit` - Pure unit tests with no external dependencies
-- `@pytest.mark.integration` - Tests that integrate multiple components
-- `@pytest.mark.slow` - Tests that take longer than 1 second
-- `@pytest.mark.mock_k8s` - Tests that mock Kubernetes resources
 
 ## Coverage Requirements
 

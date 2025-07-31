@@ -7,7 +7,6 @@ from unittest.mock import MagicMock
 
 import pytest
 
-# Set architecture environment variable to prevent K8s API calls
 os.environ["OPENSHIFT_VIRTUALIZATION_TEST_IMAGES_ARCH"] = "x86_64"
 
 # Add utilities to Python path for imports
