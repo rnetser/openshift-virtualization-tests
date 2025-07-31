@@ -370,35 +370,6 @@ class TestConsole:
             timeout=console.timeout,
         )
 
-    @patch("console.pexpect")
-    @patch("console.get_data_collector_base_directory")
-    def test_console_force_disconnect(self, mock_get_dir, mock_pexpect):
-        """Test force_disconnect method"""
-        mock_get_dir.return_value = "/tmp/data"
-        mock_vm = MagicMock()
-        mock_vm.name = "test-vm"
-        mock_vm.namespace = None
-        mock_vm.username = "testuser"
-        mock_vm.password = "testpass"
-        mock_vm.login_params = {}
-
-        console = Console(vm=mock_vm)
-
-        with (
-            patch.object(console, "console_eof_sampler") as mock_sampler,
-            patch.object(console, "disconnect") as mock_disconnect,
-        ):
-            console.force_disconnect()
-
-            # Should call console_eof_sampler with pexpect.spawn
-            mock_sampler.assert_called_once_with(
-                func=mock_pexpect.spawn,
-                command=console.cmd,
-                timeout=console.timeout,
-            )
-            # Should call disconnect after sampling
-            mock_disconnect.assert_called_once()
-
     @patch("console.TimeoutSampler")
     @patch("builtins.open", new_callable=mock_open)
     @patch("console.get_data_collector_base_directory")

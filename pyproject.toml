@@ -118,12 +118,6 @@ addopts = """
     --cov-report=xml:utilities/coverage.xml
     --cov-fail-under=90
 """
-markers = [
-    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
-    "unit: marks tests as unit tests",
-    "integration: marks tests as integration tests",
-    "mock_k8s: marks tests that mock Kubernetes resources",
-]
 
 # Coverage configuration for utilities unit tests
 [tool.coverage.run]
