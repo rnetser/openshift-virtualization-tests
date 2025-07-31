@@ -156,7 +156,7 @@ class BridgeNodeNetworkConfigurationPolicy(NodeNetworkConfigurationPolicy):
                 nns = NodeNetworkState(
                     name=utilities.infra.get_node_selector_name(node_selector=self.node_selector)
                     if self.node_selector
-                    else self.nodes[0].name,
+                    else self.nodes[0].name
                 )
                 port_name = port["name"]
                 if self._does_port_match_type(nns=nns, port_name=port_name, port_type=BOND):
@@ -264,9 +264,10 @@ class OvsBridgeNodeNetworkConfigurationPolicy(BridgeNodeNetworkConfigurationPoli
                 Node.get(
                     dyn_client=self.client,
                     name=utilities.infra.get_node_selector_name(node_selector=self.node_selector),
-                ),
+                )
             )[0]
-        return list(Node.get(dyn_client=self.client))[0]
+        else:
+            return list(Node.get(dyn_client=self.client))[0]
 
     def to_dict(self):
         super().to_dict()
@@ -280,9 +281,7 @@ class OvsBridgeNodeNetworkConfigurationPolicy(BridgeNodeNetworkConfigurationPoli
                     if self.mtu:
                         nns = NodeNetworkState(name=self._nns_node.name)
                         if BridgeNodeNetworkConfigurationPolicy._does_port_match_type(
-                            nns=nns,
-                            port_name=port_name,
-                            port_type=BOND,
+                            nns=nns, port_name=port_name, port_type=BOND
                         ):
                             continue
 
@@ -312,7 +311,7 @@ class OvsBridgeNodeNetworkConfigurationPolicy(BridgeNodeNetworkConfigurationPoli
                                 raise ValueError("node_selector is required for set_port_mac")
 
                             nns = NodeNetworkState(
-                                name=utilities.infra.get_node_selector_name(node_selector=self.node_selector),
+                                name=utilities.infra.get_node_selector_name(node_selector=self.node_selector)
                             )
                             port_mac = [iface["mac-address"] for iface in nns.interfaces if iface["name"] == port_name]
                             ovs_iface["mac-address"] = port_mac[0]
@@ -816,7 +815,7 @@ def get_valid_ip_address(dst_ip, family):
     try:
         return ipaddress.IPv4Address(address=dst_ip) if family == IPV4_STR else ipaddress.IPv6Address(address=dst_ip)
     except ipaddress.AddressValueError:
-        return None
+        return
 
 
 def ip_version_data_from_matrix(request):
@@ -832,7 +831,7 @@ def ip_version_data_from_matrix(request):
     """
     ip_stack_matrix_fixture = [fix_name for fix_name in request.fixturenames if "ip_stack_version_matrix__" in fix_name]
     if not ip_stack_matrix_fixture:
-        return None
+        return
     return request.getfixturevalue(ip_stack_matrix_fixture[0])
 
 
@@ -1054,10 +1053,11 @@ def wait_for_ready_sriov_nodes(snns):
                     and sriov_node_network_state.instance.status.syncStatus == SriovNetworkNodePolicy.Status.SUCCEEDED
                 ):
                     continue
-                LOGGER.error(
-                    f"Current status: {sriov_node_network_state.instance.status.syncStatus} expected: {status}",
-                )
-                raise
+                else:
+                    LOGGER.error(
+                        f"Current status: {sriov_node_network_state.instance.status.syncStatus} expected: {status}"
+                    )
+                    raise
 
 
 def create_sriov_node_policy(

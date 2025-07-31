@@ -4,8 +4,8 @@ import logging
 from unittest.mock import MagicMock, Mock, patch
 
 from logger import (
-    TestLogFormatter,
     DuplicateFilter,
+    TestLogFormatter,
     setup_logging,
 )
 

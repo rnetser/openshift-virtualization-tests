@@ -88,7 +88,7 @@ def validate_alerts(
         if alerts_not_firing:
             alerts = alerts_not_firing
             LOGGER.info(
-                f"Alert: {alert_name}, is not fired after {timeout}, but it is found in other state {alerts_not_firing}",
+                f"Alert: {alert_name}, is not fired after {timeout}, but it is found in other state {alerts_not_firing}"
             )
         else:
             collect_alerts_data()
@@ -127,12 +127,11 @@ def wait_for_operator_health_metrics_value(
     try:
         for sample in samples:
             system_metrics_value = get_metrics_value(
-                prometheus=prometheus,
-                metrics_name="kubevirt_hco_system_health_status",
+                prometheus=prometheus, metrics_name="kubevirt_hco_system_health_status"
             )
             expected_heath_impact = max(system_metrics_value, operator_health_metrics_value)
             LOGGER.info(
-                f"System metrics value: {system_metrics_value}, expected health impact: {expected_heath_impact}",
+                f"System metrics value: {system_metrics_value}, expected health impact: {expected_heath_impact}"
             )
             if str(sample) == str(expected_heath_impact):
                 return True
@@ -149,7 +148,7 @@ def wait_for_operator_health_metrics_value(
             LOGGER.warning(
                 f"Current system metrics value: {system_metrics_value} and following "
                 f"{len(alerts_with_higher_health_impact)} alerts are in firing state"
-                f" with higher health impact values: {alerts_with_higher_health_impact}",
+                f" with higher health impact values: {alerts_with_higher_health_impact}"
             )
             return True
         raise

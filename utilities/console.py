@@ -13,7 +13,7 @@ from utilities.data_collector import get_data_collector_base_directory
 LOGGER = logging.getLogger(__name__)
 
 
-class Console:
+class Console(object):
     def __init__(self, vm, username=None, password=None, timeout=30, prompt=None):
         """
         Connect to VM console
@@ -94,7 +94,7 @@ class Console:
         for sample in sampler:
             if sample:
                 self.child = sample
-                self.child.logfile = open(f"{self.base_dir}/{self.vm.name}.pexpect.log", "a", encoding="utf-8")  # noqa: SIM115
+                self.child.logfile = open(f"{self.base_dir}/{self.vm.name}.pexpect.log", "a")
                 break
 
     def _generate_cmd(self):

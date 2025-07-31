@@ -244,7 +244,7 @@ def wait_for_mcp_update_start(machine_config_pools_list, initial_transition_time
     mcps_to_check = {mcp.name for mcp in machine_config_pools_list}
     LOGGER.info(
         "Waiting for MCP update to start. "
-        f"Waiting for MCPs {mcps_to_check} to reach desired condition: {updating_condition}",
+        f"Waiting for MCPs {mcps_to_check} to reach desired condition: {updating_condition}"
     )
     sampler = TimeoutSampler(
         wait_timeout=TIMEOUT_15MIN,
@@ -286,7 +286,7 @@ def collect_mcp_data_on_update_timeout(machine_config_pools_list, not_matching_m
     LOGGER.error(
         f"Out of MCPs {mcps_to_check}, following MCPs {not_matching_mcps} were not at desired "
         f"condition {condition_type} before timeout.\n"
-        f"Current MCP status={str({mcp.name: mcp.instance.status.conditions for mcp in machine_config_pools_list})}",
+        f"Current MCP status={str({mcp.name: mcp.instance.status.conditions for mcp in machine_config_pools_list})}"
     )
     collect_ocp_must_gather(since_time=since_time)
 
@@ -465,7 +465,7 @@ def get_install_plan_from_subscription(subscription):
                 return install_plan["name"]
     except TimeoutExpiredError:
         LOGGER.error(
-            f"Subscription: {subscription.name}, did not get updated with install plan: {pformat(subscription)}",
+            f"Subscription: {subscription.name}, did not get updated with install plan: {pformat(subscription)}"
         )
         raise
 
@@ -569,7 +569,7 @@ def create_operator(operator_class, operator_name, namespace_name=None):
         operator = operator_class(name=operator_name)
     if operator.exists:
         LOGGER.warning(f"Operator: {operator_name} already exists in namespace: {namespace_name}")
-        return None
+        return
     LOGGER.info(f"Operator: {operator_name} is getting deployed in namespace: {namespace_name}")
     operator.deploy(wait=True)
     return operator
@@ -615,7 +615,7 @@ def update_subscription_source(
     subscription_channel: str,
 ) -> None:
     LOGGER.info(
-        f"Update subscription {subscription.name} source to {subscription_source} on {subscription_channel} channel",
+        f"Update subscription {subscription.name} source to {subscription_source} on {subscription_channel} channel"
     )
     ResourceEditor({
         subscription: {
@@ -623,8 +623,8 @@ def update_subscription_source(
                 "channel": subscription_channel,
                 "installPlanApproval": "Manual",
                 "source": subscription_source,
-            },
-        },
+            }
+        }
     }).update()
 
 
@@ -659,10 +659,10 @@ def get_failed_cluster_operator(admin_client):
     failed_operators = {}
     for cluster_operator in cluster_operators_status_conditions:
         if sorted(cluster_operators_status_conditions[cluster_operator].items()) != sorted(
-            DEFAULT_RESOURCE_CONDITIONS.items(),
+            DEFAULT_RESOURCE_CONDITIONS.items()
         ):
             LOGGER.info(
-                f"{cluster_operator} current status condition: {cluster_operators_status_conditions[cluster_operator]}",
+                f"{cluster_operator} current status condition: {cluster_operators_status_conditions[cluster_operator]}"
             )
             failed_operators[cluster_operator] = cluster_operators_status_conditions[cluster_operator]
     return failed_operators

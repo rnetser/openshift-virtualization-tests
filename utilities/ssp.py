@@ -87,7 +87,7 @@ def matrix_auto_boot_data_import_cron_prefixes():
     for data_source_matrix_entry in py_config["auto_update_data_source_matrix"]:
         data_source_name = [*data_source_matrix_entry][0]
         data_import_cron_prefixes.append(
-            data_source_matrix_entry[data_source_name].get("data_import_cron_prefix", data_source_name),
+            data_source_matrix_entry[data_source_name].get("data_import_cron_prefix", data_source_name)
         )
 
     return data_import_cron_prefixes
@@ -144,7 +144,7 @@ def wait_for_condition_message_value(resource, expected_message):
     except TimeoutExpiredError:
         LOGGER.error(
             f"{resource.name} condition message does not match expected message {expected_message}, conditions: "
-            f"{sample}",
+            f"{sample}"
         )
         raise
 
@@ -197,7 +197,7 @@ def get_cim_instance_json(ssh_exec):
         run_ssh_commands(
             host=ssh_exec,
             commands=shlex.split('powershell -c "Get-CimInstance -Class Win32_OperatingSystem | ConvertTo-Json"'),
-        )[0],
+        )[0]
     )
 
 
@@ -205,7 +205,7 @@ def get_reg_product_name(ssh_exec):
     return run_ssh_commands(
         host=ssh_exec,
         commands=shlex.split(
-            'REG QUERY "HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion" /v "ProductName"',
+            'REG QUERY "HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion" /v "ProductName"'
         ),
         tcp_timeout=TCP_TIMEOUT_30SEC,
     )[0]

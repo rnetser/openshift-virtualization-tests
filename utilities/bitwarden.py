@@ -22,7 +22,7 @@ def get_bitwarden_secrets_client():
     """
     if not (os.getenv("ACCESS_TOKEN") and os.getenv("ORGANIZATION_ID")):
         raise MissingEnvironmentVariableError(
-            "Bitwarden client needs ORGANIZATION_ID and ACCESS_TOKEN environment variable set up",
+            "Bitwarden client needs ORGANIZATION_ID and ACCESS_TOKEN environment variable set up"
         )
     bitwarden_client = BitwardenClient()
     bitwarden_client.auth().login_access_token(access_token=os.getenv("ACCESS_TOKEN"))

@@ -95,7 +95,7 @@ def create_dummy_first_consumer_pod(volume_mode=DataVolume.VolumeMode.FILE, dv=N
     ) as pod:
         LOGGER.info(
             f"Created dummy pod {pod.name} to be the first consumer of the PVC, "
-            "this triggers the start of CDI worker pods in case the PVC is backed by DV",
+            "this triggers the start of CDI worker pods in case the PVC is backed by DV"
         )
 
 
@@ -162,8 +162,7 @@ def create_dv(
             create_dummy_first_consumer_pod(dv=dv)
         yield dv
     utilities.infra.cleanup_artifactory_secret_and_config_map(
-        artifactory_secret=artifactory_secret,
-        artifactory_config_map=cert_created,
+        artifactory_secret=artifactory_secret, artifactory_config_map=cert_created
     )
 
 
@@ -532,9 +531,9 @@ class PodWithPVC(Pod):
                     {
                         "name": self._pvc_name,
                         "persistentVolumeClaim": {"claimName": self._pvc_name},
-                    },
+                    }
                 ],
-            },
+            }
         })
 
     def delete(self, wait=False, timeout=TIMEOUT_3MIN, body=None):
@@ -836,8 +835,8 @@ def add_dv_to_vm(vm, dv_name=None, template_dv=None):
                             "disks": [
                                 *template_spec["domain"]["devices"]["disks"],
                                 {"disk": {"bus": "virtio"}, "name": dv_name},
-                            ],
-                        },
+                            ]
+                        }
                     },
                     "volumes": [
                         *template_spec["volumes"],
@@ -845,7 +844,7 @@ def add_dv_to_vm(vm, dv_name=None, template_dv=None):
                     ],
                 },
             },
-        },
+        }
     }
     if template_dv:
         patch["spec"]["dataVolumeTemplates"] = [
@@ -896,7 +895,7 @@ class HPPWithStoragePool(HostPathProvisioner):
                 "workload": {
                     "nodeSelector": {"kubernetes.io/os": "linux"},
                 },
-            },
+            }
         })
 
 
@@ -953,7 +952,7 @@ def wait_for_cdi_worker_pod(pod_name, storage_ns_name):
                 Pod.get(
                     namespace=storage_ns_name,
                     label_selector=CDI_LABEL,
-                ),
+                )
             ),
         ):
             if sample:
@@ -987,7 +986,7 @@ def wait_for_dv_expected_restart_count(dv, expected_result):
     except TimeoutExpiredError:
         LOGGER.error(
             f"error while restarting dv: {dv.name} ,expected restartCount: {expected_result}, "
-            f"actual restartCount: {sample}",
+            f"actual restartCount: {sample}"
         )
         raise
 
@@ -1036,8 +1035,8 @@ def update_default_sc(default, storage_class):
                     },
                     "name": storage_class.name,
                 },
-            },
-        },
+            }
+        }
     ):
         yield
 
@@ -1097,7 +1096,7 @@ def get_data_sources_managed_by_data_import_cron(namespace):
         DataSource.get(
             namespace=namespace,
             label_selector=RESOURCE_MANAGED_BY_DATA_IMPORT_CRON_LABEL,
-        ),
+        )
     )
 
 
@@ -1147,10 +1146,10 @@ def remove_default_storage_classes(cluster_storage_classes):
                                     StorageClass.Annotations.IS_DEFAULT_VIRT_CLASS: "false",
                                 },
                                 "name": sc.name,
-                            },
-                        },
-                    },
-                ),
+                            }
+                        }
+                    }
+                )
             )
     for editor in sc_resources:
         editor.update(backup_resources=True)
