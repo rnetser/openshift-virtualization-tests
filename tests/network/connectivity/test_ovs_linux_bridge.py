@@ -28,6 +28,7 @@ class TestConnectivityLinuxBridge:
         ],
     )
     @pytest.mark.ipv4
+    @pytest.mark.s390x
     @pytest.mark.conformance
     def test_ipv4_linux_bridge(
         self,
@@ -74,6 +75,7 @@ class TestConnectivityLinuxBridge:
     @pytest.mark.post_upgrade
     @pytest.mark.polarion("CNV-11123")
     @pytest.mark.ipv4
+    @pytest.mark.s390x
     def test_positive_vlan_linux_bridge(
         self,
         nad_linux_bridge_vlan_1,
@@ -90,6 +92,7 @@ class TestConnectivityLinuxBridge:
 
     @pytest.mark.polarion("CNV-11131")
     @pytest.mark.ipv4
+    @pytest.mark.s390x
     def test_negative_vlan_linux_bridge(
         self,
         nad_linux_bridge_vlan_3,
@@ -124,6 +127,7 @@ class TestConnectivityOVSBridge:
         ],
     )
     @pytest.mark.ipv4
+    @pytest.mark.s390x
     def test_ipv4_ovs_bridge(
         self,
         use_default_bridge,
@@ -168,6 +172,7 @@ class TestConnectivityOVSBridge:
     @pytest.mark.post_upgrade
     @pytest.mark.polarion("CNV-11129")
     @pytest.mark.ipv4
+    @pytest.mark.s390x
     def test_positive_vlan_ovs_bridge(
         self,
         nad_ovs_bridge_vlan_1,
@@ -184,6 +189,7 @@ class TestConnectivityOVSBridge:
 
     @pytest.mark.polarion("CNV-11130")
     @pytest.mark.ipv4
+    @pytest.mark.s390x
     def test_negative_vlan_ovs_bridge(
         self,
         nad_ovs_bridge_vlan_3,

@@ -15,6 +15,7 @@ pytestmark = [
 ]
 
 
+@pytest.mark.s390x
 class TestFlatOverlayConnectivity:
     @pytest.mark.conformance
     @pytest.mark.gating
@@ -93,6 +94,7 @@ class TestFlatOverlayConnectivity:
 
 class TestFlatOverlayJumboConnectivity:
     @pytest.mark.polarion("CNV-10162")
+    @pytest.mark.s390x
     def test_flat_l2_jumbo_frame_connectivity(
         self,
         flat_l2_jumbo_frame_packet_size,
