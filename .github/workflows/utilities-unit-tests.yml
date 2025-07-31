@@ -1,12 +1,7 @@
 name: Utilities Unit Tests
 
 on:
-  pull_request:
-    paths:
-      - 'utilities/**'
-  push:
-    branches:
-      - main
+  pull_request_target:
     paths:
       - 'utilities/**'
 
@@ -25,49 +20,13 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@v6
         with:
-          version: "0.6.11"
+          enable-cache: true
+          cache-dependency-glob: uv.lock
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
+      - name: Install uv-tox
+        run: uv tool install tox --with tox-uv
 
-      - name: Install dependencies with test extras
-        run: uv sync --extra utilities-test
-
-      - name: Run utilities unit tests with coverage
-        run: |
-          uv run pytest utilities/tests/ \
-            --cov=utilities \
-            --cov-report=term \
-            --cov-report=xml:utilities/coverage.xml \
-            --cov-fail-under=90 \
-            --verbose \
-            --tb=short
-
-      - name: Display coverage summary
-        if: always()
-        run: |
-          echo "🎯 Utilities Unit Test Results:"
-          echo "✅ All tests passed with 90%+ coverage requirement"
-
-      - name: Upload coverage reports
-        uses: codecov/codecov-action@v4
-        if: always()
-        with:
-          file: utilities/coverage.xml
-          flags: utilities
-          name: utilities-coverage
-          fail_ci_if_error: false
-
-      - name: Upload test results
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: utilities-test-results
-          path: |
-            utilities/coverage.xml
-            utilities/htmlcov/
-          retention-days: 7
+      - name: Run tests
+        run: tox -e utilities-unittests

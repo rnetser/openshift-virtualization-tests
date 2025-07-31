@@ -1,12 +1,7 @@
 """Unit tests for console module"""
 
 import os
-import sys
-from pathlib import Path
 from unittest.mock import MagicMock, mock_open, patch
-
-# Add utilities to Python path for imports
-sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from console import Console
 
@@ -14,19 +9,14 @@ from console import Console
 class TestConsole:
     """Test cases for Console class"""
 
-    def test_console_init_with_defaults(self):
+    def test_console_init_with_defaults(self, mock_vm_no_namespace):
         """Test Console initialization with default values"""
-        mock_vm = MagicMock()
-        mock_vm.name = "test-vm"
-        mock_vm.username = "default-user"
-        mock_vm.password = "default-pass"
-        mock_vm.namespace = None
-        mock_vm.login_params = {}
+        mock_vm_no_namespace.username = "default-user"
+        mock_vm_no_namespace.password = "default-pass"
 
-        with patch("console.get_data_collector_base_directory", return_value="/tmp/data"):
-            console = Console(vm=mock_vm)
+        console = Console(vm=mock_vm_no_namespace)
 
-        assert console.vm == mock_vm
+        assert console.vm == mock_vm_no_namespace
         assert console.username == "default-user"
         assert console.password == "default-pass"
         assert console.timeout == 30
@@ -34,41 +24,24 @@ class TestConsole:
         assert console.login_prompt == "login:"
         assert console.prompt == [r"\$"]
 
-    def test_console_init_with_custom_values(self):
+    def test_console_init_with_custom_values(self, mock_vm_no_namespace):
         """Test Console initialization with custom values"""
-        mock_vm = MagicMock()
-        mock_vm.name = "test-vm"
-        mock_vm.namespace = None
-        mock_vm.login_params = {}
-
-        with patch("console.get_data_collector_base_directory", return_value="/tmp/data"):
-            console = Console(
-                vm=mock_vm,
-                username="custom-user",
-                password="custom-pass",
-                timeout=60,
-                prompt=["#", ">"],
-            )
+        console = Console(
+            vm=mock_vm_no_namespace,
+            username="custom-user",
+            password="custom-pass",
+            timeout=60,
+            prompt=["#", ">"],
+        )
 
         assert console.username == "custom-user"
         assert console.password == "custom-pass"
         assert console.timeout == 60
         assert console.prompt == ["#", ">"]
 
-    def test_console_init_with_login_params(self):
+    def test_console_init_with_login_params(self, mock_vm_with_login_params):
         """Test Console initialization with VM login_params"""
-        mock_vm = MagicMock()
-        mock_vm.name = "test-vm"
-        mock_vm.namespace = None
-        mock_vm.login_params = {
-            "username": "login-user",
-            "password": "login-pass",
-        }
-        mock_vm.username = "default-user"
-        mock_vm.password = "default-pass"
-
-        with patch("console.get_data_collector_base_directory", return_value="/tmp/data"):
-            console = Console(vm=mock_vm)
+        console = Console(vm=mock_vm_with_login_params)
 
         # Should prefer login_params over default vm attributes
         assert console.username == "login-user"
@@ -104,50 +77,34 @@ class TestConsole:
             mock_sampler.assert_called_once()
             mock_connect.assert_called_once()
 
-    def test_console_generate_cmd(self):
+    def test_console_generate_cmd(self, mock_vm):
         """Test _generate_cmd method"""
-        mock_vm = MagicMock()
-        mock_vm.name = "test-vm"
-        mock_vm.namespace = "test-ns"
         mock_vm.username = "user"
         mock_vm.password = "pass"
-        mock_vm.login_params = {}
 
-        with (
-            patch("console.get_data_collector_base_directory", return_value="/tmp/data"),
-            patch.dict(os.environ, {"VIRTCTL": "custom-virtctl"}),
-        ):
+        with patch.dict(os.environ, {"VIRTCTL": "custom-virtctl"}):
             console = Console(vm=mock_vm)
 
         # Should use the virtctl from environment
-        assert console.cmd == "custom-virtctl console test-vm -n test-ns"
+        assert console.cmd == "custom-virtctl console test-vm -n test-namespace"
 
         # Test without namespace
         mock_vm.namespace = None
-        with (
-            patch("console.get_data_collector_base_directory", return_value="/tmp/data"),
-            patch("console.VIRTCTL", "virtctl"),
-        ):
+        with patch("console.VIRTCTL", "virtctl"):
             console = Console(vm=mock_vm)
 
         assert console.cmd == "virtctl console test-vm"
 
     @patch("console.pexpect.spawn")
-    @patch("console.get_data_collector_base_directory")
-    def test_console_enter(self, mock_get_dir, mock_spawn):
+    def test_console_enter(self, mock_spawn, mock_vm_no_namespace):
         """Test __enter__ method"""
-        mock_get_dir.return_value = "/tmp/data"
-        mock_vm = MagicMock()
-        mock_vm.name = "test-vm"
-        mock_vm.namespace = None
-        mock_vm.username = "user"
-        mock_vm.password = "pass"
-        mock_vm.login_params = {}
+        mock_vm_no_namespace.username = "user"
+        mock_vm_no_namespace.password = "pass"
 
         mock_child = MagicMock()
         mock_spawn.return_value = mock_child
 
-        console = Console(vm=mock_vm)
+        console = Console(vm=mock_vm_no_namespace)
 
         with patch.object(console, "console_eof_sampler") as mock_sampler:
             # Mock that console_eof_sampler sets self.child

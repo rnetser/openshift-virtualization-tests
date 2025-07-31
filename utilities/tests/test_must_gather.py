@@ -1,13 +1,8 @@
 """Unit tests for must_gather module"""
 
 import os
-import sys
 import tempfile
-from pathlib import Path
 from unittest.mock import mock_open, patch
-
-# Add utilities to Python path for imports
-sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import pytest
 

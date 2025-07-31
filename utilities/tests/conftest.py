@@ -3,7 +3,7 @@
 import os
 import sys
 from pathlib import Path
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -24,20 +24,19 @@ sys.modules["utilities.data_collector"].collect_alerts_data = MagicMock()  # typ
 
 
 # Mock fixtures for common dependencies
-@pytest.fixture
-def mock_k8s_client():
-    """Mock Kubernetes dynamic client"""
-    client = MagicMock()
-    client.resources.get.return_value = MagicMock()
-    return client
-
-
 @pytest.fixture(autouse=True)
 def mock_get_client(monkeypatch):
     """Auto-mock get_client for all tests"""
     mock_client = MagicMock()
     monkeypatch.setattr("ocp_resources.resource.get_client", lambda: mock_client)
     return mock_client
+
+
+@pytest.fixture(autouse=True)
+def mock_data_collector_base_directory():
+    """Auto-mock get_data_collector_base_directory for all tests"""
+    with patch("utilities.data_collector.get_data_collector_base_directory", return_value="/tmp/data"):
+        yield "/tmp/data"
 
 
 @pytest.fixture
@@ -58,6 +57,38 @@ def mock_vm():
     vm.namespace = "test-namespace"
     vm.status = "Running"
     vm.instance = MagicMock()
+    vm.username = "test-user"
+    vm.password = "test-pass"
+    vm.login_params = {}
+    return vm
+
+
+@pytest.fixture
+def mock_vm_with_login_params():
+    """Mock VirtualMachine resource with login_params"""
+    vm = MagicMock()
+    vm.name = "test-vm"
+    vm.namespace = "test-namespace"
+    vm.status = "Running"
+    vm.instance = MagicMock()
+    vm.username = "default-user"
+    vm.password = "default-pass"
+    vm.login_params = {
+        "username": "login-user",
+        "password": "login-pass",
+    }
+    return vm
+
+
+@pytest.fixture
+def mock_vm_no_namespace():
+    """Mock VirtualMachine resource without namespace"""
+    vm = MagicMock()
+    vm.name = "test-vm"
+    vm.namespace = None
+    vm.username = "test-user"
+    vm.password = "test-pass"
+    vm.login_params = {}
     return vm
 
 

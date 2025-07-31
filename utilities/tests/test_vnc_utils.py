@@ -1,12 +1,6 @@
 """Unit tests for vnc_utils module"""
 
-import sys
-from pathlib import Path
 from unittest.mock import MagicMock, mock_open, patch
-
-# Add utilities to Python path for imports
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
 
 from utilities.vnc_utils import VNCConnection
 
@@ -14,30 +8,19 @@ from utilities.vnc_utils import VNCConnection
 class TestVNCConnection:
     """Test cases for VNCConnection class"""
 
-    @patch("utilities.vnc_utils.get_data_collector_base_directory")
-    def test_vnc_connection_init(self, mock_get_base_dir):
+    def test_vnc_connection_init(self, mock_vm):
         """Test VNCConnection initialization"""
-        mock_get_base_dir.return_value = "/tmp/test"
-        mock_vm = MagicMock()
-        mock_vm.name = "test-vm"
-        mock_vm.namespace = "test-namespace"
-
         vnc_conn = VNCConnection(mock_vm)
 
         assert vnc_conn.vm == mock_vm
         assert vnc_conn.child is None
-        assert vnc_conn.base_dir == "/tmp/test"
+        assert vnc_conn.base_dir == "/tmp/data"
 
-    @patch("utilities.vnc_utils.get_data_collector_base_directory")
     @patch("utilities.vnc_utils.TimeoutSampler")
     @patch("builtins.open", new_callable=mock_open)
     @patch("utilities.vnc_utils.pexpect")
-    def test_vnc_connection_enter_success(self, mock_pexpect, mock_file_open, mock_sampler, mock_get_base_dir):
+    def test_vnc_connection_enter_success(self, mock_pexpect, mock_file_open, mock_sampler, mock_vm):
         """Test VNCConnection __enter__ method success"""
-        mock_get_base_dir.return_value = "/tmp/test"
-        mock_vm = MagicMock()
-        mock_vm.name = "test-vm"
-        mock_vm.namespace = "test-namespace"
 
         # Mock pexpect.spawn
         mock_child = MagicMock()
@@ -55,16 +38,11 @@ class TestVNCConnection:
         assert result == mock_child
         assert vnc_conn.child == mock_child
         mock_child.expect.assert_called_once_with('"port":', timeout=300)
-        mock_file_open.assert_called_once_with("/tmp/test/test-vm.pexpect.log", "a", encoding="utf-8")
+        mock_file_open.assert_called_once_with("/tmp/data/test-vm.pexpect.log", "a", encoding="utf-8")
 
-    @patch("utilities.vnc_utils.get_data_collector_base_directory")
     @patch("utilities.vnc_utils.TimeoutSampler")
-    def test_vnc_connection_enter_no_sample(self, mock_sampler, mock_get_base_dir):
+    def test_vnc_connection_enter_no_sample(self, mock_sampler, mock_vm):
         """Test VNCConnection __enter__ method when no sample is returned"""
-        mock_get_base_dir.return_value = "/tmp/test"
-        mock_vm = MagicMock()
-        mock_vm.name = "test-vm"
-        mock_vm.namespace = "test-namespace"
 
         # Mock TimeoutSampler iterator with no valid samples
         mock_sampler_instance = MagicMock()
@@ -77,13 +55,8 @@ class TestVNCConnection:
 
         assert result is None
 
-    @patch("utilities.vnc_utils.get_data_collector_base_directory")
-    def test_vnc_connection_exit(self, mock_get_base_dir):
+    def test_vnc_connection_exit(self, mock_vm):
         """Test VNCConnection __exit__ method"""
-        mock_get_base_dir.return_value = "/tmp/test"
-        mock_vm = MagicMock()
-        mock_vm.name = "test-vm"
-        mock_vm.namespace = "test-namespace"
 
         vnc_conn = VNCConnection(mock_vm)
 
@@ -95,16 +68,11 @@ class TestVNCConnection:
 
         mock_child.close.assert_called_once()
 
-    @patch("utilities.vnc_utils.get_data_collector_base_directory")
     @patch("utilities.vnc_utils.TimeoutSampler")
     @patch("builtins.open", new_callable=mock_open)
     @patch("utilities.vnc_utils.pexpect")
-    def test_vnc_connection_context_manager(self, mock_pexpect, mock_file_open, mock_sampler, mock_get_base_dir):
+    def test_vnc_connection_context_manager(self, mock_pexpect, mock_file_open, mock_sampler, mock_vm):
         """Test VNCConnection as context manager"""
-        mock_get_base_dir.return_value = "/tmp/test"
-        mock_vm = MagicMock()
-        mock_vm.name = "test-vm"
-        mock_vm.namespace = "test-namespace"
 
         # Mock pexpect.spawn
         mock_child = MagicMock()
@@ -120,13 +88,8 @@ class TestVNCConnection:
 
         mock_child.close.assert_called_once()
 
-    @patch("utilities.vnc_utils.get_data_collector_base_directory")
-    def test_vnc_connection_virtctl_command_format(self, mock_get_base_dir):
+    def test_vnc_connection_virtctl_command_format(self, mock_vm):
         """Test that VNCConnection formats the virtctl command correctly"""
-        mock_get_base_dir.return_value = "/tmp/test"
-        mock_vm = MagicMock()
-        mock_vm.name = "test-vm"
-        mock_vm.namespace = "test-namespace"
 
         with patch("utilities.vnc_utils.TimeoutSampler") as mock_sampler:
             mock_sampler_instance = MagicMock()

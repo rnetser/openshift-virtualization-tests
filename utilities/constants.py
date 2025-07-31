@@ -1,13 +1,4 @@
 from kubernetes.dynamic.exceptions import InternalServerError
-from libs.infra.images import (
-    BASE_IMAGES_DIR,
-    Cdi,
-    Centos,
-    Cirros,
-    Fedora,
-    Rhel,
-    Windows,
-)
 from ocp_resources.aaq import AAQ
 from ocp_resources.api_service import APIService
 from ocp_resources.cdi import CDI
@@ -32,6 +23,15 @@ from urllib3.exceptions import (
     ResponseError,
 )
 
+from libs.infra.images import (
+    BASE_IMAGES_DIR,
+    Cdi,
+    Centos,
+    Cirros,
+    Fedora,
+    Rhel,
+    Windows,
+)
 from utilities.architecture import get_cluster_architecture
 
 # Images
