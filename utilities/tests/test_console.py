@@ -3,7 +3,10 @@
 import os
 from unittest.mock import MagicMock, mock_open, patch
 
-from console import Console
+import pytest
+
+# Console module can now be imported safely with centralized mocking in conftest.py
+from utilities.console import Console
 
 
 class TestConsole:
@@ -47,8 +50,8 @@ class TestConsole:
         assert console.username == "login-user"
         assert console.password == "login-pass"
 
-    @patch("console.pexpect")
-    @patch("console.get_data_collector_base_directory")
+    @patch("utilities.console.pexpect")
+    @patch("utilities.data_collector.get_data_collector_base_directory")
     def test_console_connect(self, mock_get_dir, mock_pexpect):
         """Test console connect method"""
         mock_get_dir.return_value = "/tmp/data"
@@ -77,6 +80,39 @@ class TestConsole:
             mock_sampler.assert_called_once()
             mock_connect.assert_called_once()
 
+    @patch("utilities.console.pexpect")
+    @patch("utilities.data_collector.get_data_collector_base_directory")
+    def test_console_connect_exception_handling(self, mock_get_dir, mock_pexpect):
+        """Test console connect method exception handling"""
+        mock_get_dir.return_value = "/tmp/data"
+        mock_vm = MagicMock()
+        mock_vm.name = "test-vm"
+        mock_vm.namespace = None
+        mock_vm.username = "user"
+        mock_vm.password = "pass"
+        mock_vm.login_params = {}
+
+        mock_child = MagicMock()
+        mock_pexpect.spawn.return_value = mock_child
+
+        console = Console(vm=mock_vm)
+
+        with (
+            patch.object(console, "console_eof_sampler") as mock_sampler,
+            patch.object(console, "_connect", side_effect=Exception("Connection failed")) as mock_connect,
+            patch("utilities.console.LOGGER") as mock_logger,
+        ):
+            # Set child to mock_child so close() can be called
+            console.child = mock_child
+
+            with pytest.raises(Exception, match="Connection failed"):
+                console.connect()
+
+            mock_sampler.assert_called_once()
+            mock_connect.assert_called_once()
+            mock_logger.exception.assert_called_once_with("Failed to connect to test-vm console.")
+            mock_child.close.assert_called_once()
+
     def test_console_generate_cmd(self, mock_vm):
         """Test _generate_cmd method"""
         mock_vm.username = "user"
@@ -90,12 +126,12 @@ class TestConsole:
 
         # Test without namespace
         mock_vm.namespace = None
-        with patch("console.VIRTCTL", "virtctl"):
+        with patch("utilities.console.VIRTCTL", "virtctl"):
             console = Console(vm=mock_vm)
 
         assert console.cmd == "virtctl console test-vm"
 
-    @patch("console.pexpect.spawn")
+    @patch("utilities.console.pexpect.spawn")
     def test_console_enter(self, mock_spawn, mock_vm_no_namespace):
         """Test __enter__ method"""
         mock_vm_no_namespace.username = "user"
@@ -120,7 +156,7 @@ class TestConsole:
         assert result == mock_child
 
     @patch("builtins.open", new_callable=mock_open)
-    @patch("console.get_data_collector_base_directory")
+    @patch("utilities.console.get_data_collector_base_directory")
     def test_console_exit(self, mock_get_dir, mock_file_open):
         """Test __exit__ method"""
         mock_get_dir.return_value = "/tmp/data"
@@ -140,7 +176,7 @@ class TestConsole:
             console.__exit__(None, None, None)
             mock_disconnect.assert_called_once()
 
-    @patch("console.get_data_collector_base_directory")
+    @patch("utilities.console.get_data_collector_base_directory")
     def test_console_sendline_through_child(self, mock_get_dir):
         """Test sendline through child object"""
         mock_get_dir.return_value = "/tmp/data"
@@ -160,7 +196,7 @@ class TestConsole:
 
         mock_child.sendline.assert_called_once_with("test command")
 
-    @patch("console.get_data_collector_base_directory")
+    @patch("utilities.console.get_data_collector_base_directory")
     def test_console_expect_through_child(self, mock_get_dir):
         """Test expect through child object"""
         mock_get_dir.return_value = "/tmp/data"
@@ -182,7 +218,7 @@ class TestConsole:
         assert result == 0
         mock_child.expect.assert_called_once_with(["pattern1", "pattern2"], timeout=60)
 
-    @patch("console.get_data_collector_base_directory")
+    @patch("utilities.console.get_data_collector_base_directory")
     def test_console_connect_with_username_and_password(self, mock_get_dir):
         """Test _connect method with username and password"""
         mock_get_dir.return_value = "/tmp/data"
@@ -206,7 +242,7 @@ class TestConsole:
         console.child.sendline.assert_any_call("testpass")
         console.child.expect.assert_any_call([r"\$"], timeout=150)
 
-    @patch("console.get_data_collector_base_directory")
+    @patch("utilities.console.get_data_collector_base_directory")
     def test_console_connect_username_only(self, mock_get_dir):
         """Test _connect method with username only"""
         mock_get_dir.return_value = "/tmp/data"
@@ -230,7 +266,7 @@ class TestConsole:
         password_calls = [call for call in console.child.expect.call_args_list if "Password:" in str(call)]
         assert len(password_calls) == 0
 
-    @patch("console.get_data_collector_base_directory")
+    @patch("utilities.console.get_data_collector_base_directory")
     def test_console_connect_no_username(self, mock_get_dir):
         """Test _connect method without username"""
         mock_get_dir.return_value = "/tmp/data"
@@ -253,7 +289,7 @@ class TestConsole:
         login_calls = [call for call in console.child.expect.call_args_list if "login:" in str(call)]
         assert len(login_calls) == 0
 
-    @patch("console.get_data_collector_base_directory")
+    @patch("utilities.console.get_data_collector_base_directory")
     def test_console_disconnect_with_username(self, mock_get_dir):
         """Test disconnect method with username"""
         mock_get_dir.return_value = "/tmp/data"
@@ -276,7 +312,7 @@ class TestConsole:
         console.child.send.assert_any_call("\n\n")
         console.child.expect.assert_any_call("login:")
 
-    @patch("console.get_data_collector_base_directory")
+    @patch("utilities.console.get_data_collector_base_directory")
     def test_console_disconnect_no_username(self, mock_get_dir):
         """Test disconnect method without username"""
         mock_get_dir.return_value = "/tmp/data"
@@ -299,8 +335,8 @@ class TestConsole:
         exit_calls = [call for call in console.child.send.call_args_list if "exit" in str(call)]
         assert len(exit_calls) == 0
 
-    @patch("console.pexpect")
-    @patch("console.get_data_collector_base_directory")
+    @patch("utilities.console.pexpect")
+    @patch("utilities.data_collector.get_data_collector_base_directory")
     def test_console_disconnect_terminated_child(self, mock_get_dir, mock_pexpect):
         """Test disconnect method when child is terminated"""
         mock_get_dir.return_value = "/tmp/data"
@@ -327,9 +363,9 @@ class TestConsole:
             timeout=console.timeout,
         )
 
-    @patch("console.TimeoutSampler")
+    @patch("utilities.console.TimeoutSampler")
     @patch("builtins.open", new_callable=mock_open)
-    @patch("console.get_data_collector_base_directory")
+    @patch("utilities.console.get_data_collector_base_directory")
     def test_console_eof_sampler_success(self, mock_get_dir, mock_file_open, mock_timeout_sampler):
         """Test console_eof_sampler method when sample is found"""
         mock_get_dir.return_value = "/tmp/data"
@@ -366,8 +402,8 @@ class TestConsole:
         assert console.child == mock_sample
         mock_file_open.assert_called_once_with("/tmp/data/test-vm.pexpect.log", "a")
 
-    @patch("console.TimeoutSampler")
-    @patch("console.get_data_collector_base_directory")
+    @patch("utilities.console.TimeoutSampler")
+    @patch("utilities.console.get_data_collector_base_directory")
     def test_console_eof_sampler_no_sample(self, mock_get_dir, mock_timeout_sampler):
         """Test console_eof_sampler method when no sample is found"""
         mock_get_dir.return_value = "/tmp/data"

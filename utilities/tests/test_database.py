@@ -1,13 +1,9 @@
 """Unit tests for database module"""
 
-import sys
-from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-# Add utilities to Python path for imports
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
-from database import CNV_TEST_DB, Base, CnvTestTable, Database
+# Database module can now be imported safely with centralized mocking in conftest.py
+from utilities.database import CNV_TEST_DB, Base, CnvTestTable, Database
 
 
 class TestCnvTestTable:
@@ -30,9 +26,9 @@ class TestCnvTestTable:
 class TestDatabase:
     """Test cases for Database class"""
 
-    @patch("database.create_engine")
-    @patch("database.get_data_collector_base")
-    @patch("database.Base.metadata.create_all")
+    @patch("utilities.database.create_engine")
+    @patch("utilities.database.get_data_collector_base")
+    @patch("utilities.database.Base.metadata.create_all")
     def test_database_init_with_defaults(self, mock_create_all, mock_get_base, mock_create_engine):
         """Test Database initialization with default parameters"""
         mock_get_base.return_value = "/tmp/data/"
@@ -54,9 +50,9 @@ class TestDatabase:
         )
         mock_create_all.assert_called_once_with(bind=mock_engine)
 
-    @patch("database.create_engine")
-    @patch("database.get_data_collector_base")
-    @patch("database.Base.metadata.create_all")
+    @patch("utilities.database.create_engine")
+    @patch("utilities.database.get_data_collector_base")
+    @patch("utilities.database.Base.metadata.create_all")
     def test_database_init_with_custom_params(self, mock_create_all, mock_get_base, mock_create_engine):
         """Test Database initialization with custom parameters"""
         mock_get_base.return_value = "/custom/path/"
@@ -75,10 +71,10 @@ class TestDatabase:
 
         mock_get_base.assert_called_once_with(base_dir="/custom/dir")
 
-    @patch("database.Session")
-    @patch("database.create_engine")
-    @patch("database.get_data_collector_base")
-    @patch("database.Base.metadata.create_all")
+    @patch("utilities.database.Session")
+    @patch("utilities.database.create_engine")
+    @patch("utilities.database.get_data_collector_base")
+    @patch("utilities.database.Base.metadata.create_all")
     def test_insert_test_start_time(self, mock_create_all, mock_get_base, mock_create_engine, mock_session_class):
         """Test inserting test start time"""
         mock_get_base.return_value = "/tmp/data/"
@@ -105,10 +101,10 @@ class TestDatabase:
         assert added_obj.test_name == "test_example"
         assert added_obj.start_time == 1234567890
 
-    @patch("database.Session")
-    @patch("database.create_engine")
-    @patch("database.get_data_collector_base")
-    @patch("database.Base.metadata.create_all")
+    @patch("utilities.database.Session")
+    @patch("utilities.database.create_engine")
+    @patch("utilities.database.get_data_collector_base")
+    @patch("utilities.database.Base.metadata.create_all")
     def test_get_test_start_time(self, mock_create_all, mock_get_base, mock_create_engine, mock_session_class):
         """Test getting test start time"""
         mock_get_base.return_value = "/tmp/data/"
@@ -137,9 +133,9 @@ class TestDatabase:
         mock_query.with_entities.assert_called_once_with(CnvTestTable.start_time)
         mock_with_entities.filter_by.assert_called_once_with(test_name="test_example")
 
-    @patch("database.create_engine")
-    @patch("database.get_data_collector_base")
-    @patch("database.Base.metadata.create_all")
+    @patch("utilities.database.create_engine")
+    @patch("utilities.database.get_data_collector_base")
+    @patch("utilities.database.Base.metadata.create_all")
     def test_database_engine_creation(self, mock_create_all, mock_get_base, mock_create_engine):
         """Test that database engine is created properly"""
         mock_get_base.return_value = "/tmp/data/"

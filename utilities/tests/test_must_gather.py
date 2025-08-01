@@ -1,11 +1,18 @@
 """Unit tests for must_gather module"""
 
 import os
+import sys
 import tempfile
 from unittest.mock import mock_open, patch
 
 import pytest
 
+# For must_gather tests, we need to import real functions, not mocks
+# Remove the mock and import the real module
+if "utilities.must_gather" in sys.modules:
+    del sys.modules["utilities.must_gather"]
+
+# Now import the real must_gather module functions
 from utilities.must_gather import (
     collect_must_gather,
     get_must_gather_output_dir,
