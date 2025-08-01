@@ -103,7 +103,7 @@ dev-dependencies = ["ipdb>=0.13.13", "ipython>=8.12.3"]
 # Utilities Unit Testing Configuration
 [tool.pytest.ini_options]
 minversion = "8.0"
-testpaths = ["utilities/tests"]
+testpaths = ["utilities/unittests"]
 python_files = "test_*.py"
 python_classes = "Test*"
 python_functions = "test_*"

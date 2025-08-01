@@ -4,7 +4,7 @@ on:
   pull_request_target:
     paths:
       - 'utilities/**'
-      - '!utilities/tests/**'
+      - '!utilities/unittests/**'
 
   workflow_dispatch:
 
