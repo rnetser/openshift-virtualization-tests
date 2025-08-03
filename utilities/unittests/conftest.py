@@ -153,32 +153,6 @@ def mock_logger():
 
 
 @pytest.fixture
-def mock_set_data_collector_values_logic():
-    """Fixture providing set_data_collector_values logic function"""
-
-    def set_data_collector_values_logic(base_dir=None, get_base_func=None):
-        """Simulate set_data_collector_values logic"""
-        base_path = get_base_func(base_dir=base_dir) if get_base_func else "/default/base/"
-        return {"data_collector_base_directory": f"{base_path}tests-collected-info"}
-
-    return set_data_collector_values_logic
-
-
-@pytest.fixture
-def mock_get_data_collector_dir_logic():
-    """Fixture providing get_data_collector_dir logic function"""
-
-    def get_data_collector_dir_logic(config_dict):
-        """Simulate get_data_collector_dir logic"""
-        return config_dict.get(
-            "collector_directory",
-            config_dict["data_collector_base_directory"],
-        )
-
-    return get_data_collector_dir_logic
-
-
-@pytest.fixture
 def mock_os_images():
     """Fixture providing mock OS image classes for testing"""
     # Mock RHEL class
