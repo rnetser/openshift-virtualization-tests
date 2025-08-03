@@ -150,23 +150,6 @@ def mock_logger():
 
 
 # Shared utility functions for data_collector tests
-@pytest.fixture
-def mock_write_to_file_logic():
-    """Fixture providing write_to_file logic function"""
-
-    def write_to_file_logic(file_name, content, base_directory, mode="w"):
-        """Simulate write_to_file logic"""
-        os.makedirs(base_directory, exist_ok=True)
-        file_path = os.path.join(base_directory, file_name)
-
-        try:
-            with open(file_path, mode) as fd:
-                fd.write(content)
-            return True
-        except Exception:
-            return False
-
-    return write_to_file_logic
 
 
 @pytest.fixture
