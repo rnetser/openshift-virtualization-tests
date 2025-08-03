@@ -9,7 +9,7 @@ from utilities.os_utils import (
     FEDORA_OS_MAPPING,
     RHEL_OS_MAPPING,
     WINDOWS_OS_MAPPING,
-    generate_instance_type_rhel_os_matrix,
+    generate_linux_instance_type_os_matrix,
     generate_os_matrix_dict,
 )
 
@@ -207,23 +207,23 @@ class TestGenerateOsMatrixDict:
 
 
 class TestGenerateInstanceTypeRhelOsMatrix:
-    """Test cases for generate_instance_type_rhel_os_matrix function"""
+    """Test cases for generate_linux_instance_type_os_matrix function"""
 
     def test_generate_instance_type_single_preference(self):
         """Test instance type matrix generation with single preference"""
-        result = generate_instance_type_rhel_os_matrix(["rhel-9"])
+        result = generate_linux_instance_type_os_matrix("rhel", ["rhel-9"])
 
         assert len(result) == 1
         assert "rhel-9" in result[0]
         config = result[0]["rhel-9"]
-        assert config["preference"] == "rhel.9"
+        assert config["preference"] == "rhel-9"
         assert config["DATA_SOURCE_NAME"] == "rhel9"
         assert config["latest_released"] is True
 
     def test_generate_instance_type_multiple_preferences(self):
         """Test instance type matrix generation with multiple preferences"""
         preferences = ["rhel-8", "rhel-9", "rhel-7"]
-        result = generate_instance_type_rhel_os_matrix(preferences)
+        result = generate_linux_instance_type_os_matrix("rhel", preferences)
 
         assert len(result) == 3
 
@@ -244,16 +244,16 @@ class TestGenerateInstanceTypeRhelOsMatrix:
 
     def test_generate_instance_type_preference_format(self):
         """Test preference string formatting"""
-        result = generate_instance_type_rhel_os_matrix(["rhel-8"])
+        result = generate_linux_instance_type_os_matrix("rhel", ["rhel-8"])
 
         config = result[0]["rhel-8"]
-        assert config["preference"] == "rhel.8"  # Dash replaced with dot
+        assert config["preference"] == "rhel-8"  # Preference stored as-is
         assert config["DATA_SOURCE_NAME"] == "rhel8"  # Dash removed
 
     def test_generate_instance_type_complex_versions(self):
         """Test with complex version numbers"""
         preferences = ["rhel-8", "rhel-9", "rhel-10"]
-        result = generate_instance_type_rhel_os_matrix(preferences)
+        result = generate_linux_instance_type_os_matrix("rhel", preferences)
 
         # RHEL-10 should be identified as latest (highest number)
         rhel10_item = next(item for item in result if "rhel-10" in item)
@@ -266,7 +266,7 @@ class TestGenerateInstanceTypeRhelOsMatrix:
     def test_generate_instance_type_single_digit_versions(self):
         """Test with single digit version numbers"""
         preferences = ["rhel-7", "rhel-8", "rhel-9"]
-        result = generate_instance_type_rhel_os_matrix(preferences)
+        result = generate_linux_instance_type_os_matrix("rhel", preferences)
 
         # RHEL-9 should be latest
         rhel9_item = next(item for item in result if "rhel-9" in item)

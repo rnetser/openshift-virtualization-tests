@@ -4,8 +4,8 @@ import logging
 from unittest.mock import MagicMock, Mock, patch
 
 from logger import (
+    CustomLogFormatter,
     DuplicateFilter,
-    TestLogFormatter,
     setup_logging,
 )
 
@@ -85,8 +85,8 @@ class TestDuplicateFilter:
 
 
 def test_log_formatter_time_format():
-    """Test TestLogFormatter formats time correctly"""
-    formatter = TestLogFormatter()
+    """Test CustomLogFormatter formats time correctly"""
+    formatter = CustomLogFormatter()
 
     # Create a log record
     record = logging.LogRecord(
