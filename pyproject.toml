@@ -135,7 +135,6 @@ omit = [
     "utilities/infra.py",
     "utilities/network.py",
     "utilities/operator.py",
-    "utilities/ssp.py",
     "utilities/storage.py",
     "utilities/virt.py",
 ]
