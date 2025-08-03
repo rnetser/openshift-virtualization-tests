@@ -150,22 +150,6 @@ def mock_logger():
 
 
 # Shared utility functions for data_collector tests
-def get_data_collector_base_logic(base_dir=None):
-    """Shared function simulating get_data_collector_base logic"""
-    if base_dir:
-        base_path = base_dir
-    elif os.environ.get("CNV_TESTS_CONTAINER"):
-        base_path = "/data"
-    else:
-        base_path = os.getcwd()
-
-    base_path = os.path.normpath(os.path.expanduser(base_path))
-    if not base_path.endswith(os.sep):
-        base_path = f"{base_path}{os.sep}"
-
-    return base_path
-
-
 @pytest.fixture
 def mock_write_to_file_logic():
     """Fixture providing write_to_file logic function"""
