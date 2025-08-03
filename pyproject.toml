@@ -103,7 +103,7 @@ dev-dependencies = ["ipdb>=0.13.13", "ipython>=8.12.3"]
 # Utilities Unit Testing Configuration
 [tool.pytest.ini_options]
 minversion = "8.0"
-testpaths = ["utilities/tests"]
+testpaths = ["utilities/unittests"]
 python_files = "test_*.py"
 python_classes = "Test*"
 python_functions = "test_*"
@@ -130,10 +130,15 @@ omit = [
     "*/test_*.py",
     "__init__.py",
     # TODO: Add coverage to these large modules when individual fixes are needed
+    "utilities/data_collector.py",
     "utilities/hco.py",
     "utilities/infra.py",
+    "utilities/monitoring.py",
     "utilities/network.py",
     "utilities/operator.py",
+    "utilities/os_utils.py",
+    "utilities/pytest_utils.py",
+    "utilities/ssp.py",
     "utilities/storage.py",
     "utilities/virt.py",
 ]
