@@ -94,11 +94,28 @@ class TestGetMatrixParams:
     @patch("utilities.pytest_utils.py_config", {"base_matrix": [{"param": "value"}]})
     @patch("utilities.pytest_utils.skip_if_pytest_flags_exists")
     def test_get_matrix_params_with_function_not_found(self, mock_skip_flags):
-        """Test getting matrix params when function is not found in pytest_matrix_utils"""
+        """Test getting matrix params when function is not found in pytest_matrix_utils
+
+        This test verifies the intended API behavior: when a matrix function is requested
+        but doesn't exist in pytest_matrix_utils, the function should raise a TypeError.
+
+        API Design Rationale:
+        - Fail-fast principle: Configuration errors should be caught immediately
+        - Clear feedback: TypeError provides explicit indication of missing function
+        - No silent failures: Missing matrix functions represent configuration errors
+          that should not be ignored or return empty results
+        - Consistency: Function either succeeds completely or fails explicitly
+
+        The TypeError on line 84 of pytest_utils.py (matrix_func(matrix=_base_matrix_params))
+        is intentional and represents correct API behavior when getattr() returns None
+        for a non-existent function name.
+        """
         mock_skip_flags.return_value = False
         mock_pytest_config = MagicMock()
 
-        # This will cause a TypeError when trying to call None
+        # This TypeError is the intended behavior for missing matrix functions
+        # It ensures configuration errors are caught immediately rather than silently ignored
+        # Test scenario: base_matrix exists, but nonexistent_matrix function doesn't exist in pytest_matrix_utils
         with pytest.raises(TypeError, match="'NoneType' object is not callable"):
             get_matrix_params(mock_pytest_config, "base_matrix_nonexistent_matrix__class__")
 

@@ -7,6 +7,112 @@ from unittest.mock import MagicMock, mock_open, patch
 
 import pytest
 
+# ==================================================================================
+# MODULE MOCKING STRATEGY DOCUMENTATION
+# ==================================================================================
+#
+# CURRENT APPROACH: sys.modules Manipulation for Mock Isolation
+#
+# Problem Being Solved:
+# ---------------------
+# The conftest.py file globally mocks certain modules to prevent circular
+# dependencies during test collection. However, for these specific unit tests,
+# we need to test the REAL implementation of data_collector functions, not mocks.
+#
+# Why This Approach Is Used:
+# -------------------------
+# 1. Global mocks in conftest.py are necessary to prevent import errors
+# 2. Some tests need the real module implementation to verify actual behavior
+# 3. Python's import system caches modules in sys.modules, so simply importing
+#    after mocks are set up would still get the mocked version
+# 4. Removing from sys.modules forces a fresh import of the real module
+#
+# Current Implementation:
+# ----------------------
+# We check if the module is already in sys.modules (indicating it was mocked)
+# and remove it to force Python to re-import the real implementation.
+#
+# FRAGILITY CONCERNS (as noted by CodeRabbit):
+# ============================================
+# 1. **Import Order Dependency**: This approach is sensitive to the order of
+#    test execution and module imports across the test suite
+# 2. **Global State Pollution**: Modifying sys.modules affects the entire
+#    Python process, potentially impacting other tests
+# 3. **Race Conditions**: In parallel test execution, this could cause
+#    unpredictable behavior when multiple tests modify sys.modules
+# 4. **Hidden Dependencies**: The success of tests depends on implicit
+#    knowledge of what's mocked in conftest.py
+# 5. **Debugging Difficulty**: Import issues become harder to trace when
+#    modules are dynamically removed and re-imported
+#
+# ALTERNATIVE APPROACHES TO CONSIDER:
+# ==================================
+#
+# 1. **Context Manager Approach**:
+#    - Pros: Cleaner scope isolation, automatic cleanup
+#    - Cons: Requires refactoring existing test structure
+#    - Example:
+#      ```python
+#      @contextmanager
+#      def real_module_import(module_name):
+#          original = sys.modules.pop(module_name, None)
+#          try:
+#              yield
+#          finally:
+#              if original:
+#                  sys.modules[module_name] = original
+#      ```
+#
+# 2. **Separate Test Directories**:
+#    - Pros: Complete isolation, no global state manipulation
+#    - Cons: Code duplication, more complex project structure
+#    - Implementation: Create dedicated test directories with different
+#      conftest.py configurations for mocked vs. real imports
+#
+# 3. **Conditional Mock Setup**:
+#    - Pros: More explicit control over when mocks are applied
+#    - Cons: Requires significant refactoring of conftest.py
+#    - Implementation: Use environment variables or markers to conditionally
+#      apply mocks based on test requirements
+#
+# 4. **Import Hook Manipulation**:
+#    - Pros: More sophisticated control over import behavior
+#    - Cons: High complexity, potential performance impact
+#    - Implementation: Custom import hooks that can selectively return
+#      real or mocked modules based on test context
+#
+# TRADE-OFFS ANALYSIS:
+# ===================
+# Current Approach:
+#   ✓ Simple implementation
+#   ✓ Works with existing codebase structure
+#   ✓ Minimal changes required
+#   ✗ Fragile and order-dependent
+#   ✗ Affects global state
+#   ✗ Difficult to debug import issues
+#
+# Context Manager:
+#   ✓ Better encapsulation
+#   ✓ Automatic cleanup
+#   ✗ Requires test refactoring
+#   ✗ Still manipulates sys.modules
+#
+# Separate Directories:
+#   ✓ Complete isolation
+#   ✓ No global state issues
+#   ✗ Code duplication
+#   ✗ Complex project structure
+#
+# RECOMMENDATION FOR FUTURE MAINTAINERS:
+# ======================================
+# While the current approach works, consider migrating to a context manager
+# approach as the next evolutionary step. This would provide better encapsulation
+# while requiring minimal changes to the existing test structure.
+#
+# For now, this approach is maintained for stability, but future refactoring
+# should prioritize one of the cleaner alternatives listed above.
+# ==================================================================================
+
 # For data_collector tests, we need to import real functions, not mocks
 # Remove the mock and import the real module
 if "utilities.data_collector" in sys.modules:
@@ -288,9 +394,16 @@ class TestCollectDefaultCnvMustGatherWithVmGather:
 
         mock_csv = MagicMock()
         mock_csv.name = "cnv-csv-v1.0.0"
+        # Setup related images to test must-gather image selection logic
+        # The function filters images where name contains "must-gather" and selects the FIRST match
+        # Expected behavior: "must-gather-image" should be selected (first image with "must-gather" in name)
         mock_csv.instance.spec.relatedImages = [
-            {"name": "some-image", "image": "quay.io/test/some:latest"},
-            {"name": "must-gather-image", "image": "quay.io/test/must-gather:latest"},
+            {"name": "some-image", "image": "quay.io/test/some:latest"},  # Will be ignored (no "must-gather")
+            {
+                "name": "must-gather-image",
+                "image": "quay.io/test/must-gather:latest",
+            },  # EXPECTED: Selected (first match)
+            {"name": "cnv-must-gather-debug", "image": "quay.io/test/debug-gather:latest"},  # Would match but not first
         ]
         mock_get_csv.return_value = mock_csv
 
@@ -299,6 +412,12 @@ class TestCollectDefaultCnvMustGatherWithVmGather:
         mock_get_client.assert_called_once()
         mock_namespace_class.assert_called_once_with(name="test-hco-ns")
         mock_get_csv.assert_called_once_with(admin_client=mock_client, hco_namespace=mock_namespace)
+
+        # ASSERTION: Verify the expected must-gather image selection behavior
+        # The function should select "quay.io/test/must-gather:latest" because:
+        # 1. It filters relatedImages where image["name"] contains "must-gather"
+        # 2. It takes the first ([0]) matching image from the filtered list
+        # 3. "must-gather-image" is the first image in the list with "must-gather" in its name
         mock_run_must_gather.assert_called_once_with(
             image_url="quay.io/test/must-gather:latest",
             target_base_dir="/target/dir",

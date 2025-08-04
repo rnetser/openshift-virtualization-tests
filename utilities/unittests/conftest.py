@@ -40,14 +40,6 @@ utilities.data_collector = mock_data_collector  # type: ignore[attr-defined]
 
 # Mock fixtures for common dependencies
 @pytest.fixture(autouse=True)
-def mock_get_client(monkeypatch):
-    """Auto-mock get_client for all tests"""
-    mock_client = MagicMock()
-    monkeypatch.setattr("ocp_resources.resource.get_client", lambda: mock_client)
-    return mock_client
-
-
-@pytest.fixture(autouse=True)
 def setup_py_config():
     """Setup py_config for tests that need data_collector configuration"""
     from pytest_testconfig import config as py_config
@@ -57,8 +49,6 @@ def setup_py_config():
         py_config["data_collector"] = {"data_collector_base_directory": "/tmp/data"}
 
     yield
-
-    # Cleanup - restore original state if needed
 
 
 @pytest.fixture(autouse=True)
@@ -126,27 +116,22 @@ def mock_logger():
     """Auto-mock logger for all tests to prevent logging issues"""
     import logging
 
-    # Save original getLogger
+    # Save original getLogger to avoid recursion
     original_get_logger = logging.getLogger
 
     # Create a mock logger that returns a real logger with mock handlers
     def mock_get_logger(name=None):
-        logger = original_get_logger(name)  # noqa: FCN001
+        logger = original_get_logger(name)
         # Clear any existing handlers
         logger.handlers = []
         # Add a mock handler with proper level attribute
         mock_handler = MagicMock()
         mock_handler.level = logging.INFO
-        logger.addHandler(mock_handler)  # noqa: FCN001
+        logger.addHandler(mock_handler)
         return logger
 
-    # Patch getLogger
-    logging.getLogger = mock_get_logger
-
-    yield
-
-    # Restore original getLogger
-    logging.getLogger = original_get_logger
+    with patch("logging.getLogger", side_effect=mock_get_logger):
+        yield
 
 
 # Shared utility functions for data_collector tests
