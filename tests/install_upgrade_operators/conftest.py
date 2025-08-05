@@ -51,11 +51,7 @@ def cnv_deployment_by_name_no_hpp(
 
 
 @pytest.fixture()
-def cnv_deployment_by_name(
-    admin_client,
-    hco_namespace,
-    cnv_deployment_matrix__function__,
-):
+def cnv_deployment_by_name(request, admin_client, hco_namespace, cnv_deployment_matrix__function__, conformance_tests):
     if cnv_deployment_matrix__function__ == HPP_POOL:
         hpp_pool_deployments = list(
             Deployment.get(
@@ -64,7 +60,8 @@ def cnv_deployment_by_name(
                 label_selector=f"{StorageClass.Provisioner.HOSTPATH_CSI}/storagePool=hpp-csi-pvc-block-hpp",
             )
         )
-        if not hpp_pool_deployments:
+        # `conformance` tests can run on clusters without hpp-pool
+        if not hpp_pool_deployments and not conformance_tests:
             pytest.fail("HPP pool deployment not found on this cluster")
         return hpp_pool_deployments[0]
 

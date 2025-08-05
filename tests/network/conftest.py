@@ -218,6 +218,7 @@ def network_sanity(
     network_overhead,
     sriov_workers,
     ipv4_supported_cluster,
+    conformance_tests,
 ):
     """
     Ensures the test cluster meets network requirements before executing tests.
@@ -234,7 +235,7 @@ def network_sanity(
             return
 
         # TODO: network tests should be marked with multi_nic to allow explicit checks based on markers
-        if marker_args and "conformance" in marker_args:
+        if conformance_tests:
             LOGGER.info(
                 "Running conformance tests which run only single-nic tests, , no need to verify multi NIC support"
             )

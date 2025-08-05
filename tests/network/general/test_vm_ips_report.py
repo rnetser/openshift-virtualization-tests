@@ -45,11 +45,11 @@ def test_report_masquerade_ip(report_masquerade_ip_vmi):
     assert_ip_mismatch(vm=report_masquerade_ip_vmi)
 
 
-@pytest.mark.conformance
 @pytest.mark.gating
 @pytest.mark.polarion("CNV-4153")
 @pytest.mark.single_nic
 @pytest.mark.s390x
+# Not marked as `conformance`; requires NMState
 def test_report_masquerade_ip_after_migration(report_masquerade_ip_vmi):
     src_node = report_masquerade_ip_vmi.instance.status.nodeName
     with VirtualMachineInstanceMigration(
