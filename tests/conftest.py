@@ -2905,10 +2905,13 @@ def machine_config_pools():
 
 
 @pytest.fixture(scope="session")
-def nmstate_namespace(admin_client):
-    nmstate_ns = Namespace(name="openshift-nmstate")
-    assert nmstate_ns.exists, "Namespace openshift-nmstate doesn't exist"
-    return nmstate_ns
+def nmstate_namespace(admin_client, nmstate_required):
+    if nmstate_required:
+        nmstate_ns = Namespace(name="openshift-nmstate")
+        assert nmstate_ns.exists, "Namespace openshift-nmstate doesn't exist"
+        return nmstate_ns
+
+    return None
 
 
 @pytest.fixture()

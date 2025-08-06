@@ -1248,14 +1248,11 @@ def get_resources_by_name_prefix(prefix, namespace, api_resource_name):
 
 @cache
 def get_infrastructure(admin_client: DynamicClient) -> Infrastructure:
-    infrastructure = Infrastructure(client=admin_client, name=CLUSTER)
-    if infrastructure.exists:
-        return infrastructure
-    raise ResourceNotFoundError(f"Infrastructure {CLUSTER} not found")
+    return Infrastructure(client=admin_client, name=CLUSTER, ensure_exists=True)
 
 
 def get_cluster_platform(admin_client: DynamicClient) -> str:
-    return get_infrastructure(client=admin_client).instance.status.platform
+    return get_infrastructure(admin_client=admin_client).instance.status.platform
 
 
 def query_version_explorer(api_end_point: str, query_string: str) -> Any:
