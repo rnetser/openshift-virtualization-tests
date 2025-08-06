@@ -338,7 +338,6 @@ def wait_for_pods_running(
         exceptions_dict={NotFoundError: []},
     )
 
-    sample = None
     not_running_pods = []
     try:
         current_check = 0
