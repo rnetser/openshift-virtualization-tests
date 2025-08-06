@@ -136,6 +136,7 @@ from utilities.infra import (
     generate_namespace_name,
     generate_openshift_pull_secret_file,
     get_artifactory_header,
+    get_cluster_platform,
     get_clusterversion,
     get_common_cpu_from_nodes,
     get_daemonset_yaml_file_with_image_hash,
@@ -1985,7 +1986,7 @@ def golden_images_data_import_crons_scope_function(admin_client, golden_images_n
 
 @pytest.fixture(scope="session")
 def sno_cluster(admin_client):
-    return get_infrastructure().instance.status.infrastructureTopology == "SingleReplica"
+    return get_infrastructure(admin_client=admin_client).instance.status.infrastructureTopology == "SingleReplica"
 
 
 @pytest.fixture(scope="session")
@@ -2747,8 +2748,8 @@ def kube_system_namespace():
 
 
 @pytest.fixture(scope="session")
-def is_aws_cluster():
-    return get_infrastructure().instance.status.platform == Infrastructure.Type.AWS
+def is_aws_cluster(admin_client):
+    return get_cluster_platform(admin_client=admin_client) == Infrastructure.Type.AWS
 
 
 @pytest.fixture(scope="session")
@@ -2904,10 +2905,13 @@ def machine_config_pools():
 
 
 @pytest.fixture(scope="session")
-def nmstate_namespace(admin_client):
-    nmstate_ns = Namespace(name="openshift-nmstate")
-    assert nmstate_ns.exists, "Namespace openshift-nmstate doesn't exist"
-    return nmstate_ns
+def nmstate_namespace(admin_client, nmstate_required):
+    if nmstate_required:
+        nmstate_ns = Namespace(name="openshift-nmstate")
+        assert nmstate_ns.exists, "Namespace openshift-nmstate doesn't exist"
+        return nmstate_ns
+
+    return None
 
 
 @pytest.fixture()
@@ -2940,3 +2944,8 @@ def conformance_tests(request):
         and "conformance" in marker_args
         and "not conformance" not in marker_args
     )
+
+
+@pytest.fixture(scope="session")
+def nmstate_required(admin_client):
+    return get_cluster_platform(admin_client=admin_client) in ("BareMetal", "OpenStack")

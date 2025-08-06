@@ -34,9 +34,9 @@ class TestKMPConnectivity:
             dst_ip=running_vm_b.manual_mac_out_pool_iface_config.ip_address,
         )
 
-    @pytest.mark.conformance
     @pytest.mark.gating
     @pytest.mark.polarion("CNV-2241")
+    # Not marked as `conformance`; requires NMState
     def test_automatic_mac_from_pool_pod_network(self, mac_pool, running_vm_a, running_vm_b):
         """Test that automatic mac address assigned to POD's masquerade network
         from kubemacpool belongs to range and connectivity is OK"""
@@ -49,9 +49,9 @@ class TestKMPConnectivity:
             dst_ip=running_vm_b.default_masquerade_iface_config.ip_address,
         )
 
-    @pytest.mark.conformance
     @pytest.mark.gating
     @pytest.mark.polarion("CNV-2155")
+    # Not marked as `conformance`; requires NMState
     def test_automatic_mac_from_pool(self, mac_pool, running_vm_a, running_vm_b):
         """Test that automatic mac address assigned to interface
         from kubemacpool belongs to range and connectivity is OK"""
@@ -74,9 +74,9 @@ class TestKMPConnectivity:
             dst_ip=running_vm_b.auto_mac_tuning_iface_config.ip_address,
         )
 
-    @pytest.mark.conformance
     @pytest.mark.gating
     @pytest.mark.polarion("CNV-2157")
+    # Not marked as `conformance`; requires NMState
     def test_mac_preserved_after_shutdown(self, restarted_vmi_a, restarted_vmi_b, running_vm_a, running_vm_b):
         """Test that all macs are preserved even after VM restart"""
         kmp_utils.assert_macs_preseved(vm=running_vm_a)

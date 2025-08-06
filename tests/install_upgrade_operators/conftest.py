@@ -61,8 +61,11 @@ def cnv_deployment_by_name(request, admin_client, hco_namespace, cnv_deployment_
             )
         )
         # `conformance` tests can run on clusters without hpp-pool
-        if not hpp_pool_deployments and not conformance_tests:
-            pytest.fail("HPP pool deployment not found on this cluster")
+        if not hpp_pool_deployments:
+            if conformance_tests:
+                pytest.skip("Running conformance tests, HPP pool is not mandatory")
+            else:
+                pytest.fail("HPP pool deployment not found on this cluster")
         return hpp_pool_deployments[0]
 
     return get_deployment_by_name(
