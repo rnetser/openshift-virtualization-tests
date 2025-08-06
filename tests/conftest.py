@@ -2907,9 +2907,7 @@ def machine_config_pools():
 @pytest.fixture(scope="session")
 def nmstate_namespace(admin_client, nmstate_required):
     if nmstate_required:
-        nmstate_ns = Namespace(name="openshift-nmstate")
-        assert nmstate_ns.exists, "Namespace openshift-nmstate doesn't exist"
-        return nmstate_ns
+        return Namespace(client=admin_client, name="openshift-nmstate", ensure_exists=True)
 
     return None
 
@@ -2935,15 +2933,6 @@ def ping_process_in_rhel_os():
 def smbios_from_kubevirt_config(kubevirt_config_scope_module):
     """Extract SMBIOS default from kubevirt CR."""
     return kubevirt_config_scope_module["smbios"]
-
-
-@pytest.fixture(scope="session")
-def conformance_tests(request):
-    return (
-        (marker_args := request.config.getoption("-m"))
-        and "conformance" in marker_args
-        and "not conformance" not in marker_args
-    )
 
 
 @pytest.fixture(scope="session")
