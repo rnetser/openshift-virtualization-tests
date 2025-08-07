@@ -211,7 +211,7 @@ def pytest_addoption(parser):
     storage_group.addoption(
         "--conformance-storage-class",
         help="""
-             Storage class matrix to use when running conformance tests. Overwrites storage_class_matrix and
+             Storage class to use when running conformance tests. Overwrites storage_class_matrix and
              `--default-storage-class`.
              If the storage class does not exist in libs/storage/mapping.py,
              --conformance-storage-class-config must be specified.
@@ -222,7 +222,7 @@ def pytest_addoption(parser):
         help="""
              Comma separated list of storage class config to use.
              Example:
-                'volume_mode=BLOCK,access_mode=RWO,snapshot=True,online_resize=True,wffc=False'
+                'volume_mode=Block,access_mode=RWO,snapshot=True,online_resize=True,wffc=False'
              Storage class is passed via `--conformance-storage-class`
              """,
     )
@@ -494,6 +494,8 @@ def pytest_configure(config):
         py_config["storage_class_matrix"] = StorageClassConfig(
             name=conformance_storage_class
         ).construct_storage_class_matrix(storage_config=config.getoption("conformance_storage_class_config"))
+
+        py_config["default_storage_class"] = conformance_storage_class
 
 
 def pytest_collection_modifyitems(session, config, items):

@@ -157,7 +157,7 @@ class StorageClassConfig:
 
         Args:
             storage_config (str | None): Storage class config.
-                Format: `volume_mode=BLOCK,access_mode=RWO,snapshot=True,online_resize=True,wffc=False`
+                Format: `volume_mode=Block,access_mode=RWO,snapshot=True,online_resize=True,wffc=False`
 
         Returns:
             list[dict[str, str | bool]]: Storage class matrix
@@ -170,6 +170,9 @@ class StorageClassConfig:
         else:
             LOGGER.info(f"Could not find storage class configuration for {self.name}. Constructing from user input")
             if storage_config:
+                if not all("=" in item for item in storage_config.split(",")):
+                    raise ValueError("Invalid format: all items must be key=value pairs, seperated by comma")
+
                 cmd_config = dict(item.split("=") for item in storage_config.split(","))
 
                 return [
@@ -177,7 +180,7 @@ class StorageClassConfig:
                         self.name: {
                             "volume_mode": getattr(
                                 DataVolume.VolumeMode,
-                                cmd_config.get("volume_mode", "").upper(),
+                                cmd_config.get("volume_mode", "").title(),
                                 DataVolume.VolumeMode.FILE,
                             ),
                             "access_mode": getattr(
