@@ -1,0 +1,18 @@
+# Breaking Changes Detector Requirements
+# 
+# This tool is designed to use only Python standard library modules
+# for maximum compatibility and minimal dependencies.
+# 
+# The following are optional dependencies that can enhance functionality
+# but are not required for basic operation:
+
+# For enhanced testing (if running tests)
+# pytest>=7.0.0
+
+# For YAML configuration support (future enhancement)
+# PyYAML>=6.0
+
+# For enhanced git operations (alternative to subprocess calls)
+# GitPython>=3.1.0
+
+# No required dependencies - uses Python standard library only

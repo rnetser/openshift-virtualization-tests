@@ -1,0 +1,86 @@
+name: 'Breaking Changes Detector'
+description: 'Detect potential breaking changes in Python code'
+author: 'GitHub Actions'
+
+inputs:
+  base-ref:
+    description: 'Base git reference for comparison'
+    required: false
+    default: 'origin/main'
+  head-ref:
+    description: 'Head git reference for comparison'
+    required: false
+    default: 'HEAD'
+  ignore-unused:
+    description: 'Ignore breaking changes that have no detected usage'
+    required: false
+    default: 'false'
+  include-patterns:
+    description: 'File patterns to include in analysis (comma-separated)'
+    required: false
+    default: '**/*.py'
+  exclude-patterns:
+    description: 'File patterns to exclude from analysis (comma-separated)'
+    required: false
+    default: '**/test_*.py,**/tests/**/*.py,**/__pycache__/**'
+  json-output:
+    description: 'Path to JSON output file'
+    required: false
+    default: 'breaking-changes.json'
+  markdown-output:
+    description: 'Path to Markdown output file'
+    required: false
+    default: 'breaking-changes.md'
+  log-level:
+    description: 'Logging level'
+    required: false
+    default: 'INFO'
+  fail-on-breaking:
+    description: 'Fail when breaking changes are detected'
+    required: false
+    default: 'true'
+
+outputs:
+  exit-code:
+    description: 'Exit code from analysis (0=no issues, 1=breaking changes found, 2=error)'
+  reports-generated:
+    description: 'Whether reports were successfully generated'
+  json-report:
+    description: 'Path to generated JSON report'
+  markdown-report:
+    description: 'Path to generated Markdown report'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+    
+    - name: Install dependencies
+      shell: bash
+      run: |
+        if [ -f "${{ github.action_path }}/requirements.txt" ]; then
+          pip install -r "${{ github.action_path }}/requirements.txt"
+        fi
+    
+    - name: Run Breaking Changes Detector
+      shell: bash
+      env:
+        BREAKING_CHANGES_BASE_REF: ${{ inputs.base-ref }}
+        BREAKING_CHANGES_HEAD_REF: ${{ inputs.head-ref }}
+        BREAKING_CHANGES_IGNORE_UNUSED: ${{ inputs.ignore-unused }}
+        BREAKING_CHANGES_INCLUDE_PATTERNS: ${{ inputs.include-patterns }}
+        BREAKING_CHANGES_EXCLUDE_PATTERNS: ${{ inputs.exclude-patterns }}
+        BREAKING_CHANGES_JSON_OUTPUT: ${{ inputs.json-output }}
+        BREAKING_CHANGES_MARKDOWN_OUTPUT: ${{ inputs.markdown-output }}
+        BREAKING_CHANGES_LOG_LEVEL: ${{ inputs.log-level }}
+        BREAKING_CHANGES_FAIL_ON_BREAKING: ${{ inputs.fail-on-breaking }}
+      run: |
+        cd "${{ github.workspace }}"
+        python "${{ github.action_path }}/main.py"
+
+branding:
+  icon: 'search'
+  color: 'red'
