@@ -16,7 +16,7 @@ MTV_VOLUME_POPULATOR_CRDS = [
 
 
 # Tests not marked as `conformance` because they rely on access to Jira
-pytestmark = [pytest.mark.sno, pytest.mark.gating, pytest.mark.arm64]
+pytestmark = [pytest.mark.sno, pytest.mark.gating, pytest.mark.arm64, pytest.mark.s390x]
 
 
 @pytest.fixture()

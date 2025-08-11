@@ -27,6 +27,7 @@ pytestmark = [
     pytest.mark.sno,
     pytest.mark.gating,
     pytest.mark.arm64,
+    pytest.mark.s390x,
     pytest.mark.conformance,
 ]
 
