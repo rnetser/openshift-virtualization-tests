@@ -197,4 +197,4 @@ class StorageClassConfig:
 
             LOGGER.info(f"Setting {sc_config} for storage class {self.name}")
 
-            return [{self.name: sc_config}]
+            return [sc_config]
