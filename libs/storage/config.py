@@ -192,6 +192,7 @@ class StorageClassConfig:
                     "snapshot": literal_eval(cmd_config.get("snapshot", "False").title()),
                     "online_resize": literal_eval(cmd_config.get("online_resize", "False").title()),
                     "wffc": literal_eval(cmd_config.get("wffc", "False").title()),
+                    "default": True,
                 }
             }
 
