@@ -169,31 +169,32 @@ class StorageClassConfig:
 
         else:
             LOGGER.info(f"Could not find storage class configuration for {self.name}. Constructing from user input")
+            cmd_config = {}
+
             if storage_config:
                 if not all("=" in item for item in storage_config.split(",")):
                     raise ValueError("Invalid format: all items must be key=value pairs, separated by comma")
 
                 cmd_config = dict(item.split("=") for item in storage_config.split(","))
 
-                return [
-                    {
-                        self.name: {
-                            "volume_mode": getattr(
-                                DataVolume.VolumeMode,
-                                cmd_config.get("volume_mode", "").title(),
-                                DataVolume.VolumeMode.FILE,
-                            ),
-                            "access_mode": getattr(
-                                DataVolume.AccessMode,
-                                cmd_config.get("access_mode", "").upper(),
-                                DataVolume.AccessMode.RWO,
-                            ),
-                            "snapshot": literal_eval(cmd_config.get("snapshot", "False").title()),
-                            "online_resize": literal_eval(cmd_config.get("online_resize", "False").title()),
-                            "wffc": literal_eval(cmd_config.get("wffc", "False").title()),
-                        }
-                    }
-                ]
+            sc_config = {
+                self.name: {
+                    "volume_mode": getattr(
+                        DataVolume.VolumeMode,
+                        cmd_config.get("volume_mode", "").title(),
+                        DataVolume.VolumeMode.FILE,
+                    ),
+                    "access_mode": getattr(
+                        DataVolume.AccessMode,
+                        cmd_config.get("access_mode", "").upper(),
+                        DataVolume.AccessMode.RWO,
+                    ),
+                    "snapshot": literal_eval(cmd_config.get("snapshot", "False").title()),
+                    "online_resize": literal_eval(cmd_config.get("online_resize", "False").title()),
+                    "wffc": literal_eval(cmd_config.get("wffc", "False").title()),
+                }
+            }
 
-            else:
-                raise AttributeError("Missing storage class configuration from command line")
+            LOGGER.info(f"Setting {sc_config} for storage class {self.name}")
+
+            return [{self.name: sc_config}]
