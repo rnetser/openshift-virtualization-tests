@@ -171,7 +171,7 @@ class StorageClassConfig:
             LOGGER.info(f"Could not find storage class configuration for {self.name}. Constructing from user input")
             if storage_config:
                 if not all("=" in item for item in storage_config.split(",")):
-                    raise ValueError("Invalid format: all items must be key=value pairs, seperated by comma")
+                    raise ValueError("Invalid format: all items must be key=value pairs, separated by comma")
 
                 cmd_config = dict(item.split("=") for item in storage_config.split(","))
 
