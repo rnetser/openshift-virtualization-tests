@@ -218,6 +218,9 @@ def pytest_addoption(parser):
              Example:
                 'volume_mode=Block,access_mode=RWO,snapshot=True,online_resize=True,wffc=False'
              Storage class is passed via `--conformance-storage-class`
+             `access_mode` allowed values: RWX, RWO, ROX. Default: RWO
+             `volume_mode` allowed values: Block, Filesystem. Default: Filesystem
+             `online_resize`, 'snapshot' and `wffc` allowed values: False, True. Default: False
              """,
     )
 
