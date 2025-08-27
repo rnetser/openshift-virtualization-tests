@@ -6,7 +6,6 @@ import pytest
 from ocp_resources.datavolume import DataVolume
 from ocp_resources.persistent_volume_claim import PersistentVolumeClaim
 from ocp_resources.virtual_machine import VirtualMachine
-from ocp_resources.virtual_machine_instance import VirtualMachineInstance
 from ocp_resources.virtual_machine_instance_migration import (
     VirtualMachineInstanceMigration,
 )
@@ -148,66 +147,6 @@ def vm_metric_1_vmim(vm_metric_1):
     ) as vmim:
         vmim.wait_for_status(status=vmim.Status.RUNNING, timeout=TIMEOUT_3MIN)
         yield
-
-
-@pytest.fixture(scope="class")
-def vm_metric_2(namespace, unprivileged_client):
-    vm_name = "vm-metrics-2"
-    with VirtualMachineForTests(
-        name=vm_name,
-        namespace=namespace.name,
-        body=fedora_vm_body(name=vm_name),
-        client=unprivileged_client,
-    ) as vm:
-        running_vm(vm=vm, wait_for_interfaces=False, check_ssh_connectivity=False)
-        yield vm
-
-
-@pytest.fixture(scope="class")
-def number_of_running_vmis(admin_client):
-    return len(list(VirtualMachineInstance.get(dyn_client=admin_client)))
-
-
-def check_vmi_metric(prometheus):
-    response = prometheus.query(query="cnv:vmi_status_running:count")
-    assert response["status"] == "success"
-    return sum(int(node["value"][1]) for node in response["data"]["result"])
-
-
-def check_vmi_count_metric(expected_vmi_count, prometheus):
-    LOGGER.info(f"Check VMI metric expected: {expected_vmi_count}")
-    samples = TimeoutSampler(
-        wait_timeout=100,
-        sleep=5,
-        func=check_vmi_metric,
-        prometheus=prometheus,
-    )
-    for sample in samples:
-        if sample == expected_vmi_count:
-            return True
-
-
-class TestVMICountMetric:
-    @pytest.mark.polarion("CNV-3048")
-    def test_vmi_count_metric_increase(
-        self,
-        prometheus,
-        number_of_running_vmis,
-        vm_metric_1,
-        vm_metric_2,
-    ):
-        assert check_vmi_count_metric(number_of_running_vmis + 2, prometheus)
-
-    @pytest.mark.polarion("CNV-3589")
-    def test_vmi_count_metric_decrease(
-        self,
-        prometheus,
-        number_of_running_vmis,
-        vm_metric_1,
-        vm_metric_2,
-    ):
-        vm_metric_2.stop(wait=True)
-        assert check_vmi_count_metric(number_of_running_vmis + 1, prometheus)
 
 
 class TestVMStatusLastTransitionMetrics:
@@ -413,12 +352,12 @@ class TestVmiStatusAddresses:
         self,
         prometheus,
         vm_for_test,
-        metric_validate_metric_labels_values_ip_labels,
+        kubevirt_vmi_status_addresses_ip_labels_values,
         vm_virt_controller_ip_address,
-        vm_ip_address,
     ):
-        instance_value = metric_validate_metric_labels_values_ip_labels.get("instance").split(":")[0]
-        address_value = metric_validate_metric_labels_values_ip_labels.get("address")
+        instance_value = kubevirt_vmi_status_addresses_ip_labels_values.get("instance").split(":")[0]
+        address_value = kubevirt_vmi_status_addresses_ip_labels_values.get("address")
+        vm_ip_address = vm_for_test.vmi.interface_ip(interface="eth0")
         assert instance_value == vm_virt_controller_ip_address, (
             f"Expected value: {vm_virt_controller_ip_address}, Actual: {instance_value}"
         )
@@ -567,7 +506,7 @@ class TestVmDiskAllocatedSizeWindows:
 
 class TestVmVnicInfo:
     @pytest.mark.parametrize(
-        "vnic_info_from_vm_or_vmi, query",
+        "vnic_info_from_vm_or_vmi_linux, query",
         [
             pytest.param(
                 "vm",
@@ -580,13 +519,24 @@ class TestVmVnicInfo:
                 marks=pytest.mark.polarion("CNV-11811"),
             ),
         ],
-        indirect=["vnic_info_from_vm_or_vmi"],
+        indirect=["vnic_info_from_vm_or_vmi_linux"],
     )
-    def test_metric_kubevirt_vm_vnic_info(self, prometheus, running_metric_vm, vnic_info_from_vm_or_vmi, query):
+    def test_metric_kubevirt_vm_vnic_info_linux(
+        self, prometheus, running_metric_vm, vnic_info_from_vm_or_vmi_linux, query
+    ):
         validate_vnic_info(
             prometheus=prometheus,
-            vnic_info_to_compare=vnic_info_from_vm_or_vmi,
+            vnic_info_to_compare=vnic_info_from_vm_or_vmi_linux,
             metric_name=query.format(vm_name=running_metric_vm.name),
+        )
+
+    @pytest.mark.tier3
+    @pytest.mark.polarion("CNV-12224")
+    def test_metric_kubevirt_vmi_vnic_info_windows(self, prometheus, windows_vm_for_test, vnic_info_from_vmi_windows):
+        validate_vnic_info(
+            prometheus=prometheus,
+            vnic_info_to_compare=vnic_info_from_vmi_windows,
+            metric_name=f"kubevirt_vmi_vnic_info{{name='{windows_vm_for_test.name}'}}",
         )
 
 

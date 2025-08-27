@@ -89,11 +89,11 @@ class ArchImages:
         Windows.LATEST_RELEASE_STR = Windows.WIN2k19_IMG
 
         Fedora = Fedora(
-            FEDORA41_IMG="Fedora-Cloud-Base-Generic-41-1.4.x86_64.qcow2",
+            FEDORA42_IMG="Fedora-Cloud-Base-Generic-42-1.1.x86_64.qcow2",
             FEDORA_CONTAINER_IMAGE="quay.io/openshift-cnv/qe-cnv-tests-fedora:41",
             DISK_DEMO="fedora-cloud-registry-disk-demo",
         )
-        Fedora.LATEST_RELEASE_STR = Fedora.FEDORA41_IMG
+        Fedora.LATEST_RELEASE_STR = Fedora.FEDORA42_IMG
 
         Centos = Centos(CENTOS_STREAM_9_IMG="CentOS-Stream-GenericCloud-9-20220107.0.x86_64.qcow2")
         Centos.LATEST_RELEASE_STR = Centos.CENTOS_STREAM_9_IMG
@@ -144,7 +144,7 @@ class ArchImages:
 
         Cdi = Cdi(
             # TODO: S390X does not support Cirros; this is a workaround until tests are moved to Fedora
-            QCOW2_IMG="Fedora-Cloud-Base-Generic-41-1.4.s390x.qcow2",
+            QCOW2_IMG="Fedora-qcow2.img",
             DIR=f"{BASE_IMAGES_DIR}/fedora-images",
             DEFAULT_DV_SIZE="10Gi",
         )
@@ -826,6 +826,8 @@ WIN_10 = "win10"
 WIN_11 = "win11"
 WIN_2K25 = "win2k25"
 WIN_2K22 = "win2k22"
+WIN_2K16 = "win2k16"
+WIN_2K19 = "win2k19"
 
 PUBLIC_DNS_SERVER_IP = "8.8.8.8"
 
@@ -900,3 +902,4 @@ OS_STR = "os"
 WORKLOAD_STR = "workload"
 LATEST_RELEASE_STR = "latest_released"
 OS_VERSION_STR = "os_version"
+DATA_SOURCE_STR = "data_source"
