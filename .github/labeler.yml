@@ -1,8 +1,48 @@
-# Add 'sig-network' label to any changes within 'tests/network' folder
-# or any subfolders
+# Adds a 'sig-<sig>' label to any changes in the sig folder or its subfolders
+# or under the relevant file(s) under utilities folder
+
+sig-chaos:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'tests/chaos/**'
+
+sig-infra:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'tests/infrastructure/**'
+      - 'utilities/ssp.py'
+
+sig-iuo:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'tests/install_upgrade_operators/**'
+      - 'tests/observability/**'
+      - 'utilities/hco.py'
+      - 'utilities/monitoring.py'
+      - 'utilities/must_gather.py'
+      - 'utilities/operator.py'
+
 sig-network:
   - changed-files:
     - any-glob-to-any-file:
       - 'tests/network/**'
       - 'libs/net/**'
       - 'utilities/network.py'
+
+sig-scale:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'tests/scale/**'
+
+sig-storage:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'tests/data_protection/**'
+      - 'tests/storage/**'
+      - 'utilities/storage.py'
+
+sig-virt:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'tests/virt/**'
+      - 'utilities/virt.py'
