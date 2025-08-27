@@ -165,6 +165,8 @@ class StorageClassConfig:
         """
         if sc_config := self.get_storage_config():
             sc_config["default"] = True
+            LOGGER.info(f"Using {sc_config} for storage class {self.name}")
+
             return [{sc_config.pop("name"): sc_config}]
 
         else:
@@ -181,7 +183,7 @@ class StorageClassConfig:
                 self.name: {
                     "volume_mode": getattr(
                         DataVolume.VolumeMode,
-                        cmd_config.get("volume_mode", "").title(),
+                        cmd_config.get("volume_mode", "").upper(),
                         DataVolume.VolumeMode.FILE,
                     ),
                     "access_mode": getattr(
