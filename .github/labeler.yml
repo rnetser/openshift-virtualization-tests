@@ -1,5 +1,5 @@
-# Adds a 'sig-<sig>' label to any changes in the sig folder or its subfolders
-# or under the relevant file(s) under utilities folder
+# Adds a 'sig-<sig>' label when there are changes in specific tests/** subtrees
+# and/or their corresponding utilities/*.py files.
 
 sig-chaos:
   - changed-files:
@@ -15,12 +15,8 @@ sig-infra:
 sig-iuo:
   - changed-files:
     - any-glob-to-any-file:
-      - 'tests/install_upgrade_operators/**'
-      - 'tests/observability/**'
-      - 'utilities/hco.py'
-      - 'utilities/monitoring.py'
-      - 'utilities/must_gather.py'
-      - 'utilities/operator.py'
+      - 'tests/{install_upgrade_operators,observability}/**'
+      - 'utilities/{hco,monitoring,must_gather,operator}.py'
 
 sig-network:
   - changed-files:
@@ -37,8 +33,7 @@ sig-scale:
 sig-storage:
   - changed-files:
     - any-glob-to-any-file:
-      - 'tests/data_protection/**'
-      - 'tests/storage/**'
+      - 'tests/{data_protection,storage}/**'
       - 'utilities/storage.py'
 
 sig-virt:
