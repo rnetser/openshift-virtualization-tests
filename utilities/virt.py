@@ -12,7 +12,7 @@ from collections import defaultdict
 from contextlib import contextmanager
 from json import JSONDecodeError
 from subprocess import run
-from typing import TYPE_CHECKING, Any, Dict
+from typing import TYPE_CHECKING, Any, Dict, Optional
 
 import bitmath
 import jinja2
@@ -36,6 +36,7 @@ from ocp_resources.virtual_machine_instance_migration import (
     VirtualMachineInstanceMigration,
 )
 from ocp_utilities.exceptions import CommandExecFailed
+from paramiko import ProxyCommandFailure
 from pyhelper_utils.shell import run_command, run_ssh_commands
 from pytest_testconfig import config as py_config
 from rrmngmnt import Host, ssh, user
@@ -54,6 +55,7 @@ from utilities.constants import (
     EVICTIONSTRATEGY,
     IP_FAMILY_POLICY_PREFER_DUAL_STACK,
     LINUX_AMD_64,
+    LINUX_STR,
     OS_FLAVOR_CIRROS,
     OS_FLAVOR_FEDORA,
     OS_FLAVOR_WINDOWS,
@@ -698,6 +700,7 @@ class VirtualMachineForTests(VirtualMachine):
             and not self.memory_guest
             and not self.memory_requests
             and not self.vm_instance_type
+            and not self.vm_instance_type_infer
         ):
             self.memory_guest = Images.Windows.DEFAULT_MEMORY_SIZE
 
@@ -861,7 +864,12 @@ class VirtualMachineForTests(VirtualMachine):
             template_spec.setdefault("domain", {}).setdefault("cpu", {})["cores"] = self.cpu_cores
 
         # Faster VMI start time
-        if self.os_flavor == OS_FLAVOR_WINDOWS and not self.cpu_threads and not self.vm_instance_type:
+        if (
+            self.os_flavor == OS_FLAVOR_WINDOWS
+            and not self.cpu_threads
+            and not self.vm_instance_type
+            and not self.vm_instance_type_infer
+        ):
             self.cpu_threads = Images.Windows.DEFAULT_CPU_THREADS
 
         if self.cpu_threads:
@@ -1148,6 +1156,7 @@ class VirtualMachineForTestsFromTemplate(VirtualMachineForTests):
         sno_cluster=False,
         tpm_params=None,
         additional_labels=None,
+        vm_affinity=None,
     ):
         """
         VM creation using common templates.
@@ -1168,11 +1177,13 @@ class VirtualMachineForTestsFromTemplate(VirtualMachineForTests):
             template_object (Template, optional): Template object to create the VM from
             non_existing_pvc(bool, default=False): If True, referenced PVC in DataSource is missing
             data_volume_template_from_vm_spec (bool, default=False): Use (and don't manipulate) VM's DataVolumeTemplates
+            vm_affinity (dict, optional): Affinity rules for scheduling the VM on specific nodes
         Returns:
             obj `VirtualMachine`: VM resource
         """
         # Must be set here to set VM flavor (used to set username and password)
         self.template_labels = labels
+        self.template_object = template_object
         self.os_flavor = self._extract_os_from_template()
 
         super().__init__(
@@ -1218,6 +1229,7 @@ class VirtualMachineForTestsFromTemplate(VirtualMachineForTests):
             tpm_params=tpm_params,
             eviction_strategy=eviction_strategy,
             additional_labels=additional_labels,
+            vm_affinity=vm_affinity,
             os_flavor=self.os_flavor,
         )
         self.data_source = data_source
@@ -1232,11 +1244,11 @@ class VirtualMachineForTestsFromTemplate(VirtualMachineForTests):
         self.use_full_storage_api = use_full_storage_api
         self.access_modes = None  # required for evictionStrategy policy
         self.template_params = template_params
-        self.template_object = template_object
         self.non_existing_pvc = non_existing_pvc
         self.data_volume_template_from_vm_spec = data_volume_template_from_vm_spec
         self.eviction_strategy = eviction_strategy
         self.sno_cluster = sno_cluster
+        self.vm_affinity = vm_affinity
 
     def to_dict(self):
         self.set_login_params()
@@ -1945,6 +1957,7 @@ def vm_instance_from_template(
     vm_cpu_flags=None,
     host_device_name=None,
     gpu_name=None,
+    vm_affinity=None,
 ):
     """Create a VM from template and start it (start step could be skipped by setting
     request.param['start_vm'] to False.
@@ -1994,6 +2007,7 @@ def vm_instance_from_template(
         vhostmd=params.get("vhostmd"),
         machine_type=params.get("machine_type"),
         eviction_strategy=params.get("eviction_strategy"),
+        vm_affinity=vm_affinity,
     ) as vm:
         if params.get("start_vm", True):
             running_vm(
@@ -2626,3 +2640,58 @@ def username_password_from_cloud_init(vm_volumes: list[dict[str, Any]]) -> tuple
             return _match["user"], _match["password"]
 
     return "", ""
+
+
+def validate_virtctl_guest_agent_after_guest_reboot(vm: VirtualMachineForTests, os_type: str) -> None:
+    guest_reboot(vm=vm, os_type=os_type)
+    wait_for_running_vm(vm=vm, ssh_timeout=TIMEOUT_30MIN if os_type == OS_FLAVOR_WINDOWS else TIMEOUT_5MIN)
+    assert validate_virtctl_guest_agent_data_over_time(vm=vm), "Guest agent stopped responding after guest reboot"
+
+
+def guest_reboot(vm: VirtualMachineForTests, os_type: str) -> None:
+    commands = {
+        "stop-user-agent": {
+            LINUX_STR: "sudo systemctl stop qemu-guest-agent",
+            OS_FLAVOR_WINDOWS: "powershell -command \"Stop-Service -Name 'QEMU-GA'\"",
+        },
+        "reboot": {
+            LINUX_STR: "sudo reboot",
+            OS_FLAVOR_WINDOWS: 'powershell -command "Restart-Computer -Force"',
+        },
+    }
+
+    LOGGER.info("Stopping user agent")
+    run_os_command(vm=vm, command=commands["stop-user-agent"][os_type])
+    wait_for_user_agent_down(vm=vm, timeout=TIMEOUT_2MIN)
+
+    LOGGER.info(f"Rebooting {vm.name} from guest")
+    run_os_command(vm=vm, command=commands["reboot"][os_type])
+
+
+def run_os_command(vm: VirtualMachineForTests, command: str) -> Optional[str]:
+    try:
+        return run_ssh_commands(
+            host=vm.ssh_exec,
+            commands=shlex.split(command),
+            timeout=5,
+            tcp_timeout=TCP_TIMEOUT_30SEC,
+        )[0]
+    except ProxyCommandFailure:
+        # On RHEL on successful reboot command execution ssh gets stuck
+        if "reboot" not in command:
+            raise
+        return None
+
+
+def wait_for_user_agent_down(vm: VirtualMachineForTests, timeout: int) -> None:
+    LOGGER.info(f"Waiting up to {round(timeout / 60)} minutes for user agent to go down on {vm.name}")
+    for sample in TimeoutSampler(
+        wait_timeout=timeout,
+        sleep=2,
+        func=lambda: [
+            condition for condition in vm.vmi.instance.status.conditions if condition["type"] == "AgentConnected"
+        ],
+    ):
+        # Consider agent "down" when condition is absent OR explicitly not True
+        if not sample or all(condition.get("status") != "True" for condition in sample):
+            break
