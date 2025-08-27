@@ -165,6 +165,8 @@ jobs:
         with:
           token: ${{ secrets.WORKFLOW_TOKEN }}
           push-to-fork: false
+          draft: true
+          labels: "needs-manual-cherry-pick"
           title: "Cherry-pick Conflicts: ${{ steps.get_latest_commit.outputs.commit_message }}"
           body: |
             ## Cherry-pick Failed - Manual Intervention Required
