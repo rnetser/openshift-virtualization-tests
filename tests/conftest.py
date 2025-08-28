@@ -587,7 +587,7 @@ def nodes_active_nics(workers, workers_utility_pods, node_physical_nics, nmstate
     First NIC is management NIC
     """
     if not nmstate_required:
-        LOGGER.info("Running on cloud; using `node_physical_nics`")
+        LOGGER.info(f"Running on cloud; using nodes physical NICs {node_physical_nics}")
         return node_physical_nics
 
     nodes_nics = {}
