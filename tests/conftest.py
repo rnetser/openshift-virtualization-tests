@@ -570,11 +570,7 @@ def node_physical_nics(workers_utility_pods):
 
 
 @pytest.fixture(scope="session")
-def nodes_active_nics(
-    workers,
-    workers_utility_pods,
-    node_physical_nics,
-):
+def nodes_active_nics(workers, workers_utility_pods, node_physical_nics, nmstate_required):
     # TODO: Reduce cognitive complexity
     def _bridge_ports(node_interface):
         ports = set()
@@ -590,6 +586,10 @@ def nodes_active_nics(
     Get nodes active NICs.
     First NIC is management NIC
     """
+    if not nmstate_required:
+        LOGGER.info("Running on cloud; NMState is not required")
+        return {}
+
     nodes_nics = {}
     for node in workers:
         nodes_nics[node.name] = {"available": [], "occupied": []}
@@ -1252,7 +1252,7 @@ def golden_images_edit_rolebinding(
 
 
 @pytest.fixture(scope="session")
-def hosts_common_available_ports(nodes_available_nics):
+def hosts_common_available_ports(nodes_available_nics, node_physical_nics):
     """
     Get list of common ports from nodes_available_nics.
 
@@ -1262,8 +1262,15 @@ def hosts_common_available_ports(nodes_available_nics):
     ['ens3', 'ens8', 'ens6', 'ens7']]
 
     will return ['ens3', 'ens6']
+
+    If running on cloud-based cluster, it will return node_physical_nics
     """
-    nics_list = list(set.intersection(*[set(_list) for _list in nodes_available_nics.values()]))
+    if not nodes_available_nics:
+        LOGGER.info("Using `node_physical_nics` instead of `nodes_available_nics`")
+
+    available_nics = nodes_available_nics if nodes_available_nics else node_physical_nics
+
+    nics_list = list(set.intersection(*[set(_list) for _list in available_nics.values()]))
     nics_list.sort()
     LOGGER.info(f"Hosts common available NICs: {nics_list}")
     return nics_list
@@ -2076,7 +2083,7 @@ def autouse_fixtures(
     leftovers_cleanup,  # Must be called first to avoid delete created resources.
     artifactory_setup,
     bin_directory_to_os_path,
-    cluster_info,
+    # cluster_info,
     term_handler_scope_function,
     term_handler_scope_class,
     term_handler_scope_module,
