@@ -11,6 +11,7 @@ jobs:
     permissions:
       contents: write
       pull-requests: write
+      issues: write
       actions: read
 
     steps:
@@ -35,19 +36,25 @@ jobs:
             exit 1
           fi
 
-          # Check if this is a merge commit (has 2+ parents)
+          # Check for PR merges (supports both merge commits and squash/rebase merges)
           PARENT_COUNT=$(git rev-list --parents -n1 "$COMMIT_SHA" | wc -w)
           PARENT_COUNT=$((PARENT_COUNT - 1))
 
-          if [ $PARENT_COUNT -lt 2 ]; then
-            echo "Not a merge commit, skipping"
+          # Get commit message to check for PR merge pattern first
+          COMMIT_MSG=$(git log -1 --format=%s "$COMMIT_SHA")
+          echo "Commit message: $COMMIT_MSG"
+
+          # For squash/rebase merges (single parent) or merge commits (2+ parents),
+          # check if commit message matches GitHub's PR merge pattern
+          if [ $PARENT_COUNT -lt 2 ] && [[ ! $COMMIT_MSG =~ ^Merge\ pull\ request\ #([0-9]+)\ from\ ([a-zA-Z0-9_-]+)/([a-zA-Z0-9_-]+)/([a-zA-Z0-9_-]+)$ ]]; then
+            echo "Not a PR merge (neither merge commit nor squash merge with PR pattern), skipping"
             echo "is_pr=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
-          # Get commit message to check for PR merge pattern
-          COMMIT_MSG=$(git log -1 --format=%s "$COMMIT_SHA")
-          echo "Commit message: $COMMIT_MSG"
+          echo "Found PR merge (parent count: $PARENT_COUNT)"
+
+          # Parse PR details from commit message
 
           # Check if commit message matches GitHub's merge pattern with restricted characters
           # Patterns: owner/repo/branch must not contain dangerous chars like . or /
@@ -62,13 +69,6 @@ jobs:
             echo "PR Owner: $PR_OWNER"
             echo "PR Repo: $PR_REPO"
             echo "Branch: $BRANCH_NAME"
-
-            # Validate PR owner exists
-            if ! curl -sf "https://api.github.com/users/$PR_OWNER" > /dev/null; then
-              echo "PR owner does not exist: $PR_OWNER"
-              echo "is_pr=false" >> "$GITHUB_OUTPUT"
-              exit 0
-            fi
 
             echo "is_pr=true" >> "$GITHUB_OUTPUT"
             echo "pr_number=$PR_NUMBER" >> "$GITHUB_OUTPUT"
@@ -205,6 +205,7 @@ jobs:
 
       - name: Create PR for successful cherry-pick
         if: steps.check-pr.outputs.is_pr == 'true' && steps.cherry-pick.outputs.skip_cherry_pick == 'false' && steps.cherry-pick.outputs.has_conflicts == 'false'
+        id: create-pr-success
         uses: peter-evans/create-pull-request@v7
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
@@ -228,6 +229,15 @@ jobs:
             ${{ steps.get-pr-details.outputs.pr_body }}
           base: "cnv-4.99"
           delete-branch: true
+
+      - name: Check if PR was created or already exists
+        if: steps.check-pr.outputs.is_pr == 'true' && steps.cherry-pick.outputs.skip_cherry_pick == 'false' && steps.cherry-pick.outputs.has_conflicts == 'false'
+        run: |
+          if [ "${{ steps.create-pr-success.outputs.pull-request-operation }}" = "none" ]; then
+            echo "No changes were found to create a PR - changes might already exist on target branch"
+          else
+            echo "PR created successfully: ${{ steps.create-pr-success.outputs.pull-request-url }}"
+          fi
 
       - name: Create draft PR for conflicted cherry-pick
         if: steps.check-pr.outputs.is_pr == 'true' && steps.cherry-pick.outputs.skip_cherry_pick == 'false' && steps.cherry-pick.outputs.has_conflicts == 'true'
