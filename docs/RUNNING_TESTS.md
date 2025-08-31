@@ -265,12 +265,12 @@ out = pod_exec.exec(command=cmd, ignore_rc=True)
 To run tests on a standard cluster configuration (more than 1 node is required), use the following command:
 
 ```bash
-uv run pytest -m "conformance" --conformance-storage-class <cluster default storage class> --skip-artifactory-check
+uv run pytest -m "conformance" --conformance-storage-class=<storage class name> --skip-artifactory-check
 ```
 
 To run on single-node cluster, use the following command:
 ```bash
-uv run pytest -m "conformance and sno" --conformance-storage-class <cluster default storage class> --skip-artifactory-check
+uv run pytest -m "conformance and sno" --conformance-storage-class <storage class name> --skip-artifactory-check
 ```
 
 #### Running on a cluster with an unsupported storage_class:
@@ -288,5 +288,5 @@ Supported storage class configuration:
 ```
 
 ```bash
-uv run pytest -m "conformance" --conformance-storage-class <unsupported storage class> '--conformance-storage-class=volume_mode=Block,access_mode=RWO,snapshot=True,online_resize=True,wffc=False' --skip-artifactory-check
+uv run pytest -m "conformance" --conformance-storage-class=<unsupported storage class name> --conformance-storage-class-config='volume_mode=Block,access_mode=RWO,snapshot=True,online_resize=True,wffc=False' --skip-artifactory-check
 ```
