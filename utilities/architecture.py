@@ -30,3 +30,7 @@ def get_cluster_architecture() -> str:
         raise ValueError(f"{arch} architecture in not supported")
 
     return arch
+
+
+def test(x):
+    return x
