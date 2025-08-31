@@ -287,6 +287,6 @@ Supported storage class configuration:
      `wffc` - allowed values: False, True. Default: False
 ```
 
-```
+```bash
 uv run pytest -m "conformance" --conformance-storage-class <unsupported storage class> '--conformance-storage-class=volume_mode=Block,access_mode=RWO,snapshot=True,online_resize=True,wffc=False' --skip-artifactory-check
 ```
