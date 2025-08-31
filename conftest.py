@@ -29,7 +29,13 @@ from pytest_testconfig import config as py_config
 import utilities.infra
 from libs.storage.config import StorageClassConfig
 from utilities.bitwarden import get_cnv_tests_secret_by_name
-from utilities.constants import QUARANTINED, SETUP_ERROR, TIMEOUT_5MIN, X86_64, NamespacesNames
+from utilities.constants import (
+    QUARANTINED,
+    SETUP_ERROR,
+    TIMEOUT_5MIN,
+    X86_64,
+    NamespacesNames,
+)
 from utilities.data_collector import (
     collect_default_cnv_must_gather_with_vm_gather,
     get_data_collector_dir,
