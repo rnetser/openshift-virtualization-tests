@@ -5,8 +5,7 @@ from ocp_resources.resource import get_client
 
 
 def get_cluster_architecture() -> str:
-    """
-    Returns cluster architecture.
+    """Returns cluster architecture.
 
     Returns:
         str: cluster architecture.
@@ -31,3 +30,7 @@ def get_cluster_architecture() -> str:
         raise ValueError(f"{arch} architecture in not supported")
 
     return arch
+
+
+def test(xfail_if_rhel8):
+    return xfail_if_rhel8 and get_cluster_architecture() == "x86_64"

@@ -16,16 +16,11 @@ repos:
     rev: v0.12.10
     hooks:
       - id: ruff
+        args: [--fix]
         stages: [pre-commit]
       - id: ruff
-        name: sort imports with ruff
-        args: [--select, I, --fix]
       - id: ruff-format
         stages: [pre-commit]
-      - id: ruff
-        exclude: "test_(.*).py$"
-        name: Check docstrings with ruff
-        args: [--select, D, --fix]
 
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: "v6.0.0"
