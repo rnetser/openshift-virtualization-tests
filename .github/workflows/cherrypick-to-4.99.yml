@@ -7,7 +7,7 @@ on:
 
 concurrency:
   group: cherry-pick-cnv-4.99
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   cherry-pick-pr:
@@ -44,8 +44,12 @@ jobs:
           echo "Using GitHub API to check for associated PR..."
 
           # Query the commits/{sha}/pulls API endpoint
-          if ! PR_RESPONSE=$(curl -sf -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
-            -H "Accept: application/vnd.github.v3+json" \
+          if ! PR_RESPONSE=$(curl -sf \
+            --connect-timeout 5 \
+            --max-time 30 \
+            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
             "https://api.github.com/repos/${{ github.repository }}/commits/$COMMIT_SHA/pulls"); then
             echo "Failed to query GitHub API for commit $COMMIT_SHA"
             echo "is_pr=false" >> "$GITHUB_OUTPUT"
@@ -68,11 +72,22 @@ jobs:
             exit 0
           fi
 
-          # Extract PR details from API response
+          # Extract PR details from API response with safe fallbacks
           PR_NUMBER=$(echo "$PR_DATA" | jq -r '.number // ""')
-          PR_OWNER=$(echo "$PR_DATA" | jq -r '.head.repo.owner.login // ""')
-          PR_REPO=$(echo "$PR_DATA" | jq -r '.head.repo.name // ""')
-          BRANCH_NAME=$(echo "$PR_DATA" | jq -r '.head.ref // ""')
+          PR_OWNER=$(echo "$PR_DATA" | jq -r '.head.repo.owner.login // .base.repo.owner.login // ""')
+          PR_REPO=$(echo "$PR_DATA" | jq -r '.head.repo.name // .base.repo.name // ""')
+          BRANCH_NAME=$(echo "$PR_DATA" | jq -r '.head.ref // "deleted-branch"')
+
+          # Use repository defaults when head repo is unavailable (fork deleted)
+          if [ -z "$PR_OWNER" ] || [ "$PR_OWNER" = "null" ]; then
+            PR_OWNER="${{ github.repository_owner }}"
+          fi
+          if [ -z "$PR_REPO" ] || [ "$PR_REPO" = "null" ]; then
+            PR_REPO="${{ github.event.repository.name }}"
+          fi
+          if [ -z "$BRANCH_NAME" ] || [ "$BRANCH_NAME" = "null" ]; then
+            BRANCH_NAME="deleted-branch"
+          fi
 
           if [ -z "$PR_NUMBER" ] || [ "$PR_NUMBER" = "null" ]; then
             echo "Invalid PR number from API response"
@@ -80,7 +95,7 @@ jobs:
             exit 0
           fi
 
-          echo "Found PR associated with commit:"
+          echo "Found PR associated with commit (with safe fallbacks applied):"
           echo "PR Number: $PR_NUMBER"
           echo "PR Owner: $PR_OWNER"
           echo "PR Repo: $PR_REPO"
@@ -182,7 +197,7 @@ jobs:
           fi
 
           # Check if commit was already cherry-picked via -x trailer
-          if git log --grep="(cherry picked from commit $COMMIT_SHA)" --oneline HEAD; then
+          if git log --grep="(cherry picked from commit $COMMIT_SHA)" --oneline HEAD | grep -q "(cherry picked from commit $COMMIT_SHA)"; then
             echo "Commit $COMMIT_SHA already cherry-picked to $TARGET_BRANCH (found -x trailer) - skipping"
             echo "skip_cherry_pick=true" >> "$GITHUB_OUTPUT"
             exit 0
@@ -265,7 +280,7 @@ jobs:
             ${{ steps.get-pr-details.outputs.pr_body }}
           base: "cnv-4.99"
           delete-branch: true
-          labels: cherry-pick
+          labels: cherry-pick-to-4.99
 
       - name: Check if PR was created or already exists
         if: steps.check-pr.outputs.is_pr == 'true' && steps.cherry-pick.outputs.skip_cherry_pick == 'false' && steps.cherry-pick.outputs.has_conflicts == 'false'
