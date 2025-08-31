@@ -1,7 +1,6 @@
 [tool.ruff]
 preview = true
 line-length = 120
-fix = true
 output-format = "grouped"
 
 [tool.ruff.lint]
@@ -15,7 +14,7 @@ ignore = [
     "D107",  # missing-init-docstring
 ]
 # Ignore all docstring-related rules for files that are tests.
-per-file-ignores = {"**/tests/*.py" = ["D"], "test_*.py" = ["D"]}
+per-file-ignores = {"test_*.py" = ["D"]}
 
 [tool.ruff.format]
 exclude = [".git", ".venv", ".mypy_cache", ".tox", "__pycache__", "utilities/unittests/*"]
