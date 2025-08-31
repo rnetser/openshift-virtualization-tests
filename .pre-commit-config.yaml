@@ -23,6 +23,7 @@ repos:
       - id: ruff-format
         stages: [pre-commit]
       - id: ruff
+        exclude: "test_(.*).py$"
         name: Check docstrings with ruff
         args: [--select, D, --fix]
 
