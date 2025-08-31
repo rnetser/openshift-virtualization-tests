@@ -3,8 +3,9 @@ preview = true
 line-length = 120
 fix = true
 output-format = "grouped"
-select = ["D", "I"]
 
+[tool.ruff.lint]
+select = ["D", "I"]
 # Do not force docstrings; linter only when a docstring is added
 ignore = [
     "D100",  # missing-module-docstring
