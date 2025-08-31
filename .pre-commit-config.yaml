@@ -22,6 +22,9 @@ repos:
         args: [--select, I, --fix]
       - id: ruff-format
         stages: [pre-commit]
+      - id: ruff
+        name: Check docstrings with ruff
+        args: [--select, D, --fix]
 
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: "v6.0.0"

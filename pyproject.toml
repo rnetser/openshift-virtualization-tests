@@ -5,11 +5,15 @@ fix = true
 output-format = "grouped"
 
 [tool.ruff.format]
-exclude = [".git", ".venv", ".mypy_cache", ".tox", "__pycache__"]
+exclude = [".git", ".venv", ".mypy_cache", ".tox", "__pycache__", "utilities/unittests/*"]
+docstring-code-format = true
 
 [tool.ruff.lint.isort]
 order-by-type = true
 known-third-party = ["ocp_resources", "ocp_utilities", "timeout_sampler", "pyhelper_utils"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
 
 [tool.mypy]
 warn_unused_configs = true
