@@ -5,6 +5,10 @@ on:
     branches:
       - main
 
+concurrency:
+  group: cherry-pick-cnv-4.99
+  cancel-in-progress: false
+
 jobs:
   cherry-pick-pr:
     runs-on: ubuntu-latest
@@ -36,50 +40,58 @@ jobs:
             exit 1
           fi
 
-          # Check for PR merges (supports both merge commits and squash/rebase merges)
-          PARENT_COUNT=$(git rev-list --parents -n1 "$COMMIT_SHA" | wc -w)
-          PARENT_COUNT=$((PARENT_COUNT - 1))
+          # Use GitHub API to detect if commit is associated with a PR
+          echo "Using GitHub API to check for associated PR..."
 
-          # Get commit message to check for PR merge pattern first
-          COMMIT_MSG=$(git log -1 --format=%s "$COMMIT_SHA")
-          echo "Commit message: $COMMIT_MSG"
-
-          # For squash/rebase merges (single parent) or merge commits (2+ parents),
-          # check if commit message matches GitHub's PR merge pattern
-          if [ $PARENT_COUNT -lt 2 ] && [[ ! $COMMIT_MSG =~ ^Merge\ pull\ request\ #([0-9]+)\ from\ ([a-zA-Z0-9_-]+)/([a-zA-Z0-9_-]+)/([a-zA-Z0-9_-]+)$ ]]; then
-            echo "Not a PR merge (neither merge commit nor squash merge with PR pattern), skipping"
+          # Query the commits/{sha}/pulls API endpoint
+          if ! PR_RESPONSE=$(curl -sf -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Accept: application/vnd.github.v3+json" \
+            "https://api.github.com/repos/${{ github.repository }}/commits/$COMMIT_SHA/pulls"); then
+            echo "Failed to query GitHub API for commit $COMMIT_SHA"
             echo "is_pr=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
-          echo "Found PR merge (parent count: $PARENT_COUNT)"
+          # Check if any PRs are associated with this commit
+          PR_COUNT=$(echo "$PR_RESPONSE" | jq -r 'length')
 
-          # Parse PR details from commit message
-
-          # Check if commit message matches GitHub's merge pattern with restricted characters
-          # Patterns: owner/repo/branch must not contain dangerous chars like . or /
-          if [[ $COMMIT_MSG =~ ^Merge\ pull\ request\ #([0-9]+)\ from\ ([a-zA-Z0-9_-]+)/([a-zA-Z0-9_-]+)/([a-zA-Z0-9_-]+)$ ]]; then
-            PR_NUMBER="${BASH_REMATCH[1]}"
-            PR_OWNER="${BASH_REMATCH[2]}"
-            PR_REPO="${BASH_REMATCH[3]}"
-            BRANCH_NAME="${BASH_REMATCH[4]}"
-
-            echo "Found PR merge:"
-            echo "PR Number: $PR_NUMBER"
-            echo "PR Owner: $PR_OWNER"
-            echo "PR Repo: $PR_REPO"
-            echo "Branch: $BRANCH_NAME"
-
-            echo "is_pr=true" >> "$GITHUB_OUTPUT"
-            echo "pr_number=$PR_NUMBER" >> "$GITHUB_OUTPUT"
-            echo "pr_owner=$PR_OWNER" >> "$GITHUB_OUTPUT"
-            echo "pr_repo=$PR_REPO" >> "$GITHUB_OUTPUT"
-            echo "branch_name=$BRANCH_NAME" >> "$GITHUB_OUTPUT"
-            echo "commit_sha=$COMMIT_SHA" >> "$GITHUB_OUTPUT"
-          else
-            echo "Commit message doesn't match PR merge pattern"
+          if [ "$PR_COUNT" -eq 0 ]; then
+            echo "No PR associated with commit $COMMIT_SHA - skipping"
             echo "is_pr=false" >> "$GITHUB_OUTPUT"
+            exit 0
           fi
+
+          # Get the first (most relevant) PR from the response
+          if ! PR_DATA=$(echo "$PR_RESPONSE" | jq -r '.[0]'); then
+            echo "Failed to parse PR data from API response"
+            echo "is_pr=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Extract PR details from API response
+          PR_NUMBER=$(echo "$PR_DATA" | jq -r '.number // ""')
+          PR_OWNER=$(echo "$PR_DATA" | jq -r '.head.repo.owner.login // ""')
+          PR_REPO=$(echo "$PR_DATA" | jq -r '.head.repo.name // ""')
+          BRANCH_NAME=$(echo "$PR_DATA" | jq -r '.head.ref // ""')
+
+          if [ -z "$PR_NUMBER" ] || [ "$PR_NUMBER" = "null" ]; then
+            echo "Invalid PR number from API response"
+            echo "is_pr=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "Found PR associated with commit:"
+          echo "PR Number: $PR_NUMBER"
+          echo "PR Owner: $PR_OWNER"
+          echo "PR Repo: $PR_REPO"
+          echo "Branch: $BRANCH_NAME"
+
+          echo "is_pr=true" >> "$GITHUB_OUTPUT"
+          echo "pr_number=$PR_NUMBER" >> "$GITHUB_OUTPUT"
+          echo "pr_owner=$PR_OWNER" >> "$GITHUB_OUTPUT"
+          echo "pr_repo=$PR_REPO" >> "$GITHUB_OUTPUT"
+          echo "branch_name=$BRANCH_NAME" >> "$GITHUB_OUTPUT"
+          echo "commit_sha=$COMMIT_SHA" >> "$GITHUB_OUTPUT"
 
       - name: Get PR details via GitHub API
         if: steps.check-pr.outputs.is_pr == 'true'
@@ -90,7 +102,12 @@ jobs:
           PR_NUMBER="${{ steps.check-pr.outputs.pr_number }}"
 
           # Get PR details from GitHub API with error handling
-          if ! PR_DATA=$(curl -sf -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+          if ! PR_DATA=$(curl -sf \
+            --connect-timeout 5 \
+            --max-time 30 \
+            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
             "https://api.github.com/repos/${{ github.repository }}/pulls/$PR_NUMBER"); then
             echo "Failed to fetch PR data for PR #$PR_NUMBER"
             exit 1
@@ -159,9 +176,16 @@ jobs:
             exit 1
           fi
 
-          if ! git checkout "origin/$TARGET_BRANCH"; then
+          if ! git checkout -B "$TARGET_BRANCH" "origin/$TARGET_BRANCH"; then
             echo "Failed to checkout target branch: $TARGET_BRANCH"
             exit 1
+          fi
+
+          # Check if commit was already cherry-picked via -x trailer
+          if git log --grep="(cherry picked from commit $COMMIT_SHA)" --oneline HEAD; then
+            echo "Commit $COMMIT_SHA already cherry-picked to $TARGET_BRANCH (found -x trailer) - skipping"
+            echo "skip_cherry_pick=true" >> "$GITHUB_OUTPUT"
+            exit 0
           fi
 
           # Check if commit already exists on target branch
@@ -175,11 +199,27 @@ jobs:
 
           # Attempt cherry-pick to working directory (let peter-evans handle the rest)
           echo "Attempting to cherry-pick $COMMIT_SHA"
-          if git cherry-pick -m 1 "$COMMIT_SHA"; then
+
+          # Check if this is a merge commit (has multiple parents)
+          PARENT_COUNT=$(git rev-list --parents -n 1 "$COMMIT_SHA" | wc -w)
+          PARENT_COUNT=$((PARENT_COUNT - 1))  # Subtract 1 because rev-list includes the commit itself
+
+          # Build cherry-pick command based on commit type
+          if [ "$PARENT_COUNT" -gt 1 ]; then
+            # Merge commit - use -m 1 to specify mainline parent
+            CHERRY_PICK_CMD="git cherry-pick --no-commit -x -m 1 $COMMIT_SHA"
+          else
+            # Regular commit - no need for -m flag
+            CHERRY_PICK_CMD="git cherry-pick --no-commit -x $COMMIT_SHA"
+          fi
+
+          echo "Commit has $PARENT_COUNT parent(s), using command: $CHERRY_PICK_CMD"
+
+          if $CHERRY_PICK_CMD; then
             echo "Cherry-pick successful - changes ready for PR creation"
             echo "has_conflicts=false" >> "$GITHUB_OUTPUT"
           else
-            echo "Cherry-pick failed with conflicts - committing conflicted state"
+            echo "Cherry-pick failed with conflicts - leaving in working tree for peter-evans"
 
             # Get list of conflicted files
             CONFLICTED_FILES=$(git diff --name-only --diff-filter=U | tr '\n' ' ' || echo "Unable to determine conflicted files")
@@ -195,12 +235,8 @@ jobs:
 
             echo "has_conflicts=true" >> "$GITHUB_OUTPUT"
 
-            # Commit the conflicted state (peter-evans will create PR from this)
-            git add .
-            git commit -m "Cherry-pick PR #$PR_NUMBER with conflicts" \
-                       -m "Original commit: $COMMIT_SHA" \
-                       -m "This commit contains unresolved conflicts that need manual resolution." \
-                       -m "Conflicted files: $CONFLICTED_FILES"
+            # Don't commit conflicts - let peter-evans handle the working tree state
+            # The action will detect the conflicts and create appropriate commit
           fi
 
       - name: Create PR for successful cherry-pick
@@ -229,6 +265,7 @@ jobs:
             ${{ steps.get-pr-details.outputs.pr_body }}
           base: "cnv-4.99"
           delete-branch: true
+          labels: cherry-pick
 
       - name: Check if PR was created or already exists
         if: steps.check-pr.outputs.is_pr == 'true' && steps.cherry-pick.outputs.skip_cherry_pick == 'false' && steps.cherry-pick.outputs.has_conflicts == 'false'
