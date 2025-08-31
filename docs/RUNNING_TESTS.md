@@ -265,19 +265,28 @@ out = pod_exec.exec(command=cmd, ignore_rc=True)
 To run tests on a standard cluster configuration (more than 1 node is required), use the following command:
 
 ```bash
-uv run pytest -m "conformance" --default-storage-class <cluster default storage class> --skip-artifactory-check
+uv run pytest -m "conformance" --conformance-storage-class <cluster default storage class> --skip-artifactory-check
 ```
 
 To run on single-node cluster, use the following command:
 ```bash
-uv run pytest -m "conformance and sno" --default-storage-class <cluster default storage class> --skip-artifactory-check
+uv run pytest -m "conformance and sno" --conformance-storage-class <cluster default storage class> --skip-artifactory-check
 ```
 
-The default storage classes that are covered include: `ocs-storagecluster-ceph-rbd-virtualization`, `hostpath-csi-basic` and `hostpath-csi-pvc-block`
-To modify the set of storage classes that are tested:
-- Make a copy of the [global_config.py](../tests/global_config.py) file
-- Edit `storage_class_matrix` variable to match the storage classes you want to test
-- Run the tests using the new global_config.py file, example:
-```bash
-uv run pytest -m "conformance" --default-storage-class <cluster default storage class> --skip-artifactory-check --tc-file=tests/global_config_new.py
+#### Running on a cluster with an unsupported storage_class:
+Supported storage classes are mapped in [StorageClassConfig](../libs/storage/config.py).
+An unsupported storage class can be used as well, and its configuration can be controlled via `--conformance-storage-class-config`.
+If an attribute's value is not provided, the default value is used.
+
+Supported storage class configuration:
+```
+     `access_mode` - allowed values: RWX, RWO, ROX. Default: RWO
+     `volume_mode` - allowed values: Block, Filesystem. Default: Filesystem
+     `online_resize` - allowed values: False, True. Default: False
+     'snapshot' - allowed values: False, True. Default: False
+     `wffc` - allowed values: False, True. Default: False
+```
+
+```
+uv run pytest -m "conformance" --conformance-storage-class <unsupported storage class> '--conformance-storage-class=volume_mode=Block,access_mode=RWO,snapshot=True,online_resize=True,wffc=False' --skip-artifactory-check
 ```

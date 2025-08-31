@@ -237,7 +237,7 @@ def network_sanity(
         # TODO: network tests should be marked with multi_nic to allow explicit checks based on markers
         if conformance_tests:
             LOGGER.info(
-                "Running conformance tests which run only single-nic tests, , no need to verify multi NIC support"
+                "Running conformance tests which run only single-nic tests, no need to verify multi NIC support"
             )
             return
 
