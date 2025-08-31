@@ -30,7 +30,3 @@ def get_cluster_architecture() -> str:
         raise ValueError(f"{arch} architecture in not supported")
 
     return arch
-
-
-def test(xfail_if_rhel8):
-    return xfail_if_rhel8 and get_cluster_architecture() == "x86_64"
