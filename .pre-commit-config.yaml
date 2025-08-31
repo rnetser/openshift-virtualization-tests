@@ -16,9 +16,9 @@ repos:
     rev: v0.12.10
     hooks:
       - id: ruff
-        args: [--fix]
         stages: [pre-commit]
       - id: ruff
+        args: [--fix]
       - id: ruff-format
         stages: [pre-commit]
 
