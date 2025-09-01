@@ -52,6 +52,7 @@ from utilities.pytest_utils import (
     get_artifactory_server_url,
     get_base_matrix_name,
     get_cnv_version_explorer_url,
+    get_fixture_return_values,
     get_matrix_params,
     reorder_early_fixtures,
     run_in_progress_config_map,
@@ -815,6 +816,7 @@ def get_inspect_command_namespace_string(node: Node, test_name: str, collect_knm
     namespaces_to_collect: list[str] = NAMESPACE_COLLECTION[component].copy()
     if component == "network" and not collect_knmstate_ns:
         LOGGER.info(f"Skipping KNMState data collection for {test_name}")
+        namespaces_to_collect.remove("openshift-nmstate")
         return None
 
     if component == "virt":
@@ -859,7 +861,17 @@ def pytest_exception_interact(node: Item | Collector, call: CallInfo[Any], repor
                     since_time=calculate_must_gather_timer(test_start_time=test_start_time),
                     target_dir=collection_dir,
                 )
-                if inspect_str := get_inspect_command_namespace_string(test_name=test_name, node=node):
+
+                collect_knmstate_ns = False
+                if "network" in str(node.path.parent):
+                    if is_baremetal_or_psi_cluster_value := get_fixture_return_values(
+                        fixture_name="is_baremetal_or_psi_cluster", session=node.session
+                    ):
+                        collect_knmstate_ns = is_baremetal_or_psi_cluster_value[0]
+
+                if inspect_str := get_inspect_command_namespace_string(
+                    test_name=test_name, node=node, collect_knmstate_ns=collect_knmstate_ns
+                ):
                     target_dir = os.path.join(collection_dir, "inspect_collection")
                     inspect_command = (
                         f"{INSPECT_BASE_COMMAND} {inspect_str} "
