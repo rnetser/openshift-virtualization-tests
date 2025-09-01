@@ -305,8 +305,10 @@ def network_sanity(
 
     def _verify_nmstate_running_pods(_admin_client, namespace):
         LOGGER.info("Verifying all pods in nmstate namespace are running")
-        if pods := wait_for_pods_running(admin_client=_admin_client, namespace=namespace, raise_exception=False):
-            failure_msgs.append(f"The {pods} pods are not running in nmstate namespace '{namespace.name}'")
+        if not_running_pods := wait_for_pods_running(
+            admin_client=_admin_client, namespace=namespace, raise_exception=False
+        ):
+            failure_msgs.append(f"The {not_running_pods} pods are not running in nmstate namespace '{namespace.name}'")
 
     _verify_dpdk()
     _verify_service_mesh()
