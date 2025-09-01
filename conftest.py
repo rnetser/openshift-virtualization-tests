@@ -812,7 +812,7 @@ def get_inspect_command_namespace_string(node: Node, test_name: str, collect_knm
         return None
 
     component = components[0]
-    namespaces_to_collect: list[str] = NAMESPACE_COLLECTION[component]
+    namespaces_to_collect: list[str] = NAMESPACE_COLLECTION[component].copy()
     if component == "network" and not collect_knmstate_ns:
         LOGGER.info(f"Skipping KNMState data collection for {test_name}")
         return None
