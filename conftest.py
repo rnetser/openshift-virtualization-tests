@@ -805,21 +805,26 @@ def is_skip_must_gather(node: Node) -> bool:
     return "skip_must_gather_collection" in get_all_node_markers(node=node)
 
 
-def get_inspect_command_namespace_string(node: Node, test_name: str) -> str:
-    namespace_str = ""
+def get_inspect_command_namespace_string(node: Node, test_name: str, collect_knmstate_ns: bool = True) -> str | None:
     components = [key for key in NAMESPACE_COLLECTION.keys() if f"tests/{key}/" in test_name]
     if not components:
         LOGGER.warning(f"{test_name} does not require special data collection on failure")
-    else:
-        component = components[0]
-        namespaces_to_collect: list[str] = NAMESPACE_COLLECTION[component]
-        if component == "virt":
-            all_markers = get_all_node_markers(node=node)
-            if "gpu" in all_markers:
-                namespaces_to_collect.append(NamespacesNames.NVIDIA_GPU_OPERATOR)
-            if "descheduler" in all_markers:
-                namespaces_to_collect.append(NamespacesNames.OPENSHIFT_KUBE_DESCHEDULER_OPERATOR)
-        namespace_str = " ".join([f"namespace/{namespace}" for namespace in namespaces_to_collect])
+        return None
+
+    component = components[0]
+    namespaces_to_collect: list[str] = NAMESPACE_COLLECTION[component]
+    if component == "network" and not collect_knmstate_ns:
+        LOGGER.info(f"Skipping KNMState data collection for {test_name}")
+        return None
+
+    if component == "virt":
+        all_markers = get_all_node_markers(node=node)
+        if "gpu" in all_markers:
+            namespaces_to_collect.append(NamespacesNames.NVIDIA_GPU_OPERATOR)
+        if "descheduler" in all_markers:
+            namespaces_to_collect.append(NamespacesNames.OPENSHIFT_KUBE_DESCHEDULER_OPERATOR)
+    namespace_str = " ".join([f"namespace/{namespace}" for namespace in namespaces_to_collect])
+
     return namespace_str
 
 
@@ -836,7 +841,6 @@ def pytest_exception_interact(node: Item | Collector, call: CallInfo[Any], repor
     if node.config.getoption("--data-collector") and not is_skip_must_gather(node=node):
         test_name = f"{node.fspath}::{node.name}"
         LOGGER.info(f"Must-gather collection is enabled for {test_name}.")
-        inspect_str = get_inspect_command_namespace_string(test_name=test_name, node=node)
         if call.excinfo and any([
             isinstance(call.excinfo.value, exception_type) for exception_type in MUST_GATHER_IGNORE_EXCEPTION_LIST
         ]):
@@ -855,7 +859,7 @@ def pytest_exception_interact(node: Item | Collector, call: CallInfo[Any], repor
                     since_time=calculate_must_gather_timer(test_start_time=test_start_time),
                     target_dir=collection_dir,
                 )
-                if inspect_str:
+                if inspect_str := get_inspect_command_namespace_string(test_name=test_name, node=node):
                     target_dir = os.path.join(collection_dir, "inspect_collection")
                     inspect_command = (
                         f"{INSPECT_BASE_COMMAND} {inspect_str} "
