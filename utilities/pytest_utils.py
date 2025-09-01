@@ -246,6 +246,5 @@ def get_fixture_return_values(fixture_name: str, session: Session) -> tuple[Any,
     fixturemanager = session._fixturemanager
     if fixture_def := fixturemanager._arg2fixturedefs[fixture_name]:
         return fixture_def[0].cached_result
-        # return value
 
     return None
