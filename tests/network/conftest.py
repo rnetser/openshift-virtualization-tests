@@ -216,7 +216,7 @@ def network_sanity(
     network_overhead,
     sriov_workers,
     ipv4_supported_cluster,
-    nmstate_required,
+    is_baremetal_or_psi_cluster,
     nmstate_namespace,
 ):
     """
@@ -314,7 +314,7 @@ def network_sanity(
     _verify_sriov()
     _verify_ipv4()
 
-    if nmstate_required:
+    if is_baremetal_or_psi_cluster:
         _verify_multi_nic(_request=request)
         _verify_nmstate_running_pods(_admin_client=admin_client, namespace=nmstate_namespace)
 

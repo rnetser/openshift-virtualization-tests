@@ -570,7 +570,7 @@ def node_physical_nics(workers_utility_pods):
 
 
 @pytest.fixture(scope="session")
-def nodes_active_nics(workers, workers_utility_pods, node_physical_nics, nmstate_required):
+def nodes_active_nics(workers, workers_utility_pods, node_physical_nics, is_baremetal_or_psi_cluster):
     # TODO: Reduce cognitive complexity
     def _bridge_ports(node_interface):
         ports = set()
@@ -586,7 +586,7 @@ def nodes_active_nics(workers, workers_utility_pods, node_physical_nics, nmstate
     Get nodes active NICs.
     First NIC is management NIC
     """
-    if not nmstate_required:
+    if not is_baremetal_or_psi_cluster:
         LOGGER.info(f"Running on cloud; using nodes physical NICs {node_physical_nics}")
         return node_physical_nics
 
@@ -2885,8 +2885,8 @@ def machine_config_pools():
 
 
 @pytest.fixture(scope="session")
-def nmstate_namespace(admin_client, nmstate_required):
-    if nmstate_required:
+def nmstate_namespace(admin_client, is_baremetal_or_psi_cluster):
+    if is_baremetal_or_psi_cluster:
         return Namespace(client=admin_client, name="openshift-nmstate", ensure_exists=True)
 
     return None
@@ -2916,5 +2916,5 @@ def smbios_from_kubevirt_config(kubevirt_config_scope_module):
 
 
 @pytest.fixture(scope="session")
-def nmstate_required(admin_client):
+def is_baremetal_or_psi_cluster(admin_client):
     return get_cluster_platform(admin_client=admin_client) in ("BareMetal", "OpenStack")
