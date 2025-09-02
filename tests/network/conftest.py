@@ -32,7 +32,11 @@ from utilities.infra import (
     get_node_selector_dict,
     wait_for_pods_running,
 )
-from utilities.network import get_cluster_cni_type, ip_version_data_from_matrix, network_nad
+from utilities.network import (
+    get_cluster_cni_type,
+    ip_version_data_from_matrix,
+    network_nad,
+)
 
 LOGGER = logging.getLogger(__name__)
 
@@ -216,6 +220,7 @@ def network_sanity(
     network_overhead,
     sriov_workers,
     ipv4_supported_cluster,
+    conformance_tests,
     is_baremetal_or_psi_cluster,
     nmstate_namespace,
 ):
@@ -232,6 +237,14 @@ def network_sanity(
         if marker_args and "single_nic" in marker_args and "not single_nic" not in marker_args:
             LOGGER.info("Running only single-NIC network cases, no need to verify multi NIC support")
             return
+
+        # TODO: network tests should be marked with multi_nic to allow explicit checks based on markers
+        if conformance_tests:
+            LOGGER.info(
+                "Running conformance tests which run only single-nic tests, no need to verify multi NIC support"
+            )
+            return
+
         LOGGER.info("Verifying if the cluster has multiple NICs for network tests")
         if len(hosts_common_available_ports) <= 1:
             failure_msgs.append(
