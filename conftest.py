@@ -863,7 +863,7 @@ def pytest_exception_interact(node: Item | Collector, call: CallInfo[Any], repor
                 )
 
                 collect_knmstate_ns = False
-                if "network" in str(node.path.parent):
+                if "tests/network/" in test_name:
                     if is_baremetal_or_psi_cluster_value := get_fixture_return_values(
                         fixture_name="is_baremetal_or_psi_cluster", session=node.session
                     ):
