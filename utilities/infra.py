@@ -329,6 +329,7 @@ def wait_for_pods_running(  # type: ignore[return]
          number_of_consecutive_checks(int): Number of times to check for all pods in running state
          filter_pods_by_name(str): string to filter pod names by
          raise_exception(bool): If True, raises TimeoutExpiredError if any of the pods in the given namespace are not in
+            running state. If False, returns a list of pods that are not in a running state.
 
     Returns:
         list[dict[str, str]]: List of pods that are not in running state if raise_exception is False.
