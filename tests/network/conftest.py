@@ -342,8 +342,6 @@ def network_sanity(
                 failure_msgs.append(f"BGP tests require the following environment variables: {missing_env_vars}")
                 return
 
-    _verify_multi_nic(request=request)
-
     def _verify_nmstate_running_pods(_admin_client, namespace):
         LOGGER.info("Verifying all pods in nmstate namespace are running")
         if not_running_pods := wait_for_pods_running(
@@ -351,6 +349,7 @@ def network_sanity(
         ):
             failure_msgs.append(f"The {not_running_pods} pods are not running in nmstate namespace '{namespace.name}'")
 
+    _verify_multi_nic(_request=request)
     _verify_dpdk()
     _verify_service_mesh()
     _verify_jumbo_frame()
