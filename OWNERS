@@ -1,8 +1,8 @@
 approvers:
-  - myakove
   - vsibirsk
   - dshchedr
   - rnetser
+  - myakove
 reviewers:
   - RoniKishner
   - vsibirsk
