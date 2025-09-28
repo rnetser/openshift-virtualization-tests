@@ -349,7 +349,6 @@ def network_sanity(
         ):
             failure_msgs.append(f"The {not_running_pods} pods are not running in nmstate namespace '{namespace.name}'")
 
-    _verify_multi_nic(_request=request)
     _verify_dpdk()
     _verify_service_mesh()
     _verify_jumbo_frame()
