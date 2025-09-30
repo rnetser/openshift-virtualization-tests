@@ -32,6 +32,7 @@ jobs:
           body: |
             @coderabbitai
             As an expert software testing engineer, analyze all modified files in this PR and create a targeted test execution plan.
+            You will create a change request comment on the 1st line of the 1st file in the pr with the test execution plan.
 
             <details>
               <summary>Details</summary>
@@ -45,7 +46,7 @@ jobs:
             5. Detect new tests introduced in the PR
 
             **Your deliverable:**
-            Your comment needs to be a change request comment on line 1 of the first modified file, with the following requirements:
+            Your change request comment will be based on the following requirements:
 
             **Test Execution Plan**
 
