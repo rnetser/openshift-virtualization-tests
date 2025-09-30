@@ -375,10 +375,6 @@ def pytest_cmdline_main(config):
         if config.getoption("default_storage_class"):
             LOGGER.warning(f"Using default storage class {conformance_storage_class}")
 
-    if config.getoption("--collect-tests-markers"):
-        # This option does not need an available cluster to run.
-        os.environ["OPENSHIFT_VIRTUALIZATION_TEST_IMAGES_ARCH"] = X86_64
-
 
 def add_polarion_parameters_to_user_properties(item: Item, matrix_name: str) -> None:
     if matrix_config := py_config.get(matrix_name):
