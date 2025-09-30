@@ -12,12 +12,20 @@ jobs:
   comment-on-commit:
     if: |
       github.event.label.name == 'verified' &&
-      !contains(github.event.pull_request.user.login, 'bot') &&
       !contains(github.event.pull_request.user.login, 'renovate')
     runs-on: ubuntu-latest
 
     steps:
+      - name: Check team membership
+        id: check-user-team
+        uses: tspascoal/get-user-teams-membership@v3
+        with:
+          team: cnvqe-bot
+          username: ${{ github.actor }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Create or update comment
+        if: steps.check-user-team.outputs.is-member == 'false'
         uses: peter-evans/create-or-update-comment@v4
         with:
           issue-number: ${{ github.event.pull_request.number }}
