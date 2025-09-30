@@ -1,4 +1,4 @@
-# Taken from https://www.kubernetes.dev/docs/guide/owners/#owners
+Taken from https://www.kubernetes.dev/docs/guide/owners/#owners
 
 # OWNERS files
 Each directory that contains a unit of independent code or content may also contain an OWNERS file. This file applies to everything within the directory, including the OWNERS file itself, sibling files, and child directories.
