@@ -1,0 +1,32 @@
+name: Add comment for CodeRabbit to add tests instructions. A change-request comment will be added to the PR.
+
+on:
+  pull_request_target:
+    types: [labeled]
+
+permissions:
+  pull-requests: write
+  contents: read
+
+jobs:
+  comment-on-commit:
+    if: |
+      github.event.label.name == 'verified' &&
+      !contains(github.event.pull_request.user.login, 'bot') &&
+      !contains(github.event.pull_request.user.login, 'renovate')
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Create or update comment
+        uses: peter-evans/create-or-update-comment@v4
+        with:
+          issue-number: ${{ github.event.pull_request.number }}
+          body: |
+            @coderabbitai
+            As an experienced software testing specialist, please analyze the files in this PR, come up with an efficient test execution plan based on the code modifications, and identify the relevant existing tests to run, ensuring comprehensive coverage of affected paths without over-testing.
+            analyze the tests under tests/ and check which ones are affected by the changes. as the tests are using pytest, make sure to check also pytest-related behavior such as fixture usage, ordering, scopes etc.
+            the result needs to be:
+
+            added as a change request comment on the 1st line of the 1s file in the pr
+            provides a list of tests from the existing tests (including new ones introduced in the pr) - each bullet should include the test(s) and commandline to be added to pytest commnd
+            the text should be minimal to only have a title above the list of tests
