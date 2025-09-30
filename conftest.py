@@ -53,6 +53,7 @@ from utilities.pytest_utils import (
     get_base_matrix_name,
     get_cnv_version_explorer_url,
     get_matrix_params,
+    get_tests_cluster_markers,
     reorder_early_fixtures,
     run_in_progress_config_map,
     separator,
@@ -114,7 +115,9 @@ def pytest_addoption(parser):
     scale_group = parser.getgroup(name="Scale")
     session_group = parser.getgroup(name="Session")
     csv_group = parser.getgroup(name="CSV")
+    ci_group = parser.getgroup(name="CI")
     csv_group.addoption("--update-csv", action="store_true")
+
     # Upgrade addoption
     install_upgrade_group.addoption(
         "--upgrade",
@@ -307,6 +310,17 @@ def pytest_addoption(parser):
         help="Path to the remote cluster kubeconfig file for cross-cluster tests",
     )
 
+    # CI group
+    ci_group.addoption(
+        "--collect-tests-markers",
+        help="Collect test markers and store them in a file. Tests will not be executed if this option is set.",
+        action="store_true",
+    )
+    ci_group.addoption(
+        "--tests-markers-file",
+        help="Full filepath to store collected test markers.",
+    )
+
 
 def pytest_cmdline_main(config):
     # TODO: Reduce cognitive complexity
@@ -360,6 +374,10 @@ def pytest_cmdline_main(config):
 
         if config.getoption("default_storage_class"):
             LOGGER.warning(f"Using default storage class {conformance_storage_class}")
+
+    if config.getoption("--collect-tests-markers"):
+        # This option does not need an available cluster to run.
+        os.environ["OPENSHIFT_VIRTUALIZATION_TEST_IMAGES_ARCH"] = X86_64
 
 
 def add_polarion_parameters_to_user_properties(item: Item, matrix_name: str) -> None:
@@ -550,6 +568,10 @@ def pytest_collection_modifyitems(session, config, items):
         config.hook.pytest_deselected(items=discard)
     items[:] = filter_deprecated_api_tests(items=items, config=config)
     items[:] = filter_sno_only_tests(items=items, config=config)
+
+    if config.getoption("--collect-tests-markers"):
+        get_tests_cluster_markers(session=session, filepath=config.getoption("--tests-markers-file"))
+        pytest.exit(reason="Run with --collect-tests-markers. no tests are executed", returncode=0)
 
 
 def pytest_report_teststatus(report, config):
