@@ -31,10 +31,35 @@ jobs:
           issue-number: ${{ github.event.pull_request.number }}
           body: |
             @coderabbitai
-            As an experienced software testing specialist, please analyze the files in this PR, come up with an efficient test execution plan based on the code modifications, and identify the relevant existing tests to run, ensuring comprehensive coverage of affected paths without over-testing.
-            analyze the tests under tests/ and check which ones are affected by the changes. as the tests are using pytest, make sure to check also pytest-related behavior such as fixture usage, ordering, scopes etc.
-            the result needs to be:
+            As an expert software testing engineer, analyze all modified files in this PR and create a targeted test execution plan.
 
-            added as a change request comment on the 1st line of the 1s file in the pr
-            provides a list of tests from the existing tests (including new ones introduced in the pr) - each bullet should include the test(s) and commandline to be added to pytest commnd
-            the text should be minimal to only have a title above the list of tests
+            <details>
+              <summary>Details</summary>
+
+            **Analysis Requirements:**
+
+            1. Examine code changes in each modified file
+            2. Identify affected code paths, functions, and classes
+            3. Analyze pytest-specific elements: fixtures (scope, dependencies), parametrization, markers, conftest changes
+            4. Trace test dependencies through imports, shared utilities, and fixture inheritance
+            5. Detect new tests introduced in the PR
+
+            **Your deliverable:**
+            Your comment needs to be a change request comment on line 1 of the first modified file, with the following requirements:
+
+            **Test Execution Plan**
+
+            - path/to/test_file.py - When the entire test file needs verification
+            - path/to/test_file.py::TestClass::test_method - When specific test(s) needed
+            - path/to/test_file.py::test_function - When specific test(s) needed
+
+            **Guidelines:**
+
+            - Include only tests directly affected by the changes
+            - Use a full file path only if ALL tests in that file require verification
+            - Use file path + test name if only specific tests are needed
+            - If a test marker can cover multiple files/tests, provide the marker
+            - Balance coverage vs over-testing - Keep descriptions minimal
+            - Do not add a follow-up comment in the PR, only the change request one
+
+            </details>
