@@ -243,9 +243,8 @@ def get_cnv_version_explorer_url(pytest_config):
         return version_explorer_url
 
 
-def get_tests_cluster_markers(session, filepath=None):
-    test_markers = [item.own_markers for item in session.items]
-
+def get_tests_cluster_markers(items, filepath=None):
+    test_markers = [item.own_markers for item in items]
     markers = Counter(marker.name for test_markers in test_markers for marker in test_markers)
 
     pytest_cluster_markers = []

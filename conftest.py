@@ -565,10 +565,6 @@ def pytest_collection_modifyitems(session, config, items):
     items[:] = filter_deprecated_api_tests(items=items, config=config)
     items[:] = filter_sno_only_tests(items=items, config=config)
 
-    if config.getoption("--collect-tests-markers"):
-        get_tests_cluster_markers(session=session, filepath=config.getoption("--tests-markers-file"))
-        pytest.exit(reason="Run with --collect-tests-markers. no tests are executed", returncode=0)
-
 
 def pytest_report_teststatus(report, config):
     test_name = report.head_line
@@ -789,6 +785,12 @@ def pytest_sessionstart(session):
         stop_if_run_in_progress()
         deploy_run_in_progress_namespace()
         deploy_run_in_progress_config_map(session=session)
+
+
+def pytest_collection_finish(session):
+    if session.config.getoption("--collect-tests-markers"):
+        get_tests_cluster_markers(items=session.items, filepath=session.config.getoption("--tests-markers-file"))
+        pytest.exit(reason="Run with --collect-tests-markers. no tests are executed", returncode=0)
 
 
 def pytest_sessionfinish(session, exitstatus):
