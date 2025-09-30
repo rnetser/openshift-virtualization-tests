@@ -922,7 +922,7 @@ def vm_instance_from_template_multi_storage_scope_function(
         unprivileged_client=unprivileged_client,
         namespace=namespace,
         existing_data_volume=data_volume_multi_storage_scope_function,
-        vm_cpu_model=(cpu_for_migration if request.param.get("set_vm_common_cpu") else None),
+        vm_cpu_model=cpu_for_migration if request.param.get("set_vm_common_cpu") else None,
     ) as vm:
         yield vm
 
@@ -945,7 +945,7 @@ def golden_image_vm_instance_from_template_multi_storage_scope_function(
         unprivileged_client=unprivileged_client,
         namespace=namespace,
         data_source=golden_image_data_source_multi_storage_scope_function,
-        vm_cpu_model=(cpu_for_migration if request.param.get("set_vm_common_cpu") else None),
+        vm_cpu_model=cpu_for_migration if request.param.get("set_vm_common_cpu") else None,
     ) as vm:
         yield vm
 
@@ -968,7 +968,7 @@ def golden_image_vm_instance_from_template_multi_storage_scope_class(
         unprivileged_client=unprivileged_client,
         namespace=namespace,
         data_source=golden_image_data_source_multi_storage_scope_class,
-        vm_cpu_model=(cpu_for_migration if request.param.get("set_vm_common_cpu") else None),
+        vm_cpu_model=cpu_for_migration if request.param.get("set_vm_common_cpu") else None,
     ) as vm:
         yield vm
 
@@ -2347,10 +2347,7 @@ def rhel_vm_with_instance_type_and_preference(
     instance_type_for_test_scope_class,
     vm_preference_for_test,
 ):
-    with (
-        instance_type_for_test_scope_class as vm_instance_type,
-        vm_preference_for_test as vm_preference,
-    ):
+    with instance_type_for_test_scope_class as vm_instance_type, vm_preference_for_test as vm_preference:
         with VirtualMachineForTests(
             client=unprivileged_client,
             name="rhel-vm-with-instance-type",
@@ -2647,7 +2644,7 @@ def dvs_for_upgrade(
             url=rhel_latest_os_params["rhel_image_path"],
             size=rhel_latest_os_params["rhel_dv_size"],
             bind_immediate_annotation=True,
-            hostpath_node=(worker_node1.name if sc_is_hpp_with_immediate_volume_binding(sc=storage_class) else None),
+            hostpath_node=worker_node1.name if sc_is_hpp_with_immediate_volume_binding(sc=storage_class) else None,
             api_name="storage",
         )
         dv.create()
@@ -2660,8 +2657,7 @@ def dvs_for_upgrade(
     for dv in dvs_list:
         dv.clean_up()
     utilities.infra.cleanup_artifactory_secret_and_config_map(
-        artifactory_secret=artifactory_secret,
-        artifactory_config_map=artifactory_config_map,
+        artifactory_secret=artifactory_secret, artifactory_config_map=artifactory_config_map
     )
 
 

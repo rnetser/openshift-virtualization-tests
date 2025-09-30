@@ -1720,7 +1720,7 @@ def running_vm(
     ]
 
     try:
-        vm.start()
+        vm.start(wait=False)
     except ApiException as exception:
         if any([message in exception.body for message in allowed_vm_start_exceptions_list]):
             LOGGER.warning(f"VM {vm.name} is already running; will not be started.")
@@ -2277,7 +2277,7 @@ def get_oc_image_info(  # type: ignore[return]
     base_command = f"oc image -o json info {image} --filter-by-os {architecture}"
     if pull_secret:
         base_command = f"{base_command} --registry-config={pull_secret}"
-
+    sample = None
     try:
         for sample in TimeoutSampler(
             wait_timeout=TIMEOUT_10SEC,
