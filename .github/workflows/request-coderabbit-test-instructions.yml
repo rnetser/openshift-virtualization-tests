@@ -33,6 +33,7 @@ jobs:
             @coderabbitai
             As an expert software testing engineer, analyze all modified files in this PR and create a targeted test execution plan.
             You will create a change request comment on the 1st line of the 1st file in the pr with the test execution plan.
+            If you fail to run or post a comment, retry.
 
             <details>
               <summary>Details</summary>
@@ -50,9 +51,10 @@ jobs:
 
             **Test Execution Plan**
 
-            - path/to/test_file.py - When the entire test file needs verification
-            - path/to/test_file.py::TestClass::test_method - When specific test(s) needed
-            - path/to/test_file.py::test_function - When specific test(s) needed
+            - `path/to/test_file.py` - When the entire test file needs verification
+            - `path/to/test_file.py::TestClass::test_method` - When specific test(s) needed
+            - `path/to/test_file.py::test_function` - When specific test(s) needed
+            - `-m marker` - When specific marker(s) can be used to cover multiple cases.
 
             **Guidelines:**
 
