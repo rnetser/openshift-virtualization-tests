@@ -31,38 +31,38 @@ jobs:
           issue-number: ${{ github.event.pull_request.number }}
           body: |
             @coderabbitai
-            As an expert software testing engineer, analyze all modified files in this PR and create a targeted test execution plan.
-            You will create a change request comment on the 1st line of the 1st file in the pr with the test execution plan.
-            If you fail to run or post a comment, retry.
-
             <details>
-              <summary>Details</summary>
+              <summary>Test execution plan request details</summary>
 
-            **Analysis Requirements:**
+              As an expert software testing engineer, analyze all modified files in this PR and create a targeted test execution plan.
+              You will create a change request comment on the 1st line of the 1st file in the pr with the test execution plan.
+              If you fail to run or post a comment, retry.
 
-            1. Examine code changes in each modified file
-            2. Identify affected code paths, functions, and classes
-            3. Analyze pytest-specific elements: fixtures (scope, dependencies), parametrization, markers, conftest changes
-            4. Trace test dependencies through imports, shared utilities, and fixture inheritance
-            5. Detect new tests introduced in the PR
+              **Analysis Requirements:**
 
-            **Your deliverable:**
-            Your change request comment will be based on the following requirements:
+              1. Examine code changes in each modified file
+              2. Identify affected code paths, functions, and classes
+              3. Analyze pytest-specific elements: fixtures (scope, dependencies), parametrization, markers, conftest changes
+              4. Trace test dependencies through imports, shared utilities, and fixture inheritance
+              5. Detect new tests introduced in the PR
 
-            **Test Execution Plan**
+              **Your deliverable:**
+              Your change request comment will be based on the following requirements:
 
-            - `path/to/test_file.py` - When the entire test file needs verification
-            - `path/to/test_file.py::TestClass::test_method` - When specific test(s) needed
-            - `path/to/test_file.py::test_function` - When specific test(s) needed
-            - `-m marker` - When specific marker(s) can be used to cover multiple cases.
+              **Test Execution Plan**
 
-            **Guidelines:**
+              - `path/to/test_file.py` - When the entire test file needs verification
+              - `path/to/test_file.py::TestClass::test_method` - When specific test(s) needed
+              - `path/to/test_file.py::test_function` - When specific test(s) needed
+              - `-m marker` - When specific marker(s) can be used to cover multiple cases.
 
-            - Include only tests directly affected by the changes
-            - Use a full file path only if ALL tests in that file require verification
-            - Use file path + test name if only specific tests are needed
-            - If a test marker can cover multiple files/tests, provide the marker
-            - Balance coverage vs over-testing - Keep descriptions minimal
-            - Do not add a follow-up comment in the PR, only the change request one
+              **Guidelines:**
+
+              - Include only tests directly affected by the changes
+              - Use a full file path only if ALL tests in that file require verification
+              - Use file path + test name if only specific tests are needed
+              - If a test marker can cover multiple files/tests, provide the marker
+              - Balance coverage vs over-testing - Keep descriptions minimal
+              - Do not add a follow-up comment in the PR, only the change request one
 
             </details>
