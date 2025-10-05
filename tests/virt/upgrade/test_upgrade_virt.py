@@ -359,3 +359,7 @@ class TestUpgradeVirt:
     ):
         migrate_vm_and_verify(vm=vm_for_post_copy_upgrade, check_ssh_connectivity=True)
         assert_migration_post_copy_mode(vm=vm_for_post_copy_upgrade)
+
+    @pytest.mark.polarion("CNV-120192")
+    def test_dummy(self):
+        pass
