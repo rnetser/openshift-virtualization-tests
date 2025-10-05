@@ -21,8 +21,8 @@ jobs:
         uses: tspascoal/get-user-teams-membership@v3
         with:
           team: cnvqe-bot
-          username: ${{ github.actor }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          username: ${{ github.event.pull_request.user.login }}
+          GITHUB_TOKEN: ${{ secrets.BOT3_TOKEN }}
 
       - name: Create or update comment
         if: steps.check-user-team.outputs.is-member == 'false'
