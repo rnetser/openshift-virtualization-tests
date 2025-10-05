@@ -1,4 +1,6 @@
-name: Add comment for CodeRabbit to add tests instructions. A change-request comment will be added to the PR.
+# description: Add comment for CodeRabbit to add tests instructions. A change-request comment will be added to the PR.
+
+name: Request CodeRabbit tests instructions
 
 on:
   pull_request_target:
