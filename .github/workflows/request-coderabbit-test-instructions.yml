@@ -31,10 +31,10 @@ jobs:
           echo "Team membership check result: ${{ steps.check-user-team.outputs.is-member }}"
           echo "User: ${{ github.event.pull_request.user.login }}"
           echo "Team: cnvqe-bot"
-          echo "Organization: RedHatQE"          
+          echo "Organization: RedHatQE"
 
       - name: Create or update comment
-        if: steps.check-user-team.outputs.is-member == 'false'
+        if: steps.check-user-team.outputs.is-member != 'true'
         uses: peter-evans/create-or-update-comment@v4
         with:
           issue-number: ${{ github.event.pull_request.number }}
