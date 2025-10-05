@@ -349,6 +349,10 @@ def wait_for_pods_running(  # type: ignore[return]
     )
 
     not_running_pods = []
+    error_msg = (
+        "timeout waiting for all pods in namespace {namespace} to reach running state, "
+        "following pods are in not running state: {not_running_pods}"
+    )
     try:
         current_check = 0
         for sample in samples:
@@ -364,14 +368,11 @@ def wait_for_pods_running(  # type: ignore[return]
     except TimeoutExpiredError:
         if not_running_pods:
             if raise_exception:
-                LOGGER.error(
-                    f"timeout waiting for all pods in namespace {namespace.name} to reach "
-                    f"running state, following pods are in not running state: {not_running_pods}"
-                )
+                LOGGER.error(error_msg.format(namespace=namespace.name, not_running_pods=not_running_pods))
                 raise
 
             else:
-                LOGGER.warning(f"timeout waiting for all pods in namespace {namespace.name} to reach ")
+                LOGGER.warning(error_msg.format(namespace=namespace.name, not_running_pods=not_running_pods))
                 return not_running_pods
 
 
