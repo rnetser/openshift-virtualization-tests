@@ -7,7 +7,6 @@ import re
 import shutil
 import socket
 import sys
-from collections import Counter
 
 from ocp_resources.config_map import ConfigMap
 from ocp_resources.namespace import Namespace
@@ -243,9 +242,8 @@ def get_cnv_version_explorer_url(pytest_config):
         return version_explorer_url
 
 
-def get_tests_cluster_markers(items, filepath=None):
-    test_markers = [item.own_markers for item in items]
-    markers = Counter(marker.name for test_markers in test_markers for marker in test_markers)
+def get_tests_cluster_markers(items, filepath=None) -> None:
+    test_markers = set([marker.name for item in items for marker in item.iter_markers()])
 
     pytest_cluster_markers = []
     is_config_section = False
@@ -264,8 +262,7 @@ def get_tests_cluster_markers(items, filepath=None):
                 else:
                     pytest_cluster_markers.append(line.strip().split(":")[0])
 
-    tests_cluster_markers = [marker for marker in markers if marker in pytest_cluster_markers]
-
+    tests_cluster_markers = [marker for marker in test_markers if marker in pytest_cluster_markers]
     LOGGER.info(f"Cluster-related test markers: {tests_cluster_markers}")
 
     if filepath:
