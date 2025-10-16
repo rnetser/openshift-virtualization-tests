@@ -28,12 +28,15 @@ def _make_bitwarden_request(endpoint: str) -> dict[str, Any]:
     if not access_token:
         raise MissingEnvironmentVariableError("Bitwarden client needs ACCESS_TOKEN environment variables set up")
 
-    headers = {
-        "Authorization": f"Bearer {access_token}",
-        "Content-Type": "application/json",
-    }
-
-    response = requests.get(url=f"https://api.bitwarden.com{endpoint}", headers=headers, timeout=30, verify=True)
+    response = requests.get(
+        url=f"https://api.bitwarden.com{endpoint}",
+        headers={
+            "Authorization": f"Bearer {access_token}",
+            "Content-Type": "application/json",
+        },
+        timeout=30,
+        verify=True,
+    )
     response.raise_for_status()
     return response.json()
 

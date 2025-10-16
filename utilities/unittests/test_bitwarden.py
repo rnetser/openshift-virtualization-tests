@@ -19,6 +19,8 @@ from bitwarden import (
     get_cnv_tests_secret_by_name,
 )
 
+from utilities.exceptions import MissingEnvironmentVariableError
+
 
 class TestGetAllCnvTestsSecrets:
     """Test cases for get_all_cnv_tests_secrets function"""
@@ -48,10 +50,10 @@ class TestGetAllCnvTestsSecrets:
             # Verify request was made correctly
             assert mock_get.call_count == 1
             call_args = mock_get.call_args
-            assert call_args[0][0] == "https://api.bitwarden.com/organizations/test-org/secrets"
-            assert call_args[1]["headers"]["Authorization"] == "Bearer test-token"
-            assert call_args[1]["timeout"] == 30
-            assert call_args[1]["verify"] is True
+            assert call_args.kwargs["url"] == "https://api.bitwarden.com/organizations/test-org/secrets"
+            assert call_args.kwargs["headers"]["Authorization"] == "Bearer test-token"
+            assert call_args.kwargs["timeout"] == 30
+            assert call_args.kwargs["verify"] is True
 
     @patch("bitwarden.requests.get")
     def test_get_all_cnv_tests_secrets_http_error(self, mock_get):
@@ -80,6 +82,30 @@ class TestGetAllCnvTestsSecrets:
             mock_get.side_effect = requests.ConnectionError("Network error")
 
             with pytest.raises(requests.ConnectionError):
+                get_all_cnv_tests_secrets()
+
+    def test_get_all_cnv_tests_secrets_missing_organization_id(self):
+        """Test error when ORGANIZATION_ID is not set"""
+        with patch.dict(os.environ, {"ACCESS_TOKEN": "test-token"}, clear=True):
+            # Clear cache before test
+            get_all_cnv_tests_secrets.cache_clear()
+
+            with pytest.raises(
+                MissingEnvironmentVariableError,
+                match="Bitwarden client needs ORGANIZATION_ID environment variables set up",
+            ):
+                get_all_cnv_tests_secrets()
+
+    def test_get_all_cnv_tests_secrets_missing_access_token(self):
+        """Test error when ACCESS_TOKEN is not set"""
+        with patch.dict(os.environ, {"ORGANIZATION_ID": "test-org"}, clear=True):
+            # Clear cache before test
+            get_all_cnv_tests_secrets.cache_clear()
+
+            with pytest.raises(
+                MissingEnvironmentVariableError,
+                match="Bitwarden client needs ACCESS_TOKEN environment variables set up",
+            ):
                 get_all_cnv_tests_secrets()
 
 
@@ -112,10 +138,10 @@ class TestGetCnvTestsSecretByName:
             # Verify request was made correctly
             assert mock_requests_get.call_count == 1
             call_args = mock_requests_get.call_args
-            assert call_args[0][0] == "https://api.bitwarden.com/secrets/uuid-2"
-            assert call_args[1]["headers"]["Authorization"] == "Bearer test-token"
-            assert call_args[1]["timeout"] == 30
-            assert call_args[1]["verify"] is True
+            assert call_args.kwargs["url"] == "https://api.bitwarden.com/secrets/uuid-2"
+            assert call_args.kwargs["headers"]["Authorization"] == "Bearer test-token"
+            assert call_args.kwargs["timeout"] == 30
+            assert call_args.kwargs["verify"] is True
 
     @patch("bitwarden.get_all_cnv_tests_secrets")
     def test_get_cnv_tests_secret_by_name_not_found(self, mock_get_all):
