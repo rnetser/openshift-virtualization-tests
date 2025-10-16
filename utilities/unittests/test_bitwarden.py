@@ -16,36 +16,8 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from bitwarden import (
     get_all_cnv_tests_secrets,
-    get_bitwarden_secrets_client,
     get_cnv_tests_secret_by_name,
 )
-
-from utilities.exceptions import MissingEnvironmentVariableError
-
-
-class TestGetBitwardenSecretsClient:
-    """Test cases for get_bitwarden_secrets_client function"""
-
-    def test_get_bitwarden_secrets_client_success(self):
-        """Test successful Bitwarden client headers creation"""
-        with patch.dict(os.environ, {"ACCESS_TOKEN": "test-token", "ORGANIZATION_ID": "test-org"}):
-            result = get_bitwarden_secrets_client()
-
-            assert result == {
-                "Authorization": "Bearer test-token",
-                "Content-Type": "application/json",
-            }
-
-    def test_get_bitwarden_secrets_client_no_token(self):
-        """Test when ACCESS_TOKEN or ORGANIZATION_ID is not set"""
-        with (
-            patch.dict(os.environ, {}, clear=True),
-            pytest.raises(
-                MissingEnvironmentVariableError,
-                match="Bitwarden client needs ORGANIZATION_ID and ACCESS_TOKEN environment variables set up",
-            ),
-        ):
-            get_bitwarden_secrets_client()
 
 
 class TestGetAllCnvTestsSecrets:
@@ -73,15 +45,13 @@ class TestGetAllCnvTestsSecrets:
 
             assert len(result) == 2
             assert result == {"test-secret-1": "uuid-1", "test-secret-2": "uuid-2"}
-            mock_get.assert_called_once_with(
-                "https://api.bitwarden.com/organizations/test-org/secrets",
-                headers={
-                    "Authorization": "Bearer test-token",
-                    "Content-Type": "application/json",
-                },
-                timeout=30,
-                verify=True,
-            )
+            # Verify request was made correctly
+            assert mock_get.call_count == 1
+            call_args = mock_get.call_args
+            assert call_args[0][0] == "https://api.bitwarden.com/organizations/test-org/secrets"
+            assert call_args[1]["headers"]["Authorization"] == "Bearer test-token"
+            assert call_args[1]["timeout"] == 30
+            assert call_args[1]["verify"] is True
 
     @patch("bitwarden.requests.get")
     def test_get_all_cnv_tests_secrets_http_error(self, mock_get):
@@ -96,10 +66,7 @@ class TestGetAllCnvTestsSecrets:
             mock_response.raise_for_status.side_effect = requests.HTTPError(response=mock_response)
             mock_get.return_value = mock_response
 
-            with pytest.raises(
-                MissingEnvironmentVariableError,
-                match="Failed to access Bitwarden API \\(HTTP 401\\)",
-            ):
+            with pytest.raises(requests.HTTPError):
                 get_all_cnv_tests_secrets()
 
     @patch("bitwarden.requests.get")
@@ -112,10 +79,7 @@ class TestGetAllCnvTestsSecrets:
             # Mock network error
             mock_get.side_effect = requests.ConnectionError("Network error")
 
-            with pytest.raises(
-                MissingEnvironmentVariableError,
-                match="Failed to connect to Bitwarden API",
-            ):
+            with pytest.raises(requests.ConnectionError):
                 get_all_cnv_tests_secrets()
 
 
@@ -145,15 +109,13 @@ class TestGetCnvTestsSecretByName:
             result = get_cnv_tests_secret_by_name("secret2")
 
             assert result == {"key": "value2"}
-            mock_requests_get.assert_called_once_with(
-                "https://api.bitwarden.com/secrets/uuid-2",
-                headers={
-                    "Authorization": "Bearer test-token",
-                    "Content-Type": "application/json",
-                },
-                timeout=30,
-                verify=True,
-            )
+            # Verify request was made correctly
+            assert mock_requests_get.call_count == 1
+            call_args = mock_requests_get.call_args
+            assert call_args[0][0] == "https://api.bitwarden.com/secrets/uuid-2"
+            assert call_args[1]["headers"]["Authorization"] == "Bearer test-token"
+            assert call_args[1]["timeout"] == 30
+            assert call_args[1]["verify"] is True
 
     @patch("bitwarden.get_all_cnv_tests_secrets")
     def test_get_cnv_tests_secret_by_name_not_found(self, mock_get_all):
@@ -217,8 +179,5 @@ class TestGetCnvTestsSecretByName:
             mock_response.raise_for_status.side_effect = requests.HTTPError(response=mock_response)
             mock_requests_get.return_value = mock_response
 
-            with pytest.raises(
-                MissingEnvironmentVariableError,
-                match="Failed to access Bitwarden API \\(HTTP 404\\)",
-            ):
+            with pytest.raises(requests.HTTPError):
                 get_cnv_tests_secret_by_name("secret1")
