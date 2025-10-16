@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+import time
 from functools import lru_cache
 from typing import Any
 
@@ -9,6 +10,57 @@ import requests
 from utilities.exceptions import MissingEnvironmentVariableError
 
 LOGGER = logging.getLogger(__name__)
+
+# Cache for OAuth token to avoid repeated authentication requests
+_oauth_token_cache: dict[str, Any] = {}
+
+
+def _get_oauth_token() -> str:
+    """Get OAuth2 access token using client credentials flow.
+
+    Returns:
+        str: Bearer access token
+
+    Raises:
+        MissingEnvironmentVariableError: If client credentials not set
+        requests.HTTPError: If token request fails
+    """
+    client_id = os.getenv("BITWARDEN_CLIENT_ID")
+    client_secret = os.getenv("BITWARDEN_CLIENT_SECRET")
+
+    if not client_id or not client_secret:
+        raise MissingEnvironmentVariableError(
+            "Bitwarden client needs BITWARDEN_CLIENT_ID and BITWARDEN_CLIENT_SECRET environment variables set up"
+        )
+
+    # Check cache for valid token
+    current_time = time.time()
+    if _oauth_token_cache.get("access_token") and _oauth_token_cache.get("expires_at", 0) > current_time:
+        return _oauth_token_cache["access_token"]
+
+    response = requests.post(
+        url="https://identity.bitwarden.com/connect/token",
+        data={
+            "grant_type": "client_credentials",
+            "scope": "api.organization",
+            "client_id": client_id,
+            "client_secret": client_secret,
+        },
+        timeout=30,
+        verify=True,
+    )
+    response.raise_for_status()
+
+    token_response = response.json()
+    access_token = token_response["access_token"]
+    expires_in = token_response.get("expires_in", 3600)
+
+    # Cache token with absolute expiration time (subtract 100 s for a safety margin)
+    _oauth_token_cache["access_token"] = access_token
+    _oauth_token_cache["expires_at"] = current_time + expires_in - 100
+
+    LOGGER.info("Successfully obtained OAuth2 access token")
+    return access_token
 
 
 def _make_bitwarden_request(endpoint: str) -> dict[str, Any]:
@@ -20,18 +72,11 @@ def _make_bitwarden_request(endpoint: str) -> dict[str, Any]:
     Returns:
         dict[str, Any]: Parsed JSON response
 
-    Raises:
-        MissingEnvironmentVariableError: If ACCESS_TOKEN not set
     """
-    access_token = os.getenv("ACCESS_TOKEN")
-
-    if not access_token:
-        raise MissingEnvironmentVariableError("Bitwarden client needs ACCESS_TOKEN environment variables set up")
-
     response = requests.get(
         url=f"https://api.bitwarden.com{endpoint}",
         headers={
-            "Authorization": f"Bearer {access_token}",
+            "Authorization": f"Bearer {_get_oauth_token()}",
             "Content-Type": "application/json",
         },
         timeout=30,
