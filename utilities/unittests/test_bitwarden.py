@@ -4,12 +4,12 @@
 
 import json
 import os
+import subprocess
 import sys
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
-import requests
 
 # Add utilities to Python path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -25,80 +25,63 @@ from utilities.exceptions import MissingEnvironmentVariableError
 class TestGetAllCnvTestsSecrets:
     """Test cases for get_all_cnv_tests_secrets function"""
 
-    @patch("bitwarden.requests.get")
-    def test_get_all_cnv_tests_secrets(self, mock_get):
+    @patch("bitwarden.run_command")
+    def test_get_all_cnv_tests_secrets(self, mock_run_command):
         """Test getting all CNV test secrets"""
-        with patch.dict(os.environ, {"ORGANIZATION_ID": "test-org", "ACCESS_TOKEN": "test-token"}):
+        with patch.dict(os.environ, {"ACCESS_TOKEN": "test-token"}):
             # Clear cache before test
             get_all_cnv_tests_secrets.cache_clear()
 
-            # Mock API response
-            mock_response = MagicMock()
-            mock_response.json.return_value = {
-                "data": [
+            # Mock run_command response (returns tuple: success, stdout, stderr)
+            mock_run_command.return_value = (
+                True,
+                json.dumps([
                     {"key": "test-secret-1", "id": "uuid-1"},
                     {"key": "test-secret-2", "id": "uuid-2"},
-                ]
-            }
-            mock_response.raise_for_status = MagicMock()
-            mock_get.return_value = mock_response
+                ]),
+                "",
+            )
 
             result = get_all_cnv_tests_secrets()
 
             assert len(result) == 2
             assert result == {"test-secret-1": "uuid-1", "test-secret-2": "uuid-2"}
-            # Verify request was made correctly
-            assert mock_get.call_count == 1
-            call_args = mock_get.call_args
-            assert call_args.kwargs["url"] == "https://api.bitwarden.com/organizations/test-org/secrets"
-            assert call_args.kwargs["headers"]["Authorization"] == "Bearer test-token"
-            assert call_args.kwargs["timeout"] == 30
-            assert call_args.kwargs["verify"] is True
+            # Verify run_command was called correctly
+            assert mock_run_command.call_count == 1
+            call_args = mock_run_command.call_args
+            assert call_args.kwargs["command"] == ["bws", "--access-token", "test-token", "secret", "list"]
+            assert call_args.kwargs["capture_output"] is True
+            assert call_args.kwargs["check"] is True
 
-    @patch("bitwarden.requests.get")
-    def test_get_all_cnv_tests_secrets_http_error(self, mock_get):
-        """Test HTTP error handling for get_all_cnv_tests_secrets"""
-        with patch.dict(os.environ, {"ORGANIZATION_ID": "test-org", "ACCESS_TOKEN": "test-token"}):
+    @patch("bitwarden.run_command")
+    def test_get_all_cnv_tests_secrets_command_error(self, mock_run_command):
+        """Test bws command error handling for get_all_cnv_tests_secrets"""
+        with patch.dict(os.environ, {"ACCESS_TOKEN": "test-token"}):
             # Clear cache before test
             get_all_cnv_tests_secrets.cache_clear()
 
-            # Mock HTTP error
-            mock_response = MagicMock()
-            mock_response.status_code = 401
-            mock_response.raise_for_status.side_effect = requests.HTTPError(response=mock_response)
-            mock_get.return_value = mock_response
+            # Mock bws command failure (run_command raises CalledProcessError when check=True)
+            mock_run_command.side_effect = subprocess.CalledProcessError(1, "bws", stderr="Authentication failed")
 
-            with pytest.raises(requests.HTTPError):
+            with pytest.raises(subprocess.CalledProcessError):
                 get_all_cnv_tests_secrets()
 
-    @patch("bitwarden.requests.get")
-    def test_get_all_cnv_tests_secrets_network_error(self, mock_get):
-        """Test network error handling for get_all_cnv_tests_secrets"""
-        with patch.dict(os.environ, {"ORGANIZATION_ID": "test-org", "ACCESS_TOKEN": "test-token"}):
+    @patch("bitwarden.run_command")
+    def test_get_all_cnv_tests_secrets_invalid_json(self, mock_run_command):
+        """Test invalid JSON handling for get_all_cnv_tests_secrets"""
+        with patch.dict(os.environ, {"ACCESS_TOKEN": "test-token"}):
             # Clear cache before test
             get_all_cnv_tests_secrets.cache_clear()
 
-            # Mock network error
-            mock_get.side_effect = requests.ConnectionError("Network error")
+            # Mock run_command with invalid JSON response
+            mock_run_command.return_value = (True, "invalid json {", "")
 
-            with pytest.raises(requests.ConnectionError):
-                get_all_cnv_tests_secrets()
-
-    def test_get_all_cnv_tests_secrets_missing_organization_id(self):
-        """Test error when ORGANIZATION_ID is not set"""
-        with patch.dict(os.environ, {"ACCESS_TOKEN": "test-token"}, clear=True):
-            # Clear cache before test
-            get_all_cnv_tests_secrets.cache_clear()
-
-            with pytest.raises(
-                MissingEnvironmentVariableError,
-                match="Bitwarden client needs ORGANIZATION_ID environment variable set up",
-            ):
+            with pytest.raises(json.JSONDecodeError):
                 get_all_cnv_tests_secrets()
 
     def test_get_all_cnv_tests_secrets_missing_access_token(self):
         """Test error when ACCESS_TOKEN is not set"""
-        with patch.dict(os.environ, {"ORGANIZATION_ID": "test-org"}, clear=True):
+        with patch.dict(os.environ, {}, clear=True):
             # Clear cache before test
             get_all_cnv_tests_secrets.cache_clear()
 
@@ -112,11 +95,11 @@ class TestGetAllCnvTestsSecrets:
 class TestGetCnvTestsSecretByName:
     """Test cases for get_cnv_tests_secret_by_name function"""
 
-    @patch("bitwarden.requests.get")
+    @patch("bitwarden.run_command")
     @patch("bitwarden.get_all_cnv_tests_secrets")
-    def test_get_cnv_tests_secret_by_name_found(self, mock_get_all, mock_requests_get):
+    def test_get_cnv_tests_secret_by_name_found(self, mock_get_all, mock_run_command):
         """Test getting secret by name when it exists"""
-        with patch.dict(os.environ, {"ORGANIZATION_ID": "test-org", "ACCESS_TOKEN": "test-token"}):
+        with patch.dict(os.environ, {"ACCESS_TOKEN": "test-token"}):
             # Clear cache before test
             get_cnv_tests_secret_by_name.cache_clear()
 
@@ -126,27 +109,25 @@ class TestGetCnvTestsSecretByName:
                 "secret2": "uuid-2",
             }
 
-            # Mock the API response for getting specific secret
-            mock_response = MagicMock()
-            mock_response.json.return_value = {"value": json.dumps({"key": "value2"})}
-            mock_response.raise_for_status = MagicMock()
-            mock_requests_get.return_value = mock_response
+            # Mock the run_command response for secret get
+            mock_run_command.return_value = (
+                True,
+                json.dumps({"value": json.dumps({"key": "value2"})}),
+                "",
+            )
 
             result = get_cnv_tests_secret_by_name("secret2")
 
             assert result == {"key": "value2"}
-            # Verify request was made correctly
-            assert mock_requests_get.call_count == 1
-            call_args = mock_requests_get.call_args
-            assert call_args.kwargs["url"] == "https://api.bitwarden.com/secrets/uuid-2"
-            assert call_args.kwargs["headers"]["Authorization"] == "Bearer test-token"
-            assert call_args.kwargs["timeout"] == 30
-            assert call_args.kwargs["verify"] is True
+            # Verify run_command was called correctly
+            assert mock_run_command.call_count == 1
+            call_args = mock_run_command.call_args
+            assert call_args.kwargs["command"] == ["bws", "--access-token", "test-token", "secret", "get", "uuid-2"]
 
     @patch("bitwarden.get_all_cnv_tests_secrets")
     def test_get_cnv_tests_secret_by_name_not_found(self, mock_get_all):
         """Test getting secret by name when it doesn't exist"""
-        with patch.dict(os.environ, {"ORGANIZATION_ID": "test-org", "ACCESS_TOKEN": "test-token"}):
+        with patch.dict(os.environ, {"ACCESS_TOKEN": "test-token"}):
             # Clear cache before test
             get_cnv_tests_secret_by_name.cache_clear()
 
@@ -161,11 +142,11 @@ class TestGetCnvTestsSecretByName:
             ):
                 get_cnv_tests_secret_by_name("nonexistent")
 
-    @patch("bitwarden.requests.get")
+    @patch("bitwarden.run_command")
     @patch("bitwarden.get_all_cnv_tests_secrets")
-    def test_get_cnv_tests_secret_by_name_invalid_json(self, mock_get_all, mock_requests_get):
+    def test_get_cnv_tests_secret_by_name_invalid_json(self, mock_get_all, mock_run_command):
         """Test getting secret by name when JSON is invalid"""
-        with patch.dict(os.environ, {"ORGANIZATION_ID": "test-org", "ACCESS_TOKEN": "test-token"}):
+        with patch.dict(os.environ, {"ACCESS_TOKEN": "test-token"}):
             # Clear cache before test
             get_cnv_tests_secret_by_name.cache_clear()
 
@@ -174,11 +155,12 @@ class TestGetCnvTestsSecretByName:
                 "invalid-secret": "uuid-1",
             }
 
-            # Mock the API response with invalid JSON
-            mock_response = MagicMock()
-            mock_response.json.return_value = {"value": "invalid json {"}
-            mock_response.raise_for_status = MagicMock()
-            mock_requests_get.return_value = mock_response
+            # Mock the run_command response with invalid JSON
+            mock_run_command.return_value = (
+                True,
+                json.dumps({"value": "invalid json {"}),
+                "",
+            )
 
             with pytest.raises(
                 ValueError,
@@ -186,11 +168,11 @@ class TestGetCnvTestsSecretByName:
             ):
                 get_cnv_tests_secret_by_name("invalid-secret")
 
-    @patch("bitwarden.requests.get")
+    @patch("bitwarden.run_command")
     @patch("bitwarden.get_all_cnv_tests_secrets")
-    def test_get_cnv_tests_secret_by_name_http_error(self, mock_get_all, mock_requests_get):
-        """Test HTTP error handling for get_cnv_tests_secret_by_name"""
-        with patch.dict(os.environ, {"ORGANIZATION_ID": "test-org", "ACCESS_TOKEN": "test-token"}):
+    def test_get_cnv_tests_secret_by_name_command_error(self, mock_get_all, mock_run_command):
+        """Test bws command error handling for get_cnv_tests_secret_by_name"""
+        with patch.dict(os.environ, {"ACCESS_TOKEN": "test-token"}):
             # Clear cache before test
             get_cnv_tests_secret_by_name.cache_clear()
 
@@ -199,11 +181,8 @@ class TestGetCnvTestsSecretByName:
                 "secret1": "uuid-1",
             }
 
-            # Mock HTTP error
-            mock_response = MagicMock()
-            mock_response.status_code = 404
-            mock_response.raise_for_status.side_effect = requests.HTTPError(response=mock_response)
-            mock_requests_get.return_value = mock_response
+            # Mock bws command failure
+            mock_run_command.side_effect = subprocess.CalledProcessError(1, "bws", stderr="Secret not accessible")
 
-            with pytest.raises(requests.HTTPError):
+            with pytest.raises(subprocess.CalledProcessError):
                 get_cnv_tests_secret_by_name("secret1")
