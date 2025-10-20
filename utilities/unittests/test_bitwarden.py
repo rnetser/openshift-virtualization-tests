@@ -25,34 +25,12 @@ from utilities.exceptions import MissingEnvironmentVariableError
 class TestGetAllCnvTestsSecrets:
     """Test cases for get_all_cnv_tests_secrets function"""
 
-    @patch("bitwarden.requests.post")
     @patch("bitwarden.requests.get")
-    def test_get_all_cnv_tests_secrets(self, mock_get, mock_post):
+    def test_get_all_cnv_tests_secrets(self, mock_get):
         """Test getting all CNV test secrets"""
-        with patch.dict(
-            os.environ,
-            {
-                "ORGANIZATION_ID": "test-org",
-                "BITWARDEN_CLIENT_ID": "client-id",
-                "BITWARDEN_CLIENT_SECRET": "client-secret",
-            },
-        ):
+        with patch.dict(os.environ, {"ORGANIZATION_ID": "test-org", "ACCESS_TOKEN": "test-token"}):
             # Clear cache before test
             get_all_cnv_tests_secrets.cache_clear()
-
-            # Clear OAuth token cache
-            import bitwarden
-
-            bitwarden._oauth_token_cache.clear()
-
-            # Mock OAuth token response
-            mock_token_response = MagicMock()
-            mock_token_response.json.return_value = {
-                "access_token": "test-token",
-                "expires_in": 3600,
-            }
-            mock_token_response.raise_for_status = MagicMock()
-            mock_post.return_value = mock_token_response
 
             # Mock API response
             mock_response = MagicMock()
@@ -77,31 +55,12 @@ class TestGetAllCnvTestsSecrets:
             assert call_args.kwargs["timeout"] == 30
             assert call_args.kwargs["verify"] is True
 
-    @patch("bitwarden.requests.post")
     @patch("bitwarden.requests.get")
-    def test_get_all_cnv_tests_secrets_http_error(self, mock_get, mock_post):
+    def test_get_all_cnv_tests_secrets_http_error(self, mock_get):
         """Test HTTP error handling for get_all_cnv_tests_secrets"""
-        with patch.dict(
-            os.environ,
-            {
-                "ORGANIZATION_ID": "test-org",
-                "BITWARDEN_CLIENT_ID": "client-id",
-                "BITWARDEN_CLIENT_SECRET": "client-secret",
-            },
-        ):
+        with patch.dict(os.environ, {"ORGANIZATION_ID": "test-org", "ACCESS_TOKEN": "test-token"}):
             # Clear cache before test
             get_all_cnv_tests_secrets.cache_clear()
-
-            # Clear OAuth token cache
-            import bitwarden
-
-            bitwarden._oauth_token_cache.clear()
-
-            # Mock OAuth token response
-            mock_token_response = MagicMock()
-            mock_token_response.json.return_value = {"access_token": "test-token", "expires_in": 3600}
-            mock_token_response.raise_for_status = MagicMock()
-            mock_post.return_value = mock_token_response
 
             # Mock HTTP error
             mock_response = MagicMock()
@@ -112,31 +71,12 @@ class TestGetAllCnvTestsSecrets:
             with pytest.raises(requests.HTTPError):
                 get_all_cnv_tests_secrets()
 
-    @patch("bitwarden.requests.post")
     @patch("bitwarden.requests.get")
-    def test_get_all_cnv_tests_secrets_network_error(self, mock_get, mock_post):
+    def test_get_all_cnv_tests_secrets_network_error(self, mock_get):
         """Test network error handling for get_all_cnv_tests_secrets"""
-        with patch.dict(
-            os.environ,
-            {
-                "ORGANIZATION_ID": "test-org",
-                "BITWARDEN_CLIENT_ID": "client-id",
-                "BITWARDEN_CLIENT_SECRET": "client-secret",
-            },
-        ):
+        with patch.dict(os.environ, {"ORGANIZATION_ID": "test-org", "ACCESS_TOKEN": "test-token"}):
             # Clear cache before test
             get_all_cnv_tests_secrets.cache_clear()
-
-            # Clear OAuth token cache
-            import bitwarden
-
-            bitwarden._oauth_token_cache.clear()
-
-            # Mock OAuth token response
-            mock_token_response = MagicMock()
-            mock_token_response.json.return_value = {"access_token": "test-token", "expires_in": 3600}
-            mock_token_response.raise_for_status = MagicMock()
-            mock_post.return_value = mock_token_response
 
             # Mock network error
             mock_get.side_effect = requests.ConnectionError("Network error")
@@ -146,126 +86,39 @@ class TestGetAllCnvTestsSecrets:
 
     def test_get_all_cnv_tests_secrets_missing_organization_id(self):
         """Test error when ORGANIZATION_ID is not set"""
-        with patch.dict(
-            os.environ,
-            {"BITWARDEN_CLIENT_ID": "client-id", "BITWARDEN_CLIENT_SECRET": "client-secret"},
-            clear=True,
-        ):
+        with patch.dict(os.environ, {"ACCESS_TOKEN": "test-token"}, clear=True):
             # Clear cache before test
             get_all_cnv_tests_secrets.cache_clear()
 
             with pytest.raises(
                 MissingEnvironmentVariableError,
-                match="Bitwarden client needs ORGANIZATION_ID environment variables set up",
+                match="Bitwarden client needs ORGANIZATION_ID environment variable set up",
             ):
                 get_all_cnv_tests_secrets()
 
-    def test_get_all_cnv_tests_secrets_missing_client_credentials(self):
-        """Test error when BITWARDEN_CLIENT_ID or BITWARDEN_CLIENT_SECRET are not set"""
+    def test_get_all_cnv_tests_secrets_missing_access_token(self):
+        """Test error when ACCESS_TOKEN is not set"""
         with patch.dict(os.environ, {"ORGANIZATION_ID": "test-org"}, clear=True):
             # Clear cache before test
             get_all_cnv_tests_secrets.cache_clear()
 
-            # Clear OAuth token cache
-            import bitwarden
-
-            bitwarden._oauth_token_cache.clear()
-
             with pytest.raises(
                 MissingEnvironmentVariableError,
-                match="Bitwarden client needs BITWARDEN_CLIENT_ID and BITWARDEN_CLIENT_SECRET environment variables set up",
+                match="Bitwarden client needs ACCESS_TOKEN environment variable set up",
             ):
                 get_all_cnv_tests_secrets()
-
-    @patch("bitwarden.requests.post")
-    @patch("bitwarden.requests.get")
-    def test_get_all_cnv_tests_secrets_with_oauth(self, mock_get, mock_post):
-        """Test getting secrets using OAuth2 client credentials flow"""
-        with patch.dict(
-            os.environ,
-            {
-                "ORGANIZATION_ID": "test-org",
-                "BITWARDEN_CLIENT_ID": "client-id",
-                "BITWARDEN_CLIENT_SECRET": "client-secret",
-            },
-            clear=True,
-        ):
-            # Clear cache before test
-            get_all_cnv_tests_secrets.cache_clear()
-
-            # Clear OAuth token cache
-            import bitwarden
-
-            bitwarden._oauth_token_cache.clear()
-
-            # Mock OAuth token response
-            mock_token_response = MagicMock()
-            mock_token_response.json.return_value = {
-                "access_token": "oauth-token-12345",
-                "expires_in": 3600,
-                "token_type": "Bearer",
-            }
-            mock_token_response.raise_for_status = MagicMock()
-            mock_post.return_value = mock_token_response
-
-            # Mock API response
-            mock_api_response = MagicMock()
-            mock_api_response.json.return_value = {
-                "data": [
-                    {"key": "test-secret-1", "id": "uuid-1"},
-                ]
-            }
-            mock_api_response.raise_for_status = MagicMock()
-            mock_get.return_value = mock_api_response
-
-            result = get_all_cnv_tests_secrets()
-
-            assert result == {"test-secret-1": "uuid-1"}
-
-            # Verify OAuth token request
-            assert mock_post.call_count == 1
-            token_call_args = mock_post.call_args
-            assert token_call_args.args[0] == "https://identity.bitwarden.com/connect/token"
-            assert token_call_args.kwargs["data"]["grant_type"] == "client_credentials"
-            assert token_call_args.kwargs["data"]["scope"] == "api.organization"
-            assert token_call_args.kwargs["data"]["client_id"] == "client-id"
-            assert token_call_args.kwargs["data"]["client_secret"] == "client-secret"
-
-            # Verify API request used OAuth token
-            assert mock_get.call_count == 1
-            api_call_args = mock_get.call_args
-            assert api_call_args.kwargs["headers"]["Authorization"] == "Bearer oauth-token-12345"
 
 
 class TestGetCnvTestsSecretByName:
     """Test cases for get_cnv_tests_secret_by_name function"""
 
-    @patch("bitwarden.requests.post")
     @patch("bitwarden.requests.get")
     @patch("bitwarden.get_all_cnv_tests_secrets")
-    def test_get_cnv_tests_secret_by_name_found(self, mock_get_all, mock_requests_get, mock_requests_post):
+    def test_get_cnv_tests_secret_by_name_found(self, mock_get_all, mock_requests_get):
         """Test getting secret by name when it exists"""
-        with patch.dict(
-            os.environ,
-            {
-                "ORGANIZATION_ID": "test-org",
-                "BITWARDEN_CLIENT_ID": "client-id",
-                "BITWARDEN_CLIENT_SECRET": "client-secret",
-            },
-        ):
+        with patch.dict(os.environ, {"ORGANIZATION_ID": "test-org", "ACCESS_TOKEN": "test-token"}):
             # Clear cache before test
             get_cnv_tests_secret_by_name.cache_clear()
-
-            # Clear OAuth token cache
-            import bitwarden
-
-            bitwarden._oauth_token_cache.clear()
-
-            # Mock OAuth token response
-            mock_token_response = MagicMock()
-            mock_token_response.json.return_value = {"access_token": "test-token", "expires_in": 3600}
-            mock_token_response.raise_for_status = MagicMock()
-            mock_requests_post.return_value = mock_token_response
 
             # Mock secrets dictionary
             mock_get_all.return_value = {
@@ -308,32 +161,13 @@ class TestGetCnvTestsSecretByName:
             ):
                 get_cnv_tests_secret_by_name("nonexistent")
 
-    @patch("bitwarden.requests.post")
     @patch("bitwarden.requests.get")
     @patch("bitwarden.get_all_cnv_tests_secrets")
-    def test_get_cnv_tests_secret_by_name_invalid_json(self, mock_get_all, mock_requests_get, mock_requests_post):
+    def test_get_cnv_tests_secret_by_name_invalid_json(self, mock_get_all, mock_requests_get):
         """Test getting secret by name when JSON is invalid"""
-        with patch.dict(
-            os.environ,
-            {
-                "ORGANIZATION_ID": "test-org",
-                "BITWARDEN_CLIENT_ID": "client-id",
-                "BITWARDEN_CLIENT_SECRET": "client-secret",
-            },
-        ):
+        with patch.dict(os.environ, {"ORGANIZATION_ID": "test-org", "ACCESS_TOKEN": "test-token"}):
             # Clear cache before test
             get_cnv_tests_secret_by_name.cache_clear()
-
-            # Clear OAuth token cache
-            import bitwarden
-
-            bitwarden._oauth_token_cache.clear()
-
-            # Mock OAuth token response
-            mock_token_response = MagicMock()
-            mock_token_response.json.return_value = {"access_token": "test-token", "expires_in": 3600}
-            mock_token_response.raise_for_status = MagicMock()
-            mock_requests_post.return_value = mock_token_response
 
             # Mock secrets dictionary
             mock_get_all.return_value = {
@@ -352,32 +186,13 @@ class TestGetCnvTestsSecretByName:
             ):
                 get_cnv_tests_secret_by_name("invalid-secret")
 
-    @patch("bitwarden.requests.post")
     @patch("bitwarden.requests.get")
     @patch("bitwarden.get_all_cnv_tests_secrets")
-    def test_get_cnv_tests_secret_by_name_http_error(self, mock_get_all, mock_requests_get, mock_requests_post):
+    def test_get_cnv_tests_secret_by_name_http_error(self, mock_get_all, mock_requests_get):
         """Test HTTP error handling for get_cnv_tests_secret_by_name"""
-        with patch.dict(
-            os.environ,
-            {
-                "ORGANIZATION_ID": "test-org",
-                "BITWARDEN_CLIENT_ID": "client-id",
-                "BITWARDEN_CLIENT_SECRET": "client-secret",
-            },
-        ):
+        with patch.dict(os.environ, {"ORGANIZATION_ID": "test-org", "ACCESS_TOKEN": "test-token"}):
             # Clear cache before test
             get_cnv_tests_secret_by_name.cache_clear()
-
-            # Clear OAuth token cache
-            import bitwarden
-
-            bitwarden._oauth_token_cache.clear()
-
-            # Mock OAuth token response
-            mock_token_response = MagicMock()
-            mock_token_response.json.return_value = {"access_token": "test-token", "expires_in": 3600}
-            mock_token_response.raise_for_status = MagicMock()
-            mock_requests_post.return_value = mock_token_response
 
             # Mock secrets dictionary
             mock_get_all.return_value = {
