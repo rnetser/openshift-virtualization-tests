@@ -72,17 +72,13 @@ def get_cnv_tests_secret_by_name(secret_name: str) -> dict[str, Any]:
 
     secret_id = secrets.get(secret_name)
     if not secret_id:
-        LOGGER.info(f"Cache info stats for getting specific secret: {get_cnv_tests_secret_by_name.cache_info()}")
         raise ValueError(f"Secret '{secret_name}' not found in Bitwarden")
 
     # Get the specific secret by ID
     secret_data = _run_bws_command(args=["secret", "get", secret_id])
     secret_value = secret_data.get("value", "")
 
-    try:
-        secret_dict = json.loads(secret_value)
-    except json.JSONDecodeError as e:
-        raise ValueError(f"Invalid JSON in secret '{secret_name}': {e}") from e
+    secret_dict = json.loads(secret_value)
 
     LOGGER.info(f"Cache info stats for getting specific secret: {get_cnv_tests_secret_by_name.cache_info()}")
     return secret_dict
