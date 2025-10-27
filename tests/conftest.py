@@ -2893,6 +2893,7 @@ def smbios_from_kubevirt_config(kubevirt_config_scope_module):
     return kubevirt_config_scope_module["smbios"]
 
 
+# TODO: Replace this fixture with py_config.get("conformance_tests")
 @pytest.fixture(scope="session")
 def conformance_tests(request):
     return (
