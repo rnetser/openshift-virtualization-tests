@@ -66,7 +66,7 @@ def get_cnv_tests_secret_by_name(secret_name: str) -> dict[str, Any]:
         dict[str, Any]: Value of the saved secret (parsed from JSON)
 
     Raises:
-        ValueError: If secret is not found or contains invalid JSON
+        ValueError: If secret is not found
     """
     secrets = get_all_cnv_tests_secrets()
 
@@ -74,14 +74,9 @@ def get_cnv_tests_secret_by_name(secret_name: str) -> dict[str, Any]:
     if not secret_id:
         raise ValueError(f"Secret '{secret_name}' not found in Bitwarden")
 
-    # Get the specific secret by ID
     secret_data = _run_bws_command(args=["secret", "get", secret_id])
     secret_value = secret_data.get("value", "")
 
-    try:
-        secret_dict = json.loads(secret_value)
-    except json.JSONDecodeError as ex:
-        raise ValueError(f"Invalid JSON in secret '{secret_name}'") from ex
-
+    secret_dict = json.loads(secret_value)
     LOGGER.info(f"Cache info stats for getting specific secret: {get_cnv_tests_secret_by_name.cache_info()}")
     return secret_dict

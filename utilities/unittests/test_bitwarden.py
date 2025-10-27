@@ -162,10 +162,7 @@ class TestGetCnvTestsSecretByName:
                 "",
             )
 
-            with pytest.raises(
-                ValueError,
-                match="Invalid JSON in secret 'invalid-secret'",
-            ):
+            with pytest.raises(json.JSONDecodeError):
                 get_cnv_tests_secret_by_name("invalid-secret")
 
     @patch("bitwarden.run_command")
