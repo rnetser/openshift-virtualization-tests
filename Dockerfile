@@ -39,7 +39,7 @@ ENV UV_CACHE_DIR=${TEST_DIR}/.cache
 
 ##TODO: We can remove wget, and use curl instead, this will require to change some tests
 RUN dnf update -y \
-  && dnf install -y procps-ng python3 bind-utils jq fwknop parallel wget clang cargo rsync openssl openssl-devel git\
+  && dnf install -y procps-ng python3 bind-utils jq fwknop parallel wget clang cargo rsync openssl openssl-devel git unzip\
   && dnf clean all \
   && rm -rf /var/cache/dnf \
   && rm -rf /var/lib/dnf \
