@@ -901,8 +901,8 @@ def golden_image_data_source_scope_function(admin_client, golden_image_data_volu
     yield from create_or_update_data_source(admin_client=admin_client, dv=golden_image_data_volume_scope_function)
 
 
-@pytest.fixture(scope="module")
-def rhel9_data_source_scope_module(golden_images_namespace):
+@pytest.fixture(scope="session")
+def rhel9_data_source_scope_session(golden_images_namespace):
     return DataSource(
         client=golden_images_namespace.client,
         name=RHEL9_STR,
@@ -2895,6 +2895,7 @@ def nmstate_required(admin_client):
     return get_cluster_platform(admin_client=admin_client) in ("BareMetal", "OpenStack")
 
 
+# TODO: Replace this fixture with py_config.get("conformance_tests")
 @pytest.fixture(scope="session")
 def conformance_tests(request):
     return (

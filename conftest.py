@@ -78,6 +78,7 @@ EXCLUDE_MARKER_FROM_TIER2_MARKER = [
     "node_remediation",
     "swap",
     "numa",
+    "bgp",
 ]
 
 TEAM_MARKERS = {
@@ -356,6 +357,12 @@ def pytest_cmdline_main(config):
     py_config["upgraded_product"] = upgrade_option or config.getoption("--upgrade_custom") or "cnv"
     py_config["cnv_source"] = config.getoption("--cnv-source")
     py_config["cnv_subscription_channel"] = config.getoption("--cnv-channel")
+
+    # Store conformance_tests value for access from utilities
+    marker_args = config.getoption("-m")
+    py_config["conformance_tests"] = (
+        marker_args and "conformance" in marker_args and "not conformance" not in marker_args
+    )
 
     # [rhel|fedora|windows|centos]-os-matrix and latest-[rhel|fedora|windows|centos] are mutually exclusive
     rhel_os_violation = config.getoption("rhel_os_matrix") and config.getoption("latest_rhel")
