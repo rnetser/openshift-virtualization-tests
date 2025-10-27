@@ -14,6 +14,7 @@ from ocp_resources.network_config_openshift_io import Network
 from ocp_resources.performance_profile import PerformanceProfile
 from ocp_resources.pod import Pod
 from pytest_testconfig import config as py_config
+from timeout_sampler import TimeoutExpiredError
 
 from tests.network.constants import BRCNV
 from tests.network.utils import get_vlan_index_number, vm_for_brcnv_tests
@@ -351,10 +352,13 @@ def network_sanity(
             return
 
         LOGGER.info("Verifying all pods in nmstate namespace are running")
-        if not_running_pods := wait_for_pods_running(
-            admin_client=_admin_client, namespace=namespace, raise_exception=False
-        ):
-            failure_msgs.append(f"The {not_running_pods} pods are not running in nmstate namespace '{namespace.name}'")
+        try:
+            wait_for_pods_running(
+                admin_client=_admin_client,
+                namespace=namespace,
+            )
+        except TimeoutExpiredError:
+            failure_msgs.append(f"Some pods are not running in nmstate namespace '{namespace.name}'")
 
     _verify_multi_nic(_request=request)
     _verify_dpdk()
