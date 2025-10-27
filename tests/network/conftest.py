@@ -228,7 +228,6 @@ def network_sanity(
     ipv4_supported_cluster,
     ipv6_supported_cluster,
     conformance_tests,
-    is_baremetal_or_psi_cluster,
     nmstate_namespace,
 ):
     """
@@ -241,6 +240,7 @@ def network_sanity(
 
     def _verify_multi_nic(_request):
         marker_args = _request.config.getoption("-m")
+        # TODO: add multi_nic marker to tests that require multiple NICs
         if marker_args and "single_nic" in marker_args and "not single_nic" not in marker_args:
             LOGGER.info("Running only single-NIC network cases, no need to verify multi NIC support")
             return
@@ -344,12 +344,18 @@ def network_sanity(
                 return
 
     def _verify_nmstate_running_pods(_admin_client, namespace):
+        # TODO: Only test if nmstate is required by the test(s)
+        if not namespace:
+            failure_msgs.append("Knmstate namespace does not exist.")
+            return
+
         LOGGER.info("Verifying all pods in nmstate namespace are running")
         if not_running_pods := wait_for_pods_running(
             admin_client=_admin_client, namespace=namespace, raise_exception=False
         ):
             failure_msgs.append(f"The {not_running_pods} pods are not running in nmstate namespace '{namespace.name}'")
 
+    _verify_multi_nic(_request=request)
     _verify_dpdk()
     _verify_service_mesh()
     _verify_jumbo_frame()
@@ -357,10 +363,7 @@ def network_sanity(
     _verify_ip_family(family="ipv4", is_supported_in_cluster=ipv4_supported_cluster)
     _verify_ip_family(family="ipv6", is_supported_in_cluster=ipv6_supported_cluster)
     _verify_bgp_env_vars()
-
-    if is_baremetal_or_psi_cluster:
-        _verify_multi_nic(_request=request)
-        _verify_nmstate_running_pods(_admin_client=admin_client, namespace=nmstate_namespace)
+    _verify_nmstate_running_pods(_admin_client=admin_client, namespace=nmstate_namespace)
 
     if failure_msgs:
         err_msg = "\n".join(failure_msgs)
