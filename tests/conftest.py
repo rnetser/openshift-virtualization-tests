@@ -585,7 +585,11 @@ def node_physical_nics(workers_utility_pods):
 
 
 @pytest.fixture(scope="session")
-def nodes_active_nics(workers, workers_utility_pods, node_physical_nics):
+def nodes_active_nics(
+    workers,
+    workers_utility_pods,
+    node_physical_nics,
+):
     # TODO: Add support for environments that do not have KNMstate installed. e.g: clouds
     # TODO: Reduce cognitive complexity
     def _bridge_ports(node_interface):
