@@ -25,6 +25,7 @@ from utilities.constants import (
     ISTIO_SYSTEM_DEFAULT_NS,
     OVS_BRIDGE,
     VIRT_HANDLER,
+    NamespacesNames,
 )
 from utilities.infra import (
     ExecCommandOnPod,
@@ -346,7 +347,7 @@ def network_sanity(
     def _verify_nmstate_running_pods(_admin_client, namespace):
         # TODO: Only test if nmstate is required by the test(s)
         if not namespace:
-            failure_msgs.append("Knmstate namespace does not exist.")
+            failure_msgs.append(f"Knmstate namespace '{NamespacesNames.OPENSHIFT_NMSTATE}' does not exist.")
             return
 
         LOGGER.info("Verifying all pods in nmstate namespace are running")

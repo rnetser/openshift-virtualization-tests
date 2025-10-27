@@ -93,7 +93,7 @@ TEAM_MARKERS = {
 }
 NAMESPACE_COLLECTION = {
     "storage": [NamespacesNames.OPENSHIFT_STORAGE],
-    "network": ["openshift-nmstate"],
+    "network": [NamespacesNames.OPENSHIFT_NMSTATE],
     "virt": [],
 }
 MUST_GATHER_IGNORE_EXCEPTION_LIST = [

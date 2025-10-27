@@ -2863,10 +2863,10 @@ def machine_config_pools():
 @pytest.fixture(scope="session")
 def nmstate_namespace(admin_client):
     try:
-        return Namespace(client=admin_client, name="openshift-nmstate", ensure_exists=True)
+        return Namespace(client=admin_client, name=NamespacesNames.OPENSHIFT_NMSTATE, ensure_exists=True)
 
     except ResourceNotFoundError:
-        LOGGER.info("Namespace 'openshift-nmstate' not found.")
+        LOGGER.info(f"Namespace '{NamespacesNames.OPENSHIFT_NMSTATE}' not found.")
         return None
 
 
