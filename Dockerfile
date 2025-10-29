@@ -36,9 +36,7 @@ ENV UV_NO_SYNC=1
 
 WORKDIR ${TEST_DIR}
 ENV UV_CACHE_DIR=${TEST_DIR}/.cache
-
-# Configure Bitwarden Secrets CLI to use /tmp for state
-ENV BWS_CONFIG_FILE=${TEST_DIR}/.bws-config.json
+ENV HOME=${TEST_DIR}
 
 ##TODO: We can remove wget, and use curl instead, this will require to change some tests
 RUN dnf update -y \
@@ -53,9 +51,8 @@ COPY --from=builder /usr/bin/which /usr/bin/which
 COPY --from=builder /usr/bin/sshpass /usr/bin/sshpass
 COPY --from=builder ${TEST_DIR}/ ${TEST_DIR}/
 
-RUN curl -fsSL https://bws.bitwarden.com/install | sh
-RUN mkdir -p /tmp/bws-state \
-  && echo '{"state_dir": "/tmp/bws-state"}' > ${TEST_DIR}/.bws-config.json
+RUN curl -fsSL https://bws.bitwarden.com/install | sh \
+  && mkdir -p ${TEST_DIR}/.config/bws/state
 
 RUN uv sync --locked \
   && uv export --no-hashes \
