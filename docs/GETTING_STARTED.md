@@ -60,6 +60,7 @@ The Complete list of environment dependencies can be found in [Dockerfile](../Do
 
 Bitwarden CLI should be installed on the machine running the tests. See [Secrets Manager CLI](https://bitwarden.com/help/secrets-manager-cli/#download-and-install).
 Bitwarden token should be set in the `ACCESS_TOKEN` environment variable.
+Ensure the `unzip` package is installed on your system, as it is required by the bws installation script.
 
 ```bash
 curl -fsSL https://bws.bitwarden.com/install | sh
