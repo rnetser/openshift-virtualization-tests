@@ -7,7 +7,6 @@ from pytest_testconfig import config as py_config
 from utilities.exceptions import MissingEnvironmentVariableError
 
 LOGGER = logging.getLogger(__name__)
-JIRA_STATUS_CLOSED = ("on_qa", "verified", "release pending", "closed")
 
 
 def get_jira_status(jira: str) -> str:
@@ -54,4 +53,4 @@ def is_jira_open(jira_id: str) -> bool:
     Returns:
         bool: True: if jira is open, False: if jira is closed
     """
-    return get_jira_status(jira=jira_id) not in JIRA_STATUS_CLOSED
+    return get_jira_status(jira=jira_id) not in ("on_qa", "verified", "release pending", "closed")
