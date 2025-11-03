@@ -12,7 +12,6 @@ from ocp_resources.virtual_machine import VirtualMachine
 from ocp_resources.virtual_machine_instance_migration import VirtualMachineInstanceMigration
 from pytest_testconfig import py_config
 from timeout_sampler import TimeoutExpiredError, TimeoutSampler
-from utilities.jira import is_jira_open
 
 from tests.observability.metrics.constants import (
     KUBEVIRT_CONSOLE_ACTIVE_CONNECTIONS_BY_VMI,
@@ -65,6 +64,7 @@ from utilities.infra import (
     create_ns,
     get_node_selector_dict,
     get_pod_by_name_prefix,
+    is_jira_open,
     unique_name,
 )
 from utilities.monitoring import get_metrics_value
