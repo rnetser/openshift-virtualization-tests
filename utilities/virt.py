@@ -42,6 +42,7 @@ from pytest_testconfig import config as py_config
 from rrmngmnt import Host, ssh, user
 from timeout_sampler import TimeoutExpiredError, TimeoutSampler
 
+import utilities.cpu
 import utilities.infra
 from utilities.console import Console
 from utilities.constants import (
@@ -1426,7 +1427,7 @@ def fedora_vm_body(name: str) -> dict[str, Any]:
     image_info = get_oc_image_info(
         image=image,
         pull_secret=pull_secret,
-        architecture=utilities.infra.get_nodes_cpu_architecture(
+        architecture=utilities.cpu.get_nodes_cpu_architecture(
             nodes=list(Node.get(dyn_client=get_client())),
         ),
     )

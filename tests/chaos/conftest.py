@@ -17,6 +17,7 @@ from tests.chaos.utils import (
     pod_deleting_process_recover,
     terminate_process,
 )
+from utilities.artifactory import get_artifactory_config_map, get_artifactory_secret
 from utilities.constants import (
     KUBEMACPOOL_MAC_CONTROLLER_MANAGER,
     OS_FLAVOR_RHEL,
@@ -34,8 +35,6 @@ from utilities.constants import (
 from utilities.infra import (
     ExecCommandOnPod,
     create_ns,
-    get_artifactory_config_map,
-    get_artifactory_secret,
     get_nodes_with_label,
     get_pod_by_name_prefix,
     get_utility_pods_from_nodes,
@@ -131,13 +130,14 @@ def chaos_vm_rhel9_with_dv_started(chaos_dv_rhel9, chaos_vm_rhel9_with_dv):
 
 
 @pytest.fixture()
-def downscaled_storage_provisioner_deployment(request):
+def downscaled_storage_provisioner_deployment(request, admin_client):
     deployment = Deployment(
         namespace=NamespacesNames.OPENSHIFT_STORAGE,
         name=request.param["storage_provisioner_deployment"],
     )
     initial_replicas = deployment.instance.spec.replicas
     with scale_deployment_replicas(
+        client=admin_client,
         deployment_name=deployment.name,
         namespace=deployment.namespace,
         replica_count=0,
