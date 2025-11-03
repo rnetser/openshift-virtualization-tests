@@ -132,10 +132,8 @@ from utilities.infra import (
     ExecCommandOnPod,
     add_scc_to_service_account,
     base64_encode_str,
-    cluster_sanity,
     create_ns,
     download_file_from_cluster,
-    exit_pytest_execution,
     find_common_cpu_model_for_live_migration,
     generate_namespace_name,
     generate_openshift_pull_secret_file,
@@ -184,6 +182,8 @@ from utilities.operator import (
     get_hco_csv_name_by_version,
     get_machine_config_pool_by_name,
 )
+from utilities.pytest_utils import exit_pytest_execution
+from utilities.sanity import cluster_sanity
 from utilities.ssp import get_data_import_crons, get_ssp_resource
 from utilities.storage import (
     create_or_update_data_source,
