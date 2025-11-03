@@ -1064,7 +1064,7 @@ sdist = { url = "https://files.pythonhosted.org/packages/70/c8/ebd2472f1627433bc
 
 [[package]]
 name = "openshift-python-wrapper"
-version = "11.0.98"
+version = "4.20.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "cloup" },
@@ -1084,7 +1084,7 @@ dependencies = [
     { name = "timeout-sampler" },
     { name = "xmltodict" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/15/0e/77cf6dcd6a550afbe7cc7e38a7fbba1f44b815023019a6c8455572f51905/openshift_python_wrapper-11.0.98.tar.gz", hash = "sha256:487331fd8964009d2fbc0fc45ce53eb08c3963744d18cfe23a270c4630e522ba", size = 7071861, upload-time = "2025-09-29T15:37:43.711Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/75/d7/4284fa00c965de2ba817404788735b8f1e2f982e16ad3b7321834efbc04c/openshift_python_wrapper-4.20.0.tar.gz", hash = "sha256:07162ef957d6d79e68a24f640e55ce2b120f96d56bec4f052975f1fe809dc786", size = 7079789, upload-time = "2025-11-02T14:48:42.929Z" }
 
 [[package]]
 name = "openshift-python-wrapper-data-collector"
@@ -1182,7 +1182,7 @@ requires-dist = [
     { name = "marshmallow", specifier = "~=3.26.1" },
     { name = "netaddr", specifier = ">=1.3.0" },
     { name = "openshift-python-utilities", specifier = ">=6.0.0" },
-    { name = "openshift-python-wrapper", specifier = ">=11.0.93" },
+    { name = "openshift-python-wrapper", specifier = "~=4.20.0" },
     { name = "openstacksdk", specifier = ">=4.1.0" },
     { name = "pexpect", specifier = ">=4.9.0" },
     { name = "podman", specifier = ">=5.2.0" },
