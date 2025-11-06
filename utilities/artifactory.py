@@ -17,7 +17,7 @@ ARTIFACTORY_SECRET_NAME = "cnv-tests-artifactory-secret"
 BASE_ARTIFACTORY_LOCATION = "artifactory/cnv-qe-server-local"
 
 
-def get_test_artifact_server_url(schema="https"):
+def get_test_artifact_server_url(schema: str = "https") -> str:  # type: ignore[return]
     """
     Verify https server server connectivity (regardless of schema).
     Return the requested "registry" or "https" server url.
@@ -29,9 +29,10 @@ def get_test_artifact_server_url(schema="https"):
         str: Server URL.
 
     Raises:
-        URLError: If server is not accessible.
+        TimeoutExpiredError: If server is not accessible within timeout.
+        KeyError: If the specified schema is not found in server configuration.
     """
-    artifactory_connection_url = py_config["servers"]["https_server"]
+    artifactory_connection_url: str = py_config["servers"]["https_server"]
     LOGGER.info(f"Testing connectivity to {artifactory_connection_url} {schema.upper()} server")
     sample = None
     try:
@@ -43,24 +44,63 @@ def get_test_artifact_server_url(schema="https"):
             if sample.status_code == requests.codes.ok:
                 return py_config["servers"][f"{schema}_server"]
     except TimeoutExpiredError:
-        LOGGER.error(
-            f"Unable to connect to test image server: {artifactory_connection_url} "
-            f"{schema.upper()}, with error code: {sample.status_code}, error: {sample.text}"
-        )
+        error_msg = f"Unable to connect to test image server: {artifactory_connection_url} {schema.upper()}"
+        if sample:
+            error_msg += f", with error code: {sample.status_code}, error: {sample.text}"
+        LOGGER.error(error_msg)
         raise
 
 
-def get_http_image_url(image_directory, image_name):
+def get_http_image_url(image_directory: str, image_name: str) -> str:
+    """
+    Construct the full HTTP URL for a test image on the artifact server.
+
+    Args:
+        image_directory (str): Directory path where the image is located on the artifact server.
+        image_name (str): Name of the image file.
+
+    Returns:
+        str: Complete HTTP URL to the image on the artifact server.
+
+    Raises:
+        TimeoutExpiredError: If artifact server connectivity check fails.
+        KeyError: If server configuration is missing required keys.
+    """
     return f"{get_test_artifact_server_url()}{image_directory}/{image_name}"
 
 
-def get_artifactory_header():
+def get_artifactory_header() -> dict[str, str]:
+    """
+    Get the authorization header for Artifactory API requests.
+
+    Returns:
+        dict[str, str]: Dictionary containing the Bearer token authorization header.
+
+    Raises:
+        KeyError: If ARTIFACTORY_TOKEN environment variable is not set.
+    """
     return {"Authorization": f"Bearer {os.environ['ARTIFACTORY_TOKEN']}"}
 
 
 def get_artifactory_secret(
-    namespace,
-):
+    namespace: str,
+) -> Secret:
+    """
+    Create or retrieve an Artifactory authentication secret in the specified namespace.
+
+    Creates a Kubernetes Secret containing Artifactory credentials (user and token) encoded in base64.
+    If the secret already exists in the namespace, it returns the existing secret.
+    Otherwise, it creates and deploys a new secret.
+
+    Args:
+        namespace (str): The Kubernetes namespace where the secret should be created or retrieved.
+
+    Returns:
+        Secret: The Artifactory Secret resource object.
+
+    Raises:
+        KeyError: If ARTIFACTORY_USER or ARTIFACTORY_TOKEN environment variables are not set.
+    """
     artifactory_secret = Secret(
         name=ARTIFACTORY_SECRET_NAME,
         namespace=namespace,
@@ -73,8 +113,26 @@ def get_artifactory_secret(
 
 
 def get_artifactory_config_map(
-    namespace,
-):
+    namespace: str,
+) -> ConfigMap:
+    """
+    Create or retrieve an Artifactory TLS certificate ConfigMap in the specified namespace.
+
+    Creates a Kubernetes ConfigMap containing the TLS certificate for the Artifactory server.
+    The certificate is retrieved from the server specified in py_config["server_url"].
+    If the ConfigMap already exists in the namespace, it returns the existing ConfigMap.
+    Otherwise, it creates and deploys a new ConfigMap.
+
+    Args:
+        namespace (str): The Kubernetes namespace where the ConfigMap should be created or retrieved.
+
+    Returns:
+        ConfigMap: The Artifactory ConfigMap resource object containing the TLS certificate.
+
+    Raises:
+        KeyError: If server_url is not found in py_config.
+        OSError: If SSL connection to the server fails.
+    """
     artifactory_cm = ConfigMap(
         name="artifactory-configmap",
         namespace=namespace,
@@ -85,7 +143,26 @@ def get_artifactory_config_map(
     return artifactory_cm
 
 
-def cleanup_artifactory_secret_and_config_map(artifactory_secret=None, artifactory_config_map=None):
+def cleanup_artifactory_secret_and_config_map(
+    artifactory_secret: Secret | None = None,
+    artifactory_config_map: ConfigMap | None = None,
+) -> None:
+    """
+    Clean up Artifactory Secret and ConfigMap resources from the cluster.
+
+    Deletes the provided Artifactory Secret and/or ConfigMap resources if they exist.
+    This is typically used in test cleanup to remove temporary Artifactory credentials
+    and certificates from the cluster.
+
+    Args:
+        artifactory_secret (Secret |  None): The Artifactory Secret resource to delete.
+            If None, no secret cleanup is performed.
+        artifactory_config_map (ConfigMap | None): The Artifactory ConfigMap resource to delete.
+            If None, no ConfigMap cleanup is performed.
+
+    Returns:
+        None
+    """
     if artifactory_secret:
         artifactory_secret.clean_up()
     if artifactory_config_map:
