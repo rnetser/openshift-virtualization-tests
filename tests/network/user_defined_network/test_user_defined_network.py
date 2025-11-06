@@ -8,6 +8,7 @@ from libs.net.traffic_generator import Client, Server, is_tcp_connection
 from libs.net.udn import udn_primary_network
 from libs.net.vmspec import lookup_iface_status, lookup_primary_network
 from libs.vm import affinity
+from tests.network.libs.ip import random_ipv4_address
 from libs.vm.affinity import new_pod_anti_affinity
 from libs.vm.factory import base_vmspec, fedora_vm
 from utilities.constants import PUBLIC_DNS_SERVER_IP, TIMEOUT_1MIN
@@ -48,7 +49,7 @@ def namespaced_layer2_user_defined_network(udn_namespace):
         name="layer2-udn",
         namespace=udn_namespace.name,
         role="Primary",
-        subnets=["10.10.0.0/24"],
+        subnets=[f"{random_ipv4_address(net_seed=0, host_address=0)}/24"],
         ipam={"lifecycle": "Persistent"},
     ) as udn:
         udn.wait_for_condition(
