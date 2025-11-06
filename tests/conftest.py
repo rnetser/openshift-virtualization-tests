@@ -83,7 +83,6 @@ from utilities.constants import (
     CLUSTER,
     CNV_TEST_SERVICE_ACCOUNT,
     CNV_VM_SSH_KEY_PATH,
-    DEFAULT_HCO_CONDITIONS,
     ES_NONE,
     EXPECTED_CLUSTER_INSTANCE_TYPE_LABELS,
     FEATURE_GATES,
@@ -1491,8 +1490,6 @@ def cluster_sanity_scope_session(
             nodes=nodes,
             hco_namespace=hco_namespace,
             junitxml_property=junitxml_plugin,
-            hco_status_conditions=hyperconverged_resource_scope_session.instance.status.conditions,
-            expected_hco_status=DEFAULT_HCO_CONDITIONS,
         )
 
 
@@ -1519,8 +1516,6 @@ def cluster_sanity_scope_module(
             nodes=nodes,
             hco_namespace=hco_namespace,
             junitxml_property=junitxml_plugin,
-            hco_status_conditions=hyperconverged_resource_scope_session.instance.status.conditions,
-            expected_hco_status=DEFAULT_HCO_CONDITIONS,
         )
 
 

@@ -25,8 +25,6 @@ def cluster_sanity(
     cluster_storage_classes_names,
     nodes,
     hco_namespace,
-    hco_status_conditions,
-    expected_hco_status,
     junitxml_property=None,
 ):
     if "cluster_health_check" in request.config.getoption("-m"):
