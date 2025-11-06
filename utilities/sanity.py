@@ -1,3 +1,9 @@
+from typing import Any, List
+
+from _pytest.fixtures import FixtureRequest
+from kubernetes.dynamic import DynamicClient
+from ocp_resources.namespace import Namespace
+from ocp_resources.node import Node
 from ocp_utilities.exceptions import NodeNotReadyError, NodeUnschedulableError
 from ocp_utilities.infra import assert_nodes_in_healthy_condition, assert_nodes_schedulable
 from pytest_testconfig import config as py_config
@@ -10,7 +16,21 @@ from utilities.infra import LOGGER, wait_for_pods_running
 from utilities.pytest_utils import exit_pytest_execution
 
 
-def storage_sanity_check(cluster_storage_classes_names):
+def storage_sanity_check(cluster_storage_classes_names: List[str]) -> bool:
+    """
+    Verify cluster has all expected storage classes from pytest configuration.
+
+    Compares storage classes defined in the pytest configuration's storage_class_matrix
+    against storage classes available on the cluster. The order of storage classes is
+    ignored during comparison.
+
+    Args:
+        cluster_storage_classes_names: List of storage class names currently available on the cluster.
+
+    Returns:
+        True if all expected storage classes from configuration exist on the cluster,
+        False otherwise.
+    """
     config_sc = list([[*csc][0] for csc in py_config["storage_class_matrix"]])
     exists_sc = [scn for scn in config_sc if scn in cluster_storage_classes_names]
     if sorted(config_sc) != sorted(exists_sc):
@@ -20,13 +40,51 @@ def storage_sanity_check(cluster_storage_classes_names):
 
 
 def cluster_sanity(
-    request,
-    admin_client,
-    cluster_storage_classes_names,
-    nodes,
-    hco_namespace,
-    junitxml_property=None,
-):
+    request: FixtureRequest,
+    admin_client: DynamicClient,
+    cluster_storage_classes_names: List[str],
+    nodes: List[Node],
+    hco_namespace: Namespace,
+    junitxml_property: Any | None = None,
+) -> None:
+    """
+    Perform comprehensive cluster sanity checks before running tests.
+
+    Validates cluster health by checking storage classes, node status, pod status,
+    and HyperConverged Operator conditions. Can be configured to skip specific checks
+    via pytest command-line options.
+
+    The function checks:
+    1. Storage classes: Verifies all required storage classes from pytest configuration
+       are present on the cluster.
+    2. Nodes: Ensures all nodes are in ready and schedulable state.
+    3. Pods: Validates all CNV pods in the HCO namespace are running.
+    4. HCO conditions: Waits for HyperConverged Operator to reach healthy state.
+
+    Args:
+        request: Pytest fixture request object providing access to test configuration
+            and command-line options.
+        admin_client: Kubernetes dynamic client with admin privileges for cluster operations.
+        cluster_storage_classes_names: List of storage class names available on the cluster.
+        nodes: List of Node resources representing all cluster nodes.
+        hco_namespace: Namespace resource where HyperConverged Operator is deployed.
+        junitxml_property: Optional pytest plugin function for recording test suite properties
+            in JUnit XML output. Used to record exit codes on failure.
+
+    Raises:
+        ClusterSanityError: When cluster is not in healthy state (pods not running, HCO unhealthy).
+        StorageSanityError: When cluster is missing required storage classes.
+        NodeUnschedulableError: When one or more nodes are unschedulable.
+        NodeNotReadyError: When one or more nodes are not in ready state.
+
+    Note:
+        The function will exit pytest execution on any sanity check failure.
+        Specific checks can be skipped using pytest options:
+        - --cluster-sanity-skip-check: Skip all sanity checks
+        - --cluster-sanity-skip-storage-check: Skip storage class validation
+        - --cluster-sanity-skip-nodes-check: Skip node health validation
+        - -m cluster_health_check: Skip sanity when running cluster health tests
+    """
     if "cluster_health_check" in request.config.getoption("-m"):
         LOGGER.warning("Skipping cluster sanity test, got -m cluster_health_check")
         return
