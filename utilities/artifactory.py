@@ -9,7 +9,7 @@ from pytest_testconfig import config as py_config
 from timeout_sampler import TimeoutExpiredError, TimeoutSampler
 
 from utilities.constants import TIMEOUT_1MIN, TIMEOUT_5SEC
-from utilities.infra import base64_encode_str
+from utilities.data_utils import base64_encode_str
 
 LOGGER = logging.getLogger(__name__)
 

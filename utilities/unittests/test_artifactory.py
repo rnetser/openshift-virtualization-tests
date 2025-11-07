@@ -14,7 +14,7 @@ from timeout_sampler import TimeoutExpiredError
 # Add utilities to Python path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from artifactory import (
+from utilities.artifactory import (
     ARTIFACTORY_SECRET_NAME,
     BASE_ARTIFACTORY_LOCATION,
     cleanup_artifactory_secret_and_config_map,

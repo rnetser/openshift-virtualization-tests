@@ -21,12 +21,7 @@ from ocp_resources.virtual_machine_instance_migration import VirtualMachineInsta
 from pyhelper_utils.shell import run_ssh_commands
 from timeout_sampler import TimeoutExpiredError, TimeoutSampler
 
-from utilities.artifactory import (
-    get_artifactory_config_map,
-    get_artifactory_header,
-    get_artifactory_secret,
-    get_http_image_url,
-)
+from utilities.artifactory import get_artifactory_config_map, get_artifactory_secret, get_http_image_url
 from utilities.constants import (
     DISK_SERIAL,
     HCO_DEFAULT_CPU_MODEL_KEY,

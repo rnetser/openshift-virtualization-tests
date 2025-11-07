@@ -69,7 +69,6 @@ from ocp_utilities.monitoring import Prometheus
 from packaging.version import Version, parse
 from pytest_testconfig import config as py_config
 from timeout_sampler import TimeoutSampler
-from utilities.sanity import cluster_sanity
 
 import utilities.artifactory
 import utilities.hco
@@ -136,12 +135,13 @@ from utilities.cpu import (
     get_nodes_cpu_architecture,
     get_nodes_cpu_model,
 )
+from utilities.data_utils import base64_encode_str, name_prefix
 from utilities.exceptions import MissingEnvironmentVariableError
 from utilities.infra import (
     ClusterHosts,
     ExecCommandOnPod,
     add_scc_to_service_account,
-    base64_encode_str,
+    cluster_sanity,
     create_ns,
     download_file_from_cluster,
     generate_namespace_name,
@@ -160,7 +160,6 @@ from utilities.infra import (
     label_nodes,
     label_project,
     login_with_user_password,
-    name_prefix,
     run_virtctl_command,
     scale_deployment_replicas,
     wait_for_pods_deletion,

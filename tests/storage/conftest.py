@@ -39,7 +39,10 @@ from tests.storage.utils import (
     is_hpp_cr_legacy,
 )
 from tests.utils import create_cirros_vm
-from utilities.artifactory import get_artifactory_config_map, get_artifactory_secret
+from utilities.artifactory import (
+    get_artifactory_config_map,
+    get_artifactory_secret,
+)
 from utilities.constants import (
     CDI_OPERATOR,
     CDI_UPLOADPROXY,

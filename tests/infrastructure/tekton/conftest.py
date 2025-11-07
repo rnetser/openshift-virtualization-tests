@@ -36,8 +36,8 @@ from utilities.constants import (
     TIMEOUT_50MIN,
     WINDOWS_EFI_INSTALLER_STR,
 )
+from utilities.data_utils import base64_encode_str
 from utilities.infra import (
-    base64_encode_str,
     create_ns,
     get_resources_by_name_prefix,
 )

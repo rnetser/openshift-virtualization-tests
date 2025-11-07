@@ -30,7 +30,6 @@ from utilities.artifactory import (
     cleanup_artifactory_secret_and_config_map,
     get_artifactory_config_map,
     get_artifactory_secret,
-    get_test_artifact_server_url,
 )
 from utilities.constants import (
     NODE_STR,
@@ -45,7 +44,7 @@ from utilities.infra import (
     create_ns,
 )
 from utilities.must_gather import run_must_gather
-from utilities.storage import generate_data_source_dict
+from utilities.storage import generate_data_source_dict, get_test_artifact_server_url
 from utilities.virt import (
     VirtualMachineForTestsFromTemplate,
     verify_vm_migrated,
