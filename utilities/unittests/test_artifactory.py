@@ -29,11 +29,11 @@ from utilities.artifactory import (
 class TestGetTestArtifactServerUrl:
     """Test cases for get_test_artifact_server_url function"""
 
-    @patch("artifactory.TimeoutSampler")
-    @patch("artifactory.requests.get")
-    @patch("artifactory.get_artifactory_header")
+    @patch("utilities.artifactory.TimeoutSampler")
+    @patch("utilities.artifactory.requests.get")
+    @patch("utilities.artifactory.get_artifactory_header")
     @patch(
-        "artifactory.py_config",
+        "utilities.artifactory.py_config",
         {"servers": {"https_server": "https://test.artifactory.com", "registry_server": "registry.test.com"}},
     )
     def test_get_test_artifact_server_url_https_success(self, mock_get_header, mock_requests_get, mock_sampler):
@@ -59,11 +59,11 @@ class TestGetTestArtifactServerUrl:
         assert "func" in call_kwargs
         assert callable(call_kwargs["func"])
 
-    @patch("artifactory.TimeoutSampler")
-    @patch("artifactory.requests.get")
-    @patch("artifactory.get_artifactory_header")
+    @patch("utilities.artifactory.TimeoutSampler")
+    @patch("utilities.artifactory.requests.get")
+    @patch("utilities.artifactory.get_artifactory_header")
     @patch(
-        "artifactory.py_config",
+        "utilities.artifactory.py_config",
         {"servers": {"https_server": "https://test.artifactory.com", "registry_server": "registry.test.com"}},
     )
     def test_get_test_artifact_server_url_registry_schema(self, mock_get_header, mock_requests_get, mock_sampler):
@@ -83,10 +83,10 @@ class TestGetTestArtifactServerUrl:
 
         assert result == "registry.test.com"
 
-    @patch("artifactory.TimeoutSampler")
-    @patch("artifactory.requests.get")
-    @patch("artifactory.get_artifactory_header")
-    @patch("artifactory.py_config", {"servers": {"https_server": "https://test.artifactory.com"}})
+    @patch("utilities.artifactory.TimeoutSampler")
+    @patch("utilities.artifactory.requests.get")
+    @patch("utilities.artifactory.get_artifactory_header")
+    @patch("utilities.artifactory.py_config", {"servers": {"https_server": "https://test.artifactory.com"}})
     def test_get_test_artifact_server_url_default_schema(self, mock_get_header, mock_requests_get, mock_sampler):
         """Test default schema is https"""
         # Mock response
@@ -104,11 +104,11 @@ class TestGetTestArtifactServerUrl:
 
         assert result == "https://test.artifactory.com"
 
-    @patch("artifactory.LOGGER")
-    @patch("artifactory.TimeoutSampler")
-    @patch("artifactory.requests.get")
-    @patch("artifactory.get_artifactory_header")
-    @patch("artifactory.py_config", {"servers": {"https_server": "https://test.artifactory.com"}})
+    @patch("utilities.artifactory.LOGGER")
+    @patch("utilities.artifactory.TimeoutSampler")
+    @patch("utilities.artifactory.requests.get")
+    @patch("utilities.artifactory.get_artifactory_header")
+    @patch("utilities.artifactory.py_config", {"servers": {"https_server": "https://test.artifactory.com"}})
     def test_get_test_artifact_server_url_timeout(self, mock_get_header, mock_requests_get, mock_sampler, mock_logger):
         """Test timeout raises TimeoutExpiredError"""
         # Mock failed response
@@ -137,12 +137,12 @@ class TestGetTestArtifactServerUrl:
         assert "Unable to connect to test image server" in error_msg
         assert "500" in error_msg
 
-    @patch("artifactory.LOGGER")
-    @patch("artifactory.TimeoutSampler")
-    @patch("artifactory.requests.get")
-    @patch("artifactory.get_artifactory_header")
+    @patch("utilities.artifactory.LOGGER")
+    @patch("utilities.artifactory.TimeoutSampler")
+    @patch("utilities.artifactory.requests.get")
+    @patch("utilities.artifactory.get_artifactory_header")
     @patch(
-        "artifactory.py_config",
+        "utilities.artifactory.py_config",
         {"servers": {"https_server": "https://test.artifactory.com", "registry_server": "registry.test.com"}},
     )
     def test_get_test_artifact_server_url_logging(self, mock_get_header, mock_requests_get, mock_sampler, mock_logger):
@@ -165,12 +165,12 @@ class TestGetTestArtifactServerUrl:
         info_msg = mock_logger.info.call_args[0][0]
         assert "Testing connectivity to https://test.artifactory.com HTTPS server" in info_msg
 
-    @patch("artifactory.TimeoutSampler")
-    @patch("artifactory.requests.get")
-    @patch("artifactory.get_artifactory_header")
-    @patch("artifactory.TIMEOUT_1MIN", 60)
-    @patch("artifactory.TIMEOUT_5SEC", 5)
-    @patch("artifactory.py_config", {"servers": {"https_server": "https://test.artifactory.com"}})
+    @patch("utilities.artifactory.TimeoutSampler")
+    @patch("utilities.artifactory.requests.get")
+    @patch("utilities.artifactory.get_artifactory_header")
+    @patch("utilities.artifactory.TIMEOUT_1MIN", 60)
+    @patch("utilities.artifactory.TIMEOUT_5SEC", 5)
+    @patch("utilities.artifactory.py_config", {"servers": {"https_server": "https://test.artifactory.com"}})
     def test_get_test_artifact_server_url_timeout_sampler_params(
         self, mock_get_header, mock_requests_get, mock_sampler
     ):
@@ -199,7 +199,7 @@ class TestGetTestArtifactServerUrl:
 class TestGetHttpImageUrl:
     """Test cases for get_http_image_url function"""
 
-    @patch("artifactory.get_test_artifact_server_url")
+    @patch("utilities.artifactory.get_test_artifact_server_url")
     def test_get_http_image_url_returns_correct_format(self, mock_get_server_url):
         """Test returns correct URL format"""
         mock_get_server_url.return_value = "https://test.artifactory.com/"
@@ -209,7 +209,7 @@ class TestGetHttpImageUrl:
         assert result == "https://test.artifactory.com/cnv-tests/images/test-image.qcow2"
         mock_get_server_url.assert_called_once()
 
-    @patch("artifactory.get_test_artifact_server_url")
+    @patch("utilities.artifactory.get_test_artifact_server_url")
     def test_get_http_image_url_calls_get_test_artifact_server_url(self, mock_get_server_url):
         """Test calls get_test_artifact_server_url()"""
         mock_get_server_url.return_value = "https://test.artifactory.com"
@@ -218,7 +218,7 @@ class TestGetHttpImageUrl:
 
         mock_get_server_url.assert_called_once_with()
 
-    @patch("artifactory.get_test_artifact_server_url")
+    @patch("utilities.artifactory.get_test_artifact_server_url")
     def test_get_http_image_url_with_empty_directory(self, mock_get_server_url):
         """Test with empty directory path"""
         mock_get_server_url.return_value = "https://test.artifactory.com/"
@@ -227,7 +227,7 @@ class TestGetHttpImageUrl:
 
         assert result == "https://test.artifactory.com//test.img"
 
-    @patch("artifactory.get_test_artifact_server_url")
+    @patch("utilities.artifactory.get_test_artifact_server_url")
     def test_get_http_image_url_timeout_propagation(self, mock_get_server_url):
         """Test TimeoutExpiredError is propagated from get_test_artifact_server_url"""
         mock_get_server_url.side_effect = TimeoutExpiredError("Timeout")
@@ -270,8 +270,8 @@ class TestGetArtifactoryHeader:
 class TestGetArtifactorySecret:
     """Test cases for get_artifactory_secret function"""
 
-    @patch("artifactory.Secret")
-    @patch("artifactory.base64_encode_str")
+    @patch("utilities.artifactory.Secret")
+    @patch("utilities.artifactory.base64_encode_str")
     def test_get_artifactory_secret_creates_secret_with_correct_parameters(self, mock_base64_encode, mock_secret_class):
         """Test creates Secret with correct parameters"""
         # Mock environment variables
@@ -301,8 +301,8 @@ class TestGetArtifactorySecret:
 
             assert result == mock_secret_instance
 
-    @patch("artifactory.Secret")
-    @patch("artifactory.base64_encode_str")
+    @patch("utilities.artifactory.Secret")
+    @patch("utilities.artifactory.base64_encode_str")
     def test_get_artifactory_secret_deploys_if_not_exists(self, mock_base64_encode, mock_secret_class):
         """Test deploys secret if it doesn't exist"""
         with patch.dict(os.environ, {"ARTIFACTORY_USER": "test-user", "ARTIFACTORY_TOKEN": "test-token"}):
@@ -319,8 +319,8 @@ class TestGetArtifactorySecret:
             mock_secret_instance.deploy.assert_called_once()
             assert result == mock_secret_instance
 
-    @patch("artifactory.Secret")
-    @patch("artifactory.base64_encode_str")
+    @patch("utilities.artifactory.Secret")
+    @patch("utilities.artifactory.base64_encode_str")
     def test_get_artifactory_secret_returns_existing_if_exists(self, mock_base64_encode, mock_secret_class):
         """Test returns existing secret if it exists"""
         with patch.dict(os.environ, {"ARTIFACTORY_USER": "test-user", "ARTIFACTORY_TOKEN": "test-token"}):
@@ -337,22 +337,22 @@ class TestGetArtifactorySecret:
             mock_secret_instance.deploy.assert_not_called()
             assert result == mock_secret_instance
 
-    @patch("artifactory.Secret")
+    @patch("utilities.artifactory.Secret")
     def test_get_artifactory_secret_raises_key_error_if_user_not_set(self, mock_secret_class):
         """Test raises KeyError if ARTIFACTORY_USER not set"""
         with patch.dict(os.environ, {"ARTIFACTORY_TOKEN": "test-token"}, clear=True):
             with pytest.raises(KeyError):
                 get_artifactory_secret(namespace="test-namespace")
 
-    @patch("artifactory.Secret")
+    @patch("utilities.artifactory.Secret")
     def test_get_artifactory_secret_raises_key_error_if_token_not_set(self, mock_secret_class):
         """Test raises KeyError if ARTIFACTORY_TOKEN not set"""
         with patch.dict(os.environ, {"ARTIFACTORY_USER": "test-user"}, clear=True):
             with pytest.raises(KeyError):
                 get_artifactory_secret(namespace="test-namespace")
 
-    @patch("artifactory.Secret")
-    @patch("artifactory.base64_encode_str")
+    @patch("utilities.artifactory.Secret")
+    @patch("utilities.artifactory.base64_encode_str")
     def test_get_artifactory_secret_uses_correct_secret_name(self, mock_base64_encode, mock_secret_class):
         """Test uses correct secret name constant"""
         with patch.dict(os.environ, {"ARTIFACTORY_USER": "test-user", "ARTIFACTORY_TOKEN": "test-token"}):
@@ -373,9 +373,9 @@ class TestGetArtifactorySecret:
 class TestGetArtifactoryConfigMap:
     """Test cases for get_artifactory_config_map function"""
 
-    @patch("artifactory.ConfigMap")
-    @patch("artifactory.ssl.get_server_certificate")
-    @patch("artifactory.py_config", {"server_url": "test.artifactory.com"})
+    @patch("utilities.artifactory.ConfigMap")
+    @patch("utilities.artifactory.ssl.get_server_certificate")
+    @patch("utilities.artifactory.py_config", {"server_url": "test.artifactory.com"})
     def test_get_artifactory_config_map_creates_with_correct_parameters(self, mock_get_cert, mock_cm_class):
         """Test creates ConfigMap with correct parameters"""
         # Mock certificate
@@ -401,9 +401,9 @@ class TestGetArtifactoryConfigMap:
 
         assert result == mock_cm_instance
 
-    @patch("artifactory.ConfigMap")
-    @patch("artifactory.ssl.get_server_certificate")
-    @patch("artifactory.py_config", {"server_url": "test.artifactory.com"})
+    @patch("utilities.artifactory.ConfigMap")
+    @patch("utilities.artifactory.ssl.get_server_certificate")
+    @patch("utilities.artifactory.py_config", {"server_url": "test.artifactory.com"})
     def test_get_artifactory_config_map_deploys_if_not_exists(self, mock_get_cert, mock_cm_class):
         """Test deploys ConfigMap if it doesn't exist"""
         mock_cert = "-----BEGIN CERTIFICATE-----\nMOCK_CERT\n-----END CERTIFICATE-----"
@@ -420,9 +420,9 @@ class TestGetArtifactoryConfigMap:
         mock_cm_instance.deploy.assert_called_once()
         assert result == mock_cm_instance
 
-    @patch("artifactory.ConfigMap")
-    @patch("artifactory.ssl.get_server_certificate")
-    @patch("artifactory.py_config", {"server_url": "test.artifactory.com"})
+    @patch("utilities.artifactory.ConfigMap")
+    @patch("utilities.artifactory.ssl.get_server_certificate")
+    @patch("utilities.artifactory.py_config", {"server_url": "test.artifactory.com"})
     def test_get_artifactory_config_map_returns_existing_if_exists(self, mock_get_cert, mock_cm_class):
         """Test returns existing ConfigMap if it exists"""
         mock_cert = "-----BEGIN CERTIFICATE-----\nMOCK_CERT\n-----END CERTIFICATE-----"
@@ -439,17 +439,17 @@ class TestGetArtifactoryConfigMap:
         mock_cm_instance.deploy.assert_not_called()
         assert result == mock_cm_instance
 
-    @patch("artifactory.ConfigMap")
-    @patch("artifactory.ssl.get_server_certificate")
-    @patch("artifactory.py_config", {})
+    @patch("utilities.artifactory.ConfigMap")
+    @patch("utilities.artifactory.ssl.get_server_certificate")
+    @patch("utilities.artifactory.py_config", {})
     def test_get_artifactory_config_map_raises_key_error_if_server_url_missing(self, mock_get_cert, mock_cm_class):
         """Test raises KeyError if server_url not in py_config"""
         with pytest.raises(KeyError):
             get_artifactory_config_map(namespace="test-namespace")
 
-    @patch("artifactory.ConfigMap")
-    @patch("artifactory.ssl.get_server_certificate")
-    @patch("artifactory.py_config", {"server_url": "test.artifactory.com"})
+    @patch("utilities.artifactory.ConfigMap")
+    @patch("utilities.artifactory.ssl.get_server_certificate")
+    @patch("utilities.artifactory.py_config", {"server_url": "test.artifactory.com"})
     def test_get_artifactory_config_map_ssl_connection_failure(self, mock_get_cert, mock_cm_class):
         """Test OSError is raised on SSL connection failure"""
         # Mock SSL connection failure
@@ -460,9 +460,9 @@ class TestGetArtifactoryConfigMap:
 
         mock_get_cert.assert_called_once_with(addr=("test.artifactory.com", 443))
 
-    @patch("artifactory.ConfigMap")
-    @patch("artifactory.ssl.get_server_certificate")
-    @patch("artifactory.py_config", {"server_url": "custom.server.com"})
+    @patch("utilities.artifactory.ConfigMap")
+    @patch("utilities.artifactory.ssl.get_server_certificate")
+    @patch("utilities.artifactory.py_config", {"server_url": "custom.server.com"})
     def test_get_artifactory_config_map_uses_custom_server_url(self, mock_get_cert, mock_cm_class):
         """Test uses server_url from py_config"""
         mock_cert = "-----BEGIN CERTIFICATE-----\nMOCK_CERT\n-----END CERTIFICATE-----"
@@ -542,11 +542,10 @@ class TestCleanupArtifactorySecretAndConfigMap:
         mock_secret = MagicMock()
         mock_cm = MagicMock()
 
-        result = cleanup_artifactory_secret_and_config_map(
-            artifactory_secret=mock_secret, artifactory_config_map=mock_cm
+        assert (
+            cleanup_artifactory_secret_and_config_map(artifactory_secret=mock_secret, artifactory_config_map=mock_cm)
+            is None
         )
-
-        assert result is None
 
 
 class TestArtifactoryConstants:
