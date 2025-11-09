@@ -50,20 +50,6 @@ class ProcessWithException(_FORK_CONTEXT.Process):  # type: ignore[name-defined]
             self._exception = self._pconn.recv()
         return self._exception
 
-    def __getstate__(self):
-        """Return state for pickling, excluding pipe connections."""
-        state = self.__dict__.copy()
-        # Remove unpicklable pipe connections - they'll be recreated
-        state.pop("_pconn", None)
-        state.pop("_cconn", None)
-        return state
-
-    def __setstate__(self, state):
-        """Restore state from pickle and recreate pipe connections."""
-        self.__dict__.update(state)
-        # Recreate pipe connections
-        self._pconn, self._cconn = multiprocessing.Pipe()
-
 
 class ClusterSanityError(Exception):
     def __init__(self, err_str):
