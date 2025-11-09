@@ -1,5 +1,8 @@
 import multiprocessing
-from multiprocessing import Process
+from multiprocessing.context import ForkContext
+
+# Use fork context to avoid pickling issues like Kubernetes clients containing thread locks
+_FORK_CONTEXT: ForkContext = multiprocessing.get_context("fork")
 
 
 class UtilityPodNotFoundError(Exception):
@@ -27,7 +30,7 @@ class MissingEnvironmentVariableError(Exception):
 
 
 # code from https://stackoverflow.com/questions/19924104/python-multiprocessing-handling-child-errors-in-parent
-class ProcessWithException(Process):
+class ProcessWithException(_FORK_CONTEXT.Process):  # type: ignore[name-defined]
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._pconn, self._cconn = multiprocessing.Pipe()
@@ -46,6 +49,20 @@ class ProcessWithException(Process):
         if self._pconn.poll():
             self._exception = self._pconn.recv()
         return self._exception
+
+    def __getstate__(self):
+        """Return state for pickling, excluding pipe connections."""
+        state = self.__dict__.copy()
+        # Remove unpicklable pipe connections - they'll be recreated
+        state.pop("_pconn", None)
+        state.pop("_cconn", None)
+        return state
+
+    def __setstate__(self, state):
+        """Restore state from pickle and recreate pipe connections."""
+        self.__dict__.update(state)
+        # Recreate pipe connections
+        self._pconn, self._cconn = multiprocessing.Pipe()
 
 
 class ClusterSanityError(Exception):
