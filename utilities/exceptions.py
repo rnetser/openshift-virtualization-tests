@@ -103,6 +103,8 @@ class UnsupportedGPUDeviceError(Exception):
 def raise_multiple_exceptions(exceptions):
     """Raising multiple exceptions
 
+    TODO: Move to using
+    https://docs.python.org/3/tutorial/errors.html#raising-and-handling-multiple-unrelated-exceptions
     To be used when multiple exceptions need to be raised, for example when using TimeoutSampler,
     and additional information should be added (so it is viewable in junit report).
     Example:
