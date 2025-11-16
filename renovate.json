@@ -23,6 +23,10 @@
       "matchDatasources": ["docker"],
       "matchPackageNames": ["quay.io/fedora/fedora"],
       "enabled": false
+    },
+    {
+      "matchPackageNames": ["marshmallow"],
+      "enabled": false
     }
   ]
 }
