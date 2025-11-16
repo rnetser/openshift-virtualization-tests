@@ -18,6 +18,11 @@
     {
       "matchPackagePatterns": ["*"],
       "groupName": "python-deps"
+    },
+    {
+      "matchDatasources": ["docker"],
+      "matchPackageNames": ["quay.io/fedora/fedora"],
+      "enabled": false
     }
   ]
 }
