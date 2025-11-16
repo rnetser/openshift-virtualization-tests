@@ -18,7 +18,6 @@ from utilities.pytest_utils import (
     get_cnv_version_explorer_url,
     get_current_running_data,
     get_matrix_params,
-    reorder_early_fixtures,
     run_in_progress_config_map,
     separator,
     skip_if_pytest_flags_exists,
@@ -274,63 +273,6 @@ class TestSeparator:
         result = separator("-")
 
         assert result == "-" * 120
-
-
-class TestReorderEarlyFixtures:
-    """Test cases for reorder_early_fixtures function"""
-
-    def test_reorder_early_fixtures_with_early_mark(self):
-        """Test reordering fixtures with early mark"""
-        # Create mock fixture with early mark
-        mock_fixturedef = MagicMock()
-        mock_fixturedef.argname = "early_fixture"
-
-        mock_mark = MagicMock()
-        mock_mark.name = "early"
-        mock_mark.kwargs = {"order": 0}
-
-        mock_fixturedef.func.pytestmark = [mock_mark]
-
-        # Create mock metafunc
-        mock_metafunc = MagicMock()
-        mock_metafunc._arg2fixturedefs = {"early_fixture": [mock_fixturedef]}
-        mock_metafunc.fixturenames = ["other_fixture", "early_fixture", "another_fixture"]
-
-        reorder_early_fixtures(mock_metafunc)
-
-        # early_fixture should be moved to position 0
-        assert mock_metafunc.fixturenames == ["early_fixture", "other_fixture", "another_fixture"]
-
-    def test_reorder_early_fixtures_no_early_mark(self):
-        """Test fixtures without early mark remain unchanged"""
-        mock_fixturedef = MagicMock()
-        mock_fixturedef.argname = "normal_fixture"
-        mock_fixturedef.func.pytestmark = []
-
-        mock_metafunc = MagicMock()
-        mock_metafunc._arg2fixturedefs = {"normal_fixture": [mock_fixturedef]}
-        mock_metafunc.fixturenames = ["fixture1", "normal_fixture", "fixture2"]
-
-        original_order = mock_metafunc.fixturenames.copy()
-        reorder_early_fixtures(mock_metafunc)
-
-        assert mock_metafunc.fixturenames == original_order
-
-    def test_reorder_early_fixtures_no_pytestmark(self):
-        """Test fixtures without pytestmark attribute"""
-        mock_fixturedef = MagicMock()
-        mock_fixturedef.argname = "normal_fixture"
-        # No pytestmark attribute
-        del mock_fixturedef.func.pytestmark
-
-        mock_metafunc = MagicMock()
-        mock_metafunc._arg2fixturedefs = {"normal_fixture": [mock_fixturedef]}
-        mock_metafunc.fixturenames = ["fixture1", "normal_fixture", "fixture2"]
-
-        original_order = mock_metafunc.fixturenames.copy()
-        reorder_early_fixtures(mock_metafunc)
-
-        assert mock_metafunc.fixturenames == original_order
 
 
 class TestStopIfRunInProgress:
