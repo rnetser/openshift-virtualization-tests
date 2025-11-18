@@ -72,7 +72,7 @@ from timeout_sampler import TimeoutSampler
 import utilities.artifactory
 import utilities.hco
 from tests.utils import download_and_extract_tar, update_cluster_cpu_model
-from utilities.artifactory import get_artifactory_header, get_http_image_url
+from utilities.artifactory import get_artifactory_header, get_http_image_url, get_test_artifact_server_url
 from utilities.bitwarden import get_cnv_tests_secret_by_name
 from utilities.constants import (
     AAQ_NAMESPACE_LABEL,
@@ -189,7 +189,6 @@ from utilities.storage import (
     data_volume,
     get_default_storage_class,
     get_storage_class_with_specified_volume_mode,
-    get_test_artifact_server_url,
     is_snapshot_supported_by_sc,
     remove_default_storage_classes,
     sc_is_hpp_with_immediate_volume_binding,
