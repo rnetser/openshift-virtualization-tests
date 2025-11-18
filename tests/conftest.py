@@ -69,7 +69,6 @@ from packaging.version import Version, parse
 from pytest_testconfig import config as py_config
 from timeout_sampler import TimeoutSampler
 
-import utilities.artifactory
 import utilities.hco
 from tests.utils import download_and_extract_tar, update_cluster_cpu_model
 from utilities.artifactory import get_artifactory_header, get_http_image_url, get_test_artifact_server_url
