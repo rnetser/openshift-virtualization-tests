@@ -18,7 +18,6 @@ from subprocess import PIPE, CalledProcessError, Popen
 from typing import Any
 
 import netaddr
-import paramiko
 import requests
 import urllib3
 import yaml
@@ -199,22 +198,6 @@ def get_latest_os_dict_list(os_list):
     for _os in os_list:
         res.append(list(generate_latest_os_dict(os_list=_os).values())[0])
     return res
-
-
-def base64_encode_str(text):
-    return base64.b64encode(text.encode()).decode()
-
-
-def private_to_public_key(key):
-    return paramiko.RSAKey.from_private_key_file(key).get_base64()
-
-
-def name_prefix(name):
-    return name.split(".")[0]
-
-
-def authorized_key(private_key_path):
-    return f"ssh-rsa {private_to_public_key(key=private_key_path)} root@exec1.rdocloud"
 
 
 def get_pods(dyn_client: DynamicClient, namespace: Namespace, label: str = "") -> list[Pod]:

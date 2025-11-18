@@ -22,6 +22,8 @@ def base64_encode_str(text: str) -> str:
 def name_prefix(name: str) -> str:
     """Extract the prefix from a dotted name.
 
+    # TODO: refactor to a more huristic approach.
+
     Args:
         name: The name containing dots (e.g., "file.txt", "archive.tar.gz").
 

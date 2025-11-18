@@ -12,7 +12,7 @@ import pytest
 # Add utilities to Python path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from cpu import (
+from utilities.cpu import (
     find_common_cpu_model_for_live_migration,
     get_common_cpu_from_nodes,
     get_host_model_cpu,
