@@ -320,7 +320,7 @@ class TestGetHostModelCpu:
 class TestFindCommonCpuModelForLiveMigration:
     """Test cases for find_common_cpu_model_for_live_migration function"""
 
-    @patch("cpu.LOGGER")
+    @patch("utilities.cpu.LOGGER")
     def test_returns_none_when_homogeneous(self, mock_logger):
         """Test returns None when all host CPUs are same (homogeneous)"""
         cluster_cpu = "Cascadelake-Server"
@@ -337,7 +337,7 @@ class TestFindCommonCpuModelForLiveMigration:
             f"Host model cpus for all nodes are same {host_cpu_model}. No common cpus are needed"
         )
 
-    @patch("cpu.LOGGER")
+    @patch("utilities.cpu.LOGGER")
     def test_returns_cluster_cpu_when_heterogeneous_with_common(self, mock_logger):
         """Test returns cluster_cpu when host CPUs differ (heterogeneous with common CPU)"""
         cluster_cpu = "Cascadelake-Server"
@@ -352,7 +352,7 @@ class TestFindCommonCpuModelForLiveMigration:
         assert result == "Cascadelake-Server"
         mock_logger.info.assert_called_once_with(f"Using cluster node cpu: {cluster_cpu}")
 
-    @patch("cpu.LOGGER")
+    @patch("utilities.cpu.LOGGER")
     def test_returns_none_when_no_cluster_cpu_heterogeneous(self, mock_logger):
         """Test returns None when cluster_cpu is None/empty and heterogeneous"""
         cluster_cpu = None
@@ -366,7 +366,7 @@ class TestFindCommonCpuModelForLiveMigration:
         assert result is None
         mock_logger.warning.assert_called_once_with("This is a heterogeneous cluster with no common cluster cpu.")
 
-    @patch("cpu.LOGGER")
+    @patch("utilities.cpu.LOGGER")
     def test_logging_for_homogeneous_cluster(self, mock_logger):
         """Test logging for homogeneous cluster scenario"""
         cluster_cpu = "SomeClusterCPU"
@@ -380,7 +380,7 @@ class TestFindCommonCpuModelForLiveMigration:
         assert mock_logger.info.call_count == 1
         assert mock_logger.warning.call_count == 0
 
-    @patch("cpu.LOGGER")
+    @patch("utilities.cpu.LOGGER")
     def test_logging_for_heterogeneous_cluster_with_common_cpu(self, mock_logger):
         """Test logging for heterogeneous cluster with common CPU"""
         cluster_cpu = "CommonCPU"
@@ -394,7 +394,7 @@ class TestFindCommonCpuModelForLiveMigration:
         assert mock_logger.info.call_count == 1
         assert mock_logger.warning.call_count == 0
 
-    @patch("cpu.LOGGER")
+    @patch("utilities.cpu.LOGGER")
     def test_logging_for_heterogeneous_cluster_no_common_cpu(self, mock_logger):
         """Test logging for heterogeneous cluster without common CPU"""
         cluster_cpu = None
