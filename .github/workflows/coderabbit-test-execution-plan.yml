@@ -401,8 +401,9 @@ jobs:
               - Check if pytest markers, fixtures, or parametrization changes are properly tested
 
               **Important:**
-              - Respond as a review comment on the Files Changed tab if providing specific test instructions
-              - Use "Test execution plan verified" (exact phrase) when satisfied with the response
+              - For verification: Post "Test execution plan verified" as a **regular PR comment** (not on Files Changed)
+              - For additional feedback/instructions: Use review comments on the Files Changed tab for line-specific guidance
+              - The exact phrase "Test execution plan verified" will trigger automatic label updates
               - Be specific and actionable in your feedback
 
             </details>
