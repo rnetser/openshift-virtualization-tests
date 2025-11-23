@@ -1,5 +1,8 @@
 # Adds a 'sig-<sig>' label when there are changes in specific tests/** subtrees
 # and/or their corresponding utilities/*.py files.
+# Quarantine label is handled by a separate workflow (.github/workflows/pr-title-labeler.yml)
+# that checks PR titles, since actions/labeler does not support pr title matching
+
 
 sig-chaos:
   - changed-files:
@@ -41,6 +44,3 @@ sig-virt:
     - any-glob-to-any-file:
       - 'tests/virt/**'
       - 'utilities/virt.py'
-
-# Quarantine label is handled by a separate workflow (.github/workflows/pr-title-labeler.yml)
-# that checks PR titles, since actions/labeler does not support pr-title matching
