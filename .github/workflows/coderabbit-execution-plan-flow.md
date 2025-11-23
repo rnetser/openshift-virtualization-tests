@@ -6,14 +6,14 @@ Automated workflow for managing complete test execution plan lifecycle with Code
 
 ### Request a Test Plan
 ```bash
-/generate-execution-plan    # Team members only, any commit
-/verified                   # Team members: any commit | Non-members: last commit only
+/generate-execution-plan    # Team members only
+/verified                   # Team members only
 ```
 
 ### Respond to Test Plan
 ```bash
-@coderabbitai I've added the tests as suggested
-/verified                   # Mark as ready (team: any commit | non-team: last commit)
+@coderabbitai I've added the tests as suggested  # Anyone, any commit
+/verified                   # Team members only
 ```
 
 ---
@@ -51,7 +51,7 @@ This workflow orchestrates an iterative review cycle between PR authors and Code
 | Non-member | Any commit | None | ❌ **Blocked (silent)** | None |
 | Non-member | Any commit | plan-generated | ❌ **Blocked (silent)** | plan-generated (stays) |
 
-**Note:** `/generate-execution-plan` is **restricted to team members only**. Non-members must use `/verified` instead.
+**Note:** Both `/generate-execution-plan` and `/verified` are **restricted to team members only**. Non-members should use `@coderabbitai` to respond to test plans.
 
 ---
 
@@ -60,10 +60,9 @@ This workflow orchestrates an iterative review cycle between PR authors and Code
 | User Type | Commit Location | Label State | Result | Final Label |
 |-----------|----------------|-------------|--------|-------------|
 | Team member | Any commit | None | ✅ Auto-requests plan | plan-generated (after CodeRabbit posts) |
-| Non-member | **Last commit** | None | ✅ Auto-requests plan | plan-generated (after CodeRabbit posts) |
-| Non-member | **Old commit** | None | ❌ **Blocked (silent)** | None |
+| Non-member | Any commit | None | ❌ **Blocked (silent)** | None |
 
-**Note:** When no label exists, `/verified` automatically triggers plan generation (convenience feature).
+**Note:** When no label exists, `/verified` automatically triggers plan generation (convenience feature). **Team members only.**
 
 ---
 
@@ -72,10 +71,9 @@ This workflow orchestrates an iterative review cycle between PR authors and Code
 | User Type | Commit Location | Label State | Result | Final Label |
 |-----------|----------------|-------------|--------|-------------|
 | Team member | Any commit | plan-generated | ✅ Asks CodeRabbit to review | plan-generated (stays) |
-| Non-member | **Last commit** | plan-generated | ✅ Asks CodeRabbit to review | plan-generated (stays) |
-| Non-member | **Old commit** | plan-generated | ❌ **Blocked (silent)** | plan-generated (stays) |
+| Non-member | Any commit | plan-generated | ❌ **Blocked (silent)** | plan-generated (stays) |
 
-**Note:** When label exists, `/verified` means "review my response". Non-members must be on last commit.
+**Note:** When label exists, `/verified` means "review my response". **Team members only.**
 
 ---
 
@@ -168,13 +166,19 @@ This workflow orchestrates an iterative review cycle between PR authors and Code
 
 ## Job Summary
 
-| Job # | Job Name | Trigger | Function |
-|-------|----------|---------|----------|
-| 1 | request-test-plan | `/generate-execution-plan` or `/verified` (no label) | Request plan |
-| 2 | detect-execution-plan | CodeRabbit posts "test execution plan" | Add plan-generated label |
-| 3 | request-plan-review | User responds (when label exists) | Ask CodeRabbit to review |
-| 4 | detect-plan-verification | CodeRabbit posts "verified" | Update to plan-passed label |
-| 5 | remove-labels-on-push | New commit pushed | Reset workflow |
+**Single consolidated job:** `manage-execution-plan`
+
+This job dynamically routes to the appropriate scenario based on event context:
+
+| Scenario | Trigger | Function |
+|----------|---------|----------|
+| 1 | New commit pushed | Remove labels (reset workflow) |
+| 2 | CodeRabbit posts "test execution plan" | Add plan-generated label |
+| 2 | CodeRabbit posts "verified" | Update to plan-passed label |
+| 3 | `/generate-execution-plan` or `/verified` (team only) | Request plan |
+| 4 | User responds (when label exists) | Ask CodeRabbit to review |
+
+**Note:** All scenarios run within a single workflow job for cleaner PR UI (1 check instead of 5).
 
 ---
 
@@ -183,20 +187,20 @@ This workflow orchestrates an iterative review cycle between PR authors and Code
 | Command | When to Use | Who Can Use | Commit Restriction | Action |
 |---------|-------------|-------------|-------------------|--------|
 | `/generate-execution-plan` | Request new plan | **Team members only** | ✅ None (any commit) | Requests plan |
-| `/verified` (no label) | Shortcut to request plan | Team: Anyone<br>Non-team: **Last commit only** | Team: None<br>Non-team: **Last only** | Auto-requests plan |
-| `/verified` (with label) | Confirm/respond to plan | Team: Anyone<br>Non-team: **Last commit only** | Team: None<br>Non-team: **Last only** | Asks review |
+| `/verified` (no label) | Shortcut to request plan | **Team members only** | ✅ None (any commit) | Auto-requests plan |
+| `/verified` (with label) | Confirm/respond to plan | **Team members only** | ✅ None (any commit) | Asks review |
 | @coderabbitai | Respond to plan | **Anyone** | ✅ None (any commit) | Asks review |
 
 ---
 
 ## Permission Matrix
 
-| Action | Team Member | Non-member (Last Commit) | Non-member (Old Commit) |
-|--------|-------------|-------------------------|------------------------|
-| `/generate-execution-plan` | ✅ Any commit | ❌ Blocked | ❌ Blocked |
-| `/verified` (no label) | ✅ Any commit | ✅ Last commit | ❌ Blocked |
-| `/verified` (with label) | ✅ Any commit | ✅ Last commit | ❌ Blocked |
-| @coderabbitai | ✅ Any commit | ✅ Any commit | ✅ Any commit |
+| Action | Team Member | Non-member |
+|--------|-------------|------------|
+| `/generate-execution-plan` | ✅ Any commit | ❌ Blocked |
+| `/verified` (no label) | ✅ Any commit | ❌ Blocked |
+| `/verified` (with label) | ✅ Any commit | ❌ Blocked |
+| @coderabbitai | ✅ Any commit | ✅ Any commit |
 
 ---
 
@@ -205,9 +209,10 @@ This workflow orchestrates an iterative review cycle between PR authors and Code
 ```
 1. Developer pushes code changes
    ↓
-2. Developer comments: /verified (or /generate-execution-plan for team members)
-   → /generate-execution-plan: team members only, any commit
-   → /verified: team members on any commit | non-members on last commit only
+2. Developer comments: /verified or /generate-execution-plan (team members only)
+   → /generate-execution-plan: team members only
+   → /verified: team members only
+   → Non-members: use @coderabbitai instead
    ↓
 3. Workflow requests test plan from CodeRabbit
    ↓
@@ -275,22 +280,21 @@ CodeRabbit provides specific feedback:
 - ✅ Ensure `execution-plan-generated` label is present (for review requests)
 - ✅ Check command triggers:
   - `/generate-execution-plan` (team members only)
-  - `/verified` (if label exists, must be on last commit for non-members)
-  - `@coderabbitai` (always works)
-  - "test execution plan" (always works)
+  - `/verified` (team members only)
+  - `@coderabbitai` (anyone, always works)
+  - "test execution plan" (anyone, always works)
 
 ### Initial plan not requested?
-- ✅ For `/verified`: Non-members must be on **last commit** (review comments)
-- ✅ For `/generate-execution-plan`: **Team members only** (non-members blocked)
+- ✅ Both `/verified` and `/generate-execution-plan`: **Team members only** (non-members blocked)
+- ✅ Non-members: Use `@coderabbitai` to respond instead
 - ✅ Check workflow run logs in Actions tab
 
 ### `/verified` not working?
 **Check these common issues:**
-1. **Team member?** Works on any commit
-2. **Non-member?** Must be on **last commit** (for review comments)
-3. **Label exists?** Triggers review request (Job 3)
-4. **No label?** Auto-requests plan (Job 1) - convenience feature
-5. **Issue comment (not review)?** Works from any commit location
+1. **Team member?** Required - non-members are blocked
+2. **Label exists?** Triggers review request
+3. **No label?** Auto-requests plan - convenience feature
+4. **Not a team member?** Use `@coderabbitai` instead
 
 ### Labels not removed on new commit?
 - ✅ Check that `pull_request_target` with `synchronize` event is enabled
@@ -309,15 +313,14 @@ CodeRabbit provides specific feedback:
 
 ### Silent failure (no feedback)?
 **This is by design for:**
-- Non-members using `/verified` on old commits (blocked)
+- Non-members using `/verified` or `/generate-execution-plan` (blocked)
 - Both labels existing simultaneously (invalid state - see above)
 - Comments on issues (not PRs) - gracefully skipped
 - Bot comments (renovate) - ignored
 
 **To get feedback:**
-- Team members: Use `/generate-execution-plan` on any commit
-- Non-members: Use `/verified` on last commit only (or request team access)
-- Everyone: Use `@coderabbitai` keyword on any commit
+- Team members: Use `/generate-execution-plan` or `/verified` on any commit
+- Non-members: Use `@coderabbitai` keyword (or request team access)
 
 ---
 
@@ -330,11 +333,13 @@ CodeRabbit provides specific feedback:
 
 ## Key Improvements (Fixed in Latest Version)
 
-✅ **Fixed team membership logic** - Team members can now use workflow
+✅ **Simplified permission model** - `/verified` is now team members only (no "last commit" exceptions)
+✅ **Fixed review.body handling** - Commands work in both comments and review submissions
+✅ **Extracted helper function** - Eliminated duplicate team membership checks
+✅ **Consolidated workflow** - Single job instead of 5 separate jobs (cleaner PR UI)
 ✅ **Case-insensitive matching** - Works with any capitalization
 ✅ **PR context validation** - Gracefully handles non-PR contexts
-✅ **Race condition eliminated** - Jobs don't conflict
-✅ **Auto-helper feature** - `/verified` auto-requests plan if none exists
+✅ **Auto-helper feature** - `/verified` auto-requests plan if none exists (team members only)
 ✅ **Consistent PR number extraction** - Robust error handling
 
 ---
@@ -347,5 +352,5 @@ Filter PRs by label: `execution-plan-generated`
 ### Completed Reviews
 Filter PRs by label: `execution-plan-passed`
 
-### Team Members (bypass commit restrictions)
-Members of `cnvqe-bot` team can use `/verified` on any commit.
+### Team Members
+Members of `cnvqe-bot` team can use both `/generate-execution-plan` and `/verified` commands. Non-members must use `@coderabbitai` to interact with the workflow.

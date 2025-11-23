@@ -35,6 +35,22 @@ jobs:
             console.log(`Event: ${eventName}, Action: ${eventAction}`);
 
             // ============================================================
+            // Helper function: Check team membership
+            // ============================================================
+            async function isUserInTeam(username) {
+              try {
+                await github.rest.teams.getMembershipForUserInOrg({
+                  org: context.repo.owner,
+                  team_slug: 'cnvqe-bot',
+                  username: username
+                });
+                return true;
+              } catch (error) {
+                return false;
+              }
+            }
+
+            // ============================================================
             // SCENARIO 1: New commit pushed - Remove labels
             // ============================================================
             if (eventName === 'pull_request_target' && eventAction === 'synchronize') {
@@ -149,7 +165,7 @@ jobs:
               // ============================================================
               // SCENARIO 3 & 4: User comments - Request plan or review
               // ============================================================
-              const commentBody = (context.payload.comment?.body || '').toLowerCase();
+              const commentBody = (context.payload.comment?.body || context.payload.review?.body || '').toLowerCase();
 
               // Check for /generate-execution-plan or /verified commands
               const hasGenerateCommand = commentBody.includes('/generate-execution-plan');
@@ -164,47 +180,14 @@ jobs:
               if (hasGenerateCommand || hasVerifiedCommand) {
                 console.log('User requested test execution plan');
 
-                // Check team membership
-                let isMember = false;
-                try {
-                  await github.rest.teams.getMembershipForUserInOrg({
-                    org: context.repo.owner,
-                    team_slug: 'cnvqe-bot',
-                    username: commenter
-                  });
-                  isMember = true;
-                  console.log('User is team member');
-                } catch (error) {
-                  console.log('User is not team member');
-                }
+                // Check team membership - both commands require team membership
+                const isMember = await isUserInTeam(commenter);
+                console.log(`User is ${isMember ? '' : 'not '}team member`);
 
-                // Block non-team members from using /generate-execution-plan
-                if (hasGenerateCommand && !isMember) {
-                  console.log('/generate-execution-plan is restricted to team members only');
+                // Block non-team members from using both commands
+                if (!isMember) {
+                  console.log(`/${hasGenerateCommand ? 'generate-execution-plan' : 'verified'} is restricted to team members only`);
                   return;
-                }
-
-                // For /verified from non-team members, check if on last commit
-                if (hasVerifiedCommand && !isMember) {
-                  const { data: pr } = await github.rest.pulls.get({
-                    owner: context.repo.owner,
-                    repo: context.repo.repo,
-                    pull_number: prNumber
-                  });
-
-                  const lastCommitSha = pr.head.sha;
-                  console.log(`Last commit SHA: ${lastCommitSha}`);
-
-                  // For review comments, check commit SHA
-                  if (context.payload.comment?.commit_id) {
-                    const commitSha = context.payload.comment.commit_id;
-                    console.log(`Comment commit SHA: ${commitSha}`);
-
-                    if (commitSha !== lastCommitSha) {
-                      console.log('/verified must be on the last commit for non-team members');
-                      return;
-                    }
-                  }
                 }
 
                 // Request test execution plan from CodeRabbit
@@ -302,43 +285,15 @@ jobs:
                 return;
               }
 
-              // For /verified commands, check team membership and last commit
+              // For /verified commands, check team membership (required)
               if (hasVerifiedCommand) {
-                // Check team membership
-                let isMember = false;
-                try {
-                  await github.rest.teams.getMembershipForUserInOrg({
-                    org: context.repo.owner,
-                    team_slug: 'cnvqe-bot',
-                    username: commenter
-                  });
-                  isMember = true;
-                  console.log('User is team member for /verified in review');
-                } catch (error) {
-                  console.log('User is not team member for /verified in review');
-                }
+                const isMember = await isUserInTeam(commenter);
+                console.log(`User is ${isMember ? '' : 'not '}team member for /verified in review`);
 
-                // For non-team members with /verified, check if on last commit
+                // Block non-team members from using /verified
                 if (!isMember) {
-                  const { data: pr } = await github.rest.pulls.get({
-                    owner: context.repo.owner,
-                    repo: context.repo.repo,
-                    pull_number: prNumber
-                  });
-
-                  const lastCommitSha = pr.head.sha;
-                  console.log(`Last commit SHA for review: ${lastCommitSha}`);
-
-                  // For review comments, check commit SHA
-                  if (context.payload.comment?.commit_id) {
-                    const commitSha = context.payload.comment.commit_id;
-                    console.log(`Comment commit SHA for review: ${commitSha}`);
-
-                    if (commitSha !== lastCommitSha) {
-                      console.log('/verified must be on the last commit for non-team members in review');
-                      return;
-                    }
-                  }
+                  console.log('/verified is restricted to team members only');
+                  return;
                 }
               }
 
