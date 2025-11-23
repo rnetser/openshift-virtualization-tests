@@ -326,7 +326,7 @@ CodeRabbit provides specific feedback:
 
 ## Workflow Files
 
-- **Main workflow:** `.github/workflows/coderabbit-test-execution-plan.yml`
+- **Main workflow:** `.github/workflows/request-coderabbit-test-instructions.yml`
 - **Documentation:** `.github/workflows/coderabbit-execution-plan-flow.md` (this file)
 
 ---
