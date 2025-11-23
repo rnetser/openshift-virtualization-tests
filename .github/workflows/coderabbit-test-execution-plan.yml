@@ -20,492 +20,370 @@ permissions:
   issues: write
 
 jobs:
-  # Job 1: Request initial test execution plan from CodeRabbit
-  request-test-plan:
-    if: |
-      (github.event_name == 'issue_comment' || github.event_name == 'pull_request_review_comment') &&
-      github.event.comment.user.login != 'coderabbitai[bot]' &&
-      !contains(github.event.comment.user.login, 'renovate')
+  # Single job that routes to appropriate action based on event context
+  manage-execution-plan:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Check for trigger commands
-        id: check-command
+      - name: Route and execute action
         uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.BOT3_TOKEN }}
           script: |
-            const commentBody = context.payload.comment.body.toLowerCase();
-
-            // Check for /generate-execution-plan command
-            const hasGenerateCommand = commentBody.includes('/generate-execution-plan');
-
-            // Check for /verified command
-            const hasVerifiedCommand = commentBody.includes('/verified');
-
-            const shouldRequestPlan = hasGenerateCommand || hasVerifiedCommand;
-
-            console.log('Has /generate-execution-plan: ' + hasGenerateCommand);
-            console.log('Has /verified: ' + hasVerifiedCommand);
-            console.log('Should request plan: ' + shouldRequestPlan);
-
-            core.setOutput('should-request-plan', shouldRequestPlan.toString());
-            core.setOutput('has-generate-command', hasGenerateCommand.toString());
-
-      - name: Validate PR context
-        id: validate-pr
-        if: steps.check-command.outputs.should-request-plan == 'true'
-        uses: actions/github-script@v7
-        with:
-          github-token: ${{ secrets.BOT3_TOKEN }}
-          script: |
-            // Ensure this is a pull request, not a regular issue
-            const isPullRequest = !!context.payload.pull_request || !!context.payload.issue?.pull_request;
-            const prNumber = context.payload.pull_request?.number || context.payload.issue?.number;
-
-            if (!isPullRequest) {
-              console.log('Not a pull request, skipping');
-              core.setOutput('is-valid', 'false');
-              return;
-            }
-
-            const login = context.payload.comment.user.login;
-
-            core.setOutput('is-valid', 'true');
-            core.setOutput('pr-number', prNumber.toString());
-            core.setOutput('user-login', login);
-
-      - name: Check team membership
-        id: check-user-team
-        if: steps.validate-pr.outputs.is-valid == 'true'
-        uses: tspascoal/get-user-teams-membership@v3
-        with:
-          team: cnvqe-bot
-          username: ${{ steps.validate-pr.outputs.user-login }}
-          GITHUB_TOKEN: ${{ secrets.BOT3_TOKEN }}
-
-      - name: Check if this is on the last commit (for non-team members)
-        id: check-last-commit
-        if: |
-          steps.validate-pr.outputs.is-valid == 'true' &&
-          steps.check-user-team.outputs.is-member != 'true'
-        uses: actions/github-script@v7
-        with:
-          github-token: ${{ secrets.BOT3_TOKEN }}
-          script: |
-            const commentBody = context.payload.comment.body.toLowerCase();
-            const hasVerifiedCommand = commentBody.includes('/verified');
-            const hasGenerateCommand = commentBody.includes('/generate-execution-plan');
-
-            // Block non-team members from using /generate-execution-plan
-            if (hasGenerateCommand) {
-              console.log('/generate-execution-plan is restricted to team members only');
-              core.setOutput('should-proceed', 'false');
-              return;
-            }
-
-            // If not a /verified command, proceed (shouldn't happen but fallback)
-            if (!hasVerifiedCommand) {
-              console.log('Not a /verified command, proceeding');
-              core.setOutput('should-proceed', 'true');
-              return;
-            }
-
-            // For /verified commands from non-team members, check if comment is on last commit
-            const prNumber = context.payload.pull_request?.number || context.payload.issue?.number;
-
-            // Get PR details to find last commit
-            const { data: pr } = await github.rest.pulls.get({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              pull_number: prNumber
-            });
-
-            const lastCommitSha = pr.head.sha;
-            console.log('Last commit SHA: ' + lastCommitSha);
-
-            // For review comments, check if it's on the last commit
-            if (context.payload.comment.commit_id) {
-              const commitSha = context.payload.comment.commit_id;
-              console.log('Comment commit SHA: ' + commitSha);
-
-              const isLastCommit = commitSha === lastCommitSha;
-              console.log('Is on last commit: ' + isLastCommit);
-
-              core.setOutput('should-proceed', isLastCommit.toString());
-            } else {
-              // For issue comments with /verified, always proceed
-              console.log('Issue comment with /verified, proceeding');
-              core.setOutput('should-proceed', 'true');
-            }
-
-      - name: Request test execution plan from CodeRabbit
-        if: |
-          steps.validate-pr.outputs.is-valid == 'true' &&
-          (steps.check-user-team.outputs.is-member == 'true' ||
-           steps.check-last-commit.outputs.should-proceed == 'true')
-        uses: peter-evans/create-or-update-comment@v4
-        with:
-          issue-number: ${{ steps.validate-pr.outputs.pr-number }}
-          token: ${{ secrets.BOT3_TOKEN }}
-          body: |
-            @coderabbitai
-            <details>
-              <summary>Test execution plan request details</summary>
-
-              CRITICAL: You MUST respond with a review comment on the Files Changed tab, NOT as a regular PR comment.
-              If it cannot be on the 1st line of the 1st file, add it to any other changed file.
-
-              As an expert software testing engineer, analyze all modified files in this PR and create a targeted test execution plan.
-              You will create a change request comment on the 1st line of the 1st file in the pr with the test execution plan.
-              If you fail to run or post a comment, retry.
-
-              **Analysis Requirements:**
-
-              1. Examine code changes in each modified file
-              2. Identify affected code paths, functions, and classes
-              3. Analyze pytest-specific elements: fixtures (scope, dependencies), parametrization, markers, conftest changes
-              4. Trace test dependencies through imports, shared utilities, and fixture inheritance
-              5. Detect new tests introduced in the PR
-
-              **Your deliverable:**
-              Your change request comment will be based on the following requirements:
-
-              **Test Execution Plan**
-
-              - `path/to/test_file.py` - When the entire test file needs verification
-              - `path/to/test_file.py::TestClass::test_method` - When specific test(s) needed
-              - `path/to/test_file.py::test_function` - When specific test(s) needed
-              - `-m marker` - When specific marker(s) can be used to cover multiple cases.
-
-              **Guidelines:**
-
-              - Include only tests directly affected by the changes
-              - Use a full file path only if ALL tests in that file require verification
-              - Use file path + test name if only specific tests are needed
-              - If a test marker can cover multiple files/tests, provide the marker
-              - Balance coverage vs over-testing - Keep descriptions minimal
-              - Do not add a follow-up comment in the PR, only the change request one. THIS IS IMPORTANT! Spams the PR.
-
-            </details>
-
-  # Job 2: Detect when CodeRabbit posts Test Execution Plan and add label
-  detect-execution-plan:
-    if: |
-      github.event_name == 'pull_request_review_comment' &&
-      github.event.comment.user.login == 'coderabbitai[bot]'
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Add execution-plan-generated label
-        uses: actions/github-script@v7
-        with:
-          github-token: ${{ secrets.BOT3_TOKEN }}
-          script: |
-            // Check for test execution plan in comment body (case-insensitive)
-            const commentBody = context.payload.comment.body.toLowerCase();
-            if (!commentBody.includes('test execution plan')) {
-              console.log('Comment does not contain "test execution plan", skipping');
-              return;
-            }
-
-            const prNumber = context.payload.pull_request?.number;
-
-            if (!prNumber) {
-              console.log('Not a pull request, skipping');
-              return;
-            }
-
-            await github.rest.issues.addLabels({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: prNumber,
-              labels: ['execution-plan-generated']
-            });
-
-            console.log('Added execution-plan-generated label to PR #' + prNumber);
-
-  # Job 3: Request CodeRabbit to review user responses
-  request-plan-review:
-    if: |
-      (github.event_name == 'issue_comment' || github.event_name == 'pull_request_review_comment') &&
-      github.event.comment.user.login != 'coderabbitai[bot]' &&
-      !contains(github.event.comment.user.login, 'renovate') &&
-      !contains(github.event.comment.body, '/generate-execution-plan')
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Validate PR context
-        id: validate-pr
-        uses: actions/github-script@v7
-        with:
-          github-token: ${{ secrets.BOT3_TOKEN }}
-          script: |
-            const isPullRequest = !!context.payload.pull_request || !!context.payload.issue?.pull_request;
-            const prNumber = context.payload.pull_request?.number || context.payload.issue?.number;
-
-            if (!isPullRequest) {
-              console.log('Not a pull request, skipping');
-              core.setOutput('is-valid', 'false');
-              return;
-            }
-
-            core.setOutput('is-valid', 'true');
-            core.setOutput('pr-number', prNumber.toString());
-
-      - name: Check if execution-plan-generated label exists
-        id: check-label
-        if: steps.validate-pr.outputs.is-valid == 'true'
-        uses: actions/github-script@v7
-        with:
-          github-token: ${{ secrets.BOT3_TOKEN }}
-          script: |
-            const prNumber = context.payload.pull_request?.number || context.payload.issue?.number;
-
-            const { data: labels } = await github.rest.issues.listLabelsOnIssue({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: prNumber
-            });
-
-            const hasGeneratedLabel = labels.some(label => label.name === 'execution-plan-generated');
-            const hasPassedLabel = labels.some(label => label.name === 'execution-plan-passed');
-
-            console.log('Has execution-plan-generated label: ' + hasGeneratedLabel);
-            console.log('Has execution-plan-passed label: ' + hasPassedLabel);
-
-            // If both labels exist (invalid state), do not trigger CodeRabbit
-            if (hasGeneratedLabel && hasPassedLabel) {
-              console.log('Both labels exist - invalid state, skipping CodeRabbit trigger');
-              core.setOutput('has-label', 'false');
-            } else {
-              core.setOutput('has-label', hasGeneratedLabel.toString());
-            }
-
-      - name: Check if comment is response to test plan
-        id: check-response
-        if: steps.check-label.outputs.has-label == 'true'
-        uses: actions/github-script@v7
-        with:
-          github-token: ${{ secrets.BOT3_TOKEN }}
-          script: |
-            const commentBody = context.payload.comment.body.toLowerCase();
-
-            // Check for /verified command
-            const hasVerifiedCommand = commentBody.includes('/verified');
-
-            const isRelevantResponse =
-              commentBody.includes('test execution plan') ||
-              commentBody.includes('@coderabbitai') ||
-              hasVerifiedCommand;
-
-            console.log('Is relevant response: ' + isRelevantResponse);
-            core.setOutput('is-response', isRelevantResponse.toString());
-
-      - name: Check if /verified is on last commit (for non-team members)
-        id: check-verified-commit
-        if: |
-          steps.check-label.outputs.has-label == 'true' &&
-          steps.check-response.outputs.is-response == 'true'
-        uses: actions/github-script@v7
-        with:
-          github-token: ${{ secrets.BOT3_TOKEN }}
-          script: |
-            const commentBody = context.payload.comment.body.toLowerCase();
-            const hasVerifiedCommand = commentBody.includes('/verified');
-
-            // If not a /verified command, proceed
-            if (!hasVerifiedCommand) {
-              console.log('Not a /verified command, proceeding');
-              core.setOutput('should-proceed', 'true');
-              return;
-            }
-
-            // Check team membership
-            const login = context.payload.comment.user.login;
-            let isMember = false;
-
-            try {
-              await github.rest.teams.getMembershipForUserInOrg({
-                org: context.repo.owner,
-                team_slug: 'cnvqe-bot',
-                username: login
-              });
-              isMember = true;
-              console.log('User is team member, bypassing last commit check');
-            } catch (error) {
-              console.log('User is not team member, checking last commit');
-            }
-
-            // Team members bypass the check
-            if (isMember) {
-              core.setOutput('should-proceed', 'true');
-              return;
-            }
-
-            // For non-team members with /verified, check if comment is on last commit
-            const prNumber = context.payload.pull_request?.number || context.payload.issue?.number;
-
-            // Get PR details to find last commit
-            const { data: pr } = await github.rest.pulls.get({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              pull_number: prNumber
-            });
-
-            const lastCommitSha = pr.head.sha;
-            console.log('Last commit SHA: ' + lastCommitSha);
-
-            // For review comments, check if it's on the last commit
-            if (context.payload.comment.commit_id) {
-              const commitSha = context.payload.comment.commit_id;
-              console.log('Comment commit SHA: ' + commitSha);
-
-              const isLastCommit = commitSha === lastCommitSha;
-              console.log('Is on last commit: ' + isLastCommit);
-
-              core.setOutput('should-proceed', isLastCommit.toString());
-            } else {
-              // For issue comments with /verified, always proceed
-              console.log('Issue comment with /verified, proceeding');
-              core.setOutput('should-proceed', 'true');
-            }
-
-      - name: Request CodeRabbit to review user response
-        if: |
-          steps.check-label.outputs.has-label == 'true' &&
-          steps.check-response.outputs.is-response == 'true' &&
-          steps.check-verified-commit.outputs.should-proceed == 'true'
-        uses: peter-evans/create-or-update-comment@v4
-        with:
-          issue-number: ${{ steps.validate-pr.outputs.pr-number }}
-          token: ${{ secrets.BOT3_TOKEN }}
-          body: |
-            @coderabbitai
-
-            <details>
-              <summary>Test Execution Plan Review Request</summary>
-
-              The PR author has responded to your test execution plan. Please review their response and determine if:
-
-              1. **All comments are adequately addressed** - If the author has provided sufficient information or made the requested changes, respond with:
-                 ```
-                 Test execution plan verified
-                 ```
-                 This will automatically update the PR labels and mark the review as complete.
-
-              2. **More clarification or changes are needed** - If the response is insufficient or if you need more specific test instructions, provide:
-                 - Clear, specific feedback on what's missing
-                 - Additional test scenarios that need coverage
-                 - Specific test paths or markers that should be included
-                 - Any concerns about the proposed test approach
-
-              **Review Guidelines:**
-              - Focus on whether the proposed tests adequately cover the code changes
-              - Ensure test scope is neither too broad (over-testing) nor too narrow (missing coverage)
-              - Verify that critical code paths have appropriate test coverage
-              - Check if pytest markers, fixtures, or parametrization changes are properly tested
-
-              **Important:**
-              - For verification: Post "Test execution plan verified" as a **regular PR comment** (not on Files Changed)
-              - For additional feedback/instructions: Use review comments on the Files Changed tab for line-specific guidance
-              - The exact phrase "Test execution plan verified" will trigger automatic label updates
-              - Be specific and actionable in your feedback
-
-            </details>
-
-  # Job 4: Detect verification and update labels
-  detect-plan-verification:
-    if: |
-      (github.event_name == 'issue_comment' || github.event_name == 'pull_request_review_comment') &&
-      github.event.comment.user.login == 'coderabbitai[bot]'
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Update labels after verification
-        uses: actions/github-script@v7
-        with:
-          github-token: ${{ secrets.BOT3_TOKEN }}
-          script: |
-            // Check for verification message in comment body (case-insensitive)
-            const commentBody = context.payload.comment.body.toLowerCase();
-            if (!commentBody.includes('test execution plan verified')) {
-              console.log('Comment does not contain "test execution plan verified", skipping');
-              return;
-            }
-
-            const prNumber = context.payload.pull_request?.number || context.payload.issue?.number;
-
-            if (!prNumber) {
-              console.log('Not a pull request, skipping');
-              return;
-            }
-
-            // Remove execution-plan-generated label if it exists
-            try {
-              await github.rest.issues.removeLabel({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: prNumber,
-                name: 'execution-plan-generated'
-              });
-              console.log('Removed execution-plan-generated label');
-            } catch (error) {
-              if (error.status !== 404) {
-                throw error;
+            const eventName = context.eventName;
+            const eventAction = context.payload.action;
+
+            console.log(`Event: ${eventName}, Action: ${eventAction}`);
+
+            // ============================================================
+            // SCENARIO 1: New commit pushed - Remove labels
+            // ============================================================
+            if (eventName === 'pull_request_target' && eventAction === 'synchronize') {
+              const prNumber = context.payload.pull_request?.number;
+
+              if (!prNumber) {
+                console.log('No PR number found, skipping');
+                return;
               }
-              console.log('execution-plan-generated label was not present');
-            }
 
-            // Add execution-plan-passed label
-            await github.rest.issues.addLabels({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: prNumber,
-              labels: ['execution-plan-passed']
-            });
+              const labelsToRemove = ['execution-plan-generated', 'execution-plan-passed'];
+              console.log(`New commit pushed to PR #${prNumber}, removing execution plan labels`);
 
-            console.log('Added execution-plan-passed label to PR #' + prNumber);
+              for (const labelName of labelsToRemove) {
+                try {
+                  await github.rest.issues.removeLabel({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    issue_number: prNumber,
+                    name: labelName
+                  });
+                  console.log(`Removed label: ${labelName}`);
+                } catch (error) {
+                  if (error.status !== 404) {
+                    throw error;
+                  }
+                  console.log(`Label not present: ${labelName}`);
+                }
+              }
 
-  # Job 5: Remove labels when new commit is pushed
-  remove-labels-on-push:
-    if: |
-      github.event_name == 'pull_request_target' &&
-      github.event.action == 'synchronize'
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Remove execution plan labels on new commit
-        uses: actions/github-script@v7
-        with:
-          github-token: ${{ secrets.BOT3_TOKEN }}
-          script: |
-            const prNumber = context.payload.pull_request?.number;
-
-            if (!prNumber) {
-              console.log('No PR number found, skipping');
+              console.log('Execution plan labels removed - test plan needs to be regenerated');
               return;
             }
 
-            const labelsToRemove = ['execution-plan-generated', 'execution-plan-passed'];
+            // ============================================================
+            // For comment-based events, check if it's a PR
+            // ============================================================
+            if (eventName === 'issue_comment' || eventName === 'pull_request_review_comment' || eventName === 'pull_request_review') {
+              const isPullRequest = !!context.payload.pull_request || !!context.payload.issue?.pull_request;
 
-            console.log('New commit pushed to PR #' + prNumber + ', removing execution plan labels');
+              if (!isPullRequest) {
+                console.log('Not a pull request, skipping');
+                return;
+              }
 
-            for (const labelName of labelsToRemove) {
-              try {
-                await github.rest.issues.removeLabel({
+              const prNumber = context.payload.pull_request?.number || context.payload.issue?.number;
+              const commenter = context.payload.comment?.user?.login || context.payload.review?.user?.login;
+
+              console.log(`PR #${prNumber}, Commenter: ${commenter}`);
+
+              // Skip renovate comments
+              if (commenter && commenter.includes('renovate')) {
+                console.log('Renovate comment, skipping');
+                return;
+              }
+
+              // ============================================================
+              // SCENARIO 2: CodeRabbit posts test execution plan - Add label
+              // ============================================================
+              if (commenter === 'coderabbitai[bot]') {
+                const commentBody = (context.payload.comment?.body || context.payload.review?.body || '').toLowerCase();
+
+                // Check for test execution plan
+                if (commentBody.includes('test execution plan verified')) {
+                  console.log('CodeRabbit posted verification message');
+
+                  // Remove execution-plan-generated label if it exists
+                  try {
+                    await github.rest.issues.removeLabel({
+                      owner: context.repo.owner,
+                      repo: context.repo.repo,
+                      issue_number: prNumber,
+                      name: 'execution-plan-generated'
+                    });
+                    console.log('Removed execution-plan-generated label');
+                  } catch (error) {
+                    if (error.status !== 404) {
+                      throw error;
+                    }
+                    console.log('execution-plan-generated label was not present');
+                  }
+
+                  // Add execution-plan-passed label
+                  await github.rest.issues.addLabels({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    issue_number: prNumber,
+                    labels: ['execution-plan-passed']
+                  });
+
+                  console.log('Added execution-plan-passed label');
+                  return;
+
+                } else if (commentBody.includes('test execution plan')) {
+                  console.log('CodeRabbit posted test execution plan');
+
+                  await github.rest.issues.addLabels({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    issue_number: prNumber,
+                    labels: ['execution-plan-generated']
+                  });
+
+                  console.log('Added execution-plan-generated label');
+                  return;
+                }
+
+                console.log('CodeRabbit comment does not contain test execution plan keywords, skipping');
+                return;
+              }
+
+              // ============================================================
+              // SCENARIO 3 & 4: User comments - Request plan or review
+              // ============================================================
+              const commentBody = (context.payload.comment?.body || '').toLowerCase();
+
+              // Check for /generate-execution-plan or /verified commands
+              const hasGenerateCommand = commentBody.includes('/generate-execution-plan');
+              const hasVerifiedCommand = commentBody.includes('/verified');
+
+              console.log(`Has /generate-execution-plan: ${hasGenerateCommand}`);
+              console.log(`Has /verified: ${hasVerifiedCommand}`);
+
+              // ============================================================
+              // SCENARIO 3: Request initial test execution plan
+              // ============================================================
+              if (hasGenerateCommand || hasVerifiedCommand) {
+                console.log('User requested test execution plan');
+
+                // Check team membership
+                let isMember = false;
+                try {
+                  await github.rest.teams.getMembershipForUserInOrg({
+                    org: context.repo.owner,
+                    team_slug: 'cnvqe-bot',
+                    username: commenter
+                  });
+                  isMember = true;
+                  console.log('User is team member');
+                } catch (error) {
+                  console.log('User is not team member');
+                }
+
+                // Block non-team members from using /generate-execution-plan
+                if (hasGenerateCommand && !isMember) {
+                  console.log('/generate-execution-plan is restricted to team members only');
+                  return;
+                }
+
+                // For /verified from non-team members, check if on last commit
+                if (hasVerifiedCommand && !isMember) {
+                  const { data: pr } = await github.rest.pulls.get({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    pull_number: prNumber
+                  });
+
+                  const lastCommitSha = pr.head.sha;
+                  console.log(`Last commit SHA: ${lastCommitSha}`);
+
+                  // For review comments, check commit SHA
+                  if (context.payload.comment?.commit_id) {
+                    const commitSha = context.payload.comment.commit_id;
+                    console.log(`Comment commit SHA: ${commitSha}`);
+
+                    if (commitSha !== lastCommitSha) {
+                      console.log('/verified must be on the last commit for non-team members');
+                      return;
+                    }
+                  }
+                }
+
+                // Request test execution plan from CodeRabbit
+                await github.rest.issues.createComment({
                   owner: context.repo.owner,
                   repo: context.repo.repo,
                   issue_number: prNumber,
-                  name: labelName
+                  body: `@coderabbitai
+                  <details>
+                    <summary>Test execution plan request details</summary>
+
+                    CRITICAL: You MUST respond with a review comment on the Files Changed tab, NOT as a regular PR comment.
+                    If it cannot be on the 1st line of the 1st file, add it to any other changed file.
+
+                    As an expert software testing engineer, analyze all modified files in this PR and create a targeted test execution plan.
+                    You will create a change request comment on the 1st line of the 1st file in the pr with the test execution plan.
+                    If you fail to run or post a comment, retry.
+
+                    **Analysis Requirements:**
+
+                    1. Examine code changes in each modified file
+                    2. Identify affected code paths, functions, and classes
+                    3. Analyze pytest-specific elements: fixtures (scope, dependencies), parametrization, markers, conftest changes
+                    4. Trace test dependencies through imports, shared utilities, and fixture inheritance
+                    5. Detect new tests introduced in the PR
+
+                    **Your deliverable:**
+                    Your change request comment will be based on the following requirements:
+
+                    **Test Execution Plan**
+
+                    - \`path/to/test_file.py\` - When the entire test file needs verification
+                    - \`path/to/test_file.py::TestClass::test_method\` - When specific test(s) needed
+                    - \`path/to/test_file.py::test_function\` - When specific test(s) needed
+                    - \`-m marker\` - When specific marker(s) can be used to cover multiple cases.
+
+                    **Guidelines:**
+
+                    - Include only tests directly affected by the changes
+                    - Use a full file path only if ALL tests in that file require verification
+                    - Use file path + test name if only specific tests are needed
+                    - If a test marker can cover multiple files/tests, provide the marker
+                    - Balance coverage vs over-testing - Keep descriptions minimal
+                    - Do not add a follow-up comment in the PR, only the change request one. THIS IS IMPORTANT! Spams the PR.
+
+                  </details>`
                 });
-                console.log('Removed label: ' + labelName);
-              } catch (error) {
-                if (error.status !== 404) {
-                  throw error;
+
+                console.log('Requested test execution plan from CodeRabbit');
+
+                // For /generate-execution-plan, stop here (don't check for review)
+                // For /verified, continue to SCENARIO 4 to also check if review is needed
+                if (hasGenerateCommand) {
+                  return;
                 }
-                console.log('Label not present: ' + labelName);
+                // /verified falls through to SCENARIO 4
               }
+
+              // ============================================================
+              // SCENARIO 4: User responds to test plan - Request review
+              // ============================================================
+              // Check if execution-plan-generated label exists
+              const { data: labels } = await github.rest.issues.listLabelsOnIssue({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: prNumber
+              });
+
+              const hasGeneratedLabel = labels.some(label => label.name === 'execution-plan-generated');
+              const hasPassedLabel = labels.some(label => label.name === 'execution-plan-passed');
+
+              console.log(`Has execution-plan-generated label: ${hasGeneratedLabel}`);
+              console.log(`Has execution-plan-passed label: ${hasPassedLabel}`);
+
+              // If both labels exist (invalid state), skip
+              if (hasGeneratedLabel && hasPassedLabel) {
+                console.log('Both labels exist - invalid state, skipping');
+                return;
+              }
+
+              // Only proceed if execution-plan-generated label exists
+              if (!hasGeneratedLabel) {
+                console.log('No execution-plan-generated label, skipping review request');
+                return;
+              }
+
+              // Check if comment is a response to test plan
+              const isRelevantResponse =
+                commentBody.includes('test execution plan') ||
+                commentBody.includes('@coderabbitai') ||
+                hasVerifiedCommand;
+
+              if (!isRelevantResponse) {
+                console.log('Comment is not a response to test plan, skipping');
+                return;
+              }
+
+              // For /verified commands, check team membership and last commit
+              if (hasVerifiedCommand) {
+                // Check team membership
+                let isMember = false;
+                try {
+                  await github.rest.teams.getMembershipForUserInOrg({
+                    org: context.repo.owner,
+                    team_slug: 'cnvqe-bot',
+                    username: commenter
+                  });
+                  isMember = true;
+                  console.log('User is team member for /verified in review');
+                } catch (error) {
+                  console.log('User is not team member for /verified in review');
+                }
+
+                // For non-team members with /verified, check if on last commit
+                if (!isMember) {
+                  const { data: pr } = await github.rest.pulls.get({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    pull_number: prNumber
+                  });
+
+                  const lastCommitSha = pr.head.sha;
+                  console.log(`Last commit SHA for review: ${lastCommitSha}`);
+
+                  // For review comments, check commit SHA
+                  if (context.payload.comment?.commit_id) {
+                    const commitSha = context.payload.comment.commit_id;
+                    console.log(`Comment commit SHA for review: ${commitSha}`);
+
+                    if (commitSha !== lastCommitSha) {
+                      console.log('/verified must be on the last commit for non-team members in review');
+                      return;
+                    }
+                  }
+                }
+              }
+
+              console.log('User responded to test plan, requesting CodeRabbit review');
+
+              // Request CodeRabbit to review user response
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: prNumber,
+                body: `@coderabbitai
+                <details>
+                  <summary>Test Execution Plan Review Request</summary>
+
+                  The PR author has responded to your test execution plan. Please review their response and determine if:
+
+                  1. **All comments are adequately addressed** - If the author has provided sufficient information or made the requested changes, respond with:
+                     \`\`\`
+                     Test execution plan verified
+                     \`\`\`
+                     This will automatically update the PR labels and mark the review as complete.
+
+                  2. **More clarification or changes are needed** - If the response is insufficient or if you need more specific test instructions, provide:
+                     - Clear, specific feedback on what's missing
+                     - Additional test scenarios that need coverage
+                     - Specific test paths or markers that should be included
+                     - Any concerns about the proposed test approach
+
+                  **Review Guidelines:**
+                  - Focus on whether the proposed tests adequately cover the code changes
+                  - Ensure test scope is neither too broad (over-testing) nor too narrow (missing coverage)
+                  - Verify that critical code paths have appropriate test coverage
+                  - Check if pytest markers, fixtures, or parametrization changes are properly tested
+
+                  **Important:**
+                  - For verification: Post "Test execution plan verified" as a **regular PR comment** (not on Files Changed)
+                  - For additional feedback/instructions: Use review comments on the Files Changed tab for line-specific guidance
+                  - The exact phrase "Test execution plan verified" will trigger automatic label updates
+                  - Be specific and actionable in your feedback
+
+                </details>`
+              });
+
+              console.log('Requested CodeRabbit to review user response');
+              return;
             }
 
-            console.log('Execution plan labels removed - test plan needs to be regenerated');
+            console.log('No action taken - event does not match any scenario');
