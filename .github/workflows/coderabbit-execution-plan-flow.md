@@ -1,195 +1,351 @@
-# Generated using Claude cli
-# CodeRabbit Test Execution Plan Workflow
+# CodeRabbit Test Execution Plan Workflow - Complete Flow Reference
 
 Automated workflow for managing complete test execution plan lifecycle with CodeRabbit AI code reviewer.
 
+## Quick Start
+
+### Request a Test Plan
+```bash
+/generate-execution-plan    # Team members only, any commit
+/verified                   # Team members: any commit | Non-members: last commit only
+```
+
+### Respond to Test Plan
+```bash
+@coderabbitai I've added the tests as suggested
+/verified                   # Mark as ready (team: any commit | non-team: last commit)
+```
+
+---
+
 ## Overview
 
-This workflow orchestrates an iterative review cycle between PR authors and CodeRabbit to ensure comprehensive test coverage for code changes. It automatically tracks the status of test execution plans through labels and manages the complete verification lifecycle.
+This workflow orchestrates an iterative review cycle between PR authors and CodeRabbit to ensure comprehensive test coverage. It automatically tracks status through labels and manages the complete verification lifecycle.
+
+**Key Features:**
+- 🤖 Automatic label management
+- 👥 Team member privileges (bypass commit restrictions)
+- 🔄 Complete lifecycle tracking
+- ⚙️ Auto-helper: `/verified` triggers plan generation if none exists
+- 🧹 Auto-cleanup on new commits
+
+---
 
 ## Labels Used
 
-- **`execution-plan-generated`** - CodeRabbit has provided a test execution plan (auto-applied)
-- **`execution-plan-passed`** - CodeRabbit has verified the test plan is complete (auto-applied)
+| Label | Meaning | How to Get | How to Remove |
+|-------|---------|-----------|---------------|
+| **execution-plan-generated** | CodeRabbit posted test plan, awaiting review | CodeRabbit posts plan | CodeRabbit verifies or new commit |
+| **execution-plan-passed** | Test plan verified and approved | CodeRabbit posts "verified" | New commit |
 
-## Workflow Triggers
+---
 
-### 1. Test Plan Generation
-**Triggers:**
-- User comments `/generate-execution-plan`
-- User comments `/verified` (but NOT `/verified cancel`)
+## Complete Flow Tables
 
-**Validation:**
-- For `/verified` comments: Must be on the last commit of the PR (review comments only)
-- Team membership check: Excludes users in `cnvqe-bot` team
+### Flow 1: Test Plan Generation (`/generate-execution-plan`)
 
-**Result:**
-- Workflow requests CodeRabbit to create test execution plan
-- When CodeRabbit posts comment containing "Test Execution Plan"
-- → Auto-adds `execution-plan-generated` label
+| User Type | Commit Location | Label State | Result | Final Label |
+|-----------|----------------|-------------|--------|-------------|
+| Team member | Any commit | None | ✅ Requests plan | plan-generated (after CodeRabbit posts) |
+| Team member | Any commit | plan-generated | ✅ Requests NEW plan | plan-generated |
+| Non-member | Any commit | None | ❌ **Blocked (silent)** | None |
+| Non-member | Any commit | plan-generated | ❌ **Blocked (silent)** | plan-generated (stays) |
 
-### 2. Review Request (when execution-plan-generated label exists)
-**Triggers (any of):**
-- User comments `/generate-execution-plan`
-- User comments `/verified` (must be on last commit for review comments)
-- User posts comment containing:
-  - `test execution plan`
-  - `@coderabbitai`
+**Note:** `/generate-execution-plan` is **restricted to team members only**. Non-members must use `/verified` instead.
 
-**Validation:**
-- Only triggers if `execution-plan-generated` label is present
-- For `/verified` comments: Must be on the last commit of the PR (review comments only)
+---
 
-**Result:**
-- Prompts CodeRabbit to review user's response
-- CodeRabbit either:
-  - **Verifies:** Posts "Test execution plan verified" → Labels updated automatically
-  - **Requests changes:** Provides specific feedback → Cycle continues
+### Flow 2: `/verified` Command (No Plan Exists - Auto-Helper)
 
-### 3. Plan Verification Complete
-**Trigger:** CodeRabbit posts comment containing "Test execution plan verified"
+| User Type | Commit Location | Label State | Result | Final Label |
+|-----------|----------------|-------------|--------|-------------|
+| Team member | Any commit | None | ✅ Auto-requests plan | plan-generated (after CodeRabbit posts) |
+| Non-member | **Last commit** | None | ✅ Auto-requests plan | plan-generated (after CodeRabbit posts) |
+| Non-member | **Old commit** | None | ❌ **Blocked (silent)** | None |
 
-**Result:**
-- Removes `execution-plan-generated` label
-- Adds `execution-plan-passed` label
-- Review cycle complete
+**Note:** When no label exists, `/verified` automatically triggers plan generation (convenience feature).
 
-### 4. Label Reset on New Commits
-**Trigger:** New commit pushed to PR (`synchronize` event)
+---
 
-**Result:**
-- Removes both `execution-plan-generated` and `execution-plan-passed` labels
-- Test plan must be regenerated for new code changes
+### Flow 3: `/verified` Command (Plan Exists - Review Mode)
+
+| User Type | Commit Location | Label State | Result | Final Label |
+|-----------|----------------|-------------|--------|-------------|
+| Team member | Any commit | plan-generated | ✅ Asks CodeRabbit to review | plan-generated (stays) |
+| Non-member | **Last commit** | plan-generated | ✅ Asks CodeRabbit to review | plan-generated (stays) |
+| Non-member | **Old commit** | plan-generated | ❌ **Blocked (silent)** | plan-generated (stays) |
+
+**Note:** When label exists, `/verified` means "review my response". Non-members must be on last commit.
+
+---
+
+### Flow 4: User Responds with Keywords
+
+| Trigger | User Type | Label State | Commit Restriction | Result |
+|---------|-----------|-------------|-------------------|--------|
+| @coderabbitai | Any | plan-generated | ✅ None (any commit) | Asks CodeRabbit to review |
+| "test execution plan" | Any | plan-generated | ✅ None (any commit) | Asks CodeRabbit to review |
+| Any comment | Any | None | N/A | ❌ No action |
+
+**Note:** Keyword-based responses have **no commit restrictions**.
+
+---
+
+### Flow 5: CodeRabbit Actions
+
+| CodeRabbit Posts | Current Label | Result | Final Label |
+|------------------|---------------|--------|-------------|
+| "Test Execution Plan" | None | ✅ Adds label | plan-generated |
+| "Test Execution Plan" | plan-generated | ✅ No-op | plan-generated |
+| "test execution plan verified" | plan-generated | ✅ Updates labels | plan-passed |
+| "TEST EXECUTION PLAN VERIFIED" | plan-generated | ✅ Updates (case-insensitive) | plan-passed |
+
+**Note:** Detection is **case-insensitive**.
+
+---
+
+### Flow 6: System Events
+
+| Event | Current Label | Result | Notification |
+|-------|--------------|--------|--------------|
+| New commit pushed | plan-generated | ✅ Removes | Silent |
+| New commit pushed | plan-passed | ✅ Removes | Silent |
+| New commit pushed | None | No-op | Silent |
+
+**Note:** Automatic cleanup on new commits. Plan must be regenerated.
+
+---
+
+### Flow 7: Edge Cases
+
+| Trigger | Context | Label State | Result | Feedback |
+|---------|---------|-------------|--------|----------|
+| Any command | Issue (not PR) | Any | ❌ Gracefully skipped | Silent |
+| renovate[bot] comment | PR | Any | ❌ Ignored | Silent |
+| User response | PR | Both labels exist | ❌ CodeRabbit NOT triggered | Silent |
+| Manual label add/remove | N/A | Any | No workflow impact | Silent |
+
+**Note:** All jobs validate PR context. Bot comments are ignored. If both `execution-plan-generated` and `execution-plan-passed` labels exist simultaneously (invalid state), CodeRabbit review requests are blocked.
+
+---
+
+## Complete State Diagram
+
+```
+     None (No labels)
+          │
+          ├─── /generate-execution-plan ──┐
+          │                                │
+          ├─── /verified (auto) ───────────┤
+          │                                │
+          ▼                                ▼
+    CodeRabbit receives ──► Posts plan ──► plan-generated
+                                                │
+                                                ├─── User responds
+                                                │
+                                                ├─── /verified
+                                                │
+                                                ▼
+                                      CodeRabbit reviews
+                                                │
+                            ┌───────────────────┴───────────────┐
+                            │                                   │
+                            ▼                                   ▼
+                     Needs changes                      Posts "verified"
+                            │                                   │
+                            └─────────┐                        ▼
+                                      │                  plan-passed
+                                      │                        │
+      ┌───────────────────────────────┴────────────────────────┤
+      │                                                         │
+      ├─── New commit ────────────────────────────────────────┤
+      │                                                         │
+      ▼                                                         ▼
+    None ◄───────────────────────────────────────────────────┘
+```
+
+---
+
+## Job Summary
+
+| Job # | Job Name | Trigger | Function |
+|-------|----------|---------|----------|
+| 1 | request-test-plan | `/generate-execution-plan` or `/verified` (no label) | Request plan |
+| 2 | detect-execution-plan | CodeRabbit posts "test execution plan" | Add plan-generated label |
+| 3 | request-plan-review | User responds (when label exists) | Ask CodeRabbit to review |
+| 4 | detect-plan-verification | CodeRabbit posts "verified" | Update to plan-passed label |
+| 5 | remove-labels-on-push | New commit pushed | Reset workflow |
+
+---
+
+## Command Reference
+
+| Command | When to Use | Who Can Use | Commit Restriction | Action |
+|---------|-------------|-------------|-------------------|--------|
+| `/generate-execution-plan` | Request new plan | **Team members only** | ✅ None (any commit) | Requests plan |
+| `/verified` (no label) | Shortcut to request plan | Team: Anyone<br>Non-team: **Last commit only** | Team: None<br>Non-team: **Last only** | Auto-requests plan |
+| `/verified` (with label) | Confirm/respond to plan | Team: Anyone<br>Non-team: **Last commit only** | Team: None<br>Non-team: **Last only** | Asks review |
+| @coderabbitai | Respond to plan | **Anyone** | ✅ None (any commit) | Asks review |
+
+---
+
+## Permission Matrix
+
+| Action | Team Member | Non-member (Last Commit) | Non-member (Old Commit) |
+|--------|-------------|-------------------------|------------------------|
+| `/generate-execution-plan` | ✅ Any commit | ❌ Blocked | ❌ Blocked |
+| `/verified` (no label) | ✅ Any commit | ✅ Last commit | ❌ Blocked |
+| `/verified` (with label) | ✅ Any commit | ✅ Last commit | ❌ Blocked |
+| @coderabbitai | ✅ Any commit | ✅ Any commit | ✅ Any commit |
+
+---
 
 ## Complete Lifecycle Example
 
 ```
-1. User comments /generate-execution-plan OR /verified (on last commit)
+1. Developer pushes code changes
    ↓
-2. CodeRabbit posts test execution plan review comment
-   → 'execution-plan-generated' label auto-added
+2. Developer comments: /verified (or /generate-execution-plan for team members)
+   → /generate-execution-plan: team members only, any commit
+   → /verified: team members on any commit | non-members on last commit only
    ↓
-3. User responds to test plan (options):
-   - Comments @coderabbitai with response
-   - Comments /verified on last commit (review comment)
-   - Comments /generate-execution-plan for re-review
-   → CodeRabbit prompted to review response
+3. Workflow requests test plan from CodeRabbit
    ↓
-4. CodeRabbit reviews:
-   ├─ Needs changes → Provides feedback → Back to step 3
-   └─ Satisfied → Posts "Test execution plan verified"
-      → 'execution-plan-generated' removed
-      → 'execution-plan-passed' added
+4. CodeRabbit posts test execution plan
+   → Label 'execution-plan-generated' added automatically
    ↓
-5. New commit pushed
+5. Developer reviews plan and responds:
+   Option A: Comments @coderabbitai with response
+   Option B: Comments /verified on last commit
+   Option C: Comments about "test execution plan"
+   → Workflow asks CodeRabbit to review response
+   ↓
+6. CodeRabbit reviews response:
+
+   Path A - Needs Changes:
+   ├─ CodeRabbit provides feedback
+   └─ Back to step 5
+
+   Path B - Satisfied:
+   ├─ CodeRabbit posts "Test execution plan verified"
+   ├─ Label 'execution-plan-generated' removed
+   ├─ Label 'execution-plan-passed' added
+   └─ Review complete! ✅
+   ↓
+7. Developer pushes new commit
    → Both labels removed automatically
-   → Back to step 1
+   → Cycle restarts if needed
 ```
 
-## User Actions
+---
 
-### To Request Initial Test Plan
+## What CodeRabbit Expects
 
-**Option 1: Request execution plan**
-```bash
-/generate-execution-plan
+### For Test Plan
+CodeRabbit will post a review comment with test execution plan in this format:
+```
+**Test Execution Plan**
+
+- path/to/test_file.py
+- path/to/test_file.py::TestClass::test_method
+- -m marker_name
 ```
 
-**Option 2: Mark as verified (must be on last commit)**
-```bash
-/verified
-# Must be a review comment on the last commit
-# For issue comments, can be used anytime
-```
-
-### To Respond to Test Plan or Request Re-review
-
-**Option 1: Request plan regeneration/re-review**
-```
-/generate-execution-plan
-```
-
-**Option 2: Direct response with @mention**
-```
-@coderabbitai I've added tests for the new authentication flow in tests/test_auth.py
-```
-
-**Option 3: Mark as verified after testing (must be on last commit)**
-```
-/verified
-Tested on environment X with the following scenarios:
-- Scenario 1
-- Scenario 2
-```
-**Note:** `/verified` on review comments must be on the last commit of the PR
-
-### What CodeRabbit Expects
-
-**For Verification:**
-CodeRabbit must post this exact phrase to complete the cycle:
+### For Verification
+To complete the cycle, CodeRabbit must post this exact phrase (case-insensitive):
 ```
 Test execution plan verified
 ```
 
-**For Changes:**
-CodeRabbit provides specific feedback with:
+### For Changes
+CodeRabbit provides specific feedback:
 - Missing test scenarios
 - Additional test paths needed
-- Specific test markers or fixtures to verify
+- Specific markers or fixtures to verify
 
-## Workflow Architecture
-
-This is a consolidated single workflow that handles:
-- Initial test plan requests (`/generate-execution-plan` or `/verified`)
-- Test plan detection and labeling
-- User response review requests
-- Plan verification and label updates
-- Label cleanup on new commits
-
-## Monitoring
-
-### Active Review Cycles
-PRs with `execution-plan-generated` label have active test plan reviews in progress.
-
-### Completed Reviews
-PRs with `execution-plan-passed` label have verified test execution plans.
-
-### Stale Plans (Optional)
-Uncomment the schedule trigger in the workflow to enable daily monitoring:
-- Checks for PRs with `execution-plan-generated` label older than 3 days
-- Posts reminder comments automatically
-
-## Workflow Files
-
-- **Consolidated workflow:** `.github/workflows/coderabbit-test-execution-plan.yml`
-- **Documentation:** `.github/workflows/coderabbit-execution-plan-flow.md` (this file)
+---
 
 ## Troubleshooting
 
-**Label not added after CodeRabbit response?**
-- Verify CodeRabbit's comment contains exact text: "Test Execution Plan"
-- Check workflow run logs in Actions tab
+### Label not added after CodeRabbit response?
+- ✅ Verify CodeRabbit's comment contains: "Test Execution Plan" (case-insensitive)
+- ✅ Check workflow run logs in Actions tab
 
-**CodeRabbit not responding to user comments?**
-- Ensure `execution-plan-generated` label is present
-- Comment must contain trigger phrases:
-  - `/generate-execution-plan` (request new/updated plan)
-  - `@coderabbitai` (direct mention)
-  - `/verified` (mark as ready, but NOT `/verified cancel`)
-  - `test execution plan` (discussion about the plan)
-- For `/verified` on review comments: Must be on the last commit
-- Avoid using `/verified cancel` which is explicitly excluded
+### CodeRabbit not responding to comments?
+- ✅ Ensure `execution-plan-generated` label is present (for review requests)
+- ✅ Check command triggers:
+  - `/generate-execution-plan` (team members only)
+  - `/verified` (if label exists, must be on last commit for non-members)
+  - `@coderabbitai` (always works)
+  - "test execution plan" (always works)
 
-**Initial plan not requested?**
-- Check if user is in `cnvqe-bot` team (team members are excluded)
-- For `/verified` commands: Review comment must be on the last commit
-- Verify command was `/generate-execution-plan` or `/verified` (not `/verified cancel`)
-- Check workflow run logs in Actions tab
+### Initial plan not requested?
+- ✅ For `/verified`: Non-members must be on **last commit** (review comments)
+- ✅ For `/generate-execution-plan`: **Team members only** (non-members blocked)
+- ✅ Check workflow run logs in Actions tab
 
-**Labels not removed on new commit?**
-- Check that `pull_request_target` with `synchronize` event is enabled
-- Verify BOT3_TOKEN has correct permissions
+### `/verified` not working?
+**Check these common issues:**
+1. **Team member?** Works on any commit
+2. **Non-member?** Must be on **last commit** (for review comments)
+3. **Label exists?** Triggers review request (Job 3)
+4. **No label?** Auto-requests plan (Job 1) - convenience feature
+5. **Issue comment (not review)?** Works from any commit location
 
-**Review cycle stuck?**
-- Check if CodeRabbit used exact phrase "Test execution plan verified"
-- Manual label management: Remove `execution-plan-generated` and add `execution-plan-passed` if needed
+### Labels not removed on new commit?
+- ✅ Check that `pull_request_target` with `synchronize` event is enabled
+- ✅ Verify BOT3_TOKEN has correct permissions
+
+### Review cycle stuck?
+- ✅ Check if CodeRabbit used exact phrase: "Test execution plan verified" (case-insensitive)
+- ✅ Manual fix: Remove `execution-plan-generated`, add `execution-plan-passed` via GitHub UI
+
+### Both labels exist simultaneously?
+**This is an invalid state.** If both `execution-plan-generated` and `execution-plan-passed` labels exist:
+- ✅ CodeRabbit will NOT be triggered (workflow protection)
+- ✅ Manual fix: Remove one of the labels via GitHub UI
+  - If plan is verified: Remove `execution-plan-generated`, keep `execution-plan-passed`
+  - If plan is still pending: Remove `execution-plan-passed`, keep `execution-plan-generated`
+
+### Silent failure (no feedback)?
+**This is by design for:**
+- Non-members using `/verified` on old commits (blocked)
+- Both labels existing simultaneously (invalid state - see above)
+- Comments on issues (not PRs) - gracefully skipped
+- Bot comments (renovate) - ignored
+
+**To get feedback:**
+- Team members: Use `/generate-execution-plan` on any commit
+- Non-members: Use `/verified` on last commit only (or request team access)
+- Everyone: Use `@coderabbitai` keyword on any commit
+
+---
+
+## Workflow Files
+
+- **Main workflow:** `.github/workflows/coderabbit-test-execution-plan.yml`
+- **Documentation:** `.github/workflows/coderabbit-execution-plan-flow.md` (this file)
+
+---
+
+## Key Improvements (Fixed in Latest Version)
+
+✅ **Fixed team membership logic** - Team members can now use workflow
+✅ **Case-insensitive matching** - Works with any capitalization
+✅ **PR context validation** - Gracefully handles non-PR contexts
+✅ **Race condition eliminated** - Jobs don't conflict
+✅ **Auto-helper feature** - `/verified` auto-requests plan if none exists
+✅ **Consistent PR number extraction** - Robust error handling
+
+---
+
+## Monitoring
+
+### Active Reviews
+Filter PRs by label: `execution-plan-generated`
+
+### Completed Reviews
+Filter PRs by label: `execution-plan-passed`
+
+### Team Members (bypass commit restrictions)
+Members of `cnvqe-bot` team can use `/verified` on any commit.

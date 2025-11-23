@@ -40,9 +40,8 @@ jobs:
             // Check for /generate-execution-plan command
             const hasGenerateCommand = commentBody.includes('/generate-execution-plan');
 
-            // Check for /verified command but exclude /verified cancel
-            const hasVerifiedCommand = commentBody.includes('/verified') &&
-                                      !commentBody.includes('/verified cancel');
+            // Check for /verified command
+            const hasVerifiedCommand = commentBody.includes('/verified');
 
             const shouldRequestPlan = hasGenerateCommand || hasVerifiedCommand;
 
@@ -51,51 +50,69 @@ jobs:
             console.log('Should request plan: ' + shouldRequestPlan);
 
             core.setOutput('should-request-plan', shouldRequestPlan.toString());
+            core.setOutput('has-generate-command', hasGenerateCommand.toString());
 
-      - name: Get PR details
-        id: get-pr
+      - name: Validate PR context
+        id: validate-pr
         if: steps.check-command.outputs.should-request-plan == 'true'
         uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.BOT3_TOKEN }}
           script: |
-            const prNumber = context.payload.pull_request?.number || context.payload.issue.number;
+            // Ensure this is a pull request, not a regular issue
+            const isPullRequest = !!context.payload.pull_request || !!context.payload.issue?.pull_request;
+            const prNumber = context.payload.pull_request?.number || context.payload.issue?.number;
+
+            if (!isPullRequest) {
+              console.log('Not a pull request, skipping');
+              core.setOutput('is-valid', 'false');
+              return;
+            }
+
             const login = context.payload.comment.user.login;
 
+            core.setOutput('is-valid', 'true');
             core.setOutput('pr-number', prNumber.toString());
             core.setOutput('user-login', login);
 
       - name: Check team membership
         id: check-user-team
-        if: steps.check-command.outputs.should-request-plan == 'true'
+        if: steps.validate-pr.outputs.is-valid == 'true'
         uses: tspascoal/get-user-teams-membership@v3
         with:
           team: cnvqe-bot
-          username: ${{ steps.get-pr.outputs.user-login }}
+          username: ${{ steps.validate-pr.outputs.user-login }}
           GITHUB_TOKEN: ${{ secrets.BOT3_TOKEN }}
 
-      - name: Check if this is on the last commit (for /verified)
+      - name: Check if this is on the last commit (for non-team members)
         id: check-last-commit
         if: |
-          steps.check-command.outputs.should-request-plan == 'true' &&
+          steps.validate-pr.outputs.is-valid == 'true' &&
           steps.check-user-team.outputs.is-member != 'true'
         uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.BOT3_TOKEN }}
           script: |
             const commentBody = context.payload.comment.body.toLowerCase();
-            const hasVerifiedCommand = commentBody.includes('/verified') &&
-                                      !commentBody.includes('/verified cancel');
+            const hasVerifiedCommand = commentBody.includes('/verified');
+            const hasGenerateCommand = commentBody.includes('/generate-execution-plan');
 
-            // If not a /verified command, proceed
+            // Block non-team members from using /generate-execution-plan
+            if (hasGenerateCommand) {
+              console.log('/generate-execution-plan is restricted to team members only');
+              core.setOutput('should-proceed', 'false');
+              return;
+            }
+
+            // If not a /verified command, proceed (shouldn't happen but fallback)
             if (!hasVerifiedCommand) {
               console.log('Not a /verified command, proceeding');
               core.setOutput('should-proceed', 'true');
               return;
             }
 
-            // For /verified commands, check if comment is on last commit
-            const prNumber = context.payload.pull_request?.number || context.payload.issue.number;
+            // For /verified commands from non-team members, check if comment is on last commit
+            const prNumber = context.payload.pull_request?.number || context.payload.issue?.number;
 
             // Get PR details to find last commit
             const { data: pr } = await github.rest.pulls.get({
@@ -108,7 +125,7 @@ jobs:
             console.log('Last commit SHA: ' + lastCommitSha);
 
             // For review comments, check if it's on the last commit
-            if (context.eventName === 'pull_request_review_comment') {
+            if (context.payload.comment.commit_id) {
               const commitSha = context.payload.comment.commit_id;
               console.log('Comment commit SHA: ' + commitSha);
 
@@ -124,12 +141,12 @@ jobs:
 
       - name: Request test execution plan from CodeRabbit
         if: |
-          steps.check-command.outputs.should-request-plan == 'true' &&
-          steps.check-user-team.outputs.is-member != 'true' &&
-          steps.check-last-commit.outputs.should-proceed == 'true'
+          steps.validate-pr.outputs.is-valid == 'true' &&
+          (steps.check-user-team.outputs.is-member == 'true' ||
+           steps.check-last-commit.outputs.should-proceed == 'true')
         uses: peter-evans/create-or-update-comment@v4
         with:
-          issue-number: ${{ steps.get-pr.outputs.pr-number }}
+          issue-number: ${{ steps.validate-pr.outputs.pr-number }}
           token: ${{ secrets.BOT3_TOKEN }}
           body: |
             @coderabbitai
@@ -168,7 +185,7 @@ jobs:
               - Use file path + test name if only specific tests are needed
               - If a test marker can cover multiple files/tests, provide the marker
               - Balance coverage vs over-testing - Keep descriptions minimal
-              - Do not add a follow-up comment in the PR, only the change request one
+              - Do not add a follow-up comment in the PR, only the change request one. THIS IS IMPORTANT! Spams the PR.
 
             </details>
 
@@ -177,7 +194,7 @@ jobs:
     if: |
       github.event_name == 'pull_request_review_comment' &&
       github.event.comment.user.login == 'coderabbitai[bot]' &&
-      contains(github.event.comment.body, 'Test Execution Plan')
+      contains(toLower(github.event.comment.body), 'test execution plan')
     runs-on: ubuntu-latest
 
     steps:
@@ -186,7 +203,12 @@ jobs:
         with:
           github-token: ${{ secrets.BOT3_TOKEN }}
           script: |
-            const prNumber = context.payload.pull_request.number;
+            const prNumber = context.payload.pull_request?.number;
+
+            if (!prNumber) {
+              console.log('Not a pull request, skipping');
+              return;
+            }
 
             await github.rest.issues.addLabels({
               owner: context.repo.owner,
@@ -202,17 +224,37 @@ jobs:
     if: |
       (github.event_name == 'issue_comment' || github.event_name == 'pull_request_review_comment') &&
       github.event.comment.user.login != 'coderabbitai[bot]' &&
-      !contains(github.event.comment.user.login, 'renovate')
+      !contains(github.event.comment.user.login, 'renovate') &&
+      !contains(github.event.comment.body, '/generate-execution-plan')
     runs-on: ubuntu-latest
 
     steps:
-      - name: Check if execution-plan-generated label exists
-        id: check-label
+      - name: Validate PR context
+        id: validate-pr
         uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.BOT3_TOKEN }}
           script: |
-            const prNumber = context.payload.pull_request?.number || context.payload.issue.number;
+            const isPullRequest = !!context.payload.pull_request || !!context.payload.issue?.pull_request;
+            const prNumber = context.payload.pull_request?.number || context.payload.issue?.number;
+
+            if (!isPullRequest) {
+              console.log('Not a pull request, skipping');
+              core.setOutput('is-valid', 'false');
+              return;
+            }
+
+            core.setOutput('is-valid', 'true');
+            core.setOutput('pr-number', prNumber.toString());
+
+      - name: Check if execution-plan-generated label exists
+        id: check-label
+        if: steps.validate-pr.outputs.is-valid == 'true'
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.BOT3_TOKEN }}
+          script: |
+            const prNumber = context.payload.pull_request?.number || context.payload.issue?.number;
 
             const { data: labels } = await github.rest.issues.listLabelsOnIssue({
               owner: context.repo.owner,
@@ -220,11 +262,19 @@ jobs:
               issue_number: prNumber
             });
 
-            const hasLabel = labels.some(label => label.name === 'execution-plan-generated');
-            console.log('Has execution-plan-generated label: ' + hasLabel);
+            const hasGeneratedLabel = labels.some(label => label.name === 'execution-plan-generated');
+            const hasPassedLabel = labels.some(label => label.name === 'execution-plan-passed');
 
-            core.setOutput('has-label', hasLabel.toString());
-            core.setOutput('pr-number', prNumber.toString());
+            console.log('Has execution-plan-generated label: ' + hasGeneratedLabel);
+            console.log('Has execution-plan-passed label: ' + hasPassedLabel);
+
+            // If both labels exist (invalid state), do not trigger CodeRabbit
+            if (hasGeneratedLabel && hasPassedLabel) {
+              console.log('Both labels exist - invalid state, skipping CodeRabbit trigger');
+              core.setOutput('has-label', 'false');
+            } else {
+              core.setOutput('has-label', hasGeneratedLabel.toString());
+            }
 
       - name: Check if comment is response to test plan
         id: check-response
@@ -235,23 +285,18 @@ jobs:
           script: |
             const commentBody = context.payload.comment.body.toLowerCase();
 
-            // Check for /verified command but exclude /verified cancel
-            const hasVerifiedCommand = commentBody.includes('/verified') &&
-                                      !commentBody.includes('/verified cancel');
-
-            // Check for /generate-execution-plan command
-            const hasGenerateCommand = commentBody.includes('/generate-execution-plan');
+            // Check for /verified command
+            const hasVerifiedCommand = commentBody.includes('/verified');
 
             const isRelevantResponse =
               commentBody.includes('test execution plan') ||
               commentBody.includes('@coderabbitai') ||
-              hasVerifiedCommand ||
-              hasGenerateCommand;
+              hasVerifiedCommand;
 
             console.log('Is relevant response: ' + isRelevantResponse);
             core.setOutput('is-response', isRelevantResponse.toString());
 
-      - name: Check if /verified is on last commit
+      - name: Check if /verified is on last commit (for non-team members)
         id: check-verified-commit
         if: |
           steps.check-label.outputs.has-label == 'true' &&
@@ -261,8 +306,7 @@ jobs:
           github-token: ${{ secrets.BOT3_TOKEN }}
           script: |
             const commentBody = context.payload.comment.body.toLowerCase();
-            const hasVerifiedCommand = commentBody.includes('/verified') &&
-                                      !commentBody.includes('/verified cancel');
+            const hasVerifiedCommand = commentBody.includes('/verified');
 
             // If not a /verified command, proceed
             if (!hasVerifiedCommand) {
@@ -271,8 +315,30 @@ jobs:
               return;
             }
 
-            // For /verified commands, check if comment is on last commit
-            const prNumber = context.payload.pull_request?.number || context.payload.issue.number;
+            // Check team membership
+            const login = context.payload.comment.user.login;
+            let isMember = false;
+
+            try {
+              await github.rest.teams.getMembershipForUserInOrg({
+                org: context.repo.owner,
+                team_slug: 'cnvqe-bot',
+                username: login
+              });
+              isMember = true;
+              console.log('User is team member, bypassing last commit check');
+            } catch (error) {
+              console.log('User is not team member, checking last commit');
+            }
+
+            // Team members bypass the check
+            if (isMember) {
+              core.setOutput('should-proceed', 'true');
+              return;
+            }
+
+            // For non-team members with /verified, check if comment is on last commit
+            const prNumber = context.payload.pull_request?.number || context.payload.issue?.number;
 
             // Get PR details to find last commit
             const { data: pr } = await github.rest.pulls.get({
@@ -285,7 +351,7 @@ jobs:
             console.log('Last commit SHA: ' + lastCommitSha);
 
             // For review comments, check if it's on the last commit
-            if (context.eventName === 'pull_request_review_comment') {
+            if (context.payload.comment.commit_id) {
               const commitSha = context.payload.comment.commit_id;
               console.log('Comment commit SHA: ' + commitSha);
 
@@ -306,7 +372,7 @@ jobs:
           steps.check-verified-commit.outputs.should-proceed == 'true'
         uses: peter-evans/create-or-update-comment@v4
         with:
-          issue-number: ${{ steps.check-label.outputs.pr-number }}
+          issue-number: ${{ steps.validate-pr.outputs.pr-number }}
           token: ${{ secrets.BOT3_TOKEN }}
           body: |
             @coderabbitai
@@ -346,7 +412,7 @@ jobs:
     if: |
       (github.event_name == 'issue_comment' || github.event_name == 'pull_request_review_comment') &&
       github.event.comment.user.login == 'coderabbitai[bot]' &&
-      contains(github.event.comment.body, 'Test execution plan verified')
+      contains(toLower(github.event.comment.body), 'test execution plan verified')
     runs-on: ubuntu-latest
 
     steps:
@@ -355,7 +421,12 @@ jobs:
         with:
           github-token: ${{ secrets.BOT3_TOKEN }}
           script: |
-            const prNumber = context.payload.pull_request?.number || context.payload.issue.number;
+            const prNumber = context.payload.pull_request?.number || context.payload.issue?.number;
+
+            if (!prNumber) {
+              console.log('Not a pull request, skipping');
+              return;
+            }
 
             // Remove execution-plan-generated label if it exists
             try {
@@ -396,7 +467,13 @@ jobs:
         with:
           github-token: ${{ secrets.BOT3_TOKEN }}
           script: |
-            const prNumber = context.payload.pull_request.number;
+            const prNumber = context.payload.pull_request?.number;
+
+            if (!prNumber) {
+              console.log('No PR number found, skipping');
+              return;
+            }
+
             const labelsToRemove = ['execution-plan-generated', 'execution-plan-passed'];
 
             console.log('New commit pushed to PR #' + prNumber + ', removing execution plan labels');
