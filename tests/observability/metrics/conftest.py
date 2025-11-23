@@ -8,13 +8,13 @@ from ocp_resources.deployment import Deployment
 from ocp_resources.pod import Pod
 from ocp_resources.resource import ResourceEditor
 from ocp_resources.storage_class import StorageClass
-from ocp_resources.virtual_machine import VirtualMachine
 from ocp_resources.virtual_machine_instance_migration import VirtualMachineInstanceMigration
 from pytest_testconfig import py_config
 from timeout_sampler import TimeoutExpiredError, TimeoutSampler
 
 from tests.observability.metrics.constants import (
     KUBEVIRT_CONSOLE_ACTIVE_CONNECTIONS_BY_VMI,
+    KUBEVIRT_VM_CREATED_BY_POD_TOTAL,
     KUBEVIRT_VMI_MIGRATIONS_IN_RUNNING_PHASE,
     KUBEVIRT_VMI_MIGRATIONS_IN_SCHEDULING_PHASE,
     KUBEVIRT_VMI_STATUS_ADDRESSES,
@@ -22,7 +22,6 @@ from tests.observability.metrics.constants import (
 )
 from tests.observability.metrics.utils import (
     SINGLE_VM,
-    ZERO_CPU_CORES,
     create_windows11_wsl2_vm,
     disk_file_system_info,
     enable_swap_fedora_vm,
@@ -31,7 +30,6 @@ from tests.observability.metrics.utils import (
     get_vmi_guest_os_kernel_release_info_metric_from_vm,
     metric_result_output_dict_by_mountpoint,
     vnic_info_from_vm_or_vmi,
-    wait_for_metric_vmi_request_cpu_cores_output,
 )
 from tests.observability.utils import validate_metrics_value
 from tests.utils import create_vms
@@ -106,44 +104,6 @@ def unique_namespace(admin_client, unprivileged_client):
     """
     namespace_name = unique_name(name="key-metrics")
     yield from create_ns(admin_client=admin_client, unprivileged_client=unprivileged_client, name=namespace_name)
-
-
-@pytest.fixture()
-def stopped_metrics_vm(running_metric_vm):
-    running_metric_vm.stop(wait=True)
-    yield
-
-
-@pytest.fixture()
-def starting_metrics_vm(running_metric_vm):
-    running_metric_vm.start(wait=True)
-    yield
-
-
-@pytest.fixture()
-def paused_metrics_vm(running_metric_vm):
-    running_metric_vm.privileged_vmi.pause(wait=True)
-    yield
-
-
-@pytest.fixture(scope="module")
-def initial_metric_cpu_value_zero(prometheus):
-    wait_for_metric_vmi_request_cpu_cores_output(prometheus=prometheus, expected_cpu=ZERO_CPU_CORES)
-
-
-@pytest.fixture(scope="class")
-def error_state_vm(unique_namespace, unprivileged_client):
-    vm_name = "vm-in-error-state"
-    with VirtualMachineForTests(
-        name=vm_name,
-        namespace=unique_namespace.name,
-        body=fedora_vm_body(name=vm_name),
-        client=unprivileged_client,
-        node_selector=get_node_selector_dict(node_selector="non-existent-node"),
-    ) as vm:
-        vm.start()
-        vm.wait_for_specific_status(status=VirtualMachine.Status.ERROR_UNSCHEDULABLE)
-        yield
 
 
 @pytest.fixture(scope="module")
@@ -619,3 +579,12 @@ def aaq_resource_hard_limit_and_used(application_aware_resource_quota):
         for key, value in resource_used.items()
     }
     return formatted_hard_limit, formatted_used_value
+
+
+@pytest.fixture(scope="class")
+def vm_created_pod_total_initial_metric_value(prometheus, namespace):
+    return int(
+        get_metrics_value(
+            prometheus=prometheus, metrics_name=KUBEVIRT_VM_CREATED_BY_POD_TOTAL.format(namespace=namespace.name)
+        )
+    )

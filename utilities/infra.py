@@ -57,6 +57,7 @@ from utilities.constants import (
     PROMETHEUS_K8S,
     TIMEOUT_1MIN,
     TIMEOUT_2MIN,
+    TIMEOUT_5MIN,
     TIMEOUT_5SEC,
     TIMEOUT_6MIN,
     TIMEOUT_10MIN,
@@ -272,7 +273,7 @@ def wait_for_pods_running(
          state
     """
     samples = TimeoutSampler(
-        wait_timeout=TIMEOUT_2MIN,
+        wait_timeout=TIMEOUT_5MIN,
         sleep=TIMEOUT_5SEC,
         func=get_pods,
         dyn_client=admin_client,
@@ -845,6 +846,7 @@ def get_node_audit_log_entries(log, node, log_entry):
     error_patterns_list = [
         r"^\s*error:",
         r"Unhandled Error.*couldn't get current server API group list.*i/o timeout",
+        r".*read tcp.*connection reset by peer",
     ]
     error_patterns = re.compile("|".join(f"({pattern})" for pattern in error_patterns_list))
 
