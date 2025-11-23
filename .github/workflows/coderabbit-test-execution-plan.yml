@@ -193,8 +193,7 @@ jobs:
   detect-execution-plan:
     if: |
       github.event_name == 'pull_request_review_comment' &&
-      github.event.comment.user.login == 'coderabbitai[bot]' &&
-      contains(toLower(github.event.comment.body), 'test execution plan')
+      github.event.comment.user.login == 'coderabbitai[bot]'
     runs-on: ubuntu-latest
 
     steps:
@@ -203,6 +202,13 @@ jobs:
         with:
           github-token: ${{ secrets.BOT3_TOKEN }}
           script: |
+            // Check for test execution plan in comment body (case-insensitive)
+            const commentBody = context.payload.comment.body.toLowerCase();
+            if (!commentBody.includes('test execution plan')) {
+              console.log('Comment does not contain "test execution plan", skipping');
+              return;
+            }
+
             const prNumber = context.payload.pull_request?.number;
 
             if (!prNumber) {
@@ -412,8 +418,7 @@ jobs:
   detect-plan-verification:
     if: |
       (github.event_name == 'issue_comment' || github.event_name == 'pull_request_review_comment') &&
-      github.event.comment.user.login == 'coderabbitai[bot]' &&
-      contains(toLower(github.event.comment.body), 'test execution plan verified')
+      github.event.comment.user.login == 'coderabbitai[bot]'
     runs-on: ubuntu-latest
 
     steps:
@@ -422,6 +427,13 @@ jobs:
         with:
           github-token: ${{ secrets.BOT3_TOKEN }}
           script: |
+            // Check for verification message in comment body (case-insensitive)
+            const commentBody = context.payload.comment.body.toLowerCase();
+            if (!commentBody.includes('test execution plan verified')) {
+              console.log('Comment does not contain "test execution plan verified", skipping');
+              return;
+            }
+
             const prNumber = context.payload.pull_request?.number || context.payload.issue?.number;
 
             if (!prNumber) {
