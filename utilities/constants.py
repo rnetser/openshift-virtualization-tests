@@ -1,3 +1,5 @@
+from typing import Any
+
 from kubernetes.dynamic.exceptions import InternalServerError
 from ocp_resources.aaq import AAQ
 from ocp_resources.api_service import APIService
@@ -803,9 +805,7 @@ VM_CONSOLE_PROXY_NAMESPACE_RESOURCES = [
     RoleBinding,
 ]
 
-ARTIFACTORY_SECRET_NAME = "cnv-tests-artifactory-secret"
 CNV_TEST_RUN_IN_PROGRESS_NS = f"{CNV_TEST_RUN_IN_PROGRESS}-ns"
-BASE_ARTIFACTORY_LOCATION = "artifactory/cnv-qe-server-local"
 
 SECURITY_CONTEXT = "securityContext"
 
@@ -886,7 +886,7 @@ BIND_IMMEDIATE_ANNOTATION = {f"{Resource.ApiGroup.CDI_KUBEVIRT_IO}/storage.bind.
 
 HCO_DEFAULT_CPU_MODEL_KEY = "defaultCPUModel"
 
-HPP_CAPABILITIES = {
+HPP_CAPABILITIES: dict[str, Any] = {
     VOLUME_MODE: DataVolume.VolumeMode.FILE,
     ACCESS_MODE: DataVolume.AccessMode.RWO,
     "snapshot": False,

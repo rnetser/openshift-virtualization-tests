@@ -5,17 +5,17 @@ from ocp_resources.virtual_machine_cluster_preference import VirtualMachineClust
 from pytest_testconfig import config as py_config
 
 from tests.infrastructure.instance_types.supported_os.utils import golden_image_vm_with_instance_type
+from utilities.artifactory import (
+    cleanup_artifactory_secret_and_config_map,
+    get_artifactory_config_map,
+    get_artifactory_secret,
+)
 from utilities.constants import (
     CONTAINER_DISK_IMAGE_PATH_STR,
     DATA_SOURCE_NAME,
     DATA_SOURCE_STR,
     RHEL8_PREFERENCE,
     Images,
-)
-from utilities.infra import (
-    cleanup_artifactory_secret_and_config_map,
-    get_artifactory_config_map,
-    get_artifactory_secret,
 )
 from utilities.storage import get_test_artifact_server_url
 from utilities.virt import VirtualMachineForTests
@@ -89,6 +89,7 @@ def golden_image_fedora_vm_with_instance_type(
 
 @pytest.fixture(scope="module")
 def windows_data_volume_template(
+    unprivileged_client,
     namespace,
     windows_os_matrix__module__,
 ):
@@ -97,6 +98,7 @@ def windows_data_volume_template(
     secret = get_artifactory_secret(namespace=namespace.name)
     cert = get_artifactory_config_map(namespace=namespace.name)
     win_dv = DataVolume(
+        client=unprivileged_client,
         name=f"{os_matrix_key}-dv",
         namespace=namespace.name,
         api_name="storage",
@@ -125,9 +127,10 @@ def golden_image_windows_vm(
         client=unprivileged_client,
         name=f"{os_name}-vm-with-instance-type-2",
         namespace=namespace.name,
-        vm_instance_type=VirtualMachineClusterInstancetype(name="u1.large"),
+        vm_instance_type=VirtualMachineClusterInstancetype(client=unprivileged_client, name="u1.large"),
         vm_preference=VirtualMachineClusterPreference(
-            name=windows_os_matrix__module__[os_name][DATA_SOURCE_STR].replace("win", "windows.")
+            client=unprivileged_client,
+            name=windows_os_matrix__module__[os_name][DATA_SOURCE_STR].replace("win", "windows."),
         ),
         data_volume_template=windows_data_volume_template.res,
         os_flavor="win-container-disk",
