@@ -239,13 +239,13 @@ def main() -> None:
     try:
         owner, repo = repository.split("/")
     except ValueError:
-        LOGGER.exception(f"Invalid repository format: {repository}")
+        LOGGER.error(f"Invalid repository format: {repository}")
         sys.exit(1)
 
     try:
         pr_number: Optional[int] = int(pr_number_str) if pr_number_str else None
     except ValueError:
-        LOGGER.exception(f"Invalid PR number: {pr_number_str}")
+        LOGGER.error(f"Invalid PR number: {pr_number_str}")
         sys.exit(1)
 
     LOGGER.info(f"Event: {event_name}, Action: {event_action}")
@@ -287,8 +287,8 @@ def main() -> None:
             return
 
         body_lower = body.lower()
-        has_generate = bool(re.search(pattern=r"\b/generate-execution-plan\b", string=body_lower))
-        has_verified = bool(re.search(pattern=r"\b/verified\b", string=body_lower))
+        has_generate = bool(re.search(pattern=r"(?:^|\s)/generate-execution-plan(?:\s|$)", string=body_lower))
+        has_verified = bool(re.search(pattern=r"(?:^|\s)/verified(?:\s|$)", string=body_lower))
 
         LOGGER.info(f"Commands - generate: {has_generate}, verified: {has_verified}")
 
