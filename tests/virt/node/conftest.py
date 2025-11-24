@@ -19,6 +19,7 @@ from utilities.constants import (
     ONE_CPU_THREAD,
     TEN_GI_MEMORY,
 )
+from utilities.jira import is_jira_open
 from utilities.virt import (
     VirtualMachineForTestsFromTemplate,
     running_vm,
@@ -33,7 +34,7 @@ def vm_with_memory_load(
     request,
     unprivileged_client,
     namespace,
-    golden_image_data_source_scope_function,
+    golden_image_data_volume_template_for_test_scope_function,
     modern_cpu_for_migration,
     vm_cpu_flags,
 ):
@@ -41,11 +42,30 @@ def vm_with_memory_load(
         request=request,
         unprivileged_client=unprivileged_client,
         namespace=namespace,
-        data_source=golden_image_data_source_scope_function,
+        data_volume_template=golden_image_data_volume_template_for_test_scope_function,
         vm_cpu_model=modern_cpu_for_migration,
         vm_cpu_flags=vm_cpu_flags,
     ) as vm:
         yield vm
+
+
+@pytest.fixture(scope="session")
+def vmx_disabled_flag():
+    """
+    VMX CPU feature should be disabled, otherwise hotplugged CPUs come up offline on RHEL.
+    """
+    return (
+        {
+            "features": [
+                {
+                    "name": "vmx",
+                    "policy": "disable",
+                }
+            ]
+        }
+        if is_jira_open("CNV-62851")
+        else None
+    )
 
 
 @pytest.fixture(scope="class")
@@ -53,8 +73,9 @@ def hotplugged_vm(
     request,
     namespace,
     unprivileged_client,
-    golden_image_data_source_scope_class,
+    golden_image_data_volume_template_for_test_scope_class,
     modern_cpu_for_migration,
+    vmx_disabled_flag,
 ):
     with VirtualMachineForTestsFromTemplate(
         name=request.param["vm_name"],
@@ -62,7 +83,7 @@ def hotplugged_vm(
         labels=Template.generate_template_labels(**request.param["template_labels"]),
         namespace=namespace.name,
         client=unprivileged_client,
-        data_source=golden_image_data_source_scope_class,
+        data_volume_template=golden_image_data_volume_template_for_test_scope_class,
         cpu_max_sockets=EIGHT_CPU_SOCKETS,
         memory_max_guest=TEN_GI_MEMORY,
         cpu_sockets=FOUR_CPU_SOCKETS,
@@ -70,6 +91,7 @@ def hotplugged_vm(
         cpu_cores=ONE_CPU_CORE,
         memory_guest=FOUR_GI_MEMORY,
         cpu_model=modern_cpu_for_migration,
+        cpu_flags=vmx_disabled_flag,
     ) as vm:
         running_vm(vm=vm)
         yield vm

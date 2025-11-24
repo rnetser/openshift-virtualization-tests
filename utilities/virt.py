@@ -45,6 +45,8 @@ from pytest_testconfig import config as py_config
 from rrmngmnt import Host, ssh, user
 from timeout_sampler import TimeoutExpiredError, TimeoutSampler
 
+import utilities.cpu
+import utilities.data_utils
 import utilities.infra
 from utilities.console import Console
 from utilities.constants import (
@@ -818,7 +820,7 @@ class VirtualMachineForTests(VirtualMachine):
             cloud_init_user_data += f"{cloud_init_user_data_newline}{login_generated_data['userData']}"
 
         # Add RSA to authorized_keys to enable login using an SSH key
-        authorized_key = utilities.infra.authorized_key(private_key_path=os.environ[CNV_VM_SSH_KEY_PATH])
+        authorized_key = utilities.data_utils.authorized_key(private_key_path=os.environ[CNV_VM_SSH_KEY_PATH])
         cloud_init_user_data += f"\nssh_authorized_keys:\n [{authorized_key}]"
 
         # Enable LEGACY crypto policies - needed until keys updated to ECDSA
@@ -1431,7 +1433,7 @@ def fedora_vm_body(name: str) -> dict[str, Any]:
     image_info = get_oc_image_info(
         image=image,
         pull_secret=pull_secret,
-        architecture=utilities.infra.get_nodes_cpu_architecture(
+        architecture=utilities.cpu.get_nodes_cpu_architecture(
             nodes=list(Node.get(dyn_client=get_client())),
         ),
     )
@@ -1641,33 +1643,6 @@ def get_windows_os_dict(windows_version: str) -> dict[str, Any]:
         if windows_os_dict:
             return windows_os_dict[0]
         raise KeyError(f"Failed to extract {windows_version} from system_windows_os_matrix")
-
-    return {}
-
-
-def get_rhel_os_dict(rhel_version: str) -> dict[str, Any]:
-    """
-    Returns a dictionary of RHEL os information from the system_rhel_os_matrix in py_config.
-
-    Args:
-        rhel_version: The version of RHEL to get the os information for.
-
-    Returns:
-        dict: OS dictionary for the version, or empty dict if matrix is missing
-
-    Raises:
-        KeyError: If matrix exists but version is not found
-    """
-    if py_system_rhel_os_matrix := py_config.get("system_rhel_os_matrix"):
-        rhel_os_dict = [
-            os_dict
-            for rhel_os in py_system_rhel_os_matrix
-            for os_name, os_dict in rhel_os.items()
-            if os_name == rhel_version
-        ]
-        if rhel_os_dict:
-            return rhel_os_dict[0]
-        raise KeyError(f"Failed to extract {rhel_version} from system_rhel_os_matrix")
 
     return {}
 
