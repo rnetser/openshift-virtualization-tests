@@ -3,8 +3,8 @@ import math
 import os
 import shlex
 from contextlib import contextmanager
-from functools import cache
 
+import cachetools.func
 import kubernetes
 import requests
 from kubernetes.dynamic import DynamicClient
@@ -1138,7 +1138,7 @@ def vm_snapshot(vm, name):
         yield snapshot
 
 
-@cache
+@cachetools.func.ttl_cache(ttl=TIMEOUT_60MIN)
 @retry(wait_timeout=TIMEOUT_1MIN, sleep=TIMEOUT_1SEC)
 def validate_file_exists_in_url(url):
     response = requests.head(url, headers=utilities.artifactory.get_artifactory_header(), verify=False)
