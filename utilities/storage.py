@@ -321,6 +321,8 @@ def get_downloaded_artifact(remote_name, local_name):
                 file_downloaded.write(chunk)
     try:
         assert os.path.isfile(local_name)
+        return True
+
     except FileNotFoundError as err:
         LOGGER.error(err)
         raise
@@ -1139,8 +1141,10 @@ def vm_snapshot(vm, name):
 
 
 @cachetools.func.ttl_cache(ttl=TIMEOUT_60MIN)
-@retry(wait_timeout=TIMEOUT_1MIN, sleep=TIMEOUT_1SEC)
+@retry(wait_timeout=TIMEOUT_1MIN, sleep=TIMEOUT_10SEC)
 def validate_file_exists_in_url(url):
-    response = requests.head(url, headers=utilities.artifactory.get_artifactory_header(), verify=False)
+    response = requests.head(url, headers=utilities.artifactory.get_artifactory_header(), verify=False, timeout=10)
     if response.status_code != 200:
         raise UrlNotFoundError(url_request=response)
+
+    return True

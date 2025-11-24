@@ -478,6 +478,8 @@ def download_and_extract_tar(tarfile_url, dest_path):
     tar_file = tarfile.open(fileobj=BytesIO(request.content), mode="r|xz")
     tar_file.extractall(path=dest_path)
 
+    return True
+
 
 @contextmanager
 def update_hco_with_persistent_storage_config(hco_cr, storage_class):
