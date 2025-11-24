@@ -63,15 +63,15 @@ Make sure to:
 **Identification**: Failure is due to an actual product defect.
 
 **Actions:**
-- Open a bug in Jira with the appropriate priority
-- Use `pytest_jira` integration to skip test conditionally when bug is open
+- Open a bug in Jira with the appropriate priority (and a fix version if not opened on the next y-stream release).
+- Use `pytest_jira` integration to skip test conditionally when bug is open.  If needed, use `is_jira_open` for conditional skip.
 
 Conditional skip for product bug:
 
 ```python
 import pytest
 
-@pytest.mark.jira("CNV-12345")  # Skips if the bug is open
+@pytest.mark.jira("CNV-12345", run=False)  # Skips if the bug is open
 def test_feature_a():
     pass
 ```
@@ -83,17 +83,22 @@ def test_feature_a():
 **Actions:**
 - Open a task in Jira under the team's backlog
 - **Manual Verification MANDATORY**: Verify that the scenario passes manually before marking analysis as complete
+  Manual verification is needed to make sure the tested feature does work as expected before quarantining the test.
 - Include ALL failure analysis information and logs in Jira
 
 Quarantine for automation issue:
 
-Apply pytest's `xfail` marker with `run=False`:
+Apply pytest's `xfail` marker with `run=False`, for example:
 
 ```python
 import pytest
 from utilities.constants import QUARANTINED
 
-reason=f"{QUARANTINED}: VM is going into running state which it shouldn't, CNV-123",
+
+@pytest.mark.xfail(
+    reason=f"{QUARANTINED}: VM is going into running state which it shouldn't, CNV-123",
+    run=False,
+)
 def test_my_failing_test():
     ...
 ```
@@ -108,6 +113,7 @@ def test_my_failing_test():
 - Labels: `quarantined-test`
 - Priority based on test importance
 - Complete failure analysis documentation
+- If backport is needed, make sure to add the info in the ticket
 
 #### Category 3: System / Environment Issue
 
@@ -132,7 +138,7 @@ def test_my_failing_test():
 
 Determine if a test requires quarantine is based on:
 - Failure is not a product bug
-- Repeated failures within a timeframe
+- Repeated failures (twice or more in the past 10 runs)
 - Root cause requiring extended analysis
 - Tests should be migrated between tiers (e.g., tier2 → tier1)
 - Automation issue that cannot be fixed immediately
@@ -171,8 +177,8 @@ When submitting quarantine PR:
 - **Title**: Must start with `Quarantine:`
 - **Backporting**: Consider if quarantine needs backporting to other branches
 - **Description**: Include a link to Jira ticket and brief explanation
+- **Backport**: If needed, make sure to backport the quarantine PR to other branches.
 
-# TODO: Add GH workflow
 **GitHub Label**: `quarantine` label will be added automatically
 
 
@@ -183,11 +189,11 @@ When submitting quarantine PR:
 Tests can **ONLY** be re-included after demonstrating stability:
 - Test must be verified in Jenkins on a cluster identical (as much as possible) to the one where the failure occurred
 - **25 consecutive successful runs via Jenkins** using `pytest-repeat`
-- Number can be adjusted based on test characteristics and risk; this must be discussed within the sig
+- Number can be adjusted based on test flakiness, characteristics and risk; this must be discussed within the sig
 
 **Local Verification Command:**
 ```bash
-pytest-repeat  --repeat-scope=session --count=25 <test_path>
+pytest-repeat  --repeat-scope=session --count=25 <path to test module>
 ```
 
 ### De-Quarantine Checklist
