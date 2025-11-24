@@ -36,7 +36,6 @@ from ocp_resources.datavolume import DataVolume
 from ocp_resources.deployment import Deployment
 from ocp_resources.hostpath_provisioner import HostPathProvisioner
 from ocp_resources.infrastructure import Infrastructure
-from ocp_resources.installplan import InstallPlan
 from ocp_resources.machine import Machine
 from ocp_resources.migration_policy import MigrationPolicy
 from ocp_resources.mutating_webhook_config import MutatingWebhookConfiguration
@@ -229,7 +228,6 @@ ACCESS_TOKEN = {
     "accessTokenInactivityTimeout": None,
 }
 CNV_NOT_INSTALLED = "CNV not yet installed."
-EUS_ERROR_CODE = 98
 RWX_FS_STORAGE_CLASS_NAMES_LIST = [
     StorageClassNames.CEPHFS,
     StorageClassNames.TRIDENT_CSI_FSX,
@@ -1573,21 +1571,6 @@ def hco_spec(hyperconverged_resource_scope_function):
     return hyperconverged_resource_scope_function.instance.to_dict()["spec"]
 
 
-@pytest.fixture(scope="module")
-def is_post_cnv_upgrade_cluster(admin_client, hco_namespace):
-    return (
-        len(
-            list(
-                InstallPlan.get(
-                    dyn_client=admin_client,
-                    namespace=hco_namespace.name,
-                )
-            )
-        )
-        > 1
-    )
-
-
 @pytest.fixture(scope="session")
 def cluster_info(
     admin_client,
@@ -1922,6 +1905,9 @@ def hco_target_csv_name(cnv_target_version):
 
 @pytest.fixture(scope="session")
 def eus_hco_target_csv_name(eus_target_cnv_version):
+    if eus_target_cnv_version is None:
+        LOGGER.warning("Cannot determine EUS HCO target CSV name: EUS target version is None (non-EUS version)")
+        return None
     return get_hco_csv_name_by_version(cnv_target_version=eus_target_cnv_version)
 
 
@@ -1934,12 +1920,10 @@ def cnv_target_version(pytestconfig):
 def eus_target_cnv_version(pytestconfig, cnv_current_version):
     cnv_current_version = Version(version=cnv_current_version)
     minor = cnv_current_version.minor
-    # EUS-to-EUS upgrades are only viable between even-numbered minor versions, exit if non-eus version
+    # EUS-to-EUS upgrades are only viable between even-numbered minor versions, return None if non-eus version
     if minor % 2:
-        exit_pytest_execution(
-            message=f"EUS upgrade can not be performed from non-eus version: {cnv_current_version}",
-            return_code=EUS_ERROR_CODE,
-        )
+        LOGGER.warning(f"EUS upgrade can not be performed from non-eus version: {cnv_current_version}")
+        return None
     return pytestconfig.option.eus_cnv_target_version or f"{cnv_current_version.major}.{minor + 2}.0"
 
 
