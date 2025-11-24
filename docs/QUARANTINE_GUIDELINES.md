@@ -184,6 +184,8 @@ When submitting quarantine PR:
 
 ## De-Quarantine and Re-inclusion Process
 
+- De-quarantine work must be included in each sprint based on tests priority
+
 ### Re-inclusion Criteria
 
 Tests can **ONLY** be re-included after demonstrating stability:
