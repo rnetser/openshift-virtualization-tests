@@ -40,6 +40,10 @@ jobs:
 
       - name: Run CodeRabbit workflow handler
         env:
+          # BOT3_TOKEN has additional permissions needed for:
+          # - Organization team membership checks (cnvqe-bot team)
+          # - Creating comments on behalf of the bot
+          # Fallback to github.token for testing/development only
           GITHUB_TOKEN: ${{ secrets.BOT3_TOKEN || github.token }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           GITHUB_EVENT_NAME: ${{ github.event_name }}

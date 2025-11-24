@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import os
+import re
 import sys
 from typing import List, Optional
 
@@ -47,6 +48,8 @@ class GitHubClient:
         LOGGER.info(f"Added label: {label}")
 
     def remove_label(self, pr_number: int, label: str) -> bool:
+        if not label or not label.strip():
+            raise ValueError("Label cannot be empty")
         try:
             issue = self.get_issue(pr_number=pr_number)
             issue.remove_from_labels(*[label])
@@ -56,7 +59,8 @@ class GitHubClient:
             if e.status == 404:
                 LOGGER.info(f"Label not present: {label}")
                 return False
-            raise
+            else:
+                raise
 
     def create_comment(self, pr_number: int, body: str) -> None:
         issue = self.get_issue(pr_number=pr_number)
@@ -174,7 +178,10 @@ class CodeRabbitWorkflow:
             LOGGER.info("CodeRabbit comment does not contain test execution plan keywords, skipping")
 
     def request_execution_plan(self, pr_number: int, commenter: str, has_generate: bool) -> bool:
-        LOGGER.info("User requested test execution plan")
+        if has_generate:
+            LOGGER.info("User requested test execution plan via /generate-execution-plan")
+        else:
+            LOGGER.info("User triggered plan generation via /verified without existing plan")
 
         cmd = "generate-execution-plan" if has_generate else "verified"
         if not self._verify_team_membership(username=commenter, command=cmd):
@@ -232,13 +239,13 @@ def main() -> None:
     try:
         owner, repo = repository.split("/")
     except ValueError:
-        LOGGER.error(f"Invalid repository format: {repository}")
+        LOGGER.exception(f"Invalid repository format: {repository}")
         sys.exit(1)
 
     try:
         pr_number: Optional[int] = int(pr_number_str) if pr_number_str else None
     except ValueError:
-        LOGGER.error(f"Invalid PR number: {pr_number_str}")
+        LOGGER.exception(f"Invalid PR number: {pr_number_str}")
         sys.exit(1)
 
     LOGGER.info(f"Event: {event_name}, Action: {event_action}")
@@ -280,8 +287,8 @@ def main() -> None:
             return
 
         body_lower = body.lower()
-        has_generate = "/generate-execution-plan" in body_lower
-        has_verified = "/verified" in body_lower
+        has_generate = bool(re.search(pattern=r"\b/generate-execution-plan\b", string=body_lower))
+        has_verified = bool(re.search(pattern=r"\b/verified\b", string=body_lower))
 
         LOGGER.info(f"Commands - generate: {has_generate}, verified: {has_verified}")
 
