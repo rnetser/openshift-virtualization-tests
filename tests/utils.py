@@ -474,7 +474,7 @@ def get_parameters_from_template(template, parameter_subset):
 def download_and_extract_tar(tarfile_url, dest_path):
     """Download and Extract the tar file."""
     artifactory_header = get_artifactory_header()
-    request = requests.get(tarfile_url, verify=False, headers=artifactory_header)
+    request = requests.get(tarfile_url, verify=False, headers=artifactory_header, timeout=10)
     tar_file = tarfile.open(fileobj=BytesIO(request.content), mode="r|xz")
     tar_file.extractall(path=dest_path)
 
