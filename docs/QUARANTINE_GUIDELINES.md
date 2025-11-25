@@ -104,7 +104,8 @@ def test_my_failing_test():
 ```
 
 **Benefit**: Provides pytest summary insights:
-```
+
+```text
 1 deselected, 2 passed, 1 quarantined, ...
 ```
 
@@ -113,6 +114,7 @@ def test_my_failing_test():
 - Labels: `quarantined-test`
 - Priority based on test importance
 - Complete failure analysis documentation
+- List any specific actions that should be taken when working on de-quarantining the test
 - If backport is needed, make sure to add the info in the ticket
 
 #### Category 3: System / Environment Issue
