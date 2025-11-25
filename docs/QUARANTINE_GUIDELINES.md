@@ -195,7 +195,7 @@ Tests can **ONLY** be re-included after demonstrating stability:
 
 **Local Verification Command:**
 ```bash
-pytest-repeat  --repeat-scope=session --count=25 <path to test module>
+pytest --repeat-scope=session --count=25 <path to test module>
 ```
 
 ### De-Quarantine Checklist
