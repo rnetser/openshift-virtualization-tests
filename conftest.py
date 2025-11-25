@@ -629,7 +629,7 @@ def pytest_runtest_makereport(item, call):
         if hasattr(report, "wasxfail") and QUARANTINED in report.wasxfail:
             setattr(report, QUARANTINED, True)
 
-            jira = None
+            jira = "Missing"
             if match := re.search(r"CNV-\d+", report.wasxfail):
                 jira = match.group(0)
                 wasxfail = report.wasxfail.replace(
