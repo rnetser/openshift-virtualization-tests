@@ -24,7 +24,7 @@ This document establishes mandatory procedures for achieving and maintaining dep
 
 ### Y-Stream (`main` Branch) - EXTRA CAUTION REQUIRED
 
-**For `main` branch (coming y-stream release), quarantining requires EXTRA CARE until Code Freeze (CF).**
+**For `main` branch (upcoming y-stream release), quarantining requires EXTRA CARE until Code Freeze (CF).**
 
 - Product code may contain bugs until CF
 - Stabilization period expected between Feature Freeze and Blockers Only phase
@@ -177,9 +177,8 @@ Understanding this distinction is critical:
 When submitting quarantine PR:
 
 - **Title**: Must start with `Quarantine:`
-- **Backporting**: Consider if quarantine needs backporting to other branches
 - **Description**: Include a link to Jira ticket and brief explanation
-- **Backport**: If needed, make sure to backport the quarantine PR to other branches.
+- **Backporting**: If needed, make sure to backport the quarantine PR to other branches.
 
 **GitHub Label**: `quarantine` label will be added automatically
 
@@ -217,4 +216,4 @@ Once the PR is merged:
   - [ ] Fix description
   - [ ] Verification results
   - [ ] Closed with appropriate resolution
-- [ ] Should the fix be backported to other branches? If yes, each backport PR must be verified using the same verification process
+- [ ] If the fix needs to be backported to other branches, each backport PR must be verified using the same verification process
