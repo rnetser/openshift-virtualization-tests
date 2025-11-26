@@ -15,7 +15,6 @@ import traceback
 from typing import Any
 
 import pytest
-import pytest_html
 import shortuuid
 from _pytest.config import Config
 from _pytest.nodes import Collector, Node
@@ -29,7 +28,7 @@ from pytest_testconfig import config as py_config
 
 import utilities.infra
 from utilities.bitwarden import get_cnv_tests_secret_by_name
-from utilities.constants import QUARANTINED, TIMEOUT_5MIN, NamespacesNames
+from utilities.constants import QUARANTINED, SETUP_ERROR, TIMEOUT_5MIN, NamespacesNames
 from utilities.data_collector import (
     collect_default_cnv_must_gather_with_vm_gather,
     get_data_collector_dir,
@@ -536,14 +535,27 @@ def pytest_runtest_makereport(item, call):
     outcome = yield
     report = outcome.get_result()
 
-    if report.when == "setup" and hasattr(report, "wasxfail") and QUARANTINED in report.wasxfail:
-        setattr(report, QUARANTINED, True)
+    if report.when == "setup":
+        if hasattr(report, "wasxfail") and QUARANTINED in report.wasxfail:
+            setattr(report, QUARANTINED, True)
 
-        extras = getattr(report, "extras", [])
-        if match := re.search(r"CNV-\d+", report.wasxfail):
-            extras = getattr(report, "extras", [])
-            extras.append(pytest_html.extras.url(f"https://issues.redhat.com/browse/{match.group(0)}"))
-            report.extras = extras
+            jira = "Missing"
+            if match := re.search(r"CNV-\d+", report.wasxfail):
+                jira = match.group(0)
+                wasxfail = report.wasxfail.replace(
+                    jira,
+                    f"<a href='https://issues.redhat.com/browse/{jira}' target='_blank'>{jira}</a>",
+                )
+                report.wasxfail = wasxfail
+
+            item.user_properties.append((QUARANTINED, jira))
+
+        elif fail_error := re.search(r"(Failed): (.*?)\n", report.longreprtext):
+            setattr(report, SETUP_ERROR, fail_error.group(2))
+
+        elif report.failed and getattr(report.longrepr, "reprcrash", None):
+            if message := getattr(report.longrepr, "message", None):
+                setattr(report, SETUP_ERROR, message)
 
 
 def pytest_fixture_setup(fixturedef, request):
