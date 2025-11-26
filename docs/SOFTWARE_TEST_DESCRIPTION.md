@@ -59,13 +59,13 @@ This project follows a **two-phase development workflow** that separates test de
 
 ### Benefits of This Workflow
 
-| Benefit | Description |
-|---------|-------------|
-| **Early Design Review** | Test design is reviewed before implementation effort is spent |
-| **Clear Contracts** | The STD serves as a contract between design and implementation |
-| **Reduced Rework** | Design issues are caught early, before automation is written |
-| **Better Documentation** | Tests are always documented before they are implemented |
-| **Easier Planning** | Test descriptions can be created during sprint planning |
+| Benefit                  | Description                                                    |
+|--------------------------|----------------------------------------------------------------|
+| **Early Design Review**  | Test design is reviewed before implementation effort is spent  |
+| **Clear Contracts**      | The STD serves as a contract between design and implementation |
+| **Reduced Rework**       | Design issues are caught early, before automation is written   |
+| **Better Documentation** | Tests are always documented before they are implemented        |
+| **Easier Planning**      | Test descriptions can be created during sprint planning        |
 
 
 ---
@@ -76,19 +76,19 @@ To enable consistent parsing and automation, use these conventions in docstrings
 
 ### Assertion Wording (Expected)
 
-Use clear, natural language that maps directly to assertions:
+Use clear, natural language that maps directly to assertions, for example:
 
-| Wording Pattern | Maps To |
-|-----------------|---------|
-| `X equals Y` | `assert x == y` |
-| `X does not equal Y` | `assert x != y` |
-| `VM is "Running"` | `assert vm.status == Running` |
-| `VM is not running` | `assert vm.status != Running` |
-| `File exists` / `Resource x exists` | `assert exists(x)` |
-| `File does not exist` / `Resource x does NOT exist` | `assert not exists(x)` |
-| `X does not contain Y` | `assert y not in x` |
-| `Ping succeeds` / `Operation succeeds` | `assert operation()` (no exception) |
-| `Ping fails` / `Operation fails` | `assert` raises exception or returns failure |
+| Wording Pattern                                     | Maps To                                      |
+|-----------------------------------------------------|----------------------------------------------|
+| `X equals Y`                                        | `assert x == y`                              |
+| `X does not equal Y`                                | `assert x != y`                              |
+| `VM is "Running"`                                   | `assert vm.status == Running`                |
+| `VM is not running`                                 | `assert vm.status != Running`                |
+| `File exists` / `Resource x exists`                 | `assert exists(x)`                           |
+| `File does not exist` / `Resource x does NOT exist` | `assert not exists(x)`                       |
+| `X does not contain Y`                              | `assert y not in x`                          |
+| `Ping succeeds` / `Operation succeeds`              | `assert operation()` (no exception)          |
+| `Ping fails` / `Operation fails`                    | `assert` raises exception or returns failure |
 
 **Example:**
 ```
@@ -107,7 +107,8 @@ Mark tests that verify failure scenarios with `[NEGATIVE]` in the description:
 def test_isolated_vms_cannot_communicate():
     """
     [NEGATIVE] Test that VMs on separate networks cannot ping each other.
-    ...
+    """
+    pass
 ```
 
 ### Parametrization Hints
@@ -162,6 +163,7 @@ class Test<FeatureName>:
         Expected:
             - <Natural language assertion, e.g., "VM is Running", "File exists">
         """
+        pass
 ```
 
 ### Test-Level Template
@@ -189,19 +191,20 @@ def test_<specific_behavior>():
     Expected:
         - <Natural language assertion, e.g., "VM is Running", "File exists">
     """
+    pass
 ```
 
 ### Template Components
 
-| Component | Purpose | Guidelines |
-|-----------|---------|------------|
-| **Class Docstring** | Shared preconditions | Setup common to all tests |
-| **Brief Description** | One-line summary | Describe the ONE thing being verified; use `[NEGATIVE]` for failure tests |
-| **Preconditions** (test) | Test-specific setup | Only if this test has additional setup beyond the class |
-| **Steps** | Test action(s) | Minimal - just what's needed to get the result to verify |
-| **Expected** | ONE assertion | Use natural language that maps to assertions |
-| **Parametrize** | Matrix testing | Optional - list parameter combinations |
-| **Markers** | pytest markers | Optional - list required decorators |
+| Component                | Purpose              | Guidelines                                                                |
+|--------------------------|----------------------|---------------------------------------------------------------------------|
+| **Class Docstring**      | Shared preconditions | Setup common to all tests                                                 |
+| **Brief Description**    | One-line summary     | Describe the ONE thing being verified; use `[NEGATIVE]` for failure tests |
+| **Preconditions** (test) | Test-specific setup  | Only if this test has additional setup beyond the class                   |
+| **Steps**                | Test action(s)       | Minimal - just what's needed to get the result to verify                  |
+| **Expected**             | ONE assertion        | Use natural language that maps to assertions                              |
+| **Parametrize**          | Matrix testing       | Optional - list parameter combinations                                    |
+| **Markers**              | pytest markers       | Optional - list required decorators                                       |
 
 ---
 
@@ -236,12 +239,12 @@ def test_<specific_behavior>():
 
 ### Common Patterns in This Project
 
-| Pattern | Description | Example |
-|---------|-------------|---------|
-| **Fixture-based Setup** | Use pytest fixtures for resource creation | `vm_to_restart`, `namespace` |
-| **Matrix Testing** | Parameterize tests for multiple scenarios | `storage_class_matrix`, `run_strategy_matrix` |
-| **Architecture Markers** | Indicate architecture compatibility | `@pytest.mark.arm64`, `@pytest.mark.s390x` |
-| **Gating Tests** | Critical tests for CI/CD pipelines | `@pytest.mark.gating` |
+| Pattern                  | Description                               | Example                                       |
+|--------------------------|-------------------------------------------|-----------------------------------------------|
+| **Fixture-based Setup**  | Use pytest fixtures for resource creation | `vm_to_restart`, `namespace`                  |
+| **Matrix Testing**       | Parameterize tests for multiple scenarios | `storage_class_matrix`, `run_strategy_matrix` |
+| **Architecture Markers** | Indicate architecture compatibility       | `@pytest.mark.arm64`, `@pytest.mark.s390x`    |
+| **Gating Tests**         | Critical tests for CI/CD pipelines        | `@pytest.mark.gating`                         |
 
 ### STD Checklist
 
@@ -272,13 +275,12 @@ VM Snapshot and Restore Tests
 STP Reference: https://example.com/stp/vm-snapshot-restore
 """
 
-import pytest
-
-
-@pytest.mark.gating
 class TestSnapshotRestore:
     """
     Tests for VM snapshot restore functionality.
+
+    Markers:
+        - gating
 
     Preconditions:
         - Running VM with a data disk
@@ -373,16 +375,18 @@ class TestVMLifecycle:
 When a test stands alone without related tests, a class is not required:
 
 ```python
-@pytest.mark.gating
-@pytest.mark.ipv4
 def test_flat_overlay_ping_between_vms():
     """
     Test that VMs on the same flat overlay network can communicate.
 
+    Markers:
+        - ipv4
+        - gating
+
     Preconditions:
         - Flat overlay Network Attachment Definition created
-        - VM-A running and attached to flat overlay network
-        - VM-B running and attached to flat overlay network
+        - VM-A running and attached to a flat overlay network
+        - VM-B running and attached to a flat overlay network
 
     Steps:
         1. Get IPv4 address of VM-B
@@ -401,10 +405,12 @@ def test_flat_overlay_ping_between_vms():
 Tests that verify failure scenarios use the `[NEGATIVE]` indicator:
 
 ```python
-@pytest.mark.ipv4
 def test_isolated_vms_cannot_communicate():
     """
     [NEGATIVE] Test that VMs on separate flat overlay networks cannot ping each other.
+
+    Markers:
+        - ipv4
 
     Preconditions:
         - NAD-1 flat overlay network created
@@ -429,10 +435,12 @@ def test_isolated_vms_cannot_communicate():
 Tests that should run with multiple parameter combinations include a `Parametrize:` section:
 
 ```python
-@pytest.mark.gating
 def test_online_disk_resize():
     """
     Test that a running VM's disk can be expanded.
+
+    Markers:
+    	- gating
 
     Parametrize:
         - storage_class: [ocs-storagecluster-ceph-rbd, hostpath-csi]
