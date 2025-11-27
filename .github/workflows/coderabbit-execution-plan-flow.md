@@ -1,3 +1,5 @@
+> *This document was created with the assistance of Claude (Anthropic).*
+
 # CodeRabbit Test Execution Plan Workflow - Complete Flow Reference
 
 Automated workflow for managing complete test execution plan lifecycle with CodeRabbit AI code reviewer.

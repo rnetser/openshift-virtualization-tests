@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 
+# This code was created with the assistance of Claude (Anthropic).*
+
 import os
 import re
 import sys
-from typing import List, Optional
+from typing import List
 
 from github import Github, GithubException
 from github.Issue import Issue
@@ -23,7 +25,6 @@ class GitHubClient:
     def __init__(self, token: str, owner: str, repo_name: str) -> None:
         self.gh = Github(login_or_token=token)
         self.owner = owner
-        self.repo_name = repo_name
         self.repo: Repository = self.gh.get_repo(full_name_or_id=f"{owner}/{repo_name}")
 
     def is_user_in_team(self, username: str, team_slug: str = "cnvqe-bot") -> bool:
@@ -32,7 +33,13 @@ class GitHubClient:
             team = org.get_team_by_slug(slug=team_slug)
             user = self.gh.get_user(login=username)
             return team.has_in_members(member=user)
-        except GithubException:
+
+        except GithubException as ex:
+            if ex.status == 404:
+                LOGGER.info(f"Team '{team_slug}' not found or user '{username}' not found")
+                return False
+
+            LOGGER.error(f"GitHub API error checking team membership: {ex.status} - {ex.data}")
             return False
 
     def get_issue(self, pr_number: int) -> Issue:
@@ -87,6 +94,8 @@ class CodeRabbitWorkflow:
   3. Analyze pytest-specific elements: fixtures (scope, dependencies), parametrization, markers, conftest changes
   4. Trace test dependencies through imports, shared utilities, and fixture inheritance
   5. Detect new tests introduced in the PR
+  6. When a function signature is changed, identify all affected tests (directly or indirectly)
+  7. This list is not definite; you MUST ALWAYS check the updated code does not break existing functionality
 
   **Your deliverable:**
   Your change request comment will be based on the following requirements:
@@ -105,7 +114,9 @@ class CodeRabbitWorkflow:
   - Use file path + test name if only specific tests are needed
   - If a test marker can cover multiple files/tests, provide the marker
   - Balance coverage vs over-testing - Keep descriptions minimal
-  - Do not add a follow-up comment in the PR, only the change request one. THIS IS IMPORTANT! Spams the PR.
+  - Do not add a follow-up comment in the PR, only the change request one. THIS IS IMPORTANT! Spams the PR
+  - If the user added a comment with `/verified` on the latest commit;
+    review the comment to see what was already verified by the user. Address the user verification in your test plan
 
 </details>"""
 
@@ -200,8 +211,9 @@ class CodeRabbitWorkflow:
         LOGGER.info(f"Labels - generated: {has_generated}, passed: {has_passed}")
 
         if has_generated and has_passed:
-            LOGGER.warning("Both labels exist - invalid state, skipping")
-            return
+            LOGGER.warning("Both labels exist - invalid state, removing execution-plan-passed to reset")
+            self.client.remove_label(pr_number=pr_number, label=LABEL_PLAN_PASSED)
+            has_passed = False
 
         if not has_generated:
             LOGGER.info("No execution-plan-generated label, skipping review request")
@@ -242,9 +254,9 @@ def main() -> None:
         LOGGER.error(f"Invalid repository format: {repository}")
         sys.exit(1)
 
-    try:
-        pr_number: Optional[int] = int(pr_number_str) if pr_number_str else None
-    except ValueError:
+    if pr_number_str:
+        pr_number: int = int(pr_number_str)
+    else:
         LOGGER.error(f"Invalid PR number: {pr_number_str}")
         sys.exit(1)
 
@@ -272,7 +284,7 @@ def main() -> None:
 
         LOGGER.info(f"PR #{pr_number}, Commenter: {commenter}")
 
-        if RENOVATE_BOT in commenter:
+        if RENOVATE_BOT in commenter.lower():
             LOGGER.info("Renovate comment, skipping")
             return
 
