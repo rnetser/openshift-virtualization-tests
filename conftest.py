@@ -21,7 +21,6 @@ from _pytest.nodes import Collector, Node
 from _pytest.reports import CollectReport, TestReport
 from _pytest.runner import CallInfo
 from kubernetes.dynamic.exceptions import ConflictError
-from ocp_resources.resource import get_client
 from pyhelper_utils.shell import run_command
 from pytest import Item
 from pytest_testconfig import config as py_config
@@ -45,6 +44,7 @@ from utilities.data_collector import (
 from utilities.database import Database
 from utilities.exceptions import MissingEnvironmentVariableError, StorageSanityError
 from utilities.logger import setup_logging
+from utilities.pytest_matrix_utils import _cache_admin_client
 from utilities.pytest_utils import (
     config_default_storage_class,
     deploy_run_in_progress_config_map,
@@ -786,13 +786,14 @@ def pytest_sessionstart(session):
 
         py_config[key] = items_list
     config_default_storage_class(session=session)
+    admin_client = _cache_admin_client()
     # Set py_config["servers"] and py_config["os_login_param"]
     # Send --tc=server_url:<url> to override servers URL
     if not skip_if_pytest_flags_exists(pytest_config=session.config):
         py_config["version_explorer_url"] = get_cnv_version_explorer_url(pytest_config=session.config)
         if not session.config.getoption("--skip-artifactory-check"):
             py_config["server_url"] = py_config["server_url"] or get_artifactory_server_url(
-                cluster_host_url=get_client().configuration.host
+                cluster_host_url=admin_client.configuration.host
             )
             py_config["servers"] = {
                 name: _server.format(server=py_config["server_url"]) for name, _server in py_config["servers"].items()
@@ -801,9 +802,9 @@ def pytest_sessionstart(session):
 
     # must be at the end to make sure we create it only after all pytest_sessionstart checks pass.
     if not skip_if_pytest_flags_exists(pytest_config=session.config):
-        stop_if_run_in_progress()
-        deploy_run_in_progress_namespace()
-        deploy_run_in_progress_config_map(session=session)
+        stop_if_run_in_progress(client=admin_client)
+        deploy_run_in_progress_namespace(client=admin_client)
+        deploy_run_in_progress_config_map(client=admin_client, session=session)
 
 
 def pytest_collection_finish(session):
@@ -815,8 +816,9 @@ def pytest_collection_finish(session):
 def pytest_sessionfinish(session, exitstatus):
     shutil.rmtree(path=session.config.option.basetemp, ignore_errors=True)
     if not skip_if_pytest_flags_exists(pytest_config=session.config):
-        run_in_progress_config_map().clean_up()
-        deploy_run_in_progress_namespace().clean_up()
+        admin_client = _cache_admin_client()
+        run_in_progress_config_map(client=admin_client).clean_up()
+        deploy_run_in_progress_namespace(client=admin_client).clean_up()
 
     reporter = session.config.pluginmanager.get_plugin("terminalreporter")
     reporter.summary_stats()

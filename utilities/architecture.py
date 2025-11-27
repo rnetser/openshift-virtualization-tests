@@ -1,12 +1,15 @@
 import os
 
 from ocp_resources.node import Node
-from ocp_resources.resource import get_client
+
+from utilities.pytest_matrix_utils import _cache_admin_client
 
 
 def get_cluster_architecture() -> str:
     """
     Returns cluster architecture.
+
+    To run in CI, where a cluster is not available, set `OPENSHIFT_VIRTUALIZATION_TEST_IMAGES_ARCH` env variable.
 
     Returns:
         str: cluster architecture.
@@ -21,7 +24,7 @@ def get_cluster_architecture() -> str:
 
     if not arch:
         # TODO: merge with `get_nodes_cpu_architecture`
-        nodes: list[Node] = list(Node.get(dyn_client=get_client()))
+        nodes: list[Node] = list(Node.get(dyn_client=_cache_admin_client()))
         nodes_cpu_arch = {node.labels[KUBERNETES_ARCH_LABEL] for node in nodes}
         arch = next(iter(nodes_cpu_arch))
 
