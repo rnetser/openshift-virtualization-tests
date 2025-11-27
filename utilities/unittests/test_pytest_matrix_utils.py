@@ -120,12 +120,12 @@ class TestOnlineResizeMatrix:
 class TestHppMatrix:
     """Test cases for hpp_matrix function"""
 
-    @patch("utilities.pytest_matrix_utils.get_client")
+    @patch("utilities.pytest_matrix_utils.AdminClient._AdminClient__cache_admin_client")
     @patch("utilities.pytest_matrix_utils.StorageClass")
-    def test_hpp_matrix_with_hpp_provisioner(self, mock_storage_class, mock_get_client):
+    def test_hpp_matrix_with_hpp_provisioner(self, mock_storage_class, mock_cache_admin_client):
         """Test hpp_matrix filters storage classes with HPP provisioner"""
         mock_client = MagicMock()
-        mock_get_client.return_value = mock_client
+        mock_cache_admin_client.return_value = mock_client
 
         # Mock StorageClass instances
         mock_sc_hpp = MagicMock()

@@ -5,11 +5,9 @@ def foo_matrix(matrix):
     return matrix
 """
 
-from functools import cache
-
-from kubernetes.dynamic import DynamicClient
-from ocp_resources.resource import get_client
 from ocp_resources.storage_class import StorageClass
+
+from utilities.infra import AdminClient
 
 
 def snapshot_matrix(matrix):
@@ -77,21 +75,3 @@ def immediate_matrix(matrix):
         if storage_class[storage_class_name]["wffc"] is False:
             matrix_to_return.append(storage_class)
     return matrix_to_return
-
-
-class AdminClient:
-    @staticmethod
-    @cache
-    def __cache_admin_client() -> DynamicClient:
-        """Get admin_client once and reuse it
-
-        This usage of this function is limited ONLY in places where `client` cannot be passed as an argument.
-        For example: in pytest native fixtures in conftest.py.
-        To call this function: `AdminClient._AdminClient__cache_admin_client()`
-
-        Returns:
-            DynamicClient: admin_client
-
-        """
-
-        return get_client()
