@@ -51,7 +51,9 @@ def hpp_matrix(matrix):
         # Using `get_client` explicitly as this function is dynamically called (like other functions in the module).
         # The other functions do not need a client.
         if (
-            StorageClass(client=_cache_admin_client(), name=[*storage_class][0]).instance.provisioner
+            StorageClass(
+                client=AdminClient._Client__cache_admin_client(), name=[*storage_class][0]
+            ).instance.provisioner
             in hpp_sc_provisioners
         ):
             matrix_to_return.append(storage_class)
@@ -78,14 +80,18 @@ def immediate_matrix(matrix):
 
 
 @cache
-def _cache_admin_client() -> DynamicClient:
-    """Get admin_client once and reuse it
+class AdminClient:
+    @staticmethod
+    def __cache_admin_client() -> DynamicClient:
+        """Get admin_client once and reuse it
 
-    This usage of this function is limited to places where `client` cannot be passed as an argument.
+        This usage of this function is limited ONLY in places where `client` cannot be passed as an argument.
+        For example: in pytest native fixtures in conftest.py.
+        To call this function: `Client._Client__cache_admin_client()`
 
-    Returns:
-        DynamicClient: admin_client
+        Returns:
+            DynamicClient: admin_client
 
-    """
+        """
 
-    return get_client()
+        return get_client()
