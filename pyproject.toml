@@ -79,6 +79,7 @@ dependencies = [
   "python-simple-logger>=2.0.13",
   "pytest-html>=4.1.1",
   "openshift-python-wrapper~=4.20.0",
+  "cachetools>=6.2.1",
 ]
 
 [project.optional-dependencies]

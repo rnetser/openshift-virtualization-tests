@@ -4,6 +4,7 @@ import os
 import shlex
 from contextlib import contextmanager
 
+import cachetools.func
 import kubernetes
 import requests
 from kubernetes.dynamic import DynamicClient
@@ -23,7 +24,7 @@ from ocp_resources.volume_snapshot import VolumeSnapshot
 from ocp_resources.volume_snapshot_class import VolumeSnapshotClass
 from pyhelper_utils.shell import run_ssh_commands
 from pytest_testconfig import config as py_config
-from timeout_sampler import TimeoutExpiredError, TimeoutSampler
+from timeout_sampler import TimeoutExpiredError, TimeoutSampler, retry
 
 import utilities.infra
 import utilities.virt as virt_util
@@ -296,6 +297,7 @@ def data_volume(
         yield dv
 
 
+@retry(wait_timeout=TIMEOUT_1MIN, sleep=TIMEOUT_1SEC)
 def get_downloaded_artifact(remote_name, local_name):
     """
     Download image or artifact to local tmpdir path
@@ -317,6 +319,8 @@ def get_downloaded_artifact(remote_name, local_name):
                 file_downloaded.write(chunk)
     try:
         assert os.path.isfile(local_name)
+        return True
+
     except FileNotFoundError as err:
         LOGGER.error(err)
         raise
@@ -1167,7 +1171,11 @@ def vm_snapshot(vm, name):
         yield snapshot
 
 
+@cachetools.func.ttl_cache(ttl=TIMEOUT_60MIN)
+@retry(wait_timeout=TIMEOUT_1MIN, sleep=TIMEOUT_10SEC)
 def validate_file_exists_in_url(url):
-    response = requests.head(url, headers=utilities.infra.get_artifactory_header(), verify=False)
+    response = requests.head(url, headers=utilities.infra.get_artifactory_header(), verify=False, timeout=10)
     if response.status_code != 200:
         raise UrlNotFoundError(url_request=response)
+
+    return True
