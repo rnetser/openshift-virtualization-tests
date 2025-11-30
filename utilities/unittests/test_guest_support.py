@@ -1,3 +1,5 @@
+# Generated using Claude cli
+
 """Unit tests for guest_support module"""
 
 import json
