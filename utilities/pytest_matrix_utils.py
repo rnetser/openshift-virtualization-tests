@@ -7,7 +7,7 @@ def foo_matrix(matrix):
 
 from ocp_resources.storage_class import StorageClass
 
-from utilities.infra import AdminClient
+from utilities.cluster import cache_admin_client
 
 
 def snapshot_matrix(matrix):
@@ -49,9 +49,7 @@ def hpp_matrix(matrix):
         # Using `get_client` explicitly as this function is dynamically called (like other functions in the module).
         # The other functions do not need a client.
         if (
-            StorageClass(
-                client=AdminClient._AdminClient__cache_admin_client(), name=[*storage_class][0]
-            ).instance.provisioner
+            StorageClass(client=cache_admin_client(), name=[*storage_class][0]).instance.provisioner
             in hpp_sc_provisioners
         ):
             matrix_to_return.append(storage_class)

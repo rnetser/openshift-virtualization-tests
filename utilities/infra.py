@@ -1191,21 +1191,3 @@ def validate_os_info_vmi_vs_linux_os(vm: utilities.virt.VirtualMachineForTests) 
     linux_info = get_linux_os_info(ssh_exec=vm.ssh_exec)["os"]
 
     assert vmi_info == linux_info, f"Data mismatch! VMI: {vmi_info}\nOS: {linux_info}"
-
-
-class AdminClient:
-    @staticmethod
-    @cache
-    def __cache_admin_client() -> DynamicClient:
-        """Get admin_client once and reuse it
-
-        This usage of this function is limited ONLY in places where `client` cannot be passed as an argument.
-        For example: in pytest native fixtures in conftest.py.
-        To call this function: `AdminClient._AdminClient__cache_admin_client()`
-
-        Returns:
-            DynamicClient: admin_client
-
-        """
-
-        return get_client()

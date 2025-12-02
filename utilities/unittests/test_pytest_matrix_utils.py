@@ -120,7 +120,7 @@ class TestOnlineResizeMatrix:
 class TestHppMatrix:
     """Test cases for hpp_matrix function"""
 
-    @patch("utilities.pytest_matrix_utils.AdminClient._AdminClient__cache_admin_client")
+    @patch("utilities.infra.cache_admin_client")
     @patch("utilities.pytest_matrix_utils.StorageClass")
     def test_hpp_matrix_with_hpp_provisioner(self, mock_storage_class, mock_cache_admin_client):
         """Test hpp_matrix filters storage classes with HPP provisioner"""
