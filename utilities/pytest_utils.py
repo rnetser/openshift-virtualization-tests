@@ -162,7 +162,7 @@ def reorder_early_fixtures(metafunc):
             break
 
 
-def stop_if_run_in_progress(client: DynamicClient):
+def stop_if_run_in_progress(client: DynamicClient) -> None:
     run_in_progress = run_in_progress_config_map(client=client)
     if run_in_progress.exists:
         exit_pytest_execution(
@@ -173,7 +173,7 @@ def stop_if_run_in_progress(client: DynamicClient):
         )
 
 
-def deploy_run_in_progress_namespace(client: DynamicClient):
+def deploy_run_in_progress_namespace(client: DynamicClient) -> Namespace:
     run_in_progress_namespace = Namespace(client=client, name=CNV_TEST_RUN_IN_PROGRESS_NS)
     if not run_in_progress_namespace.exists:
         run_in_progress_namespace.deploy(wait=True)
@@ -182,17 +182,20 @@ def deploy_run_in_progress_namespace(client: DynamicClient):
     return run_in_progress_namespace
 
 
-def deploy_run_in_progress_config_map(client: DynamicClient, session):
-    run_in_progress_config_map(client=client, session=session).deploy()
-
-
-def run_in_progress_config_map(client: DynamicClient, session=None):
-    return ConfigMap(
+def run_in_progress_config_map(client: DynamicClient, session=None) -> ConfigMap:
+    cm = ConfigMap(
         client=client,
         name=CNV_TEST_RUN_IN_PROGRESS,
         namespace=CNV_TEST_RUN_IN_PROGRESS_NS,
         data=get_current_running_data(session=session) if session else None,
     )
+
+    if cm.exists:
+        return cm
+
+    else:
+        cm.deploy(wait=True)
+        return cm
 
 
 def get_current_running_data(session):

@@ -11,7 +11,6 @@ from utilities.exceptions import MissingEnvironmentVariableError
 # Circular dependencies are already mocked in conftest.py
 from utilities.pytest_utils import (
     config_default_storage_class,
-    deploy_run_in_progress_config_map,
     deploy_run_in_progress_namespace,
     exit_pytest_execution,
     get_artifactory_server_url,
@@ -511,23 +510,6 @@ class TestDeployRunInProgressNamespace:
         assert result == mock_namespace
         mock_namespace_class.assert_called_once_with(client=mock_client, name="cnv-tests-run-in-progress-ns")
         mock_namespace.deploy.assert_not_called()
-
-
-class TestDeployRunInProgressConfigMap:
-    """Test cases for deploy_run_in_progress_config_map function"""
-
-    @patch("utilities.pytest_utils.run_in_progress_config_map")
-    def test_deploy_run_in_progress_config_map(self, mock_config_map):
-        """Test deploying run in progress config map"""
-        mock_cm = MagicMock()
-        mock_config_map.return_value = mock_cm
-        mock_session = MagicMock()
-        mock_client = MagicMock()
-
-        deploy_run_in_progress_config_map(client=mock_client, session=mock_session)
-
-        mock_config_map.assert_called_once_with(client=mock_client, session=mock_session)
-        mock_cm.deploy.assert_called_once()
 
 
 class TestRunInProgressConfigMap:

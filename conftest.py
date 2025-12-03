@@ -47,7 +47,6 @@ from utilities.exceptions import MissingEnvironmentVariableError, StorageSanityE
 from utilities.logger import setup_logging
 from utilities.pytest_utils import (
     config_default_storage_class,
-    deploy_run_in_progress_config_map,
     deploy_run_in_progress_namespace,
     get_artifactory_server_url,
     get_base_matrix_name,
@@ -804,7 +803,7 @@ def pytest_sessionstart(session):
     if not skip_if_pytest_flags_exists(pytest_config=session.config):
         stop_if_run_in_progress(client=admin_client)
         deploy_run_in_progress_namespace(client=admin_client)
-        deploy_run_in_progress_config_map(client=admin_client, session=session)
+        run_in_progress_config_map(client=admin_client, session=session)
 
 
 def pytest_collection_finish(session):
