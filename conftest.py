@@ -25,6 +25,7 @@ from pyhelper_utils.shell import run_command
 from pytest import Item
 from pytest_testconfig import config as py_config
 
+import utilities.cluster
 import utilities.infra
 from libs.storage.config import StorageClassConfig
 from utilities.bitwarden import get_cnv_tests_secret_by_name
@@ -44,7 +45,6 @@ from utilities.data_collector import (
 from utilities.database import Database
 from utilities.exceptions import MissingEnvironmentVariableError, StorageSanityError
 from utilities.logger import setup_logging
-from utilities.pytest_matrix_utils import _cache_admin_client
 from utilities.pytest_utils import (
     config_default_storage_class,
     deploy_run_in_progress_config_map,
@@ -786,7 +786,7 @@ def pytest_sessionstart(session):
 
         py_config[key] = items_list
     config_default_storage_class(session=session)
-    admin_client = _cache_admin_client()
+    admin_client = utilities.cluster.cache_admin_client()
     # Set py_config["servers"] and py_config["os_login_param"]
     # Send --tc=server_url:<url> to override servers URL
     if not skip_if_pytest_flags_exists(pytest_config=session.config):
@@ -816,7 +816,7 @@ def pytest_collection_finish(session):
 def pytest_sessionfinish(session, exitstatus):
     shutil.rmtree(path=session.config.option.basetemp, ignore_errors=True)
     if not skip_if_pytest_flags_exists(pytest_config=session.config):
-        admin_client = _cache_admin_client()
+        admin_client = utilities.cluster.cache_admin_client()
         run_in_progress_config_map(client=admin_client).clean_up()
         deploy_run_in_progress_namespace(client=admin_client).clean_up()
 

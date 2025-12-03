@@ -2,7 +2,7 @@ import os
 
 from ocp_resources.node import Node
 
-from utilities.pytest_matrix_utils import _cache_admin_client
+from utilities.cluster import cache_admin_client
 
 
 def get_cluster_architecture() -> str:
@@ -24,7 +24,8 @@ def get_cluster_architecture() -> str:
 
     if not arch:
         # TODO: merge with `get_nodes_cpu_architecture`
-        nodes: list[Node] = list(Node.get(dyn_client=_cache_admin_client()))
+        # cache_admin_client is used here as this function is used to get the architecture when initialing pytest config
+        nodes: list[Node] = list(Node.get(dyn_client=cache_admin_client()))
         nodes_cpu_arch = {node.labels[KUBERNETES_ARCH_LABEL] for node in nodes}
         arch = next(iter(nodes_cpu_arch))
 
