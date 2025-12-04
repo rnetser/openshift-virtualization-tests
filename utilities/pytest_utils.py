@@ -182,20 +182,17 @@ def deploy_run_in_progress_namespace(client: DynamicClient) -> Namespace:
     return run_in_progress_namespace
 
 
+def deploy_run_in_progress_config_map(client: DynamicClient, session) -> None:
+    run_in_progress_config_map(client=client, session=session).deploy(wait=True)
+
+
 def run_in_progress_config_map(client: DynamicClient, session=None) -> ConfigMap:
-    cm = ConfigMap(
+    return ConfigMap(
         client=client,
         name=CNV_TEST_RUN_IN_PROGRESS,
         namespace=CNV_TEST_RUN_IN_PROGRESS_NS,
         data=get_current_running_data(session=session) if session else None,
     )
-
-    if cm.exists:
-        return cm
-
-    else:
-        cm.deploy(wait=True)
-        return cm
 
 
 def get_current_running_data(session):
