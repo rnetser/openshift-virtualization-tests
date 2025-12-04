@@ -786,10 +786,10 @@ def pytest_sessionstart(session):
 
         py_config[key] = items_list
     config_default_storage_class(session=session)
-    admin_client = utilities.cluster.cache_admin_client()
     # Set py_config["servers"] and py_config["os_login_param"]
     # Send --tc=server_url:<url> to override servers URL
     if not skip_if_pytest_flags_exists(pytest_config=session.config):
+        admin_client = utilities.cluster.cache_admin_client()
         py_config["version_explorer_url"] = get_cnv_version_explorer_url(pytest_config=session.config)
         if not session.config.getoption("--skip-artifactory-check"):
             py_config["server_url"] = py_config["server_url"] or get_artifactory_server_url(
@@ -800,8 +800,7 @@ def pytest_sessionstart(session):
             }
             py_config["os_login_param"] = get_cnv_tests_secret_by_name(secret_name="os_login")
 
-    # must be at the end to make sure we create it only after all pytest_sessionstart checks pass.
-    if not skip_if_pytest_flags_exists(pytest_config=session.config):
+        # must be at the end to make sure we create it only after all pytest_sessionstart checks pass.
         stop_if_run_in_progress(client=admin_client)
         deploy_run_in_progress_namespace(client=admin_client)
         deploy_run_in_progress_config_map(client=admin_client, session=session)
