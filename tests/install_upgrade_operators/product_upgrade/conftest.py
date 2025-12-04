@@ -319,7 +319,7 @@ def fired_alerts_during_upgrade(fired_alerts_before_upgrade, alert_dir, promethe
 
 
 @pytest.fixture(scope="session")
-def eus_cnv_upgrade_path(admin_client, eus_target_cnv_version):
+def eus_cnv_upgrade_path(eus_target_cnv_version):
     if eus_target_cnv_version is None:
         exit_pytest_execution(
             log_message="EUS upgrade can not be performed from non-eus version", return_code=EUS_ERROR_CODE
