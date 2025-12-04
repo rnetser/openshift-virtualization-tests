@@ -170,6 +170,7 @@ def stop_if_run_in_progress(client: DynamicClient) -> None:
             f"\nAfter verifying no one else is performing tests against the cluster, run:"
             f"\n'oc delete configmap -n {run_in_progress.namespace} {run_in_progress.name}'",
             return_code=100,
+            admin_client=client,
         )
 
 
@@ -279,13 +280,16 @@ def get_tests_cluster_markers(items, filepath=None) -> None:
             fd.write(json.dumps(tests_cluster_markers))
 
 
-def exit_pytest_execution(message, return_code=SANITY_TESTS_FAILURE, filename=None, junitxml_property=None):
+def exit_pytest_execution(
+    admin_client, message, return_code=SANITY_TESTS_FAILURE, filename=None, junitxml_property=None
+):
     """Exit pytest execution
 
     Exit pytest execution; invokes pytest_sessionfinish.
     Optionally, log an error message to tests-collected-info/utilities/pytest_exit_errors/<filename>
 
     Args:
+        admin_client (DynamicClient): cluster admin client
         message (str):  Message to display upon exit and to log in errors file
         return_code (int. Default: 99): Exit return code
         filename (str, optional. Default: None): filename where the given message will be saved
@@ -296,8 +300,7 @@ def exit_pytest_execution(message, return_code=SANITY_TESTS_FAILURE, filename=No
     if return_code == SANITY_TESTS_FAILURE:
         try:
             collect_default_cnv_must_gather_with_vm_gather(
-                since_time=TIMEOUT_5MIN,
-                target_dir=target_location,
+                since_time=TIMEOUT_5MIN, target_dir=target_location, admin_client=admin_client
             )
         except Exception as current_exception:
             LOGGER.warning(f"Failed to collect logs cnv must-gather after cluster_sanity failure: {current_exception}")
