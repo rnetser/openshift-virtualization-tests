@@ -53,6 +53,7 @@ from ocp_resources.secret import Secret
 from ocp_resources.service_account import ServiceAccount
 from ocp_resources.sriov_network_node_state import SriovNetworkNodeState
 from ocp_resources.storage_class import StorageClass
+from ocp_resources.virtual_machine import VirtualMachine
 from ocp_resources.virtual_machine_cluster_instancetype import (
     VirtualMachineClusterInstancetype,
 )
@@ -73,6 +74,7 @@ import utilities.hco
 from tests.utils import download_and_extract_tar, update_cluster_cpu_model
 from utilities.artifactory import get_artifactory_header, get_http_image_url, get_test_artifact_server_url
 from utilities.bitwarden import get_cnv_tests_secret_by_name
+from utilities.cluster import cache_admin_client
 from utilities.constants import (
     AAQ_NAMESPACE_LABEL,
     AMD,
@@ -304,7 +306,7 @@ def admin_client():
     """
     Get DynamicClient
     """
-    return get_client()
+    return cache_admin_client()
 
 
 @pytest.fixture(scope="session")
@@ -1694,12 +1696,13 @@ def bridge_on_one_node(worker_node1):
 
 
 @pytest.fixture(scope="session")
-def upgrade_bridge_marker_nad(bridge_on_one_node, kmp_enabled_namespace, worker_node1):
+def upgrade_bridge_marker_nad(admin_client, bridge_on_one_node, kmp_enabled_namespace, worker_node1):
     with network_nad(
         nad_type=LINUX_BRIDGE,
         nad_name=bridge_on_one_node.bridge_name,
         interface_name=bridge_on_one_node.bridge_name,
         namespace=kmp_enabled_namespace,
+        client=admin_client,
     ) as nad:
         wait_for_node_marked_by_bridge(bridge_nad=nad, node=worker_node1)
         yield nad
@@ -1750,12 +1753,13 @@ def running_vm_upgrade_b(
 
 
 @pytest.fixture(scope="session")
-def upgrade_br1test_nad(upgrade_namespace_scope_session, upgrade_bridge_on_all_nodes):
+def upgrade_br1test_nad(admin_client, upgrade_namespace_scope_session, upgrade_bridge_on_all_nodes):
     with network_nad(
         nad_type=LINUX_BRIDGE,
         nad_name=upgrade_bridge_on_all_nodes.bridge_name,
         interface_name=upgrade_bridge_on_all_nodes.bridge_name,
         namespace=upgrade_namespace_scope_session,
+        client=admin_client,
     ) as nad:
         yield nad
 
@@ -1818,6 +1822,21 @@ def upgrade_namespace_scope_session(admin_client, unprivileged_client):
         admin_client=admin_client,
         name="test-upgrade-namespace",
     )
+
+
+@pytest.fixture(scope="session")
+def migratable_vms(admin_client, upgrade_namespace_scope_session, kmp_enabled_namespace):
+    migratable_vms = []
+    for ns in [kmp_enabled_namespace, upgrade_namespace_scope_session]:
+        for vm in VirtualMachine.get(client=admin_client, namespace=ns.name):
+            if vm.ready and any(
+                condition.type == "LiveMigratable" and condition.status == "True"
+                for condition in vm.vmi.instance.status.conditions
+            ):
+                migratable_vms.append(vm)
+
+    LOGGER.info(f"All migratable vms: {[vm.name for vm in migratable_vms]}")
+    return migratable_vms
 
 
 @pytest.fixture(scope="session")
