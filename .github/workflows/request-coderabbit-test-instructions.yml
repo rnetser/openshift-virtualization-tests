@@ -36,6 +36,7 @@ jobs:
           enable-cache: true
 
       - name: Run CodeRabbit workflow handler
+        id: workflow-handler
         env:
           # BOT3_TOKEN has additional permissions needed for:
           # - Organization team membership checks (cnvqe-bot team)
@@ -52,7 +53,7 @@ jobs:
         run: uv run python .github/scripts/coderabbit_workflow.py
 
       - name: Acknowledge /generate-execution-plan request
-        if: ${{ success() && github.event.comment && contains(github.event.comment.body, '/generate-execution-plan') }}
+        if: ${{ success() && steps.workflow-handler.outputs.plan_requested == 'true' && github.event.comment && contains(github.event.comment.body, '/generate-execution-plan') }}
         uses: peter-evans/create-or-update-comment@v5
         with:
           comment-id: ${{ github.event.comment.id }}

@@ -14,6 +14,16 @@ from simple_logger.logger import get_logger
 
 LOGGER = get_logger(name="test-plan-flow")
 
+
+def set_github_output(name: str, value: str) -> None:
+    """Set a GitHub Actions output variable."""
+    github_output = os.environ.get("GITHUB_OUTPUT")
+    if github_output:
+        with open(github_output, "a") as f:
+            f.write(f"{name}={value}\n")
+        LOGGER.info(f"Set GitHub output: {name}={value}")
+
+
 LABEL_PLAN_GENERATED = "execution-plan-generated"
 LABEL_PLAN_PASSED = "execution-plan-passed"
 
@@ -75,6 +85,7 @@ class GitHubClient:
     def create_comment(self, pr_number: int, body: str) -> None:
         issue = self.get_issue(pr_number=pr_number)
         issue.create_comment(body=body)
+        LOGGER.info(f"PR #{pr_number}: Created comment ({len(body)} chars)")
 
 
 class CodeRabbitWorkflow:
@@ -170,14 +181,19 @@ class CodeRabbitWorkflow:
         return is_member
 
     def handle_new_commit(self, pr_number: int) -> None:
-        LOGGER.info(f"PR #{pr_number}: New commit pushed, removing execution plan labels")
+        LOGGER.info(f"PR #{pr_number}: New commit pushed, checking execution plan labels")
 
         current_labels = self.client.get_labels(pr_number=pr_number)
+        removed_labels = []
         for label in [LABEL_PLAN_GENERATED, LABEL_PLAN_PASSED]:
             if label in current_labels:
                 self.client.remove_label(pr_number=pr_number, label=label)
+                removed_labels.append(label)
 
-        LOGGER.info(f"PR #{pr_number}: Execution plan labels removed - test plan needs to be regenerated")
+        if removed_labels:
+            LOGGER.info(f"PR #{pr_number}: Removed labels {removed_labels} - test plan needs to be regenerated")
+        else:
+            LOGGER.info(f"PR #{pr_number}: No execution plan labels present, nothing to remove")
 
     def handle_coderabbit_response(self, pr_number: int, comment_body: str) -> None:
         if not comment_body or len(comment_body.strip()) < 10:
@@ -190,10 +206,12 @@ class CodeRabbitWorkflow:
             LOGGER.info(f"PR #{pr_number}: CodeRabbit posted verification message")
             self.client.remove_label(pr_number=pr_number, label=LABEL_PLAN_GENERATED)
             self.client.add_label(pr_number=pr_number, label=LABEL_PLAN_PASSED)
+            LOGGER.info(f"PR #{pr_number}: Labels updated - plan verified successfully")
 
         elif CODERABBIT_PLAN_PHRASE in comment_lower:
             LOGGER.info(f"PR #{pr_number}: CodeRabbit posted test execution plan")
             self.client.add_label(pr_number=pr_number, label=LABEL_PLAN_GENERATED)
+            LOGGER.info(f"PR #{pr_number}: Added {LABEL_PLAN_GENERATED} label")
         else:
             LOGGER.info(f"PR #{pr_number}: CodeRabbit comment does not contain test execution plan keywords, skipping")
 
@@ -205,10 +223,14 @@ class CodeRabbitWorkflow:
 
         cmd = "generate-execution-plan" if has_generate else "verified"
         if not self._verify_team_membership(username=commenter, command=cmd, pr_number=pr_number):
+            LOGGER.info(f"PR #{pr_number}: Authorization denied for /{cmd} command")
             return False
 
         self.client.create_comment(pr_number=pr_number, body=self.REQUEST_PLAN_TEMPLATE)
         LOGGER.info(f"PR #{pr_number}: Requested test execution plan from CodeRabbit")
+
+        if has_generate:
+            set_github_output(name="plan_requested", value="true")
 
         return has_generate
 
@@ -240,6 +262,7 @@ class CodeRabbitWorkflow:
         if has_verified and not self._verify_team_membership(
             username=commenter, command="verified", pr_number=pr_number
         ):
+            LOGGER.info(f"PR #{pr_number}: Authorization denied for /verified command")
             return
 
         LOGGER.info(f"PR #{pr_number}: User responded to test plan, requesting CodeRabbit review")
@@ -280,6 +303,7 @@ def main() -> None:
     LOGGER.info(f"Event: {event_name}, Action: {event_action}")
 
     client = GitHubClient(token=token, owner=owner, repo_name=repo)
+    LOGGER.info(f"PR #{pr_number}: Initialized GitHub client for {owner}/{repo}")
     workflow = CodeRabbitWorkflow(client=client)
 
     if event_name == "pull_request_target" and event_action == "synchronize":
