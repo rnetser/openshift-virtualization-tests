@@ -468,6 +468,7 @@ def cnv_tests_utilities_namespace(admin_client, installing_cnv):
                 f"\n'oc delete namespace {name}'",
                 return_code=100,
                 message=f"{name} namespace already exists.",
+                filename="cnv_tests_utilities_ns_failure.txt",
             )
 
         else:
@@ -1697,13 +1698,12 @@ def bridge_on_one_node(worker_node1):
 
 
 @pytest.fixture(scope="session")
-def upgrade_bridge_marker_nad(admin_client, bridge_on_one_node, kmp_enabled_namespace, worker_node1):
+def upgrade_bridge_marker_nad(bridge_on_one_node, kmp_enabled_namespace, worker_node1):
     with network_nad(
         nad_type=LINUX_BRIDGE,
         nad_name=bridge_on_one_node.bridge_name,
         interface_name=bridge_on_one_node.bridge_name,
         namespace=kmp_enabled_namespace,
-        client=admin_client,
     ) as nad:
         wait_for_node_marked_by_bridge(bridge_nad=nad, node=worker_node1)
         yield nad
@@ -1754,13 +1754,12 @@ def running_vm_upgrade_b(
 
 
 @pytest.fixture(scope="session")
-def upgrade_br1test_nad(admin_client, upgrade_namespace_scope_session, upgrade_bridge_on_all_nodes):
+def upgrade_br1test_nad(upgrade_namespace_scope_session, upgrade_bridge_on_all_nodes):
     with network_nad(
         nad_type=LINUX_BRIDGE,
         nad_name=upgrade_bridge_on_all_nodes.bridge_name,
         interface_name=upgrade_bridge_on_all_nodes.bridge_name,
         namespace=upgrade_namespace_scope_session,
-        client=admin_client,
     ) as nad:
         yield nad
 
@@ -2560,7 +2559,10 @@ def updated_default_storage_class_ocs_virt(
             namespace=golden_images_namespace.name,
         )
         if not boot_source_imported_successfully:
-            exit_pytest_execution(log_message=f"Failed to set {ocs_storage_class.name} as default storage class")
+            exit_pytest_execution(
+                log_message=f"Failed to set {ocs_storage_class.name} as default storage class",
+                filename="default_storage_class_failure.txt",
+            )
     else:
         yield
 

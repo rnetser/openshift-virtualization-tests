@@ -170,6 +170,7 @@ def stop_if_run_in_progress():
             f"\n'oc delete configmap -n {run_in_progress.namespace} {run_in_progress.name}'",
             return_code=100,
             message="openshift-virtualization-tests run already in progress",
+            filename="cnv_tests_run_in_progress_failure.txt",
         )
 
 
