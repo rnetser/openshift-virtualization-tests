@@ -20,10 +20,13 @@ LABEL_PLAN_PASSED = "execution-plan-passed"
 CODERABBIT_BOT = "coderabbitai[bot]"
 RENOVATE_BOT = "renovate"
 
+CODERABBIT_VERIFICATION_PHRASE = "test execution plan verified"
+CODERABBIT_PLAN_PHRASE = "test execution plan"
+
 
 class GitHubClient:
-    def __init__(self, token: str, owner: str, repo_name: str) -> None:
-        self.gh = Github(login_or_token=token)
+    def __init__(self, token: str, owner: str, repo_name: str, timeout: int = 30) -> None:
+        self.gh = Github(login_or_token=token, timeout=timeout)
         self.owner = owner
         self.repo: Repository = self.gh.get_repo(full_name_or_id=f"{owner}/{repo_name}")
 
@@ -51,7 +54,7 @@ class GitHubClient:
 
     def add_label(self, pr_number: int, label: str) -> None:
         issue = self.get_issue(pr_number=pr_number)
-        issue.add_to_labels(*[label])
+        issue.add_to_labels(label)  # noqa: FCN001
         LOGGER.info(f"Added label: {label}")
 
     def remove_label(self, pr_number: int, label: str) -> bool:
@@ -59,15 +62,15 @@ class GitHubClient:
             raise ValueError("Label cannot be empty")
         try:
             issue = self.get_issue(pr_number=pr_number)
-            issue.remove_from_labels(*[label])
+            issue.remove_from_labels(label)  # noqa: FCN001
             LOGGER.info(f"Removed label: {label}")
             return True
         except GithubException as e:
             if e.status == 404:
                 LOGGER.info(f"Label not present: {label}")
                 return False
-            else:
-                raise
+            LOGGER.error(f"Failed to remove label '{label}' from PR #{pr_number}: {e.status} - {e.data}")
+            raise
 
     def create_comment(self, pr_number: int, body: str) -> None:
         issue = self.get_issue(pr_number=pr_number)
@@ -157,49 +160,55 @@ class CodeRabbitWorkflow:
     def __init__(self, client: GitHubClient) -> None:
         self.client = client
 
-    def _verify_team_membership(self, username: str, command: str) -> bool:
+    def _verify_team_membership(self, username: str, command: str, pr_number: int) -> bool:
         is_member = self.client.is_user_in_team(username=username)
-        LOGGER.info(f"User {username} is {'not ' if not is_member else ''}team member")
+        LOGGER.info(f"PR #{pr_number}: User {username} is {'not ' if not is_member else ''}team member")
 
         if not is_member:
-            LOGGER.warning(f"/{command} is restricted to team members only")
+            LOGGER.warning(f"PR #{pr_number}: /{command} is restricted to team members only")
 
         return is_member
 
     def handle_new_commit(self, pr_number: int) -> None:
-        LOGGER.info(f"New commit pushed to PR #{pr_number}, removing execution plan labels")
+        LOGGER.info(f"PR #{pr_number}: New commit pushed, removing execution plan labels")
 
+        current_labels = self.client.get_labels(pr_number=pr_number)
         for label in [LABEL_PLAN_GENERATED, LABEL_PLAN_PASSED]:
-            self.client.remove_label(pr_number=pr_number, label=label)
+            if label in current_labels:
+                self.client.remove_label(pr_number=pr_number, label=label)
 
-        LOGGER.info("Execution plan labels removed - test plan needs to be regenerated")
+        LOGGER.info(f"PR #{pr_number}: Execution plan labels removed - test plan needs to be regenerated")
 
     def handle_coderabbit_response(self, pr_number: int, comment_body: str) -> None:
+        if not comment_body or len(comment_body.strip()) < 10:
+            LOGGER.info(f"PR #{pr_number}: CodeRabbit comment is too short, skipping")
+            return
+
         comment_lower = comment_body.lower()
 
-        if "test execution plan verified" in comment_lower:
-            LOGGER.info("CodeRabbit posted verification message")
+        if CODERABBIT_VERIFICATION_PHRASE in comment_lower:
+            LOGGER.info(f"PR #{pr_number}: CodeRabbit posted verification message")
             self.client.remove_label(pr_number=pr_number, label=LABEL_PLAN_GENERATED)
             self.client.add_label(pr_number=pr_number, label=LABEL_PLAN_PASSED)
 
-        elif "test execution plan" in comment_lower:
-            LOGGER.info("CodeRabbit posted test execution plan")
+        elif CODERABBIT_PLAN_PHRASE in comment_lower:
+            LOGGER.info(f"PR #{pr_number}: CodeRabbit posted test execution plan")
             self.client.add_label(pr_number=pr_number, label=LABEL_PLAN_GENERATED)
         else:
-            LOGGER.info("CodeRabbit comment does not contain test execution plan keywords, skipping")
+            LOGGER.info(f"PR #{pr_number}: CodeRabbit comment does not contain test execution plan keywords, skipping")
 
     def request_execution_plan(self, pr_number: int, commenter: str, has_generate: bool) -> bool:
         if has_generate:
-            LOGGER.info("User requested test execution plan via /generate-execution-plan")
+            LOGGER.info(f"PR #{pr_number}: User requested test execution plan via /generate-execution-plan")
         else:
-            LOGGER.info("User triggered plan generation via /verified without existing plan")
+            LOGGER.info(f"PR #{pr_number}: User triggered plan generation via /verified without existing plan")
 
         cmd = "generate-execution-plan" if has_generate else "verified"
-        if not self._verify_team_membership(username=commenter, command=cmd):
+        if not self._verify_team_membership(username=commenter, command=cmd, pr_number=pr_number):
             return False
 
         self.client.create_comment(pr_number=pr_number, body=self.REQUEST_PLAN_TEMPLATE)
-        LOGGER.info("Requested test execution plan from CodeRabbit")
+        LOGGER.info(f"PR #{pr_number}: Requested test execution plan from CodeRabbit")
 
         return has_generate
 
@@ -208,30 +217,34 @@ class CodeRabbitWorkflow:
         has_generated = LABEL_PLAN_GENERATED in labels
         has_passed = LABEL_PLAN_PASSED in labels
 
-        LOGGER.info(f"Labels - generated: {has_generated}, passed: {has_passed}")
+        LOGGER.info(f"PR #{pr_number}: Labels - generated: {has_generated}, passed: {has_passed}")
 
         if has_generated and has_passed:
-            LOGGER.warning("Both labels exist - invalid state, removing execution-plan-passed to reset")
+            LOGGER.warning(
+                f"PR #{pr_number}: Both labels exist - invalid state, removing execution-plan-passed to reset"
+            )
             self.client.remove_label(pr_number=pr_number, label=LABEL_PLAN_PASSED)
             has_passed = False
 
         if not has_generated:
-            LOGGER.info("No execution-plan-generated label, skipping review request")
+            LOGGER.info(f"PR #{pr_number}: No execution-plan-generated label, skipping review request")
             return
 
         comment_lower = comment_body.lower()
-        is_relevant = "test execution plan" in comment_lower or "@coderabbitai" in comment_lower or has_verified
+        is_relevant = CODERABBIT_PLAN_PHRASE in comment_lower or "@coderabbitai" in comment_lower or has_verified
 
         if not is_relevant:
-            LOGGER.info("Comment is not a response to test plan, skipping")
+            LOGGER.info(f"PR #{pr_number}: Comment is not a response to test plan, skipping")
             return
 
-        if has_verified and not self._verify_team_membership(username=commenter, command="verified"):
+        if has_verified and not self._verify_team_membership(
+            username=commenter, command="verified", pr_number=pr_number
+        ):
             return
 
-        LOGGER.info("User responded to test plan, requesting CodeRabbit review")
+        LOGGER.info(f"PR #{pr_number}: User responded to test plan, requesting CodeRabbit review")
         self.client.create_comment(pr_number=pr_number, body=self.REVIEW_REQUEST_TEMPLATE)
-        LOGGER.info("Requested CodeRabbit to review user response")
+        LOGGER.info(f"PR #{pr_number}: Requested CodeRabbit to review user response")
 
 
 def main() -> None:
@@ -255,9 +268,13 @@ def main() -> None:
         sys.exit(1)
 
     if pr_number_str:
-        pr_number: int = int(pr_number_str)
+        try:
+            pr_number: int = int(pr_number_str)
+        except ValueError:
+            LOGGER.error(f"Invalid PR number format: '{pr_number_str}' - must be integer")
+            sys.exit(1)
     else:
-        LOGGER.error(f"Invalid PR number: {pr_number_str}")
+        LOGGER.error("Missing PR number in environment variables")
         sys.exit(1)
 
     LOGGER.info(f"Event: {event_name}, Action: {event_action}")
@@ -266,18 +283,10 @@ def main() -> None:
     workflow = CodeRabbitWorkflow(client=client)
 
     if event_name == "pull_request_target" and event_action == "synchronize":
-        if not pr_number:
-            LOGGER.info("No PR number found, skipping")
-            return
-
         workflow.handle_new_commit(pr_number=pr_number)
         return
 
     if event_name in ["issue_comment", "pull_request_review_comment", "pull_request_review"]:
-        if not pr_number:
-            LOGGER.info("No PR number found, skipping")
-            return
-
         if not commenter:
             LOGGER.info("No commenter found, skipping")
             return
@@ -299,8 +308,8 @@ def main() -> None:
             return
 
         body_lower = body.lower()
-        has_generate = bool(re.search(pattern=r"(?:^|\s)/generate-execution-plan(?:\s|$)", string=body_lower))
-        has_verified = bool(re.search(pattern=r"(?:^|\s)/verified(?:\s|$)", string=body_lower))
+        has_generate = re.search(pattern=r"(?:^|\s)/generate-execution-plan(?:\s|$)", string=body_lower) is not None
+        has_verified = re.search(pattern=r"(?:^|\s)/verified(?:\s|$)", string=body_lower) is not None
 
         LOGGER.info(f"Commands - generate: {has_generate}, verified: {has_verified}")
 

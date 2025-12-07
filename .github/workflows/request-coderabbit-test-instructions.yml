@@ -22,14 +22,11 @@ permissions:
 jobs:
   manage-execution-plan:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
+    concurrency:
+      group: coderabbit-${{ github.event.pull_request.number || github.event.issue.number }}
+      cancel-in-progress: false
     steps:
-      - name: Acknowledge /generate-execution-plan request
-        if: ${{ github.event.comment && contains(github.event.comment.body, '/generate-execution-plan') }}
-        uses: peter-evans/create-or-update-comment@v5
-        with:
-          comment-id: ${{ github.event.comment.id }}
-          reactions: '+1'
-
       - name: Checkout repository
         uses: actions/checkout@v4
 
@@ -53,3 +50,10 @@ jobs:
           REVIEW_BODY: ${{ github.event.review.body }}
           COMMENTER_LOGIN: ${{ github.event.comment.user.login || github.event.review.user.login }}
         run: uv run python .github/scripts/coderabbit_workflow.py
+
+      - name: Acknowledge /generate-execution-plan request
+        if: ${{ success() && github.event.comment && contains(github.event.comment.body, '/generate-execution-plan') }}
+        uses: peter-evans/create-or-update-comment@v5
+        with:
+          comment-id: ${{ github.event.comment.id }}
+          reactions: '+1'
