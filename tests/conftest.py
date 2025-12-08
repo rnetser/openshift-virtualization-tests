@@ -585,6 +585,7 @@ def node_physical_nics(workers_utility_pods):
 
 @pytest.fixture(scope="session")
 def nodes_active_nics(
+    admin_client,
     workers,
     workers_utility_pods,
     node_physical_nics,
@@ -608,7 +609,7 @@ def nodes_active_nics(
     nodes_nics = {}
     for node in workers:
         nodes_nics[node.name] = {"available": [], "occupied": []}
-        nns = NodeNetworkState(name=node.name)
+        nns = NodeNetworkState(name=node.name, client=admin_client)
 
         for node_iface in nns.interfaces:
             iface_name = node_iface["name"]
@@ -1017,8 +1018,8 @@ def worker_node3(schedulable_nodes):
 
 
 @pytest.fixture(scope="session")
-def sriov_namespace():
-    return Namespace(name=py_config["sriov_namespace"])
+def sriov_namespace(admin_client):
+    return Namespace(name=py_config["sriov_namespace"], client=admin_client)
 
 
 @pytest.fixture(scope="session")
@@ -1078,9 +1079,11 @@ def sriov_node_policy(sriov_unused_ifaces, sriov_nodes_states, workers_utility_p
 
 
 @pytest.fixture(scope="session")
-def mac_pool(hco_namespace):
+def mac_pool(admin_client, hco_namespace):
     return MacPool(
-        kmp_range=ConfigMap(namespace=hco_namespace.name, name=KUBEMACPOOL_MAC_RANGE_CONFIG).instance["data"]
+        kmp_range=ConfigMap(
+            namespace=hco_namespace.name, name=KUBEMACPOOL_MAC_RANGE_CONFIG, client=admin_client
+        ).instance["data"]
     )
 
 
@@ -1412,6 +1415,11 @@ def hostpath_provisioner_scope_session():
     yield HostPathProvisioner(name=HostPathProvisioner.Name.HOSTPATH_PROVISIONER)
 
 
+@pytest.fixture(scope="session")
+def hpp_cr_installed(hostpath_provisioner_scope_session):
+    return hostpath_provisioner_scope_session.exists
+
+
 @pytest.fixture(scope="module")
 def cnv_pods(admin_client, hco_namespace):
     yield list(Pod.get(dyn_client=admin_client, namespace=hco_namespace.name))
@@ -1697,12 +1705,13 @@ def bridge_on_one_node(worker_node1):
 
 
 @pytest.fixture(scope="session")
-def upgrade_bridge_marker_nad(bridge_on_one_node, kmp_enabled_namespace, worker_node1):
+def upgrade_bridge_marker_nad(admin_client, bridge_on_one_node, kmp_enabled_namespace, worker_node1):
     with network_nad(
         nad_type=LINUX_BRIDGE,
         nad_name=bridge_on_one_node.bridge_name,
         interface_name=bridge_on_one_node.bridge_name,
         namespace=kmp_enabled_namespace,
+        client=admin_client,
     ) as nad:
         wait_for_node_marked_by_bridge(bridge_nad=nad, node=worker_node1)
         yield nad
@@ -1753,12 +1762,13 @@ def running_vm_upgrade_b(
 
 
 @pytest.fixture(scope="session")
-def upgrade_br1test_nad(upgrade_namespace_scope_session, upgrade_bridge_on_all_nodes):
+def upgrade_br1test_nad(admin_client, upgrade_namespace_scope_session, upgrade_bridge_on_all_nodes):
     with network_nad(
         nad_type=LINUX_BRIDGE,
         nad_name=upgrade_bridge_on_all_nodes.bridge_name,
         interface_name=upgrade_bridge_on_all_nodes.bridge_name,
         namespace=upgrade_namespace_scope_session,
+        client=admin_client,
     ) as nad:
         yield nad
 
@@ -2225,8 +2235,8 @@ def disabled_default_sources_in_operatorhub_scope_module(admin_client, installin
 
 
 @pytest.fixture(scope="module")
-def kmp_deployment(hco_namespace):
-    return Deployment(namespace=hco_namespace.name, name=KUBEMACPOOL_MAC_CONTROLLER_MANAGER)
+def kmp_deployment(admin_client, hco_namespace):
+    return Deployment(namespace=hco_namespace.name, name=KUBEMACPOOL_MAC_CONTROLLER_MANAGER, client=admin_client)
 
 
 @pytest.fixture(scope="class")
