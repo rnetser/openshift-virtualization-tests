@@ -76,10 +76,6 @@ jobs:
           fi
 
           echo "Running Jira bug verification..."
-          echo "Working directory: $(pwd)"
-          echo "Python files with potential Jira markers:"
-          grep -r -l "[A-Z]\+-[0-9]\+" --include="*.py" . || echo "No files found"
-          echo ""
           echo "Command: uv tool run --from python-utility-scripts pyutils-jira --url https://issues.redhat.com --token *** --target-versions vfuture,4.21.0,4.21.z --resolved-statuses verified,release pending,closed --issue-pattern ([A-Z]+-[0-9]+) --version-string-not-targeted-jiras vfuture --verbose"
 
           set -o pipefail
@@ -91,7 +87,6 @@ jobs:
             --issue-pattern "([A-Z]+-[0-9]+)" \
             --version-string-not-targeted-jiras "vfuture" \
             --verbose 2>&1
-          echo "Tool exit code: $?"
 
       - name: Add passed label
         if: success()
