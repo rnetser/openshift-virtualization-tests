@@ -1,0 +1,45 @@
+# SIG Teams - OpenShift Virtualization Tests
+
+chaos_scale:
+    - guchen11
+    - qwang1
+    - sarahbx
+
+infrastructure:
+    - geetikakay
+    - RoniKishner
+
+install_upgrade_operators:
+    - albarker-rh
+    - hmeir
+    - OhadRevah
+    - rlobillo
+
+network:
+    - Anatw
+    - azhivovk
+    - EdDev
+    - servolkov
+    - yossisegev
+
+storage:
+    - jpeimer
+    - Ahmad-Hafe
+    - dalia-frank
+    - duyanyan
+    - jpeimer
+    - josemacassan
+    - kgoldbla
+    - kshvaika
+    - stesrn
+
+virt:
+    - dshchedr
+    - vsibirsk
+    - akri3i
+    - dshchedr
+    - jerry7z
+    - kbidarkar
+    - SamAlber
+    - SiboWang1997
+    - vsibirsk
