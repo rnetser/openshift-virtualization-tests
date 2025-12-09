@@ -992,7 +992,7 @@ class TestExitPytestExecution:
         mock_get_dir.return_value = "/tmp/test"
         message = "Sanity test failure"
 
-        exit_pytest_execution(message, return_code=99)
+        exit_pytest_execution(message)
 
         mock_collect.assert_called_once_with(
             since_time=300,
@@ -1013,7 +1013,7 @@ class TestExitPytestExecution:
         mock_collect.side_effect = Exception("Must-gather failed")
         message = "Sanity test failure"
 
-        exit_pytest_execution(message, return_code=99)
+        exit_pytest_execution(message)
 
         # Should log warning but still exit
         mock_logger.warning.assert_called_once()
@@ -1048,7 +1048,7 @@ class TestExitPytestExecution:
         filename = "error.log"
         mock_junitxml = MagicMock()
 
-        exit_pytest_execution(message, return_code=99, filename=filename, junitxml_property=mock_junitxml)
+        exit_pytest_execution(message, filename=filename, junitxml_property=mock_junitxml)
 
         # All components should be called
         mock_collect.assert_called_once_with(
