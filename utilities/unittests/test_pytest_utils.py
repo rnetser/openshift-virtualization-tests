@@ -946,7 +946,7 @@ class TestExitPytestExecution:
         mock_admin_client = MagicMock()
         log_message = "Test exit message"
 
-        exit_pytest_execution(log_message=log_message, return_code=1, dmin_client=mock_admin_client)
+        exit_pytest_execution(log_message=log_message, return_code=1, admin_client=mock_admin_client)
 
         mock_pytest_exit.assert_called_once_with(reason=log_message, returncode=1)
 
@@ -959,8 +959,9 @@ class TestExitPytestExecution:
         log_message = "Test error"
         MagicMock()
         filename = "test_error.log"
+        mock_admin_client = MagicMock()
 
-        exit_pytest_execution(log_message=log_message, return_code=1, filename=filename, mock_admin_client=MagicMock())
+        exit_pytest_execution(log_message=log_message, return_code=1, filename=filename, admin_client=mock_admin_client)
 
         mock_write.assert_called_once_with(
             file_name=filename,
@@ -979,7 +980,7 @@ class TestExitPytestExecution:
         mock_junitxml = MagicMock()
 
         exit_pytest_execution(
-            log_message=log_message, return_code=5, junitxml_property=mock_junitxml, dmin_client=mock_admin_client
+            log_message=log_message, return_code=5, junitxml_property=mock_junitxml, admin_client=mock_admin_client
         )
 
         mock_junitxml.assert_called_once_with(name="exit_code", value=5)
@@ -1022,9 +1023,10 @@ class TestExitPytestExecution:
         mock_get_base_dir.return_value = "/tmp/test"
         mock_collect.side_effect = Exception("Must-gather failed")
         log_message = "Sanity test failure"
+        mock_admin_client = MagicMock()
         MagicMock()
 
-        exit_pytest_execution(log_message=log_message, mock_admin_client=MagicMock())
+        exit_pytest_execution(log_message=log_message, admin_client=mock_admin_client)
 
         # Should log warning but still exit
         mock_logger.warning.assert_called_once()
@@ -1061,7 +1063,7 @@ class TestExitPytestExecution:
         """Test with all options provided"""
         mock_get_base_dir.return_value = "/tmp/test"
         log_message = "Complete failure"
-        mock_admin_client = (MagicMock(),)
+        mock_admin_client = MagicMock()
         filename = "error.log"
         mock_junitxml = MagicMock()
 
