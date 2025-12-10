@@ -27,7 +27,7 @@ from utilities.constants import (
 )
 from utilities.data_collector import (
     collect_default_cnv_must_gather_with_vm_gather,
-    get_data_collector_dir,
+    get_data_collector_base_directory,
     write_to_file,
 )
 from utilities.exceptions import MissingEnvironmentVariableError
@@ -166,10 +166,12 @@ def stop_if_run_in_progress(client: DynamicClient) -> None:
     run_in_progress = run_in_progress_config_map(client=client)
     if run_in_progress.exists:
         exit_pytest_execution(
-            message=f"openshift-virtualization-tests run already in progress: \n{run_in_progress.instance.data}"
+            log_message=f"openshift-virtualization-tests run already in progress: \n{run_in_progress.instance.data}"
             f"\nAfter verifying no one else is performing tests against the cluster, run:"
             f"\n'oc delete configmap -n {run_in_progress.namespace} {run_in_progress.name}'",
             return_code=100,
+            message="openshift-virtualization-tests run already in progress",
+            filename="cnv_tests_run_in_progress_failure.txt",
             admin_client=client,
         )
 
@@ -281,7 +283,12 @@ def get_tests_cluster_markers(items, filepath=None) -> None:
 
 
 def exit_pytest_execution(
-    admin_client, message, return_code=SANITY_TESTS_FAILURE, filename=None, junitxml_property=None
+    admin_client,
+    log_message,
+    return_code=SANITY_TESTS_FAILURE,
+    filename=None,
+    junitxml_property=None,
+    message=None,
 ):
     """Exit pytest execution
 
@@ -289,13 +296,14 @@ def exit_pytest_execution(
     Optionally, log an error message to tests-collected-info/utilities/pytest_exit_errors/<filename>
 
     Args:
-        admin_client (DynamicClient): cluster admin client
-        message (str):  Message to display upon exit and to log in errors file
+        log_message (str): Message to display upon exit and to log in errors file
         return_code (int. Default: 99): Exit return code
         filename (str, optional. Default: None): filename where the given message will be saved
         junitxml_property (pytest plugin): record_testsuite_property
+        message (str): Message to log in an error file. If not provided, `log_message` will be used.
+        admin_client (DynamicClient): cluster admin client
     """
-    target_location = os.path.join(get_data_collector_dir(), "pytest_exit_errors")
+    target_location = os.path.join(get_data_collector_base_directory(), "utilities", "pytest_exit_errors")
     # collect must-gather for past 5 minutes:
     if return_code == SANITY_TESTS_FAILURE:
         try:
@@ -308,9 +316,9 @@ def exit_pytest_execution(
     if filename:
         write_to_file(
             file_name=filename,
-            content=message,
+            content=message or log_message,
             base_directory=target_location,
         )
     if junitxml_property:
         junitxml_property(name="exit_code", value=return_code)
-    pytest.exit(reason=message, returncode=return_code)
+    pytest.exit(reason=log_message, returncode=return_code)
