@@ -331,9 +331,10 @@ def pytest_addoption(parser):
         help="Full filepath to store collected test markers.",
     )
     ci_group.addoption(
-        "--disabled-bitwarden ",
-        help="Do not use Bitwarden integration for secrets management. Use when access to Bitwarden is not available.",
+        "--disabled-bitwarden",
+        help="Disable Bitwarden secret fetching; use local/environment secrets instead.",
         action="store_true",
+        default=False,
     )
 
 
