@@ -330,6 +330,11 @@ def pytest_addoption(parser):
         "--tests-markers-file",
         help="Full filepath to store collected test markers.",
     )
+    ci_group.addoption(
+        "--disabled-bitwarden ",
+        help="Do not use Bitwarden integration for secrets management. Use when access to Bitwarden is not available.",
+        action="store_true",
+    )
 
 
 def pytest_cmdline_main(config):
@@ -793,18 +798,12 @@ def pytest_sessionstart(session):
         py_config["version_explorer_url"] = get_cnv_version_explorer_url(pytest_config=session.config)
         if not session.config.getoption("--skip-artifactory-check"):
             py_config["server_url"] = py_config["server_url"] or get_artifactory_server_url(
-                cluster_host_url=admin_client.configuration.host
+                cluster_host_url=admin_client.configuration.host, session=session
             )
             py_config["servers"] = {
                 name: _server.format(server=py_config["server_url"]) for name, _server in py_config["servers"].items()
             }
-
-            if os.getenv("ACCESS_TOKEN"):
-                py_config["os_login_param"] = get_cnv_tests_secret_by_name(secret_name="os_login")
-            else:
-                # Allow running on environments where Bitwarden is not available.
-                LOGGER.info("`ACCESS_TOKEN` is not set; `os_login_param` will be empty.")
-                py_config["os_login_param"] = {}
+            py_config["os_login_param"] = get_cnv_tests_secret_by_name(secret_name="os_login", session=session)
 
         # must be at the end to make sure we create it only after all pytest_sessionstart checks pass.
         stop_if_run_in_progress(client=admin_client)
