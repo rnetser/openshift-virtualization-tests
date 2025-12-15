@@ -37,13 +37,13 @@ jobs:
 
     steps:
       - name: Add smoke-tests:pending label
-        if: contains(github.event.comment.body, 'Run smoke tests: True')
+        if: "contains(github.event.comment.body, 'Run smoke tests: True')"
         uses: actions-ecosystem/action-add-labels@v1
         with:
           labels: smoke-tests:pending
 
       - name: Remove smoke-tests:pending label
-        if: contains(github.event.comment.body, 'Run smoke tests: False')
+        if: "contains(github.event.comment.body, 'Run smoke tests: False')"
         uses: actions-ecosystem/action-remove-labels@v1
         continue-on-error: true  # Ignore error if label doesn't exist
         with:
