@@ -92,10 +92,6 @@ def get_matrix_params(pytest_config, matrix_name):
             matrix_func = getattr(pytest_matrix_utils, _matrix_func_name, None)
             return matrix_func(matrix=_base_matrix_params)
 
-    if not _matrix_params and not _skip_if_pytest_flags_exists:
-        LOGGER.warning(missing_matrix_error)
-        return []
-
     return _matrix_params if isinstance(_matrix_params, list) else [_matrix_params]
 
 
