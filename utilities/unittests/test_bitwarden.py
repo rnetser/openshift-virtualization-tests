@@ -183,3 +183,27 @@ class TestGetCnvTestsSecretByName:
 
             with pytest.raises(subprocess.CalledProcessError):
                 get_cnv_tests_secret_by_name("secret1")
+
+    @patch("bitwarden.get_all_cnv_tests_secrets")
+    def test_get_cnv_tests_secret_by_name_disabled_bitwarden_flag(self, mock_get_all):
+        """Test that --disabled-bitwarden flag returns empty dict and skips Bitwarden access"""
+        from unittest.mock import MagicMock
+
+        # Clear cache before test
+        get_cnv_tests_secret_by_name.cache_clear()
+
+        # Create mock session with --disabled-bitwarden flag enabled
+        mock_session = MagicMock()
+        mock_session.config.getoption.return_value = True
+
+        # Call function with session parameter
+        result = get_cnv_tests_secret_by_name("any_secret", session=mock_session)
+
+        # Assert empty dict is returned
+        assert result == {}
+
+        # Assert that get_all_cnv_tests_secrets was NOT called (early return)
+        mock_get_all.assert_not_called()
+
+        # Verify getoption was called with correct argument
+        mock_session.config.getoption.assert_called_once_with("--disabled-bitwarden")
