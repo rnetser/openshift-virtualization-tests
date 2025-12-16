@@ -75,6 +75,13 @@ jobs:
               - Use file path + test name if only specific tests are needed
               - If a test marker can cover multiple files/tests, provide the marker
               - Balance coverage vs over-testing - Keep descriptions minimal
-              - Do not add a follow-up comment in the PR, only the change request one
+
+              When responding to test execution plan request:
+              - Post ONLY an inline review comment on the Files Changed tab with the test plan
+              - ONLY! if you fail to add a review comment, add a comment in the PR discussion thread
+              - Do NOT add any follow-up comments in the PR discussion thread
+              - Do not add a follow-up comment in the PR
+              - Do NOT add acknowledgment comments like "I've successfully posted..."
+              - After posting the review comment, consider the task complete and do not generate any additional replies
 
             </details>
