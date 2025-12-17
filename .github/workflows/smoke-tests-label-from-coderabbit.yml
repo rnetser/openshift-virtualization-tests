@@ -96,7 +96,7 @@ jobs:
     if: |
       github.event_name != 'pull_request_target' &&
       (github.event.issue.pull_request || github.event_name == 'pull_request_review_comment') &&
-      (contains(github.event.comment.user.login, 'coderabbit'))
+      (github.event.comment.user.login == 'coderabbitai' || github.event.comment.user.login == 'coderabbitai[bot]')
     runs-on: ubuntu-latest
     timeout-minutes: 5
 
