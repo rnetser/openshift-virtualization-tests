@@ -18,17 +18,17 @@
 # ├──────────────────────────────────────────────────────────────┼───────────────────────────────┼────────────────────────────────────────────┤
 # │ FLOW 2: CodeRabbit Reports "No smoke tests needed"           │                               │                                            │
 # │   Comment contains:                                          │ From CodeRabbit user AND      │ Remove: smoke-tests:pending analysis       │
-# │   - "Test Execution Plan"                                    │ "Run smoke tests: False"      │ Remove: smoke-tests:pending execution      │
+# │   - "**Test Execution Plan**"                                │ "Run smoke tests: False"      │ Remove: smoke-tests:pending execution      │
 # │   - "Run smoke tests: False"                                 │                               │ Add: smoke-tests:false                     │
 # ├──────────────────────────────────────────────────────────────┼───────────────────────────────┼────────────────────────────────────────────┤
 # │ FLOW 3: CodeRabbit Reports "Smoke tests needed"              │                               │                                            │
 # │   Comment contains:                                          │ From CodeRabbit user AND      │ Remove: smoke-tests:pending analysis       │
-# │   - "Test Execution Plan"                                    │ "Run smoke tests: True"       │ Remove: smoke-tests:false                  │
+# │   - "**Test Execution Plan**"                                │ "Run smoke tests: True"       │ Remove: smoke-tests:false                  │
 # │   - "Run smoke tests: True"                                  │                               │ Add: smoke-tests:pending execution         │
 # ├──────────────────────────────────────────────────────────────┼───────────────────────────────┼────────────────────────────────────────────┤
 # │ Other Events                                                 │                               │                                            │
 # │   Comment not from CodeRabbit                                │ Any                           │ ⏭️ No action (job skipped)                 │
-# │   Missing "Test Execution Plan"                              │ Any                           │ ⏭️ No action                               │
+# │   Missing "**Test Execution Plan**"                          │ Any                           │ ⏭️ No action                               │
 # │   Neither True nor False pattern                             │ Any                           │ ⏭️ No action                               │
 # └──────────────────────────────────────────────────────────────┴───────────────────────────────┴────────────────────────────────────────────┘
 
@@ -112,14 +112,14 @@ jobs:
           echo "=========================================="
           echo "Condition Matching Results"
           echo "=========================================="
-          echo "Contains 'Test Execution Plan'? ${{ contains(github.event.comment.body, 'Test Execution Plan') }}"
+          echo "Contains '**Test Execution Plan**'? ${{ contains(github.event.comment.body, '**Test Execution Plan**') }}"
           echo "Contains 'Run smoke tests: True'? ${{ contains(github.event.comment.body, 'Run smoke tests: True') }}"
           echo "Contains 'Run smoke tests: False'? ${{ contains(github.event.comment.body, 'Run smoke tests: False') }}"
           echo ""
           echo "=========================================="
           echo "Flow Determination"
           echo "=========================================="
-          HAS_TEST_PLAN="${{ contains(github.event.comment.body, 'Test Execution Plan') }}"
+          HAS_TEST_PLAN="${{ contains(github.event.comment.body, '**Test Execution Plan**') }}"
           HAS_RUN_TRUE="${{ contains(github.event.comment.body, 'Run smoke tests: True') }}"
           HAS_RUN_FALSE="${{ contains(github.event.comment.body, 'Run smoke tests: False') }}"
 
@@ -136,7 +136,7 @@ jobs:
 
       # FLOW 2: CodeRabbit says NO smoke tests needed
       - name: "[FLOW 2] Remove smoke-tests:pending analysis / execution labels"
-        if: "contains(github.event.comment.body, 'Run smoke tests: False') && contains(github.event.comment.body, 'Test Execution Plan')"
+        if: "contains(github.event.comment.body, 'Run smoke tests: False') && contains(github.event.comment.body, '**Test Execution Plan**')"
         uses: actions-ecosystem/action-remove-labels@v1
         continue-on-error: true
         with:
@@ -147,7 +147,7 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: "[FLOW 2] Add smoke-tests:false label"
-        if: "contains(github.event.comment.body, 'Run smoke tests: False') && contains(github.event.comment.body, 'Test Execution Plan')"
+        if: "contains(github.event.comment.body, 'Run smoke tests: False') && contains(github.event.comment.body, '**Test Execution Plan**')"
         uses: actions-ecosystem/action-add-labels@v1
         continue-on-error: true
         with:
@@ -157,7 +157,7 @@ jobs:
 
       # FLOW 3: CodeRabbit says YES smoke tests needed
       - name: "[FLOW 3] Remove smoke-tests:pending analysis and smoke-tests:false labels"
-        if: "contains(github.event.comment.body, 'Run smoke tests: True') && contains(github.event.comment.body, 'Test Execution Plan')"
+        if: "contains(github.event.comment.body, 'Run smoke tests: True') && contains(github.event.comment.body, '**Test Execution Plan**')"
         uses: actions-ecosystem/action-remove-labels@v1
         continue-on-error: true
         with:
@@ -168,7 +168,7 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: "[FLOW 3] Add smoke-tests:pending execution label"
-        if: "contains(github.event.comment.body, 'Run smoke tests: True') && contains(github.event.comment.body, 'Test Execution Plan')"
+        if: "contains(github.event.comment.body, 'Run smoke tests: True') && contains(github.event.comment.body, '**Test Execution Plan**')"
         uses: actions-ecosystem/action-add-labels@v1
         continue-on-error: true
         with:
@@ -179,6 +179,6 @@ jobs:
       # No action case
       - name: No action needed
         if: |
-          !contains(github.event.comment.body, 'Test Execution Plan') ||
+          !contains(github.event.comment.body, '**Test Execution Plan**') ||
           (!contains(github.event.comment.body, 'Run smoke tests: True') && !contains(github.event.comment.body, 'Run smoke tests: False'))
-        run: echo "⏭️ No action needed - comment does not contain smoke test directive or Test Execution Plan"
+        run: echo "⏭️ No action needed - comment does not contain smoke test directive or **Test Execution Plan**"
