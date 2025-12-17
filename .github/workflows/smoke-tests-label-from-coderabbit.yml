@@ -5,11 +5,11 @@
 # ┌──────────────────────────────────────────────────────────────┬───────────────────────┬──────────────────────────────┐
 # │ CodeRabbit Comment Contains                                  │ Current Label         │ Action                       │
 # ├──────────────────────────────────────────────────────────────┼───────────────────────┼──────────────────────────────┤
-# │ "Run smoke tests: True" AND "Test Execution Plan"           │ None                  │ ✅ Add 'smoke-tests:pending' │
-# │ "Run smoke tests: True" AND "Test Execution Plan"           │ Already has label     │ ✅ No-op (safe)              │
-# │ "Run smoke tests: False" AND "Test Execution Plan"          │ Has label             │ ✅ Remove label              │
-# │ "Run smoke tests: False" AND "Test Execution Plan"          │ None                  │ ✅ No action                 │
-# │ Missing "Test Execution Plan"                                │ Any                   │ ⏭️ No action                 │
+# │ "Run smoke tests: True" AND "**Test Execution Plan**"       │ None                  │ ✅ Add 'smoke-tests:pending' │
+# │ "Run smoke tests: True" AND "**Test Execution Plan**"       │ Already has label     │ ✅ No-op (safe)              │
+# │ "Run smoke tests: False" AND "**Test Execution Plan**"      │ Has label             │ ✅ Remove label              │
+# │ "Run smoke tests: False" AND "**Test Execution Plan**"      │ None                  │ ✅ No action                 │
+# │ Missing "**Test Execution Plan**"                            │ Any                   │ ⏭️ No action                 │
 # │ Neither pattern                                              │ Any                   │ ⏭️ No action                 │
 # │ Comment not from CodeRabbit                                  │ Any                   │ ⏭️ Does NOT run              │
 # └──────────────────────────────────────────────────────────────┴───────────────────────┴──────────────────────────────┘
@@ -30,10 +30,7 @@ jobs:
   manage-smoke-tests-label:
     name: Manage smoke-tests:pending label
     # Only run for CodeRabbit comments
-    if: |
-      github.event.comment.user.login == 'coderabbitai' ||
-      github.event.comment.user.login == 'coderabbitai[bot]' ||
-      contains(github.event.comment.user.login, 'coderabbit')
+    if: github.event.comment.user.login == 'coderabbitai' || github.event.comment.user.login == 'coderabbitai[bot]'
     runs-on: ubuntu-latest
 
     steps:
@@ -50,14 +47,14 @@ jobs:
           echo "=========================================="
           echo "Condition Matching Results"
           echo "=========================================="
-          echo "Contains 'Test Execution Plan'? ${{ contains(github.event.comment.body, 'Test Execution Plan') }}"
+          echo "Contains '**Test Execution Plan**'? ${{ contains(github.event.comment.body, '**Test Execution Plan**') }}"
           echo "Contains 'Run smoke tests: True'? ${{ contains(github.event.comment.body, 'Run smoke tests: True') }}"
           echo "Contains 'Run smoke tests: False'? ${{ contains(github.event.comment.body, 'Run smoke tests: False') }}"
           echo ""
           echo "=========================================="
           echo "Action Determination"
           echo "=========================================="
-          HAS_TEST_PLAN="${{ contains(github.event.comment.body, 'Test Execution Plan') }}"
+          HAS_TEST_PLAN="${{ contains(github.event.comment.body, '**Test Execution Plan**') }}"
           HAS_RUN_TRUE="${{ contains(github.event.comment.body, 'Run smoke tests: True') }}"
           HAS_RUN_FALSE="${{ contains(github.event.comment.body, 'Run smoke tests: False') }}"
 
@@ -71,14 +68,14 @@ jobs:
           echo "=========================================="
 
       - name: Add smoke-tests:pending label
-        if: "contains(github.event.comment.body, 'Run smoke tests: True') && contains(github.event.comment.body, 'Test Execution Plan')"
+        if: "contains(github.event.comment.body, 'Run smoke tests: True') && contains(github.event.comment.body, '**Test Execution Plan**')"
         uses: actions-ecosystem/action-add-labels@v1
         with:
           labels: smoke-tests:pending
           github_token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Remove smoke-tests:pending label
-        if: "contains(github.event.comment.body, 'Run smoke tests: False') && contains(github.event.comment.body, 'Test Execution Plan')"
+        if: "contains(github.event.comment.body, 'Run smoke tests: False') && contains(github.event.comment.body, '**Test Execution Plan**')"
         uses: actions-ecosystem/action-remove-labels@v1
         continue-on-error: true  # Ignore error if label doesn't exist
         with:
@@ -87,6 +84,6 @@ jobs:
 
       - name: No action needed
         if: |
-          !contains(github.event.comment.body, 'Test Execution Plan') ||
+          !contains(github.event.comment.body, '**Test Execution Plan**') ||
           (!contains(github.event.comment.body, 'Run smoke tests: True') && !contains(github.event.comment.body, 'Run smoke tests: False'))
-        run: echo "⏭️ No action needed - comment does not contain smoke test directive or Test Execution Plan"
+        run: echo "⏭️ No action needed - comment does not contain smoke test directive or **Test Execution Plan**"
