@@ -13,7 +13,6 @@
 # ├──────────────────────────────────────────────────────────────┼───────────────────────────────┼────────────────────────────────────────────┤
 # │ FLOW 1: New Commit Pushed (PR opened/sync/reopened)          │                               │                                            │
 # │   pull_request_target: [opened, synchronize, reopened]       │ Always                        │ Remove: smoke-tests:false                  │
-# │                                                              │                               │ Remove: smoke-tests:pending analysis       │
 # │                                                              │                               │ Remove: smoke-tests:pending execution      │
 # │                                                              │                               │ Add: smoke-tests:pending analysis          │
 # ├──────────────────────────────────────────────────────────────┼───────────────────────────────┼────────────────────────────────────────────┤
