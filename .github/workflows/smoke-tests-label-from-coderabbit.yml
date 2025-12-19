@@ -1,38 +1,24 @@
-# Smoke Tests Label Lifecycle Manager
-# Manages the full lifecycle of smoke tests labels based on PR activity and CodeRabbit analysis
+# Smoke Tests Label Manager
+# Manages smoke tests label based on CodeRabbit analysis
 # Created with Claude Code assistance
 #
-# Label States:
-# - smoke-tests:pending-analysis - New commit pushed, waiting for CodeRabbit analysis
-# - smoke-tests:false - CodeRabbit determined no smoke tests needed
-# - smoke-tests:pending-execution - CodeRabbit determined smoke tests are needed
+# Label: smoke-tests:pending-analysis
 #
 # Summary:
-# ┌──────────────────────────────────────────────────────────────┬───────────────────────────────┬────────────────────────────────────────────┐
-# │ Trigger Event                                                │ Condition                     │ Action                                     │
-# ├──────────────────────────────────────────────────────────────┼───────────────────────────────┼────────────────────────────────────────────┤
-# │ FLOW 1: New Commit Pushed (PR opened/sync/reopened)          │                               │                                            │
-# │   pull_request_target: [opened, synchronize, reopened]       │ Always                        │ Remove: smoke-tests:false                  │
-# │                                                              │                               │ Remove: smoke-tests:pending-execution      │
-# │                                                              │                               │ Add: smoke-tests:pending-analysis          │
-# ├──────────────────────────────────────────────────────────────┼───────────────────────────────┼────────────────────────────────────────────┤
-# │ FLOW 2: CodeRabbit Reports "No smoke tests needed"           │                               │                                            │
-# │   Comment contains:                                          │ From CodeRabbit user AND      │ Remove: smoke-tests:pending-analysis       │
-# │   - "**Test Execution Plan**"                                │ "Run smoke tests: False"      │ Remove: smoke-tests:pending-execution      │
-# │   - "Run smoke tests: False"                                 │                               │ Add: smoke-tests:false                     │
-# ├──────────────────────────────────────────────────────────────┼───────────────────────────────┼────────────────────────────────────────────┤
-# │ FLOW 3: CodeRabbit Reports "Smoke tests needed"              │                               │                                            │
-# │   Comment contains:                                          │ From CodeRabbit user AND      │ Remove: smoke-tests:pending-analysis       │
-# │   - "**Test Execution Plan**"                                │ "Run smoke tests: True"       │ Remove: smoke-tests:false                  │
-# │   - "Run smoke tests: True"                                  │                               │ Add: smoke-tests:pending-execution         │
-# ├──────────────────────────────────────────────────────────────┼───────────────────────────────┼────────────────────────────────────────────┤
-# │ Other Events                                                 │                               │                                            │
-# │   Comment not from CodeRabbit                                │ Any                           │ ⏭️ No action (job skipped)                 │
-# │   Missing "**Test Execution Plan**"                          │ Any                           │ ⏭️ No action                               │
-# │   Neither True nor False pattern                             │ Any                           │ ⏭️ No action                               │
-# └──────────────────────────────────────────────────────────────┴───────────────────────────────┴────────────────────────────────────────────┘
+# ┌──────────────────────────────────────────────────────────────┬───────────────────────────────┬────────────────────────────────────────┐
+# │ CodeRabbit Comment Contains                                  │ Current Label                 │ Action                                 │
+# ├──────────────────────────────────────────────────────────────┼───────────────────────────────┼────────────────────────────────────────┤
+# │ "**Run smoke tests: True**" AND "## Test Execution Plan"    │ None                          │ ✅ Add 'smoke-tests:pending-analysis'  │
+# │ "**Run smoke tests: True**" AND "## Test Execution Plan"    │ Already has label             │ ✅ No-op (safe)                        │
+# │ "**Run smoke tests: False**" AND "## Test Execution Plan"   │ Has label                     │ ✅ Remove label                        │
+# │ "**Run smoke tests: False**" AND "## Test Execution Plan"   │ None                          │ ✅ No action                           │
+# │ New commit pushed (PR opened/sync/reopened)                 │ Has label                     │ ✅ Remove label                        │
+# │ Missing "## Test Execution Plan"                             │ Any                           │ ⏭️ No action                           │
+# │ Neither pattern                                              │ Any                           │ ⏭️ No action                           │
+# │ Comment not from CodeRabbit                                  │ Any                           │ ⏭️ Does NOT run                        │
+# └──────────────────────────────────────────────────────────────┴───────────────────────────────┴────────────────────────────────────────┘
 
-name: "Smoke Tests Label Lifecycle"
+name: "Smoke Tests Label Manager"
 
 on:
   # WARNING: pull_request_target runs with write permissions on base repo
@@ -50,152 +36,77 @@ permissions:
   contents: read
 
 jobs:
-  # FLOW 1: Reset labels when new commits are pushed
+  # Reset label when new commits are pushed
   reset-on-push:
-    name: Reset labels on new commit
+    name: Reset label on push
     if: github.event_name == 'pull_request_target'
     runs-on: ubuntu-latest
     timeout-minutes: 5
 
     steps:
-      - name: Debug - Log PR event information
-        run: |
-          echo "=========================================="
-          echo "FLOW 1: New Commit Pushed"
-          echo "=========================================="
-          echo "Event: ${{ github.event_name }}"
-          echo "Action: ${{ github.event.action }}"
-          echo ""
-          echo "ACTION: Resetting all smoke-tests labels and setting to 'pending-analysis'"
-          echo "=========================================="
-
-      - name: Remove smoke-tests:false and pending-execution labels
+      - name: Remove label
         uses: actions-ecosystem/action-remove-labels@v1
-        continue-on-error: true
-        with:
-          number: ${{ github.event.pull_request.number }}
-          labels: |
-            smoke-tests:false
-            smoke-tests:pending-execution
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Add smoke-tests:pending-analysis label
-        uses: actions-ecosystem/action-add-labels@v1
         continue-on-error: true
         with:
           number: ${{ github.event.pull_request.number }}
           labels: smoke-tests:pending-analysis
           github_token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Completion message
-        run: echo "✅ Labels reset - PR is now in 'pending-analysis' state"
-
-  # FLOWS 2 & 3: Process CodeRabbit analysis results
-  process-coderabbit-analysis:
-    name: Process CodeRabbit analysis
-    # Only run for comment events AND only from CodeRabbit
+  manage-smoke-tests-label:
+    name: Manage label from CodeRabbit
+    # Only run for CodeRabbit comments
     if: |
       github.event_name != 'pull_request_target' &&
-      (github.event.issue.pull_request || github.event_name == 'pull_request_review_comment') &&
-      (github.event.comment.user.login == 'coderabbitai' || github.event.comment.user.login == 'coderabbitai[bot]')
+      (
+        (github.event_name == 'issue_comment' &&
+         (github.event.comment.user.login == 'coderabbitai' || github.event.comment.user.login == 'coderabbitai[bot]')) ||
+        (github.event_name == 'pull_request_review_comment' &&
+         (github.event.review_comment.user.login == 'coderabbitai' || github.event.review_comment.user.login == 'coderabbitai[bot]'))
+      )
     runs-on: ubuntu-latest
 
     steps:
-      - name: Determine flow and log information
+      - name: Determine label action
         id: flow
+        env:
+          COMMENT_BODY: ${{ github.event_name == 'pull_request_review_comment' && github.event.review_comment.body || github.event.comment.body }}
         run: |
-          echo "=========================================="
-          echo "CodeRabbit Analysis Processing"
-          echo "=========================================="
-          echo "Comment Author: ${{ github.event.comment.user.login }}"
-          echo "Event: ${{ github.event_name }}"
-          echo ""
-          echo "=========================================="
-          echo "Condition Matching Results"
-          echo "=========================================="
+          [ -z "$COMMENT_BODY" ] && { echo "ERROR: Empty comment body"; exit 1; }
 
-          HAS_TEST_PLAN="${{ contains(github.event.comment.body, '**Test Execution Plan**') }}"
-          HAS_RUN_TRUE="${{ contains(github.event.comment.body, 'Run smoke tests: True') }}"
-          HAS_RUN_FALSE="${{ contains(github.event.comment.body, 'Run smoke tests: False') }}"
+          # Strip <details> and <summary> blocks to avoid matching patterns in analysis chain scripts
+          COMMENT_STRIPPED=$(sed -e '/<details>/,/<\/details>/d' -e '/<summary>/,/<\/summary>/d' <<< "$COMMENT_BODY")
 
-          echo "Contains '**Test Execution Plan**'? $HAS_TEST_PLAN"
-          echo "Contains 'Run smoke tests: True'? $HAS_RUN_TRUE"
-          echo "Contains 'Run smoke tests: False'? $HAS_RUN_FALSE"
-          echo ""
+          HAS_TEST_PLAN=$(grep -qF '## Test Execution Plan' <<< "$COMMENT_STRIPPED" && echo "true" || echo "false")
+          HAS_RUN_TRUE=$(grep -qF '**Run smoke tests: True**' <<< "$COMMENT_STRIPPED" && echo "true" || echo "false")
+          HAS_RUN_FALSE=$(grep -qF '**Run smoke tests: False**' <<< "$COMMENT_STRIPPED" && echo "true" || echo "false")
 
-          # Determine flows
-          FLOW_2="false"
-          FLOW_3="false"
+          FLOW_ADD="false"
+          FLOW_REMOVE="false"
 
           if [ "$HAS_TEST_PLAN" = "true" ] && [ "$HAS_RUN_TRUE" = "true" ]; then
-            FLOW_3="true"
-            echo "=========================================="
-            echo "Flow Determination"
-            echo "=========================================="
-            echo "FLOW: 3 - Smoke tests NEEDED"
-            echo "ACTION: Remove 'pending-analysis' and 'false' → Add 'pending-execution'"
+            FLOW_ADD="true"
           elif [ "$HAS_TEST_PLAN" = "true" ] && [ "$HAS_RUN_FALSE" = "true" ]; then
-            FLOW_2="true"
-            echo "=========================================="
-            echo "Flow Determination"
-            echo "=========================================="
-            echo "FLOW: 2 - Smoke tests NOT needed"
-            echo "ACTION: Remove 'pending-analysis' and 'pending-execution' → Add 'false'"
-          else
-            echo "=========================================="
-            echo "Flow Determination"
-            echo "=========================================="
-            echo "ACTION: ⏭️ No label change (missing Test Execution Plan or smoke test directive)"
+            FLOW_REMOVE="true"
+          # Note: If both TRUE and FALSE are present, no action is taken (edge case)
           fi
-          echo "=========================================="
 
-          # Set outputs for use in subsequent steps
-          echo "flow_2=$FLOW_2" >> $GITHUB_OUTPUT
-          echo "flow_3=$FLOW_3" >> $GITHUB_OUTPUT
+          echo "flow_add=$FLOW_ADD" >> $GITHUB_OUTPUT
+          echo "flow_remove=$FLOW_REMOVE" >> $GITHUB_OUTPUT
 
-      # FLOW 2: CodeRabbit says NO smoke tests needed
-      - name: "[FLOW 2] Remove smoke-tests:pending-analysis / execution labels"
-        if: steps.flow.outputs.flow_2 == 'true'
-        uses: actions-ecosystem/action-remove-labels@v1
-        continue-on-error: true
-        with:
-          number: ${{ github.event.pull_request.number || github.event.issue.number }}
-          labels: |
-            smoke-tests:pending-analysis
-            smoke-tests:pending-execution
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: "[FLOW 2] Add smoke-tests:false label"
-        if: steps.flow.outputs.flow_2 == 'true'
+      - name: Add label
+        if: steps.flow.outputs.flow_add == 'true'
         uses: actions-ecosystem/action-add-labels@v1
         continue-on-error: true
         with:
           number: ${{ github.event.pull_request.number || github.event.issue.number }}
-          labels: smoke-tests:false
+          labels: smoke-tests:pending-analysis
           github_token: ${{ secrets.GITHUB_TOKEN }}
 
-      # FLOW 3: CodeRabbit says YES smoke tests needed
-      - name: "[FLOW 3] Remove smoke-tests:pending-analysis and smoke-tests:false labels"
-        if: steps.flow.outputs.flow_3 == 'true'
+      - name: Remove label
+        if: steps.flow.outputs.flow_remove == 'true'
         uses: actions-ecosystem/action-remove-labels@v1
         continue-on-error: true
         with:
-          number: ${{ github.event.pull_request.number || github.event.issue.number }}
-          labels: |
-            smoke-tests:pending-analysis
-            smoke-tests:false
+          number: ${{ github.event.issue.number || github.event.pull_request.number }}
+          labels: smoke-tests:pending-analysis
           github_token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: "[FLOW 3] Add smoke-tests:pending-execution label"
-        if: steps.flow.outputs.flow_3 == 'true'
-        uses: actions-ecosystem/action-add-labels@v1
-        continue-on-error: true
-        with:
-          number: ${{ github.event.pull_request.number || github.event.issue.number }}
-          labels: smoke-tests:pending-execution
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-
-      # No action case
-      - name: No action needed
-        if: steps.flow.outputs.flow_2 != 'true' && steps.flow.outputs.flow_3 != 'true'
-        run: echo "⏭️ No action needed - comment does not contain smoke test directive or **Test Execution Plan**"
