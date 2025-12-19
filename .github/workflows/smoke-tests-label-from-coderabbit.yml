@@ -68,8 +68,8 @@ jobs:
         run: |
           [ -z "$COMMENT_BODY" ] && { echo "ERROR: Empty comment body"; exit 1; }
 
-          # Strip <details> blocks to avoid matching patterns in analysis chain scripts
-          COMMENT_STRIPPED=$(sed '/<details>/,/<\/details>/d' <<< "$COMMENT_BODY")
+          # Strip <details> and <summary> blocks to avoid matching patterns in analysis chain scripts
+          COMMENT_STRIPPED=$(sed -e '/<details>/,/<\/details>/d' -e '/<summary>/,/<\/summary>/d' <<< "$COMMENT_BODY")
 
           HAS_TEST_PLAN=$(grep -qF '## Test Execution Plan' <<< "$COMMENT_STRIPPED" && echo "true" || echo "false")
           HAS_RUN_TRUE=$(grep -qF '**Run smoke tests: True**' <<< "$COMMENT_STRIPPED" && echo "true" || echo "false")
@@ -82,6 +82,7 @@ jobs:
             FLOW_ADD="true"
           elif [ "$HAS_TEST_PLAN" = "true" ] && [ "$HAS_RUN_FALSE" = "true" ]; then
             FLOW_REMOVE="true"
+          # Note: If both TRUE and FALSE are present, no action is taken (edge case)
           fi
 
           echo "flow_add=$FLOW_ADD" >> $GITHUB_OUTPUT
