@@ -68,9 +68,12 @@ jobs:
         run: |
           [ -z "$COMMENT_BODY" ] && { echo "ERROR: Empty comment body"; exit 1; }
 
-          HAS_TEST_PLAN=$(grep -qF '## Test Execution Plan' <<< "$COMMENT_BODY" && echo "true" || echo "false")
-          HAS_RUN_TRUE=$(grep -qF '**Run smoke tests: True**' <<< "$COMMENT_BODY" && echo "true" || echo "false")
-          HAS_RUN_FALSE=$(grep -qF '**Run smoke tests: False**' <<< "$COMMENT_BODY" && echo "true" || echo "false")
+          # Strip <details> blocks to avoid matching patterns in analysis chain scripts
+          COMMENT_STRIPPED=$(sed '/<details>/,/<\/details>/d' <<< "$COMMENT_BODY")
+
+          HAS_TEST_PLAN=$(grep -qF '## Test Execution Plan' <<< "$COMMENT_STRIPPED" && echo "true" || echo "false")
+          HAS_RUN_TRUE=$(grep -qF '**Run smoke tests: True**' <<< "$COMMENT_STRIPPED" && echo "true" || echo "false")
+          HAS_RUN_FALSE=$(grep -qF '**Run smoke tests: False**' <<< "$COMMENT_STRIPPED" && echo "true" || echo "false")
 
           FLOW_ADD="false"
           FLOW_REMOVE="false"
