@@ -74,9 +74,12 @@ jobs:
           # Strip <details> and <summary> blocks to avoid matching patterns in analysis chain scripts
           COMMENT_STRIPPED=$(sed -e '/<details>/,/<\/details>/d' -e '/<summary>/,/<\/summary>/d' <<< "$COMMENT_BODY")
 
-          HAS_TEST_PLAN=$(grep -qF '## Test Execution Plan' <<< "$COMMENT_STRIPPED" && echo "true" || echo "false")
-          HAS_RUN_TRUE=$(grep -qF '**Run smoke tests: True**' <<< "$COMMENT_STRIPPED" && echo "true" || echo "false")
-          HAS_RUN_FALSE=$(grep -qF '**Run smoke tests: False**' <<< "$COMMENT_STRIPPED" && echo "true" || echo "false")
+          # Use line-anchored patterns to avoid matching meta-discussions about the workflow
+          # These patterns require the text to appear at the start of a line, matching the actual
+          # Test Execution Plan format instead of matching when CodeRabbit explains how it works
+          HAS_TEST_PLAN=$(grep -qE '^## Test Execution Plan' <<< "$COMMENT_STRIPPED" && echo "true" || echo "false")
+          HAS_RUN_TRUE=$(grep -qE '^- \*\*Run smoke tests: True\*\*' <<< "$COMMENT_STRIPPED" && echo "true" || echo "false")
+          HAS_RUN_FALSE=$(grep -qE '^- \*\*Run smoke tests: False\*\*' <<< "$COMMENT_STRIPPED" && echo "true" || echo "false")
 
           FLOW_ADD="false"
           FLOW_REMOVE="false"
