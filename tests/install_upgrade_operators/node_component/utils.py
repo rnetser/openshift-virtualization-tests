@@ -355,7 +355,7 @@ def get_pod_per_nodes(admin_client, hco_namespace, filter_pods_by_name=None):
     def _get_pods_per_nodes(_filter_pods_by_name):
         pods_per_nodes = defaultdict(list)
         for pod in Pod.get(
-            dyn_client=admin_client,
+            client=admin_client,
             namespace=hco_namespace.name,
         ):
             if _filter_pods_by_name and _filter_pods_by_name in pod.name:

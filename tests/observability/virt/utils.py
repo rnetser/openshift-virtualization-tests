@@ -11,17 +11,17 @@ from utilities.infra import get_deployment_by_name
 LOGGER = logging.getLogger(__name__)
 
 
-def delete_replica_set_by_prefix(replica_set_prefix: str, namespace: str, dyn_client: DynamicClient) -> None:
+def delete_replica_set_by_prefix(replica_set_prefix: str, namespace: str, client: DynamicClient) -> None:
     for replica_set in get_replica_set_by_name_prefix(
-        dyn_client=dyn_client, replica_set_prefix=replica_set_prefix, namespace=namespace
+        client=client, replica_set_prefix=replica_set_prefix, namespace=namespace
     ):
         replica_set.delete(wait=True)
 
 
-def get_replica_set_by_name_prefix(dyn_client: DynamicClient, replica_set_prefix: str, namespace: str) -> list:
+def get_replica_set_by_name_prefix(client: DynamicClient, replica_set_prefix: str, namespace: str) -> list:
     replica_sets = [
         replica
-        for replica in ReplicaSet.get(dyn_client=dyn_client, namespace=namespace)
+        for replica in ReplicaSet.get(client=client, namespace=namespace)
         if replica.name.startswith(replica_set_prefix)
     ]
     assert replica_sets, f"A ReplicaSet with the {replica_set_prefix} prefix does not exist"
