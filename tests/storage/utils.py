@@ -248,7 +248,7 @@ def set_permissions(
 
 
 def get_importer_pod(
-    dyn_client,
+    client,
     namespace,
 ):
     try:
@@ -256,7 +256,7 @@ def get_importer_pod(
             wait_timeout=30,
             sleep=1,
             func=get_pod_by_name_prefix,
-            dyn_client=dyn_client,
+            client=client,
             pod_prefix="importer",
             namespace=namespace,
         ):
@@ -273,12 +273,15 @@ def wait_for_importer_container_message(importer_pod, msg):
         sampled_msg = TimeoutSampler(
             wait_timeout=120,
             sleep=5,
-            func=lambda: importer_container_status_reason(importer_pod) == Pod.Status.CRASH_LOOPBACK_OFF
-            and msg
-            in importer_pod.instance.status.containerStatuses[0]
-            .get("lastState", {})
-            .get("terminated", {})
-            .get("message", ""),
+            func=lambda: (
+                importer_container_status_reason(importer_pod) == Pod.Status.CRASH_LOOPBACK_OFF
+                and msg
+                in importer_pod.instance.status
+                .containerStatuses[0]
+                .get("lastState", {})
+                .get("terminated", {})
+                .get("message", "")
+            ),
         )
         for sample in sampled_msg:
             if sample:

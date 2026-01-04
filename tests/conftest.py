@@ -314,17 +314,19 @@ def unprivileged_secret(admin_client, skip_unprivileged_client):
             name=HTTP_SECRET_NAME,
             namespace=NamespacesNames.OPENSHIFT_CONFIG,
             htpasswd=base64_encode_str(text=crypto_credentials),
+            client=admin_client,
         ) as secret:
             yield secret
 
         #  Wait for oauth-openshift deployment to update after removing htpass-secret
-        _wait_for_oauth_openshift_deployment()
+        _wait_for_oauth_openshift_deployment(admin_client=admin_client)
 
 
-def _wait_for_oauth_openshift_deployment():
+def _wait_for_oauth_openshift_deployment(admin_client):
     dp = get_deployment_by_name(
         deployment_name="oauth-openshift",
         namespace_name="openshift-authentication",
+        admin_client=admin_client,
     )
 
     _log = f"Wait for {dp.name} -> Type: Progressing -> Reason:"
@@ -376,7 +378,7 @@ def identity_provider_with_htpasswd(skip_unprivileged_client, admin_client, iden
             }
         )
         identity_provider_config_editor.update(backup_resources=True)
-        _wait_for_oauth_openshift_deployment()
+        _wait_for_oauth_openshift_deployment(admin_client=admin_client)
         yield
         identity_provider_config_editor.restore()
 
@@ -419,7 +421,7 @@ def unprivileged_client(
 
 @pytest.fixture(scope="session")
 def nodes(admin_client):
-    yield list(Node.get(dyn_client=admin_client))
+    yield list(Node.get(client=admin_client))
 
 
 @pytest.fixture(scope="session")
@@ -817,23 +819,6 @@ def data_volume_scope_class(request, namespace, schedulable_nodes):
     )
 
 
-@pytest.fixture(scope="class")
-def golden_image_data_volume_scope_class(request, admin_client, golden_images_namespace, schedulable_nodes):
-    yield from data_volume(
-        request=request,
-        namespace=golden_images_namespace,
-        storage_class=request.param["storage_class"],
-        schedulable_nodes=schedulable_nodes,
-        check_dv_exists=True,
-        admin_client=admin_client,
-    )
-
-
-@pytest.fixture(scope="class")
-def golden_image_data_source_scope_class(admin_client, golden_image_data_volume_scope_class):
-    yield from create_or_update_data_source(admin_client=admin_client, dv=golden_image_data_volume_scope_class)
-
-
 @pytest.fixture(scope="module")
 def golden_image_data_volume_scope_module(request, admin_client, golden_images_namespace, schedulable_nodes):
     yield from data_volume(
@@ -1032,13 +1017,6 @@ def sriov_workers(schedulable_nodes):
 
 
 @pytest.fixture(scope="session")
-def vlan_base_iface(worker_node1, nodes_available_nics):
-    # Select the last NIC from the list as a way to ensure that the selected NIC
-    # is not already used (e.g. as a bond's port).
-    return nodes_available_nics[worker_node1.name][-1]
-
-
-@pytest.fixture(scope="session")
 def sriov_ifaces(sriov_nodes_states, workers_utility_pods):
     node = sriov_nodes_states[0]
     state_up = Resource.Interface.State.UP
@@ -1176,7 +1154,7 @@ def golden_images_namespace(
 ):
     for ns in Namespace.get(
         name=py_config["golden_images_namespace"],
-        dyn_client=admin_client,
+        client=admin_client,
     ):
         return ns
 
@@ -1187,7 +1165,7 @@ def golden_images_cluster_role_edit(
 ):
     for cluster_role in ClusterRole.get(
         name="os-images.kubevirt.io:edit",
-        dyn_client=admin_client,
+        client=admin_client,
     ):
         return cluster_role
 
@@ -1309,7 +1287,7 @@ def hyperconverged_ovs_annotations_fetched(hyperconverged_resource_scope_functio
 
 @pytest.fixture(scope="session")
 def network_addons_config_scope_session(admin_client):
-    nac = list(NetworkAddonsConfig.get(dyn_client=admin_client))
+    nac = list(NetworkAddonsConfig.get(client=admin_client))
     assert nac, "There should be one NetworkAddonsConfig CR."
     return nac[0]
 
@@ -1351,7 +1329,7 @@ def hyperconverged_ovs_annotations_enabled_scope_session(
     wait_for_ovs_status(network_addons_config=network_addons_config_scope_session, status=False)
     wait_for_pods_deletion(
         pods=get_pods(
-            dyn_client=admin_client,
+            client=admin_client,
             namespace=hco_namespace,
             label="app=ovs-cni",
         )
@@ -1360,7 +1338,7 @@ def hyperconverged_ovs_annotations_enabled_scope_session(
 
 @pytest.fixture(scope="session")
 def cluster_storage_classes(admin_client):
-    return list(StorageClass.get(dyn_client=admin_client))
+    return list(StorageClass.get(client=admin_client))
 
 
 @pytest.fixture(scope="session")
@@ -1413,7 +1391,7 @@ def hpp_cr_installed(hostpath_provisioner_scope_session):
 
 @pytest.fixture(scope="module")
 def cnv_pods(admin_client, hco_namespace):
-    yield list(Pod.get(dyn_client=admin_client, namespace=hco_namespace.name))
+    yield list(Pod.get(client=admin_client, namespace=hco_namespace.name))
 
 
 @pytest.fixture(scope="session")
@@ -1562,7 +1540,7 @@ def cluster_info(
 def ocs_current_version(ocs_storage_class, admin_client):
     if ocs_storage_class:
         for csv in ClusterServiceVersion.get(
-            dyn_client=admin_client,
+            client=admin_client,
             namespace="openshift-storage",
             label_selector=f"{ClusterServiceVersion.ApiGroup.OPERATORS_COREOS_COM}/ocs-operator.openshift-storage",
         ):
@@ -1571,7 +1549,7 @@ def ocs_current_version(ocs_storage_class, admin_client):
 
 @pytest.fixture(scope="session")
 def openshift_current_version(admin_client):
-    return get_clusterversion(dyn_client=admin_client).instance.status.history[0].version
+    return get_clusterversion(client=admin_client).instance.status.history[0].version
 
 
 @pytest.fixture(scope="session")
@@ -1589,7 +1567,7 @@ def hco_image(
         return CNV_NOT_INSTALLED
     source_name = cnv_subscription_scope_session.instance.spec.source
     for cs in CatalogSource.get(
-        dyn_client=admin_client,
+        client=admin_client,
         name=source_name,
         namespace=py_config["marketplace_namespace"],
     ):
@@ -1977,7 +1955,7 @@ def compact_cluster(nodes, workers, control_plane_nodes):
 
 @pytest.fixture()
 def virt_pods_with_running_status(admin_client, hco_namespace):
-    return get_all_virt_pods_with_running_status(dyn_client=admin_client, hco_namespace=hco_namespace)
+    return get_all_virt_pods_with_running_status(client=admin_client, hco_namespace=hco_namespace)
 
 
 @pytest.fixture(scope="session")
@@ -2304,22 +2282,6 @@ def rhel_vm_with_instance_type_and_preference(
             yield vm
 
 
-@pytest.fixture(scope="class")
-def vm_from_template_scope_class(
-    request,
-    unprivileged_client,
-    namespace,
-    golden_image_data_source_scope_class,
-):
-    with vm_instance_from_template(
-        request=request,
-        unprivileged_client=unprivileged_client,
-        namespace=namespace,
-        data_source=golden_image_data_source_scope_class,
-    ) as vm:
-        yield vm
-
-
 @pytest.fixture(scope="session")
 def is_disconnected_cluster():
     # To enable disconnected_cluster pass --tc=disconnected_cluster:True to pytest commandline.
@@ -2524,9 +2486,9 @@ def updated_default_storage_class_ocs_virt(
         )
         if not boot_source_imported_successfully:
             exit_pytest_execution(
+                admin_client=admin_client,
                 log_message=f"Failed to set {ocs_storage_class.name} as default storage class",
                 filename="default_storage_class_failure.txt",
-                admin_client=admin_client,
             )
     else:
         yield
@@ -2763,10 +2725,10 @@ def rhsm_created_secret(rhsm_credentials_from_bitwarden, namespace):
 
 
 @pytest.fixture(scope="session")
-def machine_config_pools():
+def machine_config_pools(admin_client):
     return [
-        get_machine_config_pool_by_name(mcp_name="master"),
-        get_machine_config_pool_by_name(mcp_name="worker"),
+        get_machine_config_pool_by_name(mcp_name="master", admin_client=admin_client),
+        get_machine_config_pool_by_name(mcp_name="worker", admin_client=admin_client),
     ]
 
 
