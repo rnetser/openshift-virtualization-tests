@@ -45,46 +45,30 @@ reviews:
 
   # Path-specific instructions
   path_instructions:
+    - path: "**/*.py"
+      instructions: |
+        Follow all rules from CLAUDE.md. Key checks:
+        - If code contains `# type: ignore`, ask WHY it was added - code should NOT have type:ignore
+        - Follow Google Python Style Guide for all Python code
+        - Type hints are MANDATORY
+
     - path: "tests/**"
       instructions: |
-        Review test code for:
-        - Fixtures should do ONE action only (single responsibility)
-        - Fixture names must be NOUNS (what they provide), not verbs
-        - Each test should verify a single aspect
-        - All tests need appropriate markers (check pytest.ini)
-        - Use @pytest.mark.usefixtures when fixture return value is not needed
-        - Use pytest-dependency only when test independence is not possible
+        Follow test requirements from CLAUDE.md.
 
     - path: "utilities/**"
       instructions: |
-        Review utility code for:
-        - Type hints are MANDATORY for all new public functions
-        - Google-format docstrings required for code that is not self-explanatory
-        - No defensive programming (fail-fast principle)
-        - Check for code duplication - utilities should be reusable
-        - Corresponding unit tests in utilities/unittests/ must maintain 95% coverage
-
-    - path: "utilities/unittests/**"
-      instructions: |
-        Review utility unit tests for:
-        - Test coverage of corresponding utility module functionality
-        - Test clarity and independence
-        - No mocking of the module under test (mock external dependencies only)
-        - Clear test names describing the behavior being tested
+        Follow utility requirements from CLAUDE.md.
+        Unit tests in utilities/unittests/ must maintain 95% coverage.
 
     - path: "libs/**"
       instructions: |
-        Review library code for:
-        - STRICT mypy typing enforced - all code must be fully typed
-        - No use of Any type without explicit justification
-        - Follow Google Python Style Guide
+        Follow library requirements from CLAUDE.md.
+        STRICT mypy typing enforced - all code must be fully typed.
 
     - path: "conftest.py"
       instructions: |
-        Review conftest files for:
-        - Must contain ONLY fixtures, no utility functions
-        - No imports from other conftest.py files
-        - Fixtures should have clear names and be self-explanatory
+        Follow conftest requirements from CLAUDE.md.
 
   # Enabled linting and security tools
   tools:
@@ -126,13 +110,12 @@ chat:
 knowledge_base:
   opt_out: false
 
-  # Enable code guidelines enforcement from CLAUDE.md
+  # Enable code guidelines enforcement from CLAUDE.md and docs
   code_guidelines:
     enabled: true
     filePatterns:
       - "CLAUDE.md"
-      - "docs/CODING_AND_STYLE_GUIDE.md"
-      - "docs/DEVELOPER_GUIDE.md"
+      - "docs/*.md"
 
   # Enable learning from repository patterns
   learnings:
