@@ -43,33 +43,6 @@ reviews:
       - cnv-4.19
       - cnv-4.18
 
-  # Path-specific instructions
-  path_instructions:
-    - path: "**/*.py"
-      instructions: |
-        Follow all rules from CLAUDE.md. Key checks:
-        - If code contains `# type: ignore`, ask WHY it was added - code should NOT have type:ignore
-        - Follow Google Python Style Guide for all Python code
-        - Type hints are MANDATORY
-
-    - path: "tests/**"
-      instructions: |
-        Follow test requirements from CLAUDE.md.
-
-    - path: "utilities/**"
-      instructions: |
-        Follow utility requirements from CLAUDE.md.
-        Unit tests in utilities/unittests/ must maintain 95% coverage.
-
-    - path: "libs/**"
-      instructions: |
-        Follow library requirements from CLAUDE.md.
-        STRICT mypy typing enforced - all code must be fully typed.
-
-    - path: "conftest.py"
-      instructions: |
-        Follow conftest requirements from CLAUDE.md.
-
   # Enabled linting and security tools
   tools:
     # Python linting
