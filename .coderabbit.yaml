@@ -94,9 +94,7 @@ reviews:
     # Additional Python linting (stricter checks)
     pylint:
       enabled: true
-    # Python type checking
-    mypy:
-      enabled: true
+    # Note: mypy is not a supported CodeRabbit tool - type checking is enforced via pre-commit and tox
     # YAML validation
     yamllint:
       enabled: true
