@@ -2,8 +2,10 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+
 ## Strict Rules (MANDATORY)
-Based on https://github.com/myk-org/github-metrics/blob/main/CLAUDE.md#strict-rules-mandatory
+
+Based on [myk-org/github-metrics CLAUDE.md](https://github.com/myk-org/github-metrics/blob/main/CLAUDE.md#strict-rules-mandatory)
 
 ### Linter Suppressions PROHIBITED
 
@@ -153,7 +155,7 @@ uv run --extra utilities-test pytest utilities/unittests/
 
 ### Directory Structure
 
-```
+```text
 tests/                          # Test suites organized by team/component
 ├── network/                    # Network component tests
 ├── storage/                    # Storage tests
@@ -251,7 +253,7 @@ CodeRabbit integrates with the smoke tests workflow:
 4. This label can block merge until smoke tests are addressed
 
 **Test Execution Plan Format** (posted by CodeRabbit):
-```
+```markdown
 ## Test Execution Plan
 
 **Run smoke tests: True**
