@@ -91,6 +91,9 @@ reviews:
     # Python linting
     ruff:
       enabled: true
+    # Additional Python linting (stricter checks)
+    pylint:
+      enabled: true
     # Python type checking
     mypy:
       enabled: true

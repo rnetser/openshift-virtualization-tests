@@ -71,6 +71,23 @@ Before writing ANY new code:
 - **No dead code** - every function, variable, fixture MUST be used or removed. Only code marked with `# skip-unused-code` can be ignored.
 - **Don't save attributes to variables** - use `foo.attr` directly, not `x = foo.attr; use(x)`
 
+### Acceptable Defensive Checks (Exceptions Only)
+
+The "no defensive programming" rule has these five exceptions:
+
+1. **Destructors/Cleanup** - May be called during incomplete initialization
+2. **Optional Parameters** - Explicitly typed as `Type | None` with default `None`
+3. **Lazy Initialization** - Attributes intentionally starting as `None` before first use
+4. **Platform/Architecture Constants** - Features unavailable on all platforms (x86_64, arm64, s390x)
+5. **Unversioned External Libraries** - External dependencies with unknown API stability
+
+**Still Prohibited:**
+
+- ❌ Checking attributes that are ALWAYS provided
+- ❌ Defensive checks on data guaranteed by architecture
+- ❌ Using `hasattr()` for type discrimination (use `isinstance()`)
+- ❌ Version checking for pinned dependencies
+
 ### Test Requirements
 
 - **Fixtures do ONE action only** - single responsibility
@@ -103,6 +120,14 @@ Before writing ANY new code:
 - **Python**: 3.14+
 - **Test Framework**: pytest 9.0+
 - **Package Manager**: uv (NEVER use `pip` or `python` directly)
+
+### Internal API Stability
+
+This is a test suite - internal APIs have no backward compatibility requirements:
+
+- Return types and method signatures can change freely
+- Internal utility functions can be refactored without deprecation
+- Only external interfaces (pytest markers, CLI options) need stability
 
 ## Essential Commands
 
@@ -150,6 +175,18 @@ tox
 # Run utilities unit tests (REQUIRES 95% coverage)
 uv run --extra utilities-test pytest utilities/unittests/
 ```
+
+### Pre-commit Verification (MANDATORY)
+
+Before committing, these checks MUST pass:
+
+```bash
+# Required before every commit
+pre-commit run --all-files  # Linting and formatting
+tox                          # Full CI checks
+```
+
+**No exceptions.** Fix all failures before committing. Do not use `--no-verify` to bypass hooks.
 
 ## Code Architecture
 
