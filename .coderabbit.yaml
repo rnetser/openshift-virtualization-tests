@@ -29,11 +29,6 @@ reviews:
 
   # Pre-merge checks for CLAUDE.md rule enforcement
   pre_merge_checks:
-    # Enforce PR title and description standards
-    title:
-      enabled: true
-    description:
-      enabled: true
     # Docstring coverage enforcement
     docstrings:
       enabled: true
