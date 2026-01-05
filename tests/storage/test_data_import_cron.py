@@ -50,8 +50,10 @@ def assert_first_imported_object_was_deleted(namespace, name):
     samples = TimeoutSampler(
         wait_timeout=TIMEOUT_3MIN,
         sleep=TIMEOUT_5SEC,
-        func=lambda: PersistentVolumeClaim(namespace=namespace, name=name).exists
-        or VolumeSnapshot(namespace=namespace, name=name).exists,
+        func=lambda: (
+            PersistentVolumeClaim(namespace=namespace, name=name).exists
+            or VolumeSnapshot(namespace=namespace, name=name).exists
+        ),
     )
     try:
         for sample in samples:
@@ -206,6 +208,7 @@ def second_object_cleanup(
     resource_class(namespace=namespace.name, name=second_object_name).clean_up()
 
 
+@pytest.mark.gating
 @pytest.mark.polarion("CNV-7602")
 @pytest.mark.s390x
 def test_data_import_cron_garbage_collection(
