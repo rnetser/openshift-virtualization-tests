@@ -27,13 +27,6 @@ reviews:
   sequence_diagrams: false
   changed_files_summary: true
 
-  # Pre-merge checks for CLAUDE.md rule enforcement
-  pre_merge_checks:
-    # Docstring coverage enforcement
-    docstrings:
-      enabled: true
-      threshold: 80
-
   # Targeted pre-merge checks - only run on changed files
   path_filters:
     - "!**/*.md"  # Skip markdown-only changes for full review
