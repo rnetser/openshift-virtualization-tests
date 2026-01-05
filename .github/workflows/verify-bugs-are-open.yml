@@ -38,18 +38,18 @@ jobs:
           echo "Checking out PR branch..."
           git checkout pr-branch
 
-      - name: Attempt to rebase on base branch
-        id: rebase
+      - name: Merge base branch into PR
+        id: merge
         continue-on-error: true
         run: |
-          echo "Attempting to rebase on ${{ github.event.pull_request.base.ref }}..."
-          if git rebase origin/${{ github.event.pull_request.base.ref }}; then
-            echo "rebase_success=true" >> "$GITHUB_OUTPUT"
-            echo "Successfully rebased on ${{ github.event.pull_request.base.ref }}"
+          echo "Merging ${{ github.event.pull_request.base.ref }} into PR branch..."
+          if git merge --no-ff --no-edit origin/${{ github.event.pull_request.base.ref }}; then
+            echo "merge_success=true" >> "$GITHUB_OUTPUT"
+            echo "Successfully merged ${{ github.event.pull_request.base.ref }} into PR"
           else
-            echo "rebase_success=false" >> "$GITHUB_OUTPUT"
-            echo "Rebase failed, aborting and continuing with original PR state"
-            git rebase --abort || true
+            echo "merge_success=false" >> "$GITHUB_OUTPUT"
+            echo "Merge failed, aborting and continuing with original PR state"
+            git merge --abort || true
           fi
 
       - name: Install uv
@@ -62,9 +62,6 @@ jobs:
         env:
           JIRA_TOKEN: ${{ secrets.JIRA_TOKEN }}
         run: |
-          # Mask the token to prevent accidental exposure
-          echo "::add-mask::$JIRA_TOKEN"
-
           # Validate required secrets
           if [ -z "$JIRA_TOKEN" ]; then
             echo "ERROR: JIRA_TOKEN secret is not set"
@@ -75,18 +72,8 @@ jobs:
             exit 1
           fi
 
-          echo "Running Jira bug verification..."
-          echo "Command: uv tool run --from python-utility-scripts pyutils-jira --url https://issues.redhat.com --token *** --target-versions vfuture,4.21.0,4.21.z --resolved-statuses verified,release pending,closed --issue-pattern ([A-Z]+-[0-9]+) --version-string-not-targeted-jiras vfuture --verbose"
-
-          set -o pipefail
-          PYTHONUNBUFFERED=1 uv tool run --from python-utility-scripts pyutils-jira \
-            --url "https://issues.redhat.com" \
-            --token "$JIRA_TOKEN" \
-            --target-versions "vfuture,4.21.0,4.21.z" \
-            --resolved-statuses "verified,release pending,closed" \
-            --issue-pattern "([A-Z]+-[0-9]+)" \
-            --version-string-not-targeted-jiras "vfuture" \
-            --verbose 2>&1
+          echo "Running Jira bug verification via tox..."
+          tox -e verify-bugs-are-open
 
       - name: Add passed label
         if: success()
