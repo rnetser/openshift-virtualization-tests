@@ -36,7 +36,7 @@ Before writing ANY new code:
 - **ALWAYS use named arguments** - for function calls with more than one argument
 - **NEVER use single-letter variable names** - ALWAYS use descriptive, meaningful names
 - **No dead code** - every function, variable, fixture MUST be used or removed. Code marked with `# skip-unused-code` is excluded from dead code analysis (enforced via custom ruff plugin).
-- **NEVER save attributes to variables** - use `foo.attr` directly, not `x = foo.attr; use(x)`
+- **Prefer direct attribute access** - use `foo.attr` directly. Save to variables only when: reusing the same attribute multiple times improves readability, or extracting clarifies intent.
 
 ### Acceptable Defensive Checks (Exceptions Only)
 
@@ -99,7 +99,13 @@ The "no defensive programming" rule has these five exceptions:
 - **Fixtures with cleanup MUST use yield** - use `yield resource` followed by cleanup code, NEVER return + finalizer
 
 **Timeouts and Polling:**
-- **ALWAYS use `timeout_sampler`** - for any operation that waits for a condition
+- **ALWAYS use `timeout_sampler`** - from `timeout_sampler` package for any operation that waits for a condition:
+  ```python
+  from timeout_sampler import TimeoutSampler
+  for sample in TimeoutSampler(wait_timeout=60, sleep=5, func=check_condition):
+      if sample:
+          break
+  ```
 - **NEVER use `time.sleep()` in loops** - use `timeout_sampler` with appropriate wait time
 
 **Assertions:**
