@@ -25,51 +25,17 @@ Before writing ANY new code:
 5. **VERIFY** no similar logic exists elsewhere
 6. **NEVER** duplicate logic - extract to shared module
 
-| Logic Type                           | Location                                                        |
-|--------------------------------------|-----------------------------------------------------------------|
-| Infrastructure/cluster utilities     | `utilities/infra.py`                                            |
-| Network utilities                    | `utilities/network.py`                                          |
-| Storage utilities                    | `utilities/storage.py`                                          |
-| Virtualization utilities             | `utilities/virt.py`                                             |
-| Constants and enums                  | `utilities/constants.py`                                        |
-| HCO/operator management              | `utilities/hco.py`, `utilities/operator.py`                     |
-| CPU/NUMA utilities                   | `utilities/cpu.py`                                              |
-| OS/guest utilities                   | `utilities/os_utils.py`, `utilities/guest_support.py`           |
-| SSP (scheduling, scale, performance) | `utilities/ssp.py`                                              |
-| Monitoring/metrics                   | `utilities/monitoring.py`                                       |
-| Data collection/must-gather          | `utilities/data_collector.py`, `utilities/must_gather.py`       |
-| Bitwarden/secrets                    | `utilities/bitwarden.py`                                        |
-| Exceptions                           | `utilities/exceptions.py`                                       |
-| Pytest helpers                       | `utilities/pytest_utils.py`, `utilities/pytest_matrix_utils.py` |
-| Logging setup                        | `utilities/logger.py`                                           |
-| OADP (backup/restore)                | `utilities/oadp.py`                                             |
-| Cluster sanity checks                | `utilities/sanity.py`                                           |
-| VNC utilities                        | `utilities/vnc_utils.py`                                        |
-| Database utilities                   | `utilities/database.py`                                         |
-| Jira integration                     | `utilities/jira.py`                                             |
-| Console utilities                    | `utilities/console.py`                                          |
-| Data manipulation                    | `utilities/data_utils.py`                                       |
-| Artifactory utilities                | `utilities/artifactory.py`                                      |
-| Architecture detection               | `utilities/architecture.py`                                     |
-| Network libs (typed)                 | `libs/net/`                                                     |
-| Storage libs (typed)                 | `libs/storage/`                                                 |
-| VM libs (typed)                      | `libs/vm/`                                                      |
-| Infrastructure libs (typed)          | `libs/infra/`                                                   |
-| Shared test fixtures                 | `tests/conftest.py`                                             |
-
 ### Python Requirements
 
-- **Type hints MANDATORY** - mypy strict mode in `libs/`, all new public functions under utilities must be typed
-- **Google-format docstrings** - for all public functions that are not self-explanatory
-- **No defensive programming** - fail-fast, don't hide bugs with fake defaults
-- **Always use `uv run`** - NEVER execute `python` or `pip` directly
-- **Use absolute imports** - never relative imports
-- **Import specific functions** - prefer `from module import func` over `import module`
-- **Use named arguments** - call functions with argument names for clarity
-- **Use caching** - use `@functools.cache` to reduce unnecessary calls
-- **No single-letter variable names** - use descriptive, meaningful names
+- **Type hints MANDATORY** - mypy strict mode in `libs/`, all new public functions under utilities MUST be typed
+- **Google-format docstrings REQUIRED** - for all public functions with non-obvious return values OR side effects
+- **No defensive programming** - fail-fast, don't hide bugs with fake defaults (see exceptions below)
+- **ALWAYS use absolute imports** - NEVER use relative imports
+- **ALWAYS import specific functions** - use `from module import func`, NEVER `import module`
+- **ALWAYS use named arguments** - for function calls with more than one argument
+- **NEVER use single-letter variable names** - ALWAYS use descriptive, meaningful names
 - **No dead code** - every function, variable, fixture MUST be used or removed. Only code marked with `# skip-unused-code` can be ignored.
-- **Don't save attributes to variables** - use `foo.attr` directly, not `x = foo.attr; use(x)`
+- **NEVER save attributes to variables** - use `foo.attr` directly, not `x = foo.attr; use(x)`
 
 ### Acceptable Defensive Checks (Exceptions Only)
 
@@ -81,49 +47,80 @@ The "no defensive programming" rule has these five exceptions:
 4. **Platform/Architecture Constants** - Features unavailable on all platforms (x86_64, arm64, s390x)
 5. **Unversioned External Libraries** - External dependencies with unknown API stability
 
-**Still Prohibited:**
+**Still Prohibited (with examples):**
 
-- ❌ Checking attributes that are ALWAYS provided
-- ❌ Defensive checks on data guaranteed by architecture
-- ❌ Using `hasattr()` for type discrimination (use `isinstance()`)
-- ❌ Version checking for pinned dependencies
+- ❌ **Checking attributes that are ALWAYS provided** - Do NOT check if `vm.name` exists when VirtualMachine always has a name field. If the schema guarantees it, trust it.
+- ❌ **Defensive checks on data guaranteed by architecture** - Do NOT validate that `namespace.client` is not None when the Namespace class always sets client in `__init__`. If the constructor guarantees it, trust it.
+- ❌ **Using `hasattr()` for type discrimination** - Do NOT use `if hasattr(obj, 'some_method')` to detect type. Use `isinstance(obj, ExpectedType)` for explicit type checking.
+- ❌ **Version checking for pinned dependencies** - Do NOT check `if kubernetes_version >= X` when pyproject.toml pins the exact version. The lock file guarantees the version.
 
 ### Test Requirements
 
-- **Fixtures do ONE action only** - single responsibility
-- **Fixture names are NOUNS** - describe what they provide, not what they do
-- **NO imports from conftest.py** - fixtures only, no utility functions
-- **All new tests need markers** - check pytest.ini for available markers
-- **Each test verifies ONE aspect** - single purpose, easy to understand
-- **Tests should be independent** - use `pytest-dependency` only when necessary. Propose alternatives if possible.
-- **Use appropriate fixture scopes** - broader scopes (class, module, session) reduce execution time but create shared state; use only for read-only resources or expensive setup where isolation isn't compromised
-- **Use `@pytest.mark.usefixtures`** - when fixture return value is not needed
+- **All new tests MUST have markers** - check pytest.ini for available markers, NEVER commit unmarked tests
+- **Each test verifies ONE aspect only** - single purpose, easy to understand
+- **Tests MUST be independent** - use `pytest-dependency` ONLY when test B requires side effects from test A (e.g., cluster-wide configuration).
+  For resource dependencies, use shared fixtures instead. **When using `@pytest.mark.dependency`, a comment explaining WHY the dependency exists is REQUIRED.**
+- **ALWAYS use `@pytest.mark.usefixtures`** - REQUIRED when fixture return value is not used by test
+
+### Fixture Guidelines (CRITICAL)
+
+1. **Single Action REQUIRED**: Fixtures MUST do ONE action only (single responsibility)
+2. **Naming REQUIRED**: ALWAYS use NOUNS (what they provide), NEVER verbs
+   - ✅ `vm_with_disk`
+   - ❌ `create_vm_with_disk`
+3. **Parametrization format**: Use `request.param` with dict structure for complex parameters
+4. **Ordering REQUIRED**: pytest native fixtures first, then session-scoped, then module/class/function scoped
+5. **Fixture scope rules**:
+   - Use `scope="function"` (default) - for setup requiring test isolation
+   - Use `scope="class"` - for setup shared across test class
+   - Use `scope="module"` - for expensive setup in a test module
+   - Use `scope="session"` - for setup that persists the entire test run (e.g., storage class, namespace)
+   - **NEVER use broader scope if fixture modifies state or creates per-test resources**
+
 
 ### Logging Guidelines
 
-- **Log enough to debug** - but don't spam with unhelpful info
-- **Error logs must be detailed** - include what failed, status, context
-- **Use appropriate log levels** - DEBUG for verbose, INFO for general, ERROR for failures
+- **INFO level REQUIRED for** - test phase transitions, resource creation/deletion, configuration changes, API responses, intermediate state
+- **ERROR level REQUIRED for** - exceptions with full context: what failed, expected vs actual values, resource state
+- **NEVER use DEBUG level** - if a log is needed, use INFO.
+- **NEVER log** - secrets, tokens, passwords, or PII
+- **Log format REQUIRED** - structured key-value pairs for searchability: `LOGGER.info("VM created", extra={"name": vm_name, "namespace": ns})`
 
-### Directory Organization
+### Code Patterns (Not Enforced by Linters)
 
-- **Feature subdirectories** - each feature gets its own subdirectory under component
-- **Test file naming** - use `test_<functionality>.py`
-- **Local helpers** - place helper utils in the test's subdirectory
-- **Local fixtures** - place in `conftest.py` under the test's subdirectory
-- **Keep code close to usage** - move to shared location only when needed by multiple modules
+**Exception Handling:**
+- **ALWAYS re-raise with context** - use `raise NewError("message") from original_error` to preserve stack trace
+- **Do not catch bare `Exception`** - catch specific exception types only
+- **NEVER silently swallow exceptions** - at minimum, log the error before continuing
 
-## Project Overview
+**Context Managers:**
+- **ALWAYS use `with` for resources** - files, connections, locks MUST use context managers
+- **Fixtures with cleanup MUST use yield** - use `yield resource` followed by cleanup code, NEVER return + finalizer
 
-**openshift-virtualization-tests** - Test suite for OpenShift Virtualization (CNV - Container Native Virtualization)
+**Timeouts and Polling:**
+- **ALWAYS use `timeout_sampler`** - for any operation that waits for a condition
+- **NEVER use `time.sleep()` in loops** - use `timeout_sampler` with appropriate wait time
 
-- **Python**: 3.14+
-- **Test Framework**: pytest 9.0+
-- **Package Manager**: uv (NEVER use `pip` or `python` directly)
+**Assertions:**
+- **Use pytest assertions** - `assert actual == expected`, NEVER `self.assertEqual()`
+- **Include failure messages** - `assert condition, "descriptive message explaining failure"`
+
+**Boolean Checks:**
+- **Use implicit boolean** - `if items:` NOT `if len(items) > 0:` or `if items != []:`
+- **Use identity for None** - `if x is None:` NOT `if x == None:`
+- **NEVER compare to True/False** - `if flag:` NOT `if flag == True:`
+
+### Tests Directory Organization
+
+- **Feature subdirectories REQUIRED** - each feature MUST have its own subdirectory under component (e.g., `tests/network/ipv6/`)
+- **Test file naming REQUIRED** - ALWAYS use `test_<functionality>.py` format
+- **Local helpers location** - place helper utils in `<feature_dir>/utils.py`
+- **Local fixtures location** - place in `<feature_dir>/conftest.py`
+- **Move to shared location** - move to `utilities/` or `tests/conftest.py` ONLY when used by different team directories
 
 ### Internal API Stability
 
-This is a test suite - internal APIs have no backward compatibility requirements:
+This is a test suite - internal APIs have NO backward compatibility requirements:
 
 - Return types and method signatures can change freely
 - Internal utility functions can be refactored without deprecation
@@ -131,192 +128,20 @@ This is a test suite - internal APIs have no backward compatibility requirements
 
 ## Essential Commands
 
-### Running Tests
-
-```bash
-# Run all tests
-uv run pytest
-
-# Run specific test by name pattern
-uv run pytest -k "test_clone_windows_vm or test_migrate_vm"
-
-# Run tests by marker
-uv run pytest -m network
-uv run pytest -m smoke
-uv run pytest -m "network and ipv4"
-
-# Run conformance tests (requires storage class)
-uv run pytest -m conformance --conformance-storage-class=<storage-class-name> --skip-artifactory-check
-
-# Run chaos tests
-uv run pytest -m chaos
-
-# Custom config file
-uv run pytest -c custom-pytest.ini
-uv run pytest --tc-file=tests/global_config_aws.py
-```
-
-### Development
-
-```bash
-# Install/sync dependencies
-uv sync
-
-# Update packages
-uv lock --upgrade
-uv lock --upgrade-package openshift-python-wrapper
-
-# Run pre-commit checks
-pre-commit run --all-files
-
-# Run CI checks
-tox
-
-# Run utilities unit tests (REQUIRES 95% coverage)
-uv run --extra utilities-test pytest utilities/unittests/
-```
-
-### Pre-commit Verification (MANDATORY)
+### Before commiting Verification (MANDATORY)
 
 Before committing, these checks MUST pass:
 
 ```bash
 # Required before every commit
 pre-commit run --all-files  # Linting and formatting
-tox                          # Full CI checks
+
+# Full CI checks
+tox
+
+# Run utilities unit tests
+tox -e utilities-unittests
+
 ```
 
 **No exceptions.** Fix all failures before committing. Do not use `--no-verify` to bypass hooks.
-
-## Code Architecture
-
-### Directory Structure
-
-```text
-tests/                          # Test suites organized by team/component
-├── network/                    # Network component tests
-├── storage/                    # Storage tests
-├── virt/                       # Virtualization tests
-├── chaos/                      # Chaos/reliability tests
-├── infrastructure/             # Infrastructure tests
-├── observability/              # Metrics and alerts tests
-├── install_upgrade_operators/  # Install/upgrade tests
-├── data_protection/            # Data protection tests
-├── scale/                      # Scale tests
-├── conftest.py                 # Shared test fixtures across teams
-└── global_config*.py           # Test configuration for different platforms
-
-utilities/                      # Project-wide utility functions
-├── infra.py                    # Infrastructure/cluster utilities
-├── network.py                  # Network utilities
-├── storage.py                  # Storage utilities
-├── virt.py                     # Virtualization utilities
-├── constants.py                # Project constants
-└── unittests/                  # Unit tests (MUST maintain 95% coverage)
-
-libs/                           # Shared libraries (strict mypy typing enforced)
-
-conftest.py                     # Root: pytest native fixtures and CLI options
-```
-
-### Key External Dependencies
-
-- `openshift-python-wrapper` - Kubernetes/OpenShift API interactions
-- `pytest-testconfig` - Test configuration via `--tc-file`
-- `pytest-dependency` - Test dependencies
-- `pytest-order` - Test ordering
-
-## Important Test Markers
-
-Most commonly used markers from pytest.ini:
-
-- `smoke` - Smoke tests
-- `conformance` - Standard cluster tests
-- `network`, `storage`, `virt`, `chaos`, `infrastructure`, `observability`, `install_upgrade_operators` - Team-specific tests
-- `destructive` - Destructive tests
-- `sno` - Single Node OpenShift tests
-- `ipv4`, `ipv6` - IP version specific
-- `arm64`, `x86_64`, `s390x` - Architecture specific
-- `sriov`, `gpu`, `special_infra` - Hardware requirements
-
-## Code Style Rules
-
-- **Style Guide**: Google Python Style Guide
-- **Docstrings**: Google-format
-- **Type Hints**: MANDATORY, enforced via mypy (especially in `libs/`)
-- **Line Length**: 120 characters
-- **Linting**: Ruff
-
-## Fixture Guidelines (CRITICAL)
-
-1. **Single Action**: Fixtures should do ONE action only
-2. **Naming**: Use nouns (what they provide), NOT verbs
-   - ✅ `vm_with_disk`
-   - ❌ `create_vm_with_disk`
-3. **Parametrization**: Use `request.param` with dict structure
-4. **Ordering**: pytest native fixtures first, then session-scoped, then others
-5. **NO IMPORTS**: Do NOT import from conftest.py files - fixtures only
-
-## PR Process
-
-- PRs reviewed by CodeRabbit
-- Requires "verified" label
-- Requires 2 reviewers + 1 approver from OWNERS file
-- Use `/lgtm` and `/approve` comments
-- CI must pass (tox checks)
-
-## CodeRabbit Integration
-
-This repository uses [CodeRabbit](https://coderabbit.ai/) for automated PR reviews. CodeRabbit analyzes code changes and provides review comments.
-
-### Interacting with CodeRabbit
-
-Use these commands in PR comments:
-
-| Command | Description |
-|---------|-------------|
-| `@coderabbitai review` | Request a new review |
-| `@coderabbitai resolve` | Mark all conversations resolved |
-| `@coderabbitai pause` | Pause reviews on this PR |
-| `@coderabbitai resume` | Resume reviews on this PR |
-
-### Smoke Tests Automation
-
-CodeRabbit integrates with the smoke tests workflow:
-
-1. When a PR gets the `verified` label, a workflow requests CodeRabbit to analyze the changes
-2. CodeRabbit posts a **Test Execution Plan** with `**Run smoke tests: True/False**`
-3. If `True`, the `smoke-tests:pending-analysis` label is automatically added to the PR
-4. This label can block merge until smoke tests are addressed
-
-**Test Execution Plan Format** (posted by CodeRabbit):
-```markdown
-## Test Execution Plan
-
-**Run smoke tests: True**
-
-### Tests Required:
-- `-m smoke` - Run smoke test suite
-- `path/to/test_file.py::test_name` - Specific tests
-```
-
-### Addressing CodeRabbit Comments
-
-- All CodeRabbit review comments MUST be addressed before merge
-- Use 👍 reaction or reply "done" when a comment is resolved
-- CodeRabbit will re-review when new commits are pushed
-
-## Prerequisites for Testing
-
-- OpenShift cluster with CNV installed
-- `oc` and `virtctl` binaries from cluster's consoleCliDownloads
-- `bws` (Bitwarden CLI) for secrets
-- KUBECONFIG set or logged in via `oc login`
-
-## Critical Notes
-
-- **ALWAYS use `uv run`**: Never execute `python` or `pytest` directly
-- **Utilities Coverage**: 95% coverage is MANDATORY for utilities/unittests/
-- **Type Safety**: mypy strict mode in libs/ - all code must be typed
-- **Fixture Isolation**: Each fixture should be self-contained and reusable
-- **Config Files**: Use `--tc-file` for platform-specific configurations
