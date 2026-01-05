@@ -30,11 +30,12 @@ Before writing ANY new code:
 - **Type hints MANDATORY** - mypy strict mode in `libs/`, all new public functions under utilities MUST be typed
 - **Google-format docstrings REQUIRED** - for all public functions with non-obvious return values OR side effects
 - **No defensive programming** - fail-fast, don't hide bugs with fake defaults (see exceptions below)
+- **ALWAYS use `uv run`** - NEVER execute `python`, `pip`, or `pytest` directly. Use `uv run python`, `uv run pytest`, `uv add` for package installation.
 - **ALWAYS use absolute imports** - NEVER use relative imports
 - **ALWAYS import specific functions** - use `from module import func`, NEVER `import module`
 - **ALWAYS use named arguments** - for function calls with more than one argument
 - **NEVER use single-letter variable names** - ALWAYS use descriptive, meaningful names
-- **No dead code** - every function, variable, fixture MUST be used or removed. Only code marked with `# skip-unused-code` can be ignored.
+- **No dead code** - every function, variable, fixture MUST be used or removed. Code marked with `# skip-unused-code` is excluded from dead code analysis (enforced via custom ruff plugin).
 - **NEVER save attributes to variables** - use `foo.attr` directly, not `x = foo.attr; use(x)`
 
 ### Acceptable Defensive Checks (Exceptions Only)
