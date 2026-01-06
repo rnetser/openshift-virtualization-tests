@@ -92,7 +92,6 @@ knowledge_base:
     enabled: true
     filePatterns:
       - "CLAUDE.md"
-      - "docs/*.md"
 
   # Enable learning from repository patterns
   learnings:

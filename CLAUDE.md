@@ -24,6 +24,7 @@ Before writing ANY new code:
 4. **CHECK** `tests/` for shared fixtures and helper functions
 5. **VERIFY** no similar logic exists elsewhere
 6. **NEVER** duplicate logic - extract to shared module
+7. **REUSE** existing code and patterns — only write new when nothing exists
 
 ### Python Requirements
 
