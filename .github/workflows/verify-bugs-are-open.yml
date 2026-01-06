@@ -52,29 +52,6 @@ jobs:
             git merge --abort || true
           fi
 
-      - name: Add merge conflict warning comment
-        if: steps.merge.outputs.merge_success == 'false'
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const prNumber = context.payload.pull_request.number;
-            const comment = `⚠️ **Warning: Merge Conflict Detected**
-
-            The workflow attempted to merge the base branch (\`${{ github.event.pull_request.base.ref }}\`) into this PR but encountered merge conflicts.
-
-            The bug verification will proceed with the PR's current state, but please be aware that this PR has merge conflicts that need to be resolved before merging.
-
-            **Action required:** Please resolve the merge conflicts by:
-            1. Merging the latest \`${{ github.event.pull_request.base.ref }}\` into your branch, or
-            2. Rebasing your branch on top of \`${{ github.event.pull_request.base.ref }}\``;
-
-            await github.rest.issues.createComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: prNumber,
-              body: comment
-            });
-
       - name: Install uv
         uses: astral-sh/setup-uv@v4
         with:
