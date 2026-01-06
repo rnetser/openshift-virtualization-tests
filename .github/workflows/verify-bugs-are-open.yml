@@ -66,4 +66,4 @@ jobs:
           echo "::add-mask::$JIRA_TOKEN"
 
           echo "Running Jira bug verification via tox"
-          tox -e verify-bugs-are-open
+          tox -e verify-bugs-are-open-gh
