@@ -3,6 +3,10 @@
 jobs = 0
 
 max-line-length = 120
+# Ignore N802 (function name should be lowercase) for AST visitor methods
+# Ignore FCN001 for test analyzer scripts (they have their own style)
+per-file-ignores =
+    scripts/test_analyzer/*.py: N802, FCN001
 exclude =
     doc,
     .tox,
@@ -23,6 +27,7 @@ fcn_exclude_functions =
     shutil,
     LOGGER,
     BASIC_LOGGER,
+    logger,
     get_plugin,
     ElementTree,
     xml_doc,
@@ -75,6 +80,8 @@ fcn_exclude_functions =
     QueueListener,
     requests,
     multiprocessing,
+    Path,
+    ast,
 
 nit_exclude_imports =
     os_params,
