@@ -19,6 +19,7 @@ from __future__ import annotations
 import argparse
 import ast
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -462,12 +463,13 @@ def format_team_breakdown_by_version(repo_stats: dict[str, list[VersionStats]]) 
     return "\n".join(lines)
 
 
-def clone_or_update_repo(repo: str, base_dir: Path) -> Path:
+def clone_or_update_repo(repo: str, base_dir: Path, github_token: str | None = None) -> Path:
     """Clone repository or update existing clone.
 
     Args:
         repo: Repository in format "owner/name" (e.g., "RedHatQE/openshift-virtualization-tests").
         base_dir: Base directory to clone repos into.
+        github_token: Optional GitHub personal access token for cloning private repos.
 
     Returns:
         Path to the cloned repository.
@@ -494,9 +496,15 @@ def clone_or_update_repo(repo: str, base_dir: Path) -> Path:
         except subprocess.CalledProcessError as error:
             raise RuntimeError(f"Failed to fetch updates for '{repo}': {error.stderr}") from error
 
-    # Clone new repo
-    repo_url = f"https://github.com/{repo}.git"
-    print(f"  Cloning: {repo_url}")
+    # Clone new repo - use token if provided for private repos
+    if github_token:
+        repo_url = f"https://{github_token}@github.com/{repo}.git"
+        # Log without exposing the token
+        print(f"  Cloning: https://***@github.com/{repo}.git (with token)")
+    else:
+        repo_url = f"https://github.com/{repo}.git"
+        print(f"  Cloning: {repo_url}")
+
     base_dir.mkdir(parents=True, exist_ok=True)
 
     try:
@@ -551,6 +559,7 @@ def scan_all_repos(
     repos: list[str],
     workdir: Path,
     branch_filter: str | None = None,
+    github_token: str | None = None,
 ) -> dict[str, list[VersionStats]]:
     """Scan all repositories and branches, returning per-version stats.
 
@@ -558,6 +567,7 @@ def scan_all_repos(
         repos: List of repository names in "owner/name" format.
         workdir: Working directory to clone repos into.
         branch_filter: If specified, only scan this specific branch.
+        github_token: Optional GitHub personal access token for cloning private repos.
 
     Returns:
         Dict mapping repository name to list of VersionStats for each branch.
@@ -569,7 +579,7 @@ def scan_all_repos(
         repo_stats: list[VersionStats] = []
 
         try:
-            repo_dir = clone_or_update_repo(repo=repo, base_dir=workdir)
+            repo_dir = clone_or_update_repo(repo=repo, base_dir=workdir, github_token=github_token)
         except RuntimeError as error:
             print(f"  Error: {error}")
             print(f"  Skipping repository: {repo}")
@@ -1833,6 +1843,13 @@ Examples:
         default=None,
         help="Directory to save output files (default: script directory)",
     )
+    parser.add_argument(
+        "--github-token",
+        type=str,
+        default=None,
+        help="GitHub personal access token for cloning private repositories. "
+        "If not provided, falls back to GITHUB_TOKEN environment variable.",
+    )
     return parser.parse_args()
 
 
@@ -1841,6 +1858,7 @@ def run_multi_repo_mode(
     output_file: Path,
     json_output: bool = False,
     workdir: Path = WORKDIR,
+    github_token: str | None = None,
 ) -> int:
     """Run dashboard generator in multi-repository mode.
 
@@ -1851,6 +1869,7 @@ def run_multi_repo_mode(
         output_file: Path to write the dashboard HTML file (ignored if json_output is True).
         json_output: If True, output JSON to stdout instead of generating HTML dashboard.
         workdir: Directory to clone repos into.
+        github_token: Optional GitHub personal access token for cloning private repos.
 
     Returns:
         Exit code: 0 on success, 1 on error.
@@ -1863,7 +1882,7 @@ def run_multi_repo_mode(
     print(file=sys.stderr)
 
     # Scan all repos and all branches
-    repo_stats = scan_all_repos(repos=REPOS, workdir=workdir, branch_filter=None)
+    repo_stats = scan_all_repos(repos=REPOS, workdir=workdir, branch_filter=None, github_token=github_token)
 
     if not repo_stats:
         print("\nError: No repositories could be scanned.", file=sys.stderr)
@@ -1945,6 +1964,9 @@ def main() -> int:
     else:
         output_file = output_dir / "dashboard.html"
 
+    # Resolve GitHub token: CLI argument takes precedence over environment variable
+    github_token = args.github_token or os.environ.get("GITHUB_TOKEN")
+
     print("Tier2 Quarantine Status Dashboard Generator", file=sys.stderr)
     print("=" * 60, file=sys.stderr)
 
@@ -1953,6 +1975,7 @@ def main() -> int:
         output_file=output_file,
         json_output=args.json_output,
         workdir=args.workdir,
+        github_token=github_token,
     )
 
 
