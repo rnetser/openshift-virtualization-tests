@@ -1,4 +1,6 @@
 """
+Generated using Claude cli
+
 Tier2 Quarantine Status Dashboard Generator
 
 Scans OpenShift Virtualization test repositories for quarantined tests
