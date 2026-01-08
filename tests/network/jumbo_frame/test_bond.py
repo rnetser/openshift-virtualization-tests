@@ -6,6 +6,7 @@ from collections import OrderedDict
 
 import pytest
 
+from libs.net.vmspec import lookup_iface_status_ip
 from tests.network.libs.ip import random_ipv4_address
 from tests.network.utils import assert_no_ping
 from utilities.infra import get_node_selector_dict
@@ -13,7 +14,6 @@ from utilities.network import (
     BondNodeNetworkConfigurationPolicy,
     assert_ping_successful,
     cloud_init_network_data,
-    get_vmi_ip_v4_by_name,
     network_device,
     network_nad,
 )
@@ -35,6 +35,7 @@ pytestmark = [
 
 @pytest.fixture(scope="class")
 def jumbo_frame_bond1_worker_1(
+    admin_client,
     cluster_hardware_mtu,
     index_number,
     worker_node1,
@@ -44,6 +45,7 @@ def jumbo_frame_bond1_worker_1(
     Create BOND if setup support BOND
     """
     with BondNodeNetworkConfigurationPolicy(
+        client=admin_client,
         name=f"jumbo-frame-bond{next(index_number)}-nncp",
         bond_name=BOND_NAME,
         bond_ports=nodes_available_nics[worker_node1.name][-2:],
@@ -55,6 +57,7 @@ def jumbo_frame_bond1_worker_1(
 
 @pytest.fixture(scope="class")
 def jumbo_frame_bond1_worker_2(
+    admin_client,
     cluster_hardware_mtu,
     index_number,
     worker_node2,
@@ -64,6 +67,7 @@ def jumbo_frame_bond1_worker_2(
     Create BOND if setup support BOND
     """
     with BondNodeNetworkConfigurationPolicy(
+        client=admin_client,
         name=f"jumbo-frame-bond{next(index_number)}-nncp",
         bond_name=BOND_NAME,
         bond_ports=nodes_available_nics[worker_node2.name][-2:],
@@ -75,6 +79,7 @@ def jumbo_frame_bond1_worker_2(
 
 @pytest.fixture(scope="class")
 def jumbo_frame_bridge_on_bond_worker_1(
+    admin_client,
     cluster_hardware_mtu,
     bridge_device_matrix__class__,
     jumbo_frame_bond1_worker_1,
@@ -89,12 +94,14 @@ def jumbo_frame_bridge_on_bond_worker_1(
         node_selector=jumbo_frame_bond1_worker_1.node_selector,
         ports=[jumbo_frame_bond1_worker_1.bond_name],
         mtu=cluster_hardware_mtu,
+        client=admin_client,
     ) as br:
         yield br
 
 
 @pytest.fixture(scope="class")
 def jumbo_frame_bridge_on_bond_worker_2(
+    admin_client,
     cluster_hardware_mtu,
     bridge_device_matrix__class__,
     jumbo_frame_bond1_worker_2,
@@ -109,12 +116,14 @@ def jumbo_frame_bridge_on_bond_worker_2(
         node_selector=jumbo_frame_bond1_worker_2.node_selector,
         ports=[jumbo_frame_bond1_worker_2.bond_name],
         mtu=cluster_hardware_mtu,
+        client=admin_client,
     ) as br:
         yield br
 
 
 @pytest.fixture(scope="class")
 def br1bond_nad(
+    admin_client,
     cluster_hardware_mtu,
     bridge_device_matrix__class__,
     namespace,
@@ -127,6 +136,7 @@ def br1bond_nad(
         nad_name=f"{BRIDGE_NAME}-bond-nad",
         interface_name=jumbo_frame_bridge_on_bond_worker_1.bridge_name,
         mtu=cluster_hardware_mtu,
+        client=admin_client,
     ) as nad:
         yield nad
 
@@ -224,7 +234,9 @@ class TestBondJumboFrame:
         ip_header = 20
         assert_ping_successful(
             src_vm=bond_bridge_attached_vma,
-            dst_ip=get_vmi_ip_v4_by_name(vm=running_bond_bridge_attached_vmb, name=br1bond_nad.name),
+            dst_ip=lookup_iface_status_ip(
+                vm=running_bond_bridge_attached_vmb, iface_name=br1bond_nad.name, ip_family=4
+            ),
             packet_size=br1bond_nad.mtu - ip_header - icmp_header,
         )
 
@@ -246,6 +258,8 @@ class TestBondJumboFrame:
         """
         assert_no_ping(
             src_vm=bond_bridge_attached_vma,
-            dst_ip=get_vmi_ip_v4_by_name(vm=running_bond_bridge_attached_vmb, name=br1bond_nad.name),
+            dst_ip=lookup_iface_status_ip(
+                vm=running_bond_bridge_attached_vmb, iface_name=br1bond_nad.name, ip_family=4
+            ),
             packet_size=br1bond_nad.mtu + 100,
         )

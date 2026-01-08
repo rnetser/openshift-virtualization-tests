@@ -5,6 +5,7 @@ from contextlib import contextmanager
 from typing import Generator
 
 import requests
+from kubernetes.dynamic import DynamicClient
 from ocp_resources.cdi import CDI
 from ocp_resources.cluster_role import ClusterRole
 from ocp_resources.config_map import ConfigMap
@@ -170,12 +171,13 @@ def get_file_url_https_server(images_https_server, file_name):
 
 @contextmanager
 def create_cluster_role(
-    name: str, api_groups: list[str], verbs: list[str], permissions_to_resources: list[str]
+    client: DynamicClient, name: str, api_groups: list[str], verbs: list[str], permissions_to_resources: list[str]
 ) -> Generator:
     """
     Create cluster role
     """
     with ClusterRole(
+        client=client,
         name=name,
         rules=[
             {
@@ -190,6 +192,7 @@ def create_cluster_role(
 
 @contextmanager
 def create_role_binding(
+    client: DynamicClient,
     name: str,
     namespace: str,
     subjects_kind: str,
@@ -203,6 +206,7 @@ def create_role_binding(
     Create role binding
     """
     with RoleBinding(
+        client=client,
         name=name,
         namespace=namespace,
         subjects_kind=subjects_kind,
@@ -217,6 +221,7 @@ def create_role_binding(
 
 @contextmanager
 def set_permissions(
+    client: DynamicClient,
     role_name: str,
     role_api_groups: list[str],
     verbs: list[str],
@@ -229,12 +234,14 @@ def set_permissions(
     subjects_namespace: str | None = None,
 ) -> Generator:
     with create_cluster_role(
+        client=client,
         name=role_name,
         api_groups=role_api_groups,
         permissions_to_resources=permissions_to_resources,
         verbs=verbs,
     ) as cluster_role:
         with create_role_binding(
+            client=client,
             name=binding_name,
             namespace=namespace,
             subjects_kind=subjects_kind,
@@ -247,17 +254,8 @@ def set_permissions(
             yield
 
 
-def verify_vm_disk_image_permission(vm: VirtualMachineForTests) -> None:
-    v_pod = vm.vmi.virt_launcher_pod
-    LOGGER.debug("Check image exist, permission and ownership")
-    output = v_pod.execute(command=["ls", "-l", "/var/run/kubevirt-private/vmi-disks/dv-disk"])
-    assert "disk.img" in output
-    assert "-rw-rw----." in output
-    assert "qemu qemu" in output
-
-
 def get_importer_pod(
-    dyn_client,
+    client,
     namespace,
 ):
     try:
@@ -265,7 +263,7 @@ def get_importer_pod(
             wait_timeout=30,
             sleep=1,
             func=get_pod_by_name_prefix,
-            dyn_client=dyn_client,
+            client=client,
             pod_prefix="importer",
             namespace=namespace,
         ):
@@ -282,12 +280,15 @@ def wait_for_importer_container_message(importer_pod, msg):
         sampled_msg = TimeoutSampler(
             wait_timeout=120,
             sleep=5,
-            func=lambda: importer_container_status_reason(importer_pod) == Pod.Status.CRASH_LOOPBACK_OFF
-            and msg
-            in importer_pod.instance.status.containerStatuses[0]
-            .get("lastState", {})
-            .get("terminated", {})
-            .get("message", ""),
+            func=lambda: (
+                importer_container_status_reason(importer_pod) == Pod.Status.CRASH_LOOPBACK_OFF
+                and msg
+                in importer_pod.instance.status
+                .containerStatuses[0]
+                .get("lastState", {})
+                .get("terminated", {})
+                .get("message", "")
+            ),
         )
         for sample in sampled_msg:
             if sample:
@@ -329,10 +330,11 @@ def is_hpp_cr_legacy(hostpath_provisioner):
     return not hostpath_provisioner.instance.spec.storagePools
 
 
-def get_hpp_daemonset(hco_namespace, hpp_cr_suffix):
+def get_hpp_daemonset(hco_namespace, hpp_cr_suffix, admin_client):
     daemonset = DaemonSet(
         name=f"{HostPathProvisioner.Name.HOSTPATH_PROVISIONER}{hpp_cr_suffix}",
         namespace=hco_namespace.name,
+        client=admin_client,
     )
     assert daemonset.exists, "hpp_daemonset does not exist"
     return daemonset
@@ -395,9 +397,9 @@ def create_cirros_dv(
     namespace,
     name,
     storage_class,
+    client,
     access_modes=None,
     volume_mode=None,
-    client=None,
     dv_size=Images.Cirros.DEFAULT_DV_SIZE,
 ):
     with create_dv(

@@ -64,7 +64,7 @@ def x509_cert_is_valid(cert, seconds):
 
 @pytest.fixture(scope="module")
 def secrets(admin_client, hco_namespace):
-    return Secret.get(dyn_client=admin_client, namespace=hco_namespace.name)
+    return Secret.get(client=admin_client, namespace=hco_namespace.name)
 
 
 @pytest.fixture()
@@ -190,6 +190,7 @@ def test_upload_after_certs_renewal(
     """
     dv_name = "cnv-3667"
     with virtctl_upload_dv(
+        client=unprivileged_client,
         namespace=namespace.name,
         name=dv_name,
         size=Images.Cirros.DEFAULT_DV_SIZE,
@@ -255,6 +256,7 @@ def test_upload_after_validate_aggregated_api_cert(
     """
     dv_name = "cnv-3977"
     with virtctl_upload_dv(
+        client=namespace.client,
         namespace=namespace.name,
         name=dv_name,
         size=Images.Cirros.DEFAULT_DV_SIZE,
@@ -310,6 +312,7 @@ def test_cert_exposure_rotation(
     downloaded_cirros_image,
 ):
     with virtctl_upload_dv(
+        client=namespace.client,
         namespace=namespace.name,
         name="cnv-5708",
         size=Images.Cirros.DEFAULT_DV_SIZE,

@@ -35,10 +35,10 @@ def running_vm_for_exposure(
     worker_node1,
     namespace,
     unprivileged_client,
-    dual_stack_network_data,
+    ipv6_primary_interface_cloud_init_data,
 ):
     vm_name = "exposed-vm"
-    cloud_init_data = compose_cloud_init_data_dict(ipv6_network_data=dual_stack_network_data)
+    cloud_init_data = compose_cloud_init_data_dict(ipv6_network_data=ipv6_primary_interface_cloud_init_data)
 
     with VirtualMachineForTests(
         namespace=namespace.name,
@@ -73,7 +73,7 @@ def default_ip_family_policy_service(running_vm_for_exposure):
 @pytest.fixture()
 def virtctl_expose_service(
     request,
-    admin_client,
+    unprivileged_client,
     running_vm_for_exposure,
     dual_stack_cluster,
 ):
@@ -91,6 +91,7 @@ def virtctl_expose_service(
     svc = get_service(
         name=svc_name,
         namespace=running_vm_for_exposure.namespace,
+        client=unprivileged_client,
     )
     yield svc
     svc.clean_up()

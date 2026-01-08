@@ -48,11 +48,12 @@ def migration_interface(hosts_common_available_ports):
 
 
 @pytest.fixture(scope="module")
-def dedicated_network_nad(migration_interface, hco_namespace):
+def dedicated_network_nad(admin_client, migration_interface, hco_namespace):
     with MACVLANNetworkAttachmentDefinition(
         name="migration-nad",
         namespace=hco_namespace.name,
         master=migration_interface,
+        client=admin_client,
     ) as nad:
         yield nad
 
@@ -241,7 +242,7 @@ class TestDedicatedLiveMigrationNetwork:
         # TCPDUMP check not used due to possibility that utility-pod
         # might be killed before vm migration
         assert_node_drain_and_vm_migration(
-            dyn_client=admin_client,
+            client=admin_client,
             vm=restarted_migration_vm_1,
             virt_handler_pods=virt_handler_pods_with_migration_network,
         )

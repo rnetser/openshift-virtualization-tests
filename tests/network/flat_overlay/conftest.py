@@ -5,6 +5,7 @@ import pytest
 from ocp_resources.multi_network_policy import MultiNetworkPolicy
 from ocp_resources.resource import ResourceEditor
 
+from libs.net.vmspec import lookup_iface_status_ip
 from tests.network.flat_overlay.constants import (
     CONNECTION_REQUESTS,
     HTTP_SUCCESS_RESPONSE_STR,
@@ -23,7 +24,7 @@ from tests.network.flat_overlay.utils import (
 from tests.network.libs.ip import random_ipv4_address
 from utilities.constants import FLAT_OVERLAY_STR
 from utilities.infra import create_ns
-from utilities.network import assert_ping_successful, get_vmi_ip_v4_by_name, network_nad
+from utilities.network import assert_ping_successful, network_nad
 from utilities.virt import migrate_vm_and_verify
 
 LOGGER = logging.getLogger(__name__)
@@ -43,11 +44,11 @@ SPECIFIC_HOST_MASK = "32"
 
 
 @pytest.fixture(scope="module")
-def enable_multi_network_policy_usage(network_operator):
+def enable_multi_network_policy_usage(admin_client, network_operator):
     with ResourceEditor(patches={network_operator: {"spec": {"useMultiNetworkPolicy": True}}}):
-        wait_for_multi_network_policy_resources(deploy_mnp_crd=True)
+        wait_for_multi_network_policy_resources(admin_client=admin_client, deploy_mnp_crd=True)
         yield
-    wait_for_multi_network_policy_resources(deploy_mnp_crd=False)
+    wait_for_multi_network_policy_resources(admin_client=admin_client, deploy_mnp_crd=False)
 
 
 @pytest.fixture(scope="module")
@@ -82,19 +83,20 @@ def flat_overlay_second_namespace(admin_client, unprivileged_client):
 
 
 @pytest.fixture(scope="class")
-def flat_overlay_vma_vmb_nad(namespace):
+def flat_overlay_vma_vmb_nad(admin_client, namespace):
     with network_nad(
         nad_type=FLAT_OVERLAY_STR,
         network_name=FLAT_OVERLAY_VMA_VMB_NETWORK_NAME,
         nad_name=FLAT_OVERLAY_VMA_VMB_NAD_NAME,
         namespace=namespace,
         topology=LAYER2,
+        client=admin_client,
     ) as nad:
         yield nad
 
 
 @pytest.fixture(scope="class")
-def flat_overlay_vmc_vmd_nad(namespace):
+def flat_overlay_vmc_vmd_nad(admin_client, namespace):
     nad_for_vms = "vmc-vmd"
     with network_nad(
         nad_type=FLAT_OVERLAY_STR,
@@ -102,24 +104,26 @@ def flat_overlay_vmc_vmd_nad(namespace):
         nad_name=f"{FLAT_L2_BASIC_NAD_NAME}-{nad_for_vms}",
         namespace=namespace,
         topology=LAYER2,
+        client=admin_client,
     ) as nad:
         yield nad
 
 
 @pytest.fixture(scope="class")
-def flat_overlay_vme_nad(flat_overlay_second_namespace):
+def flat_overlay_vme_nad(admin_client, flat_overlay_second_namespace):
     with network_nad(
         nad_type=FLAT_OVERLAY_STR,
         network_name=FLAT_OVERLAY_VMA_VMB_NETWORK_NAME,
         nad_name=FLAT_OVERLAY_VMA_VMB_NAD_NAME,
         namespace=flat_overlay_second_namespace,
         topology=LAYER2,
+        client=admin_client,
     ) as nad:
         yield nad
 
 
 @pytest.fixture(scope="class")
-def flat_overlay_jumbo_frame_nad(namespace, cluster_hardware_mtu):
+def flat_overlay_jumbo_frame_nad(admin_client, namespace, cluster_hardware_mtu):
     with network_nad(
         nad_type=FLAT_OVERLAY_STR,
         network_name=f"{FLAT_L2_BASIC_NETWORK_NAME}-jumbo",
@@ -127,6 +131,7 @@ def flat_overlay_jumbo_frame_nad(namespace, cluster_hardware_mtu):
         namespace=namespace,
         mtu=cluster_hardware_mtu,
         topology=LAYER2,
+        client=admin_client,
     ) as nad:
         yield nad
 
@@ -256,7 +261,7 @@ def flat_l2_jumbo_frame_packet_size(cluster_network_mtu):
 
 @pytest.fixture(scope="class")
 def vmc_flat_overlay_ip_address(vmc_flat_overlay, flat_overlay_vmc_vmd_nad):
-    return get_vmi_ip_v4_by_name(vm=vmc_flat_overlay, name=flat_overlay_vmc_vmd_nad.name)
+    return lookup_iface_status_ip(vm=vmc_flat_overlay, iface_name=flat_overlay_vmc_vmd_nad.name, ip_family=4)
 
 
 @pytest.fixture()
@@ -274,16 +279,17 @@ def migrated_vmc_flat_overlay(vmc_flat_overlay):
 
 @pytest.fixture(scope="class")
 def vmb_flat_overlay_ip_address(vmb_flat_overlay, flat_overlay_vma_vmb_nad):
-    return get_vmi_ip_v4_by_name(vm=vmb_flat_overlay, name=flat_overlay_vma_vmb_nad.name)
+    return lookup_iface_status_ip(vm=vmb_flat_overlay, iface_name=flat_overlay_vma_vmb_nad.name, ip_family=4)
 
 
 @pytest.fixture(scope="class")
 def vmd_flat_overlay_ip_address(vmd_flat_overlay, flat_overlay_vmc_vmd_nad):
-    return get_vmi_ip_v4_by_name(vm=vmd_flat_overlay, name=flat_overlay_vmc_vmd_nad.name)
+    return lookup_iface_status_ip(vm=vmd_flat_overlay, iface_name=flat_overlay_vmc_vmd_nad.name, ip_family=4)
 
 
 @pytest.fixture()
 def vma_egress_multi_network_policy(
+    admin_client,
     flat_overlay_vma_vmb_nad,
     vmb_flat_overlay_ip_address,
     vma_domain_label,
@@ -298,12 +304,14 @@ def vma_egress_multi_network_policy(
             ip_address=f"{vmb_flat_overlay_ip_address}/{SPECIFIC_HOST_MASK}",
         ),
         pod_selector={"matchLabels": vma_domain_label},
+        client=admin_client,
     ) as mnp:
         yield mnp
 
 
 @pytest.fixture()
 def vmb_ingress_multi_network_policy(
+    admin_client,
     flat_overlay_vma_vmb_nad,
     vmb_domain_label,
 ):
@@ -316,12 +324,14 @@ def vmb_ingress_multi_network_policy(
         ingress=create_ip_block(
             ip_address=f"{random_ipv4_address(net_seed=0, host_address=123)}/{SPECIFIC_HOST_MASK}",
         ),
+        client=admin_client,
     ) as mnp:
         yield mnp
 
 
 @pytest.fixture()
 def vmc_ingress_multi_network_policy(
+    admin_client,
     flat_overlay_vmc_vmd_nad,
     vmc_domain_label,
     vmd_ingress_ip_block,
@@ -333,6 +343,7 @@ def vmc_ingress_multi_network_policy(
         network_name=flat_overlay_vmc_vmd_nad.name,
         policy_types=["Ingress"],
         ingress=vmd_ingress_ip_block,
+        client=admin_client,
     ) as mnp:
         yield mnp
 

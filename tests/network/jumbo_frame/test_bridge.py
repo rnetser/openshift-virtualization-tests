@@ -6,13 +6,13 @@ from collections import OrderedDict
 
 import pytest
 
+from libs.net.vmspec import lookup_iface_status_ip
 from tests.network.libs.ip import random_ipv4_address
 from tests.network.utils import assert_no_ping
 from utilities.infra import get_node_selector_dict
 from utilities.network import (
     assert_ping_successful,
     cloud_init_network_data,
-    get_vmi_ip_v4_by_name,
     network_device,
     network_nad,
 )
@@ -34,6 +34,7 @@ def jumbo_frame_bridge_device_name(index_number):
 
 @pytest.fixture(scope="class")
 def jumbo_frame_bridge_device_worker_1(
+    admin_client,
     cluster_hardware_mtu,
     bridge_device_matrix__class__,
     worker_node1,
@@ -47,12 +48,14 @@ def jumbo_frame_bridge_device_worker_1(
         node_selector=get_node_selector_dict(node_selector=worker_node1.hostname),
         ports=[nodes_available_nics[worker_node1.name][-1]],
         mtu=cluster_hardware_mtu,
+        client=admin_client,
     ) as br:
         yield br
 
 
 @pytest.fixture(scope="class")
 def jumbo_frame_bridge_device_worker_2(
+    admin_client,
     cluster_hardware_mtu,
     bridge_device_matrix__class__,
     worker_node2,
@@ -66,12 +69,14 @@ def jumbo_frame_bridge_device_worker_2(
         node_selector=get_node_selector_dict(node_selector=worker_node2.hostname),
         ports=[nodes_available_nics[worker_node2.name][-1]],
         mtu=cluster_hardware_mtu,
+        client=admin_client,
     ) as br:
         yield br
 
 
 @pytest.fixture(scope="class")
 def br1test_bridge_nad(
+    admin_client,
     cluster_hardware_mtu,
     bridge_device_matrix__class__,
     namespace,
@@ -85,6 +90,7 @@ def br1test_bridge_nad(
         nad_name=f"{jumbo_frame_bridge_device_name}-nad",
         interface_name=jumbo_frame_bridge_device_name,
         mtu=cluster_hardware_mtu,
+        client=admin_client,
     ) as nad:
         yield nad
 
@@ -156,7 +162,7 @@ class TestJumboFrameBridge:
         ip_header = 20
         assert_ping_successful(
             src_vm=bridge_attached_vma,
-            dst_ip=get_vmi_ip_v4_by_name(vm=bridge_attached_vmb, name=br1test_bridge_nad.name),
+            dst_ip=lookup_iface_status_ip(vm=bridge_attached_vmb, iface_name=br1test_bridge_nad.name, ip_family=4),
             packet_size=br1test_bridge_nad.mtu - ip_header - icmp_header,
         )
 
@@ -174,6 +180,6 @@ class TestJumboFrameBridge:
         """
         assert_no_ping(
             src_vm=bridge_attached_vma,
-            dst_ip=get_vmi_ip_v4_by_name(vm=bridge_attached_vmb, name=br1test_bridge_nad.name),
+            dst_ip=lookup_iface_status_ip(vm=bridge_attached_vmb, iface_name=br1test_bridge_nad.name, ip_family=4),
             packet_size=br1test_bridge_nad.mtu + 100,
         )

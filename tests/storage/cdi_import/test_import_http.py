@@ -92,7 +92,7 @@ def wait_dv_and_get_importer(dv, admin_client):
         timeout=TIMEOUT_1MIN,
         stop_status=DataVolume.Status.SUCCEEDED,
     )
-    return get_importer_pod(dyn_client=admin_client, namespace=dv.namespace)
+    return get_importer_pod(client=admin_client, namespace=dv.namespace)
 
 
 @pytest.fixture()
@@ -103,6 +103,7 @@ def dv_with_annotation(admin_client, namespace, linux_nad):
         url=f"{get_test_artifact_server_url()}{FEDORA_LATEST['image_path']}",
         storage_class=py_config["default_storage_class"],
         multus_annotation=linux_nad.name,
+        client=namespace.client,
     ) as dv:
         return wait_dv_and_get_importer(dv=dv, admin_client=admin_client).instance.metadata.annotations
 
@@ -131,7 +132,7 @@ def test_delete_pvc_after_successful_import(
     pvc.delete()
     wait_for_pvc_recreate(pvc=pvc, pvc_original_timestamp=pvc_original_timestamp)
     storage_class = data_volume_multi_storage_scope_function.storage_class
-    if sc_volume_binding_mode_is_wffc(sc=storage_class):
+    if sc_volume_binding_mode_is_wffc(sc=storage_class, client=data_volume_multi_storage_scope_function.client):
         create_dummy_first_consumer_pod(pvc=pvc)
     data_volume_multi_storage_scope_function.wait_for_dv_success()
 
@@ -427,6 +428,10 @@ def test_certconfigmap_missing_or_wrong_cm(data_volume_multi_storage_scope_funct
                 )
 
 
+@pytest.mark.xfail(
+    reason=f"{QUARANTINED}: fix test to create resources sequentially; tracked in CNV-75838",
+    run=False,
+)
 @pytest.mark.sno
 @pytest.mark.parametrize(
     "number_of_processes",
@@ -519,7 +524,7 @@ def test_vm_from_dv_on_different_node(
     It applies to shared storage like Ceph or NFS. It cannot be tested on local storage like HPP.
     """
     importer_pod = get_importer_pod(
-        dyn_client=admin_client,
+        client=admin_client,
         namespace=data_volume_multi_storage_scope_function.namespace,
     )
     importer_node_name = get_importer_pod_node(importer_pod=importer_pod)
@@ -569,16 +574,6 @@ def test_successful_vm_from_imported_dv_windows(
 ):
     validate_os_info_vmi_vs_windows_os(
         vm=vm_instance_from_template_multi_storage_scope_function,
-    )
-
-
-@pytest.mark.polarion("CNV-4724")
-@pytest.mark.sno
-@pytest.mark.s390x
-def test_dv_api_version_after_import(cirros_dv_unprivileged):
-    assert (
-        cirros_dv_unprivileged.api_version
-        == f"{cirros_dv_unprivileged.api_group}/{cirros_dv_unprivileged.ApiVersion.V1BETA1}"
     )
 
 

@@ -5,7 +5,7 @@ from kubernetes.dynamic import DynamicClient
 from ocp_resources.namespace import Namespace
 
 import tests.network.libs.nodenetworkconfigurationpolicy as libnncp
-from libs.net.traffic_generator import TcpServer
+from libs.net.traffic_generator import TcpServer, client_server_active_connection
 from libs.net.traffic_generator import VMTcpClient as TcpClient
 from libs.net.vmspec import lookup_iface_status
 from libs.vm.spec import Interface, Multus, Network
@@ -14,7 +14,6 @@ from tests.network.libs import cloudinit
 from tests.network.libs import cluster_user_defined_network as libcudn
 from tests.network.libs.ip import IPV4_HEADER_SIZE, TCP_HEADER_SIZE, random_ipv4_address
 from tests.network.localnet.liblocalnet import (
-    _IPERF_SERVER_PORT,
     LINK_STATE_DOWN,
     LOCALNET_BR_EX_INTERFACE,
     LOCALNET_BR_EX_INTERFACE_NO_VLAN,
@@ -23,7 +22,6 @@ from tests.network.localnet.liblocalnet import (
     LOCALNET_OVS_BRIDGE_INTERFACE,
     LOCALNET_OVS_BRIDGE_NETWORK,
     LOCALNET_TEST_LABEL,
-    client_server_active_connection,
     create_nncp_localnet_on_secondary_node_nic,
     create_traffic_client,
     create_traffic_server,
@@ -41,7 +39,7 @@ PRIMARY_INTERFACE_NAME = "eth0"
 
 
 @pytest.fixture(scope="module")
-def nncp_localnet() -> Generator[libnncp.NodeNetworkConfigurationPolicy]:
+def nncp_localnet(admin_client: DynamicClient) -> Generator[libnncp.NodeNetworkConfigurationPolicy]:
     desired_state = libnncp.DesiredState(
         ovn=libnncp.OVN([
             libnncp.BridgeMappings(
@@ -53,6 +51,7 @@ def nncp_localnet() -> Generator[libnncp.NodeNetworkConfigurationPolicy]:
     )
 
     with libnncp.NodeNetworkConfigurationPolicy(
+        client=admin_client,
         name="test-localnet-nncp",
         desired_state=desired_state,
         node_selector={WORKER_NODE_LABEL_KEY: ""},
@@ -88,6 +87,7 @@ def vlan_id(vlan_index_number: Generator[int]) -> int:
 
 @pytest.fixture(scope="module")
 def cudn_localnet(
+    admin_client: DynamicClient,
     vlan_id: int,
     namespace_localnet_1: Namespace,
     namespace_localnet_2: Namespace,
@@ -97,6 +97,7 @@ def cudn_localnet(
         match_labels=LOCALNET_TEST_LABEL,
         vlan_id=vlan_id,
         physical_network_name=LOCALNET_BR_EX_NETWORK,
+        client=admin_client,
     ) as cudn:
         cudn.wait_for_status_success()
         yield cudn
@@ -104,12 +105,14 @@ def cudn_localnet(
 
 @pytest.fixture(scope="module")
 def cudn_localnet_no_vlan(
+    admin_client: DynamicClient,
     namespace_localnet_1: Namespace,
 ) -> Generator[libcudn.ClusterUserDefinedNetwork]:
     with localnet_cudn(
         name=LOCALNET_BR_EX_NETWORK_NO_VLAN,
         match_labels=LOCALNET_TEST_LABEL,
         physical_network_name=LOCALNET_BR_EX_NETWORK,
+        client=admin_client,
     ) as cudn:
         cudn.wait_for_status_success()
         yield cudn
@@ -209,6 +212,7 @@ def localnet_client(localnet_running_vms: tuple[BaseVirtualMachine, BaseVirtualM
 
 @pytest.fixture(scope="module")
 def cudn_localnet_ovs_bridge(
+    admin_client: DynamicClient,
     vlan_id: int,
     namespace_localnet_1: Namespace,
 ) -> Generator[libcudn.ClusterUserDefinedNetwork]:
@@ -217,6 +221,7 @@ def cudn_localnet_ovs_bridge(
         match_labels=LOCALNET_TEST_LABEL,
         vlan_id=vlan_id,
         physical_network_name=LOCALNET_OVS_BRIDGE_NETWORK,
+        client=admin_client,
     ) as cudn:
         cudn.wait_for_status_success()
         yield cudn
@@ -296,8 +301,9 @@ def ovs_bridge_localnet_running_vms_one_with_interface_down(
     lookup_iface_status(
         vm=vm_ovs_bridge_localnet_link_down,
         iface_name=LOCALNET_OVS_BRIDGE_INTERFACE,
-        predicate=lambda interface: "guest-agent" in interface["infoSource"]
-        and interface["linkState"] == LINK_STATE_DOWN,
+        predicate=lambda interface: (
+            "guest-agent" in interface["infoSource"] and interface["linkState"] == LINK_STATE_DOWN
+        ),
     )
     yield vm1, vm2
 
@@ -353,24 +359,33 @@ def migrated_localnet_vm(
 
 @pytest.fixture(scope="module")
 def nncp_localnet_on_secondary_node_nic(
+    admin_client: DynamicClient,
     hosts_common_available_ports: list[str],
 ) -> Generator[libnncp.NodeNetworkConfigurationPolicy]:
-    with create_nncp_localnet_on_secondary_node_nic(node_nic_name=(hosts_common_available_ports[-1])) as nncp:
+    with create_nncp_localnet_on_secondary_node_nic(
+        node_nic_name=(hosts_common_available_ports[-1]),
+        client=admin_client,
+    ) as nncp:
         yield nncp
 
 
 @pytest.fixture(scope="module")
 def nncp_localnet_on_secondary_node_nic_with_jumbo_frame(
-    hosts_common_available_ports: list[str], cluster_hardware_mtu: int
+    admin_client: DynamicClient,
+    hosts_common_available_ports: list[str],
+    cluster_hardware_mtu: int,
 ) -> Generator[libnncp.NodeNetworkConfigurationPolicy]:
     with create_nncp_localnet_on_secondary_node_nic(
-        node_nic_name=(hosts_common_available_ports[-1]), mtu=cluster_hardware_mtu
+        node_nic_name=(hosts_common_available_ports[-1]),
+        client=admin_client,
+        mtu=cluster_hardware_mtu,
     ) as nncp:
         yield nncp
 
 
 @pytest.fixture(scope="module")
 def cudn_localnet_ovs_bridge_jumbo_frame(
+    admin_client: DynamicClient,
     vlan_id: int,
     cluster_hardware_mtu: int,
     namespace_localnet_1: Namespace,
@@ -381,6 +396,7 @@ def cudn_localnet_ovs_bridge_jumbo_frame(
         vlan_id=vlan_id,
         physical_network_name=LOCALNET_OVS_BRIDGE_NETWORK,
         mtu=cluster_hardware_mtu,
+        client=admin_client,
     ) as cudn:
         cudn.wait_for_status_success()
         yield cudn
@@ -451,7 +467,6 @@ def localnet_ovs_bridge_jumbo_frame_client_and_server_vms(
         client_vm=ovs_bridge_localnet_running_jumbo_frame_vms[1],
         server_vm=ovs_bridge_localnet_running_jumbo_frame_vms[0],
         spec_logical_network=LOCALNET_OVS_BRIDGE_INTERFACE,
-        port=_IPERF_SERVER_PORT,
         maximum_segment_size=cluster_hardware_mtu - IPV4_HEADER_SIZE - TCP_HEADER_SIZE,
     ) as (client, server):
         yield client, server

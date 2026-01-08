@@ -16,6 +16,7 @@ from tests.network.libs.ip import random_ipv4_address
 from utilities.constants import (
     CNV_SUPPLEMENTAL_TEMPLATES_URL,
     MTU_9000,
+    NODE_HUGE_PAGES_1GI_KEY,
     SRIOV,
     TIMEOUT_10MIN,
     TIMEOUT_20SEC,
@@ -37,7 +38,6 @@ from utilities.virt import (
 
 LOGGER = logging.getLogger(__name__)
 VM_SRIOV_IFACE_NAME = "sriov1"
-NODE_HUGE_PAGES_1GI_KEY = "hugepages-1Gi"
 
 
 def vm_sriov_mac(mac_suffix_index):
@@ -87,14 +87,15 @@ def sriov_vm(
 
 
 @pytest.fixture(scope="module")
-def sriov_network(sriov_node_policy, namespace, sriov_namespace):
+def sriov_network(admin_client, sriov_node_policy, namespace, sriov_namespace):
     """
     Create a SR-IOV network linked to SR-IOV policy.
     """
     with network_nad(
+        client=admin_client,
         nad_type=SRIOV,
         nad_name="sriov-test-network",
-        sriov_resource_name=sriov_node_policy.resource_name,
+        sriov_resource_name=sriov_node_policy.instance.spec.resourceName,
         namespace=sriov_namespace,
         sriov_network_namespace=namespace.name,
     ) as sriov_network:
@@ -102,17 +103,18 @@ def sriov_network(sriov_node_policy, namespace, sriov_namespace):
 
 
 @pytest.fixture(scope="class")
-def sriov_network_vlan(sriov_node_policy, namespace, sriov_namespace, vlan_index_number):
+def sriov_network_vlan(admin_client, sriov_node_policy, namespace, sriov_namespace, vlan_index_number):
     """
     Create a SR-IOV VLAN network linked to SR-IOV policy.
     """
     with network_nad(
         nad_type=SRIOV,
         nad_name="sriov-test-network-vlan",
-        sriov_resource_name=sriov_node_policy.resource_name,
+        sriov_resource_name=sriov_node_policy.instance.spec.resourceName,
         namespace=sriov_namespace,
         sriov_network_namespace=namespace.name,
         vlan=next(vlan_index_number),
+        client=admin_client,
     ) as sriov_network:
         yield sriov_network
 
