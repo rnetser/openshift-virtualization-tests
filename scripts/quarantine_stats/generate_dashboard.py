@@ -10,8 +10,8 @@ Repositories:
 
 Output:
     - CLI: Summary tables showing quarantine stats by version and team
-    - HTML: Interactive dashboard at scripts/quarantine_stats/dashboard.html
-    - JSON: Machine-readable output with all quarantine statistics (--json flag)
+    - HTML: Interactive dashboard at scripts/quarantine_stats/dashboard.html (default)
+    - JSON: Machine-readable output at scripts/quarantine_stats/dashboard.json (--json flag)
 """
 
 from __future__ import annotations
@@ -300,17 +300,23 @@ def format_stats_table(stats: DashboardStats) -> str:
     return "\n".join(lines)
 
 
-def format_repo_version_table(repo: str, version_stats_list: list[VersionStats]) -> str:
-    """Format version stats for a repository as an ASCII table for CLI output.
+def format_unified_version_table(repo_stats: dict[str, list[VersionStats]]) -> str:
+    """Format unified version stats for all repositories as a single ASCII table for CLI output.
+
+    Creates a single table with a Repository column that shows the short repo name
+    for the first row of each repo, then empty for subsequent versions.
 
     Args:
-        repo: The repository name.
-        version_stats_list: List of VersionStats for this repository.
+        repo_stats: Dict mapping repository names to list of VersionStats for each branch.
 
     Returns:
         Formatted ASCII table as a string.
     """
+    if not repo_stats:
+        return ""
+
     # Define column widths
+    col_repo = 32
     col_version = 12
     col_total = 7
     col_active = 8
@@ -318,56 +324,65 @@ def format_repo_version_table(repo: str, version_stats_list: list[VersionStats])
     col_health = 8
 
     # Create separator line
-    separator = "+" + "-" * col_version + "+" + "-" * col_total + "+" + "-" * col_active + "+"
-    separator += "-" * col_quarantined + "+" + "-" * col_health + "+"
+    separator = "+" + "-" * col_repo + "+" + "-" * col_version + "+" + "-" * col_total + "+"
+    separator += "-" * col_active + "+" + "-" * col_quarantined + "+" + "-" * col_health + "+"
 
     # Create header
-    header = f"| {'Version':<{col_version - 2}} | {'Total':>{col_total - 2}} | {'Active':>{col_active - 2}} |"
+    header = f"| {'Repository':<{col_repo - 2}} | {'Version':<{col_version - 2}} |"
+    header += f" {'Total':>{col_total - 2}} | {'Active':>{col_active - 2}} |"
     header += f" {'Quarantined':>{col_quarantined - 2}} | {'Health':>{col_health - 2}} |"
 
     lines = [
         "",
-        f"{repo}:",
+        "Version Summary:",
         separator,
         header,
         separator,
     ]
 
-    for version_stat in version_stats_list:
-        total = version_stat.stats.total_tests
-        active = version_stat.stats.active_tests
-        quarantined = version_stat.stats.quarantined_tests
-        health_pct = (active / total * 100) if total > 0 else 0
+    for repo, version_stats_list in repo_stats.items():
+        # Extract short repo name (last part after /)
+        short_repo = repo.rsplit("/", maxsplit=1)[-1]
 
-        row = f"| {version_stat.branch:<{col_version - 2}} | {total:>{col_total - 2},} | {active:>{col_active - 2},} |"
-        row += f" {quarantined:>{col_quarantined - 2},} | {health_pct:>{col_health - 3}.1f}% |"
-        lines.append(row)
+        for idx, version_stat in enumerate(version_stats_list):
+            total = version_stat.stats.total_tests
+            active = version_stat.stats.active_tests
+            quarantined = version_stat.stats.quarantined_tests
+            health_pct = (active / total * 100) if total > 0 else 0
+
+            # Show repo name only for first row of each repo
+            repo_display = short_repo if idx == 0 else ""
+
+            row = f"| {repo_display:<{col_repo - 2}} | {version_stat.branch:<{col_version - 2}} |"
+            row += f" {total:>{col_total - 2},} | {active:>{col_active - 2},} |"
+            row += f" {quarantined:>{col_quarantined - 2},} | {health_pct:>{col_health - 3}.1f}% |"
+            lines.append(row)
 
     lines.append(separator)
 
     return "\n".join(lines)
 
 
-def format_team_breakdown_by_version(repo: str, version_stats_list: list[VersionStats]) -> str:
-    """Format team breakdown with branches as columns for CLI output.
+def format_team_breakdown_by_version(repo_stats: dict[str, list[VersionStats]]) -> str:
+    """Format unified team breakdown with all repos/versions as columns for CLI output.
 
-    Creates a table with teams as rows and branch versions as columns,
+    Creates a single table with teams as rows and all repo/version combinations as columns,
     showing quarantined counts in each cell.
 
     Args:
-        repo: The repository name.
-        version_stats_list: List of VersionStats for this repository.
+        repo_stats: Dict mapping repository names to list of VersionStats for each branch.
 
     Returns:
         Formatted ASCII table as a string.
     """
-    if not version_stats_list:
+    if not repo_stats:
         return ""
 
-    # Collect all unique teams across all branches
+    # Collect all unique teams across all repos and branches
     all_teams: set[str] = set()
-    for version_stat in version_stats_list:
-        all_teams.update(version_stat.stats.category_breakdown.keys())
+    for version_stats_list in repo_stats.values():
+        for version_stat in version_stats_list:
+            all_teams.update(version_stat.stats.category_breakdown.keys())
 
     if not all_teams:
         return ""
@@ -375,32 +390,49 @@ def format_team_breakdown_by_version(repo: str, version_stats_list: list[Version
     # Sort teams alphabetically
     sorted_teams = sorted(all_teams)
 
-    # Get branch names in order
-    branches = [vs.branch for vs in version_stats_list]
+    # Build list of (repo, version_stat) pairs for columns - flatten the structure
+    repo_version_pairs: list[RepoVersionStats] = []
+    for repo, version_stats_list in repo_stats.items():
+        for version_stat in version_stats_list:
+            repo_version_pairs.append(RepoVersionStats(repo=repo, branch=version_stat.branch, stats=version_stat.stats))
 
     # Calculate column widths - use formatted team names for width calculation
     formatted_team_names = [team.replace("_", " ").title() for team in sorted_teams]
-    col_team = max(20, max(len(name) for name in formatted_team_names) + 2)
+    col_team = max(27, max(len(name) for name in formatted_team_names) + 2)
     col_branch = 10  # Width for each branch column
 
     # Build separator line
     separator = "+" + "-" * col_team
-    for _ in branches:
+    for _ in repo_version_pairs:
         separator += "+" + "-" * col_branch
     separator += "+"
 
-    # Build header
+    # Build header with version names only
     header = f"| {'Team':<{col_team - 2}} "
-    for branch in branches:
-        branch_display = branch[: col_branch - 2] if len(branch) > col_branch - 2 else branch
+    for rvs in repo_version_pairs:
+        branch_display = rvs.branch[: col_branch - 2] if len(rvs.branch) > col_branch - 2 else rvs.branch
         header += f"| {branch_display:^{col_branch - 2}} "
     header += "|"
+
+    # Build repo name row (showing which columns belong to which repo)
+    repo_row = f"| {'':<{col_team - 2}} "
+    prev_repo = None
+    for rvs in repo_version_pairs:
+        if rvs.repo != prev_repo:
+            # Extract short repo name (last part after /)
+            short_repo = rvs.repo.rsplit("/", maxsplit=1)[-1][: col_branch - 2]
+            repo_row += f"| {short_repo:^{col_branch - 2}} "
+            prev_repo = rvs.repo
+        else:
+            repo_row += f"| {'':<{col_branch - 2}} "
+    repo_row += "|"
 
     # Add blank line before header and make it more prominent
     lines = [
         "",
         "Team Breakdown (Quarantined by Version):",
         separator,
+        repo_row,
         header,
         separator,
     ]
@@ -413,10 +445,14 @@ def format_team_breakdown_by_version(repo: str, version_stats_list: list[Version
 
         row = f"| {team_display:<{col_team - 2}} "
 
-        for version_stat in version_stats_list:
-            category_data = version_stat.stats.category_breakdown.get(team, {"quarantined": 0})
-            quarantined = category_data.get("quarantined", 0)
-            row += f"| {quarantined:^{col_branch - 2}} "
+        for rvs in repo_version_pairs:
+            category_data = rvs.stats.category_breakdown.get(team)
+            if category_data is None:
+                # Team doesn't exist in this repo/version
+                row += f"| {'-':^{col_branch - 2}} "
+            else:
+                quarantined = category_data.get("quarantined", 0)
+                row += f"| {quarantined:^{col_branch - 2}} "
 
         row += "|"
         lines.append(row)
@@ -670,6 +706,7 @@ class TestScanner:
 
     # Default folder mappings (source -> target) for combining quarantine_stats
     DEFAULT_FOLDER_MAPPINGS: dict[str, str] = {
+        "compute": "virt",
         "data_protection": "storage",
         "cross_cluster_live_migration": "storage",
     }
@@ -1310,18 +1347,22 @@ class DashboardGenerator:
     def _generate_multi_repo_section(self) -> str:
         """Generate HTML section for multi-repository version comparison.
 
-        Creates separate tables for each repository with per-version breakdown
-        and a team breakdown table showing quarantined counts by team and version.
-        Each table is in its own styled section box.
+        Creates a single unified table for all repositories with per-version breakdown
+        and a unified team breakdown table showing quarantined counts by team
+        across all repos and versions.
 
         Returns:
             HTML string containing the multi-repo comparison section.
         """
         sections = []
 
+        # Generate unified version summary section (single table for all repos)
+        rows: list[str] = []
         for repo, version_stats_list in self.repo_stats.items():
-            rows = []
-            for version_stat in version_stats_list:
+            # Extract short repo name (last part after /)
+            short_repo = repo.rsplit("/", maxsplit=1)[-1]
+
+            for idx, version_stat in enumerate(version_stats_list):
                 total = version_stat.stats.total_tests
                 active = version_stat.stats.active_tests
                 quarantined = version_stat.stats.quarantined_tests
@@ -1337,7 +1378,11 @@ class DashboardGenerator:
                     health_class = "red"
                     health_text = f"{health_pct:.1f}%"
 
+                # Show repo name only for first row of each repo
+                repo_display = short_repo if idx == 0 else ""
+
                 rows.append(f"""                    <tr>
+                        <td>{repo_display}</td>
                         <td>{version_stat.branch}</td>
                         <td>{total:,}</td>
                         <td>{active:,}</td>
@@ -1345,14 +1390,15 @@ class DashboardGenerator:
                         <td><span class="health {health_class}">{health_text}</span></td>
                     </tr>""")
 
-            rows_html = "\n".join(rows)
+        rows_html = "\n".join(rows)
 
-            # Version summary section
-            sections.append(f"""        <div class="section">
-            <h2>{repo} - Version Summary</h2>
+        # Unified version summary section
+        sections.append(f"""        <div class="section">
+            <h2>Version Summary</h2>
             <table>
                 <thead>
                     <tr>
+                        <th>Repository</th>
                         <th>Version</th>
                         <th>Total</th>
                         <th>Active</th>
@@ -1368,11 +1414,11 @@ class DashboardGenerator:
 
 """)
 
-            # Generate team breakdown table for this repo (in separate section)
-            team_breakdown_html = self._generate_team_breakdown_by_version(version_stats_list=version_stats_list)
-            if team_breakdown_html:
-                sections.append(f"""        <div class="section">
-            <h2>{repo} - Team Breakdown</h2>
+        # Generate unified team breakdown table (across all repos)
+        team_breakdown_html = self._generate_unified_team_breakdown_by_version()
+        if team_breakdown_html:
+            sections.append(f"""        <div class="section">
+            <h2>Team Breakdown (Quarantined by Version)</h2>
 {team_breakdown_html}
         </div>
 
@@ -1380,25 +1426,24 @@ class DashboardGenerator:
 
         return "\n".join(sections)
 
-    def _generate_team_breakdown_by_version(self, version_stats_list: list[VersionStats]) -> str:
-        """Generate HTML table for team breakdown with branches as columns.
+    def _generate_unified_team_breakdown_by_version(self) -> str:
+        """Generate HTML table for unified team breakdown across all repos with versions as columns.
 
-        Creates a table with teams as rows and branch versions as columns,
-        showing quarantined counts in each cell.
-
-        Args:
-            version_stats_list: List of VersionStats for the repository.
+        Creates a single table with teams as rows and all repo/version combinations as columns,
+        showing quarantined counts in each cell. Teams that don't exist in a particular
+        repo/version show "-".
 
         Returns:
-            HTML string containing the team breakdown table.
+            HTML string containing the unified team breakdown table.
         """
-        if not version_stats_list:
+        if not self.repo_stats:
             return ""
 
-        # Collect all unique teams across all branches
+        # Collect all unique teams across all repos and branches
         all_teams: set[str] = set()
-        for version_stat in version_stats_list:
-            all_teams.update(version_stat.stats.category_breakdown.keys())
+        for version_stats_list in self.repo_stats.values():
+            for version_stat in version_stats_list:
+                all_teams.update(version_stat.stats.category_breakdown.keys())
 
         if not all_teams:
             return ""
@@ -1406,14 +1451,41 @@ class DashboardGenerator:
         # Sort teams alphabetically
         sorted_teams = sorted(all_teams)
 
-        # Get branch names in order
-        branches = [vs.branch for vs in version_stats_list]
+        # Build list of (repo, version_stat) pairs for columns - flatten the structure
+        repo_version_pairs: list[RepoVersionStats] = []
+        for repo, version_stats_list in self.repo_stats.items():
+            for version_stat in version_stats_list:
+                repo_version_pairs.append(
+                    RepoVersionStats(repo=repo, branch=version_stat.branch, stats=version_stat.stats)
+                )
 
-        # Build header row with branch columns
-        header_cells = ["<th>Team</th>"]
-        for branch in branches:
-            header_cells.append(f"<th>{branch}</th>")
-        header_row = "\n                        ".join(header_cells)
+        # Build header row with repo name sub-header and version columns
+        # First row: repo names (spanning their respective columns)
+        repo_header_cells = ["<th rowspan='2'>Team</th>"]
+        prev_repo = None
+        repo_colspan = 0
+        for rvs in repo_version_pairs:
+            if rvs.repo != prev_repo:
+                if prev_repo is not None:
+                    # Extract short repo name
+                    short_repo = prev_repo.rsplit("/", maxsplit=1)[-1]
+                    repo_header_cells.append(f"<th colspan='{repo_colspan}'>{short_repo}</th>")
+                prev_repo = rvs.repo
+                repo_colspan = 1
+            else:
+                repo_colspan += 1
+        # Add the last repo
+        if prev_repo is not None:
+            short_repo = prev_repo.rsplit("/", maxsplit=1)[-1]
+            repo_header_cells.append(f"<th colspan='{repo_colspan}'>{short_repo}</th>")
+
+        repo_header_row = "\n                        ".join(repo_header_cells)
+
+        # Second row: version names
+        version_header_cells = []
+        for rvs in repo_version_pairs:
+            version_header_cells.append(f"<th>{rvs.branch}</th>")
+        version_header_row = "\n                        ".join(version_header_cells)
 
         # Build data rows
         data_rows = []
@@ -1421,19 +1493,24 @@ class DashboardGenerator:
             team_display = team.replace("_", " ").title()
             cells = [f"<td>{team_display}</td>"]
 
-            for version_stat in version_stats_list:
-                category_data = version_stat.stats.category_breakdown.get(team, {"quarantined": 0})
-                quarantined = category_data.get("quarantined", 0)
+            for rvs in repo_version_pairs:
+                category_data = rvs.stats.category_breakdown.get(team)
 
-                # Color-code based on quarantine count
-                if quarantined == 0:
-                    cell_class = "health green"
-                elif quarantined <= 5:
-                    cell_class = "health yellow"
+                if category_data is None:
+                    # Team doesn't exist in this repo/version
+                    cells.append('<td><span class="health">-</span></td>')
                 else:
-                    cell_class = "health red"
+                    quarantined = category_data.get("quarantined", 0)
 
-                cells.append(f'<td><span class="{cell_class}">{quarantined}</span></td>')
+                    # Color-code based on quarantine count
+                    if quarantined == 0:
+                        cell_class = "health green"
+                    elif quarantined <= 5:
+                        cell_class = "health yellow"
+                    else:
+                        cell_class = "health red"
+
+                    cells.append(f'<td><span class="{cell_class}">{quarantined}</span></td>')
 
             row_cells = "\n                        ".join(cells)
             data_rows.append(f"""                    <tr>
@@ -1445,7 +1522,10 @@ class DashboardGenerator:
         return f"""            <table>
                 <thead>
                     <tr>
-                        {header_row}
+                        {repo_header_row}
+                    </tr>
+                    <tr>
+                        {version_header_row}
                     </tr>
                 </thead>
                 <tbody>
@@ -1453,7 +1533,8 @@ class DashboardGenerator:
                 </tbody>
             </table>
             <div class="note">
-                Shows quarantined test count per team for each branch/version.
+                Shows quarantined test count per team for each repository and branch/version.
+                "-" indicates the team does not exist in that repository/version.
             </div>"""
 
     def _get_display_path(self, file_path: Path) -> str:
@@ -1724,6 +1805,9 @@ Examples:
 
     # Output as JSON instead of HTML
     python generate_dashboard.py --json
+
+    # Use custom directories
+    python generate_dashboard.py --workdir /path/to/clones --output-dir /path/to/output
         """,
     )
     parser.add_argument(
@@ -1737,10 +1821,27 @@ Examples:
         dest="json_output",
         help="Output JSON instead of HTML dashboard",
     )
+    parser.add_argument(
+        "--workdir",
+        type=Path,
+        default=WORKDIR,
+        help=f"Directory to clone repos into (default: {WORKDIR})",
+    )
+    parser.add_argument(
+        "--output-dir",
+        type=Path,
+        default=None,
+        help="Directory to save output files (default: script directory)",
+    )
     return parser.parse_args()
 
 
-def run_multi_repo_mode(keep_clones: bool, output_file: Path, json_output: bool = False) -> int:
+def run_multi_repo_mode(
+    keep_clones: bool,
+    output_file: Path,
+    json_output: bool = False,
+    workdir: Path = WORKDIR,
+) -> int:
     """Run dashboard generator in multi-repository mode.
 
     Clones repositories, scans all branches, and generates a combined dashboard or JSON output.
@@ -1749,6 +1850,7 @@ def run_multi_repo_mode(keep_clones: bool, output_file: Path, json_output: bool 
         keep_clones: Whether to keep cloned repositories after completion.
         output_file: Path to write the dashboard HTML file (ignored if json_output is True).
         json_output: If True, output JSON to stdout instead of generating HTML dashboard.
+        workdir: Directory to clone repos into.
 
     Returns:
         Exit code: 0 on success, 1 on error.
@@ -1757,11 +1859,11 @@ def run_multi_repo_mode(keep_clones: bool, output_file: Path, json_output: bool 
     print(file=sys.stderr)
 
     print(f"Repositories: {', '.join(REPOS)}", file=sys.stderr)
-    print(f"Working directory: {WORKDIR}", file=sys.stderr)
+    print(f"Working directory: {workdir}", file=sys.stderr)
     print(file=sys.stderr)
 
     # Scan all repos and all branches
-    repo_stats = scan_all_repos(repos=REPOS, workdir=WORKDIR, branch_filter=None)
+    repo_stats = scan_all_repos(repos=REPOS, workdir=workdir, branch_filter=None)
 
     if not repo_stats:
         print("\nError: No repositories could be scanned.", file=sys.stderr)
@@ -1770,32 +1872,31 @@ def run_multi_repo_mode(keep_clones: bool, output_file: Path, json_output: bool 
     # Handle JSON output mode
     if json_output:
         json_content = generate_json_output(repo_stats=repo_stats)
-        print(json_content)
+        output_file.write_text(data=json_content, encoding="utf-8")
+        print(f"JSON output generated: {output_file}", file=sys.stderr)
 
         # Cleanup unless --keep-clones was specified
         if not keep_clones:
-            cleanup_workdir(workdir=WORKDIR)
+            cleanup_workdir(workdir=workdir)
         else:
-            print(f"\nCloned repositories preserved at: {WORKDIR}", file=sys.stderr)
+            print(f"\nCloned repositories preserved at: {workdir}", file=sys.stderr)
 
         return 0
 
-    # Display CLI output for each repo
+    # Display CLI output with unified version summary table
     print("\n" + "=" * 60)
     print("Summary by Repository and Version")
     print("=" * 60)
 
-    for repo, version_stats_list in repo_stats.items():
-        table_output = format_repo_version_table(repo=repo, version_stats_list=version_stats_list)
-        print(table_output)
+    # Print unified version summary table (single table for all repos)
+    version_summary = format_unified_version_table(repo_stats=repo_stats)
+    print(version_summary)
 
-        # Add separator between version summary and team breakdown
-        print()
-        print("=" * 60)
-
-        # Print team breakdown with branches as columns
-        team_breakdown = format_team_breakdown_by_version(repo=repo, version_stats_list=version_stats_list)
-        print(team_breakdown)
+    # Print unified team breakdown with all repos/versions as columns
+    print()
+    print("=" * 60)
+    team_breakdown = format_team_breakdown_by_version(repo_stats=repo_stats)
+    print(team_breakdown)
 
     # Determine primary stats for dashboard header (first repo, first branch)
     first_repo = next(iter(repo_stats))
@@ -1818,9 +1919,9 @@ def run_multi_repo_mode(keep_clones: bool, output_file: Path, json_output: bool 
 
     # Cleanup unless --keep-clones was specified
     if not keep_clones:
-        cleanup_workdir(workdir=WORKDIR)
+        cleanup_workdir(workdir=workdir)
     else:
-        print(f"\nCloned repositories preserved at: {WORKDIR}")
+        print(f"\nCloned repositories preserved at: {workdir}")
 
     print()
     return 0
@@ -1830,16 +1931,19 @@ def main() -> int:
     """Main entry point for the dashboard generator.
 
     Scans both repositories across all valid branches (main and cnv-X.Y),
-    generates an HTML dashboard or JSON output, and writes to quarantine_stats/dashboard.html.
+    generates an HTML dashboard or JSON output, and writes to the output directory.
 
     Returns:
         Exit code: 0 on success, 1 on error.
     """
     args = parse_args()
 
-    # Determine output file path
-    script_dir = Path(__file__).parent
-    output_file = script_dir / "dashboard.html"
+    # Determine output file path based on format
+    output_dir = args.output_dir if args.output_dir else Path(__file__).parent
+    if args.json_output:
+        output_file = output_dir / "dashboard.json"
+    else:
+        output_file = output_dir / "dashboard.html"
 
     print("Tier2 Quarantine Status Dashboard Generator", file=sys.stderr)
     print("=" * 60, file=sys.stderr)
@@ -1848,6 +1952,7 @@ def main() -> int:
         keep_clones=args.keep_clones,
         output_file=output_file,
         json_output=args.json_output,
+        workdir=args.workdir,
     )
 
 
