@@ -27,9 +27,9 @@ import shutil
 import subprocess
 import sys
 from collections import defaultdict
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
-from typing import NamedTuple
+from typing import ClassVar, NamedTuple
 
 # Pattern to match valid CNV version branches (e.g., cnv-4.15, cnv-5.0)
 CNV_BRANCH_PATTERN = re.compile(r"^cnv-\d+\.\d+$")
@@ -237,8 +237,8 @@ def scan_branch(
         if original_branch:
             try:
                 checkout_branch(branch=original_branch, cwd=cwd)
-            except RuntimeError:
-                pass  # Best effort to restore
+            except RuntimeError as error:
+                print(f"Warning: Failed to restore branch '{original_branch}': {error}", file=sys.stderr)
 
 
 def format_stats_table(stats: DashboardStats) -> str:
@@ -714,16 +714,16 @@ class TestScanner:
     """
 
     # Default folders to exclude from the report (for openshift-virtualization-tests)
-    DEFAULT_EXCLUDED_FOLDERS: set[str] = {"after_cluster_deploy_sanity", "deprecated_api"}
+    DEFAULT_EXCLUDED_FOLDERS: ClassVar[set[str]] = {"after_cluster_deploy_sanity", "deprecated_api"}
 
     # Default folder mappings (source -> target) for combining quarantine_stats
-    DEFAULT_FOLDER_MAPPINGS: dict[str, str] = {
+    DEFAULT_FOLDER_MAPPINGS: ClassVar[dict[str, str]] = {
         "compute": "virt",
         "data_protection": "storage",
         "cross_cluster_live_migration": "storage",
     }
 
-    def __init__(self, tests_dir: Path, repo: str | None = None):
+    def __init__(self, tests_dir: Path, repo: str | None = None) -> None:
         """Initialize the scanner.
 
         Args:
@@ -783,7 +783,7 @@ class TestScanner:
             try:
                 tests = self._scan_file(file_path=test_file)
                 all_tests.extend(tests)
-            except Exception as e:
+            except (SyntaxError, OSError, UnicodeDecodeError) as e:
                 print(f"Warning: Error scanning {test_file}: {e}")
 
         return self._calculate_stats(all_tests=all_tests)
@@ -927,16 +927,16 @@ class TestScanner:
             if not line:
                 # Blank line - stop searching (decorators must be contiguous)
                 break
-            if line.startswith("@") or line.startswith("def ") or line.startswith("class "):
+            if line.startswith(("@", "def ", "class ")):
                 # Part of decorator block or we hit the function/class def
                 decorator_lines.insert(0, lines[i])
-            elif line.startswith(")") or line.startswith("(") or line.endswith(",") or line.endswith("("):
+            elif line.startswith((")", "(")) or line.endswith((",", "(")):
                 # Continuation of multi-line decorator
                 decorator_lines.insert(0, lines[i])
             elif "pytest.param" in line or "marks=" in line or "indirect=" in line:
                 # Part of parametrize
                 decorator_lines.insert(0, lines[i])
-            elif line.startswith('"') or line.startswith("'") or line.startswith('f"') or line.startswith("f'"):
+            elif line.startswith(('"', "'", 'f"', "f'")):
                 # String continuation
                 decorator_lines.insert(0, lines[i])
             elif "{" in line or "}" in line or "[" in line or "]" in line:
@@ -1043,7 +1043,7 @@ class DashboardGenerator:
         branch: str,
         version_stats_list: list[VersionStats] | None = None,
         repo_stats: dict[str, list[VersionStats]] | None = None,
-    ):
+    ) -> None:
         """Initialize the generator.
 
         Args:
@@ -1067,7 +1067,7 @@ class DashboardGenerator:
         Returns:
             Complete HTML document as a string.
         """
-        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S UTC")
+        timestamp = datetime.now(tz=timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
 
         return f"""<!DOCTYPE html>
 <html lang="en">
@@ -1738,7 +1738,7 @@ def generate_json_output(repo_stats: dict[str, list[VersionStats]]) -> str:
         JSON string with complete quarantine statistics.
     """
     output: dict = {
-        "generated_at": datetime.now().isoformat(),
+        "generated_at": datetime.now(tz=timezone.utc).isoformat(),
         "repositories": {},
     }
 
@@ -1856,6 +1856,7 @@ Examples:
 
 
 def run_multi_repo_mode(
+    *,
     keep_clones: bool,
     output_file: Path,
     json_output: bool = False,
