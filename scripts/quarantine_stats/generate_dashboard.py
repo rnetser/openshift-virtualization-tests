@@ -76,7 +76,7 @@ def is_valid_branch(branch: str) -> bool:
     """
     if branch == "main":
         return True
-    return bool(CNV_BRANCH_PATTERN.match(string=branch))
+    return CNV_BRANCH_PATTERN.match(string=branch) is not None
 
 
 def filter_branches_for_repo(repo: str, branches: list[str]) -> list[str]:
@@ -629,10 +629,17 @@ def cleanup_workdir(workdir: Path) -> None:
 
     Args:
         workdir: Working directory to remove.
+
+    Raises:
+        OSError: If removal fails.
     """
     if workdir.exists():
         print(f"\nCleaning up working directory: {workdir}")
-        shutil.rmtree(path=workdir, ignore_errors=True)
+        try:
+            shutil.rmtree(path=workdir)
+        except OSError as error:
+            print(f"Error: Failed to remove {workdir}: {error}", file=sys.stderr)
+            raise
 
 
 class TestInfo(NamedTuple):
