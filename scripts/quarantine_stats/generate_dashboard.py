@@ -27,7 +27,7 @@ import shutil
 import subprocess
 import sys
 from collections import defaultdict
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import ClassVar, NamedTuple
 
@@ -230,7 +230,7 @@ def scan_branch(
         stats = scanner.scan_all_tests()
         return stats
     except RuntimeError as error:
-        print(f"Warning: Failed to scan branch '{branch}': {error}")
+        print(f"Warning: Failed to scan branch '{branch}': {error}", file=sys.stderr)
         return None
     finally:
         # Return to original branch if specified
@@ -791,7 +791,7 @@ class TestScanner:
                 tests = self._scan_file(file_path=test_file)
                 all_tests.extend(tests)
             except (SyntaxError, OSError, UnicodeDecodeError) as e:
-                print(f"Warning: Error scanning {test_file}: {e}")
+                print(f"Warning: Error scanning {test_file}: {e}", file=sys.stderr)
 
         return self._calculate_stats(all_tests=all_tests)
 
@@ -897,7 +897,7 @@ class TestScanner:
             tests/data_protection/test_bar.py -> "storage" (mapped)
         """
         parts = file_path.relative_to(self.tests_dir).parts
-        if len(parts) > 0:
+        if parts:
             category = parts[0]
 
             if category in self.excluded_folders:
@@ -1074,7 +1074,7 @@ class DashboardGenerator:
         Returns:
             Complete HTML document as a string.
         """
-        timestamp = datetime.now(tz=timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+        timestamp = datetime.now(tz=UTC).strftime("%Y-%m-%d %H:%M:%S UTC")
 
         return f"""<!DOCTYPE html>
 <html lang="en">
@@ -1745,7 +1745,7 @@ def generate_json_output(repo_stats: dict[str, list[VersionStats]]) -> str:
         JSON string with complete quarantine statistics.
     """
     output: dict = {
-        "generated_at": datetime.now(tz=timezone.utc).isoformat(),
+        "generated_at": datetime.now(tz=UTC).isoformat(),
         "repositories": {},
     }
 
