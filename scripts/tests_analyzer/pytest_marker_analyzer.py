@@ -2,6 +2,8 @@
 
 # Generated using Claude cli
 
+# flake8: noqa: N802
+
 """
 Pytest Marker Analyzer
 
