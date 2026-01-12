@@ -80,9 +80,9 @@ def cleanup_temp_dir(temp_dir: str | None) -> None:
     if temp_dir:
         try:
             shutil.rmtree(path=temp_dir)
-            logger.debug(f"Cleaned up temporary directory: {temp_dir}")
+            logger.info(msg="Cleaned up temporary directory", extra={"temp_dir": temp_dir})
         except OSError as e:
-            logger.warning(f"Failed to clean up temporary directory {temp_dir}: {e}")
+            logger.warning(msg="Failed to clean up temporary directory", extra={"temp_dir": temp_dir, "error": str(e)})
 
 
 def _handle_github_api_error(e: urllib.error.HTTPError, context: str = "") -> None:
@@ -90,8 +90,8 @@ def _handle_github_api_error(e: urllib.error.HTTPError, context: str = "") -> No
     error_body = ""
     try:
         error_body = e.read().decode()
-    except Exception:
-        pass
+    except (OSError, UnicodeDecodeError):  # fmt: skip
+        logger.info(msg="Failed to read GitHub API error body")
 
     if e.code == 401:
         raise RuntimeError(
@@ -143,7 +143,7 @@ def get_pr_info(repo: str, pr_number: int, token: str | None = None) -> dict[str
     request = urllib.request.Request(url, headers=headers)
 
     try:
-        logger.debug(msg="Fetching PR info...")
+        logger.info(msg="Fetching PR info")
         with urllib.request.urlopen(request, timeout=GITHUB_API_TIMEOUT_SECONDS) as response:
             content_length = response.headers.get("Content-Length")
             if content_length and int(content_length) > MAX_RESPONSE_SIZE:
@@ -204,7 +204,7 @@ def get_pr_changed_files(repo: str, pr_number: int, token: str | None = None) ->
         request = urllib.request.Request(url, headers=headers)
 
         try:
-            logger.debug(f"Fetching PR files page {page}...")
+            logger.info(msg="Fetching PR files page", extra={"page": page})
             with urllib.request.urlopen(request, timeout=GITHUB_API_TIMEOUT_SECONDS) as response:
                 # Check response size to prevent memory exhaustion
                 content_length = response.headers.get("Content-Length")
@@ -216,10 +216,10 @@ def get_pr_changed_files(repo: str, pr_number: int, token: str | None = None) ->
                 files.extend(page_files)
 
                 if len(files) >= MAX_FILES_PER_PR:
-                    logger.warning(f"PR has {len(files)}+ files, truncating for safety")
+                    logger.warning(msg="PR has many files, truncating for safety", extra={"file_count": len(files)})
                     break
 
-                logger.debug(f"Page {page}: {len(page_files)} files")
+                logger.info(msg="Fetched PR files page", extra={"page": page, "file_count": len(page_files)})
 
                 # Check if we've fetched all pages
                 if len(page_files) < per_page:
@@ -235,7 +235,7 @@ def get_pr_changed_files(repo: str, pr_number: int, token: str | None = None) ->
         except json.JSONDecodeError as e:
             raise RuntimeError(f"Failed to parse GitHub API response: {e}") from e
 
-    logger.info(f"Fetched {len(files)} changed files from PR #{pr_number}")
+    logger.info(msg="Fetched changed files from PR", extra={"file_count": len(files), "pr_number": pr_number})
     return files
 
 
@@ -292,10 +292,10 @@ def get_pr_file_diff(repo: str, pr_number: int, file_path: str, token: str | Non
                 page += 1
 
         except urllib.error.HTTPError as e:
-            logger.warning(f"Failed to get PR diff for {file_path}: HTTP {e.code}")
+            logger.warning(msg="Failed to get PR diff for file", extra={"file_path": file_path, "http_code": e.code})
             return ""
-        except Exception as e:
-            logger.warning(f"Failed to get PR diff for {file_path}: {e}")
+        except (urllib.error.URLError, json.JSONDecodeError, OSError) as e:  # fmt: skip
+            logger.warning(msg="Failed to get PR diff for file", extra={"file_path": file_path, "error": str(e)})
             return ""
 
     return ""
@@ -317,7 +317,7 @@ def checkout_pr(repo: str, pr_number: int, workdir: Path, token: str | None = No
         RuntimeError: If git operations fail
     """
     validate_repo_name(repo=repo)
-    logger.info(f"Checking out PR #{pr_number} from {repo}...")
+    logger.info(msg="Checking out PR from repository", extra={"pr_number": pr_number, "repo": repo})
 
     # Construct clone URL with authentication
     env = os.environ.copy()
@@ -330,7 +330,7 @@ def checkout_pr(repo: str, pr_number: int, workdir: Path, token: str | None = No
 
     try:
         # Clone repository with depth=1 for speed
-        logger.info(f"Cloning {repo} to {workdir}...")
+        logger.info(msg="Cloning repository", extra={"repo": repo, "workdir": str(workdir)})
         subprocess.run(
             ["git", "clone", "--depth=1", clone_url, str(workdir)],
             capture_output=True,
@@ -341,7 +341,7 @@ def checkout_pr(repo: str, pr_number: int, workdir: Path, token: str | None = No
         )
 
         # Fetch PR head
-        logger.info(f"Fetching PR #{pr_number}...")
+        logger.info(msg="Fetching PR head", extra={"pr_number": pr_number})
         subprocess.run(
             ["git", "-C", str(workdir), "fetch", "origin", f"pull/{pr_number}/head:pr-{pr_number}"],
             capture_output=True,
@@ -805,11 +805,10 @@ def _process_test_file_for_markers(
                 node_id = f"{rel_path}::{test_name}"
                 results.append((node_id, test_name, test_file))
             except ValueError:
-                pass
+                logger.info(msg="File path outside repository root", extra={"file": str(test_file)})
 
-    except Exception:
-        # Silently skip files with errors
-        pass
+    except (SyntaxError, UnicodeDecodeError, OSError) as e:  # fmt: skip
+        logger.info(msg="Skipping file due to parsing error", extra={"file": str(test_file), "error": str(e)})
 
     return results
 
@@ -833,9 +832,8 @@ def _process_conftest_file(conftest: Path) -> dict[str, Fixture]:
         visitor.visit(node=tree)
         fixtures = visitor.fixtures
 
-    except Exception:
-        # Silently skip files with errors
-        pass
+    except (SyntaxError, UnicodeDecodeError, OSError) as e:  # fmt: skip
+        logger.info(msg="Skipping conftest file due to parsing error", extra={"file": str(conftest), "error": str(e)})
 
     return fixtures
 
@@ -856,9 +854,8 @@ def _extract_imports_from_file(file_path: Path) -> set[str]:
         visitor = ImportVisitor()
         visitor.visit(node=tree)
         imports = visitor.imports
-    except Exception as e:
-        # Log errors for debugging
-        logger.debug(f"Error: {e}")
+    except (SyntaxError, UnicodeDecodeError, OSError) as e:  # fmt: skip
+        logger.info(msg="Error extracting imports from file", extra={"file": str(file_path), "error": str(e)})
     return imports
 
 
@@ -879,9 +876,8 @@ def _extract_fixtures_from_file(file_path: Path, marker_names: set[str]) -> set[
         visitor = FixtureVisitor(marker_names=marker_names)
         visitor.visit(node=tree)
         fixtures = visitor.fixtures
-    except Exception:
-        # Silently skip files with errors
-        pass
+    except (SyntaxError, UnicodeDecodeError, OSError) as e:  # fmt: skip
+        logger.info(msg="Error extracting fixtures from file", extra={"file": str(file_path), "error": str(e)})
     return fixtures
 
 
@@ -1010,9 +1006,10 @@ def _analyze_single_test_dependencies(
 
             current_depth += 1
 
-    except Exception:
-        # Silently skip errors
-        pass
+    except (SyntaxError, UnicodeDecodeError, OSError) as e:  # fmt: skip
+        logger.info(
+            msg="Error analyzing test dependencies", extra={"file": str(marked_test.file_path), "error": str(e)}
+        )
 
     return dependencies, fixtures
 
@@ -1148,8 +1145,8 @@ def _extract_modified_items_from_conftest(
                         if _is_fixture_decorator_helper(decorator=decorator):
                             all_fixtures.add(node.name)
                             break
-        except Exception:
-            pass
+        except (SyntaxError, UnicodeDecodeError, OSError) as e:  # fmt: skip
+            logger.info(msg="Error parsing conftest for fixtures", extra={"file": str(changed_file), "error": str(e)})
 
         # Get modified function names
         modified_function_names = _get_modified_function_names_helper(
@@ -1167,8 +1164,10 @@ def _extract_modified_items_from_conftest(
         if not modified_function_names and changed_file.exists():
             return all_fixtures, set()
 
-    except Exception:
-        pass
+    except (SyntaxError, UnicodeDecodeError, OSError, subprocess.SubprocessError) as e:  # fmt: skip
+        logger.info(
+            msg="Error extracting modified items from conftest", extra={"file": str(changed_file), "error": str(e)}
+        )
 
     return modified_fixtures, modified_functions
 
@@ -1217,8 +1216,8 @@ def _get_modified_function_names_helper(
         )
         if result.returncode == 0:
             modified = _parse_diff_for_functions_helper(diff_content=result.stdout)
-    except Exception:
-        pass
+    except (subprocess.SubprocessError, OSError) as e:  # fmt: skip
+        logger.info(msg="Error getting modified function names", extra={"file": str(file_path), "error": str(e)})
 
     return modified
 
@@ -1290,23 +1289,23 @@ class MarkerTestAnalyzer:
         # Validate arguments to prevent command injection
         for arg in args:
             if not isinstance(arg, str):
-                logger.error(f"Invalid argument type: {type(arg)}")
+                logger.error(msg="Invalid argument type", extra={"arg_type": str(type(arg))})
                 return None
             # Reject shell metacharacters that could enable command injection
             if any(char in arg for char in [";", "|", "&", "`", "$", "\n", "\r"]):
-                logger.warning(f"Suspicious argument rejected: {arg}")
+                logger.warning(msg="Suspicious argument rejected", extra={"arg": arg})
                 return None
 
         # Verify repository root exists
         if not self.repo_root.exists():
-            logger.error(f"Repository root does not exist: {self.repo_root}")
+            logger.error(msg="Repository root does not exist", extra={"repo_root": str(self.repo_root)})
             return None
 
         # Get current environment and add the required variable
         env = os.environ.copy()
         env["OPENSHIFT_VIRTUALIZATION_TEST_IMAGES_ARCH"] = "x86_64"
 
-        logger.debug(f"Executing: pytest {' '.join(args)}")
+        logger.info(msg="Executing pytest command", extra={"args": " ".join(args)})
 
         # Try direct pytest first (works in containers with venv)
         try:
@@ -1319,12 +1318,15 @@ class MarkerTestAnalyzer:
                 env=env,
             )
             # If pytest ran (even with errors), return the result
-            logger.debug(f"pytest completed with exit code {result.returncode}")
+            logger.info(msg="pytest completed", extra={"exit_code": result.returncode})
             return result
         except FileNotFoundError:
-            logger.debug("Direct 'pytest' not found, trying 'uv run pytest'")
+            logger.info(msg="Direct 'pytest' not found, trying 'uv run pytest'")
         except subprocess.TimeoutExpired:
-            logger.warning(f"Command timed out after {PYTEST_COLLECTION_TIMEOUT_SECONDS}s: pytest {' '.join(args)}")
+            logger.warning(
+                msg="Command timed out",
+                extra={"timeout_seconds": PYTEST_COLLECTION_TIMEOUT_SECONDS, "command": f"pytest {' '.join(args)}"},
+            )
             return None
 
         # Try uv run pytest as fallback
@@ -1337,34 +1339,41 @@ class MarkerTestAnalyzer:
                 timeout=PYTEST_COLLECTION_TIMEOUT_SECONDS,
                 env=env,
             )
-            logger.debug(f"pytest completed with exit code {result.returncode}")
+            logger.info(msg="pytest completed", extra={"exit_code": result.returncode})
             return result
         except FileNotFoundError:
-            logger.debug("'uv run pytest' not found")
+            logger.info(msg="'uv run pytest' not found")
             return None
         except subprocess.TimeoutExpired:
             logger.warning(
-                f"Command timed out after {PYTEST_COLLECTION_TIMEOUT_SECONDS}s: uv run pytest {' '.join(args)}"
+                msg="Command timed out",
+                extra={
+                    "timeout_seconds": PYTEST_COLLECTION_TIMEOUT_SECONDS,
+                    "command": f"uv run pytest {' '.join(args)}",
+                },
             )
             return None
 
     def discover_marked_tests(self) -> None:
         """Discover all tests with specified marker expression using pytest collection."""
-        logger.info(f"Discovering tests with marker expression: {self.marker_expression}")
+        logger.info(msg="Discovering tests with marker expression", extra={"marker_expression": self.marker_expression})
 
         # Use pytest --collect-only to discover ALL tests with the marker
         result = self._run_pytest_command(args=["--collect-only", "-q", "-m", self.marker_expression])
 
         if result is None:
             # No pytest available, use AST fallback
-            logger.debug(msg="pytest not available, using AST-based fallback")
+            logger.info(msg="pytest not available, using AST-based fallback")
             self._fallback_discover_marked_tests()
-            logger.info(f"Found {len(self.marked_tests)} tests with marker expression: {self.marker_expression}")
+            logger.info(
+                msg="Found tests with marker expression",
+                extra={"test_count": len(self.marked_tests), "marker_expression": self.marker_expression},
+            )
             return
 
         if result.returncode not in (0, 5):  # 5 = no tests collected
-            logger.warning(f"pytest collection had issues (rc={result.returncode})")
-            logger.debug(f"stderr: {result.stderr}")
+            logger.warning(msg="pytest collection had issues", extra={"return_code": result.returncode})
+            logger.info(msg="pytest stderr output", extra={"stderr": result.stderr})
 
         # Parse pytest output to extract test node IDs
         for line in result.stdout.splitlines():
@@ -1385,14 +1394,17 @@ class MarkerTestAnalyzer:
                     self.marked_tests[node_id] = marked_test
 
         if not self.marked_tests:
-            logger.debug(
-                f"Pytest collection found no tests with marker expression '{self.marker_expression}'. "
-                "This is expected in environments without cluster access (e.g., containers). Using fallback."
+            logger.info(
+                msg="Pytest collection found no tests, expected in offline environments, using fallback",
+                extra={"marker_expression": self.marker_expression},
             )
             # Fallback: scan known test files directly
             self._fallback_discover_marked_tests()
 
-        logger.info(f"Found {len(self.marked_tests)} tests with marker expression: {self.marker_expression}")
+        logger.info(
+            msg="Found tests with marker expression",
+            extra={"test_count": len(self.marked_tests), "marker_expression": self.marker_expression},
+        )
 
         # After discovering all tests, try to get fixture usage with --setup-plan
         # This is optional and will add fixture information if available
@@ -1411,7 +1423,7 @@ class MarkerTestAnalyzer:
 
         if result is None or result.returncode not in (0, 5):
             if result:
-                logger.debug(f"pytest --setup-plan failed with rc={result.returncode}")
+                logger.info(msg="pytest --setup-plan failed", extra={"return_code": result.returncode})
             return False
 
         # Parse output to extract fixture usage for already-discovered tests
@@ -1453,7 +1465,7 @@ class MarkerTestAnalyzer:
                 # Reset fixture collection for next test
                 current_fixtures = set()
 
-        logger.debug(f"Added fixture information for {fixture_count} tests via --setup-plan")
+        logger.info(msg="Added fixture information via --setup-plan", extra={"test_count": fixture_count})
         return fixture_count > 0
 
     def _fallback_discover_marked_tests(self) -> None:
@@ -1463,7 +1475,7 @@ class MarkerTestAnalyzer:
         # Scan tests directory for test files
         tests_dir = self.repo_root / "tests"
         if not tests_dir.exists():
-            logger.warning(f"Tests directory not found: {tests_dir}")
+            logger.warning(msg="Tests directory not found", extra={"tests_dir": str(tests_dir)})
             return
 
         # Collect all test files to process
@@ -1475,7 +1487,7 @@ class MarkerTestAnalyzer:
         # Remove duplicates
         test_files = list(set(test_files))
 
-        logger.debug(f"Found {len(test_files)} test files to scan")
+        logger.info(msg="Found test files to scan", extra={"file_count": len(test_files)})
 
         # Process files in parallel using ThreadPoolExecutor (I/O-bound: file reading and AST parsing)
         with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
@@ -1502,11 +1514,12 @@ class MarkerTestAnalyzer:
                                 test_name=test_name,
                                 node_id=node_id,
                             )
-                except Exception as e:
-                    logger.debug(f"Error processing {test_file}: {e}")
+                except (SyntaxError, UnicodeDecodeError, OSError) as e:  # fmt: skip
+                    logger.info(msg="Error processing test file", extra={"file": str(test_file), "error": str(e)})
 
         logger.info(
-            f"Fallback discovered {len(self.marked_tests)} tests with marker expression: {self.marker_expression}"
+            msg="Fallback discovered tests with marker expression",
+            extra={"test_count": len(self.marked_tests), "marker_expression": self.marker_expression},
         )
 
     def _extract_marked_tests_from_file(self, file_path: Path) -> list[str]:
@@ -1530,7 +1543,7 @@ class MarkerTestAnalyzer:
                     node=node, marker_names=self.marker_names
                 ):
                     module_has_marker = True
-                    logger.debug(f"Module-level marker found in {file_path}")
+                    logger.info(msg="Module-level marker found", extra={"file_path": str(file_path)})
                     break
 
             if module_has_marker:
@@ -1593,11 +1606,11 @@ class MarkerTestAnalyzer:
                                             break
 
         except SyntaxError as e:
-            logger.warning(f"Syntax error in {file_path}: {e}")
+            logger.warning(msg="Syntax error in file", extra={"file_path": str(file_path), "error": str(e)})
         except UnicodeDecodeError as e:
-            logger.warning(f"Encoding error in {file_path}: {e}")
-        except Exception as e:
-            logger.debug(f"Unexpected error parsing {file_path}: {e}")
+            logger.warning(msg="Encoding error in file", extra={"file_path": str(file_path), "error": str(e)})
+        except OSError as e:
+            logger.info(msg="Unexpected error parsing file", extra={"file_path": str(file_path), "error": str(e)})
 
         return tests
 
@@ -1619,14 +1632,17 @@ class MarkerTestAnalyzer:
                 try:
                     fixtures = future.result()
                     all_fixtures.append(fixtures)
-                except Exception as e:
-                    logger.debug(f"Error processing {conftest}: {e}")
+                except (SyntaxError, UnicodeDecodeError, OSError) as e:  # fmt: skip
+                    logger.info(msg="Error processing conftest", extra={"file": str(conftest), "error": str(e)})
 
             # Merge after parallel execution completes (thread-safe)
             for fixtures in all_fixtures:
                 self.fixtures.update(fixtures)
 
-        logger.debug(f"Found {len(self.fixtures)} fixtures across {len(self.conftest_files)} conftest files")
+        logger.info(
+            msg="Found fixtures across conftest files",
+            extra={"fixture_count": len(self.fixtures), "conftest_count": len(self.conftest_files)},
+        )
 
     def get_affected_fixtures(self, modified_fixtures: set[str], modified_functions: set[str]) -> set[str]:
         """Get all fixtures affected by modifications (transitive).
@@ -1686,11 +1702,16 @@ class MarkerTestAnalyzer:
         try:
             # Phase 1: Get all fixtures in the current file
             all_fixtures = self._get_all_fixtures_in_file(file_path=changed_file)
-            logger.debug(f"Found {len(all_fixtures)} total fixtures in {changed_file.name}")
+            logger.info(
+                msg="Found fixtures in file", extra={"fixture_count": len(all_fixtures), "file": changed_file.name}
+            )
 
             # Phase 2: Get modified function names from git diff
             modified_function_names = self._get_modified_function_names(file_path=changed_file)
-            logger.debug(f"Found {len(modified_function_names)} modified functions in {changed_file.name}")
+            logger.info(
+                msg="Found modified functions",
+                extra={"function_count": len(modified_function_names), "file": changed_file.name},
+            )
 
             # Phase 3: Classify modified functions
             for func_name in modified_function_names:
@@ -1701,28 +1722,38 @@ class MarkerTestAnalyzer:
 
             # Log results
             if modified_fixtures:
-                logger.info(f"Modified fixtures in {changed_file.name}: {sorted(modified_fixtures)}")
+                logger.info(
+                    msg="Modified fixtures in file",
+                    extra={"file": changed_file.name, "fixtures": sorted(modified_fixtures)},
+                )
             if modified_functions:
-                logger.info(f"Modified functions in {changed_file.name}: {sorted(modified_functions)}")
+                logger.info(
+                    msg="Modified functions in file",
+                    extra={"file": changed_file.name, "functions": sorted(modified_functions)},
+                )
 
             # Fallback: If git diff failed or file is new, conservatively assume all are modified
             if not modified_function_names and changed_file.exists():
                 logger.warning(
-                    f"Could not determine specific modifications in {changed_file}. "
-                    "Falling back to conservative analysis (all fixtures assumed modified)."
+                    msg="Could not determine specific modifications, using conservative fallback",
+                    extra={"file": str(changed_file)},
                 )
                 # Return all fixtures as modified (conservative)
                 return all_fixtures, set()
 
-        except Exception as e:
-            logger.debug(f"Error extracting modifications from {changed_file}: {e}")
+        except (SyntaxError, UnicodeDecodeError, OSError, subprocess.SubprocessError) as e:  # fmt: skip
+            logger.info(
+                msg="Error extracting modifications from file", extra={"file": str(changed_file), "error": str(e)}
+            )
             # Fallback to conservative behavior
             try:
                 all_fixtures = self._get_all_fixtures_in_file(file_path=changed_file)
-                logger.warning(f"Error during smart analysis of {changed_file}, using conservative fallback")
+                logger.warning(
+                    msg="Error during smart analysis, using conservative fallback", extra={"file": str(changed_file)}
+                )
                 return all_fixtures, set()
-            except Exception:
-                pass
+            except (SyntaxError, UnicodeDecodeError, OSError) as e:  # fmt: skip
+                logger.info(msg="Error during fallback analysis", extra={"file": str(changed_file), "error": str(e)})
 
         return modified_fixtures, modified_functions
 
@@ -1749,8 +1780,8 @@ class MarkerTestAnalyzer:
                             fixtures.add(node.name)
                             break
 
-        except Exception as e:
-            logger.debug(f"Error parsing {file_path}: {e}")
+        except (SyntaxError, UnicodeDecodeError, OSError) as e:  # fmt: skip
+            logger.info(msg="Error parsing file for fixtures", extra={"file": str(file_path), "error": str(e)})
 
         return fixtures
 
@@ -1777,14 +1808,17 @@ class MarkerTestAnalyzer:
             except ValueError:
                 relative_path = file_path
 
-            logger.debug(f"Fetching PR diff from GitHub API for {relative_path}")
+            logger.info(msg="Fetching PR diff from GitHub API", extra={"file": str(relative_path)})
             diff_content = get_pr_file_diff(repo=repo, pr_number=pr_number, file_path=str(relative_path), token=token)
 
             if diff_content:
                 modified = self._parse_diff_for_functions(diff_content=diff_content)
-                logger.debug(f"Found {len(modified)} modified functions via GitHub API: {modified}")
+                logger.info(
+                    msg="Found modified functions via GitHub API",
+                    extra={"function_count": len(modified), "functions": list(modified)},
+                )
             else:
-                logger.warning(f"No diff found for {file_path} via GitHub API")
+                logger.warning(msg="No diff found for file via GitHub API", extra={"file": str(file_path)})
 
             return modified
 
@@ -1801,17 +1835,17 @@ class MarkerTestAnalyzer:
             )
 
             if result.returncode != 0:
-                logger.debug(f"Git diff failed for {file_path}: {result.stderr}")
+                logger.info(msg="Git diff failed for file", extra={"file": str(file_path), "stderr": result.stderr})
                 return modified
 
             modified = self._parse_diff_for_functions(diff_content=result.stdout)
 
         except subprocess.TimeoutExpired:
-            logger.warning(f"Git diff timed out for {file_path}")
+            logger.warning(msg="Git diff timed out for file", extra={"file": str(file_path)})
         except subprocess.CalledProcessError as e:
-            logger.debug(f"Git diff failed: {e}")
-        except Exception as e:
-            logger.debug(f"Error running git diff: {e}")
+            logger.info(msg="Git diff failed", extra={"error": str(e)})
+        except OSError as e:
+            logger.info(msg="Error running git diff", extra={"error": str(e)})
 
         return modified
 
@@ -1907,8 +1941,8 @@ class MarkerTestAnalyzer:
                 try:
                     deps, fixtures = future.result()
                     results[node_id] = (deps, fixtures)
-                except Exception as e:
-                    logger.debug(f"Error analyzing dependencies for {node_id}: {e}")
+                except (SyntaxError, UnicodeDecodeError, OSError) as e:  # fmt: skip
+                    logger.info(msg="Error analyzing dependencies", extra={"node_id": node_id, "error": str(e)})
 
             # Update sequentially after all parallel work completes (thread-safe)
             for node_id, (deps, fixtures) in results.items():
@@ -1927,7 +1961,7 @@ class MarkerTestAnalyzer:
         tests_dir = self.repo_root / "tests"
         if tests_dir.exists():
             self.conftest_files = list(tests_dir.rglob("conftest.py"))
-        logger.debug(f"Found {len(self.conftest_files)} conftest.py files")
+        logger.info(msg="Found conftest.py files", extra={"file_count": len(self.conftest_files)})
 
     def _analyze_test_dependencies(self, marked_test: MarkedTest) -> None:
         """Analyze dependencies for a single marked test."""
@@ -1950,8 +1984,10 @@ class MarkerTestAnalyzer:
             # Analyze transitive imports (1-2 levels deep)
             self._analyze_transitive_imports(marked_test=marked_test, max_depth=MAX_TRANSITIVE_IMPORT_DEPTH)
 
-        except Exception as e:
-            logger.debug(f"Error analyzing {marked_test.file_path}: {e}")
+        except (SyntaxError, UnicodeDecodeError, OSError) as e:  # fmt: skip
+            logger.info(
+                msg="Error analyzing test dependencies", extra={"file": str(marked_test.file_path), "error": str(e)}
+            )
 
     def _extract_imports(self, file_path: Path) -> set[str]:
         """Extract import statements from a Python file."""
@@ -1963,11 +1999,11 @@ class MarkerTestAnalyzer:
             visitor.visit(node=tree)
             imports = visitor.imports
         except SyntaxError as e:
-            logger.warning(f"Syntax error in {file_path}: {e}")
+            logger.warning(msg="Syntax error in file", extra={"file": str(file_path), "error": str(e)})
         except UnicodeDecodeError as e:
-            logger.warning(f"Encoding error in {file_path}: {e}")
-        except Exception as e:
-            logger.debug(f"Unexpected error parsing {file_path}: {e}")
+            logger.warning(msg="Encoding error in file", extra={"file": str(file_path), "error": str(e)})
+        except OSError as e:
+            logger.info(msg="Unexpected error parsing file", extra={"file": str(file_path), "error": str(e)})
 
         return imports
 
@@ -1981,11 +2017,11 @@ class MarkerTestAnalyzer:
             visitor.visit(node=tree)
             fixtures = visitor.fixtures
         except SyntaxError as e:
-            logger.warning(f"Syntax error in {file_path}: {e}")
+            logger.warning(msg="Syntax error in file", extra={"file": str(file_path), "error": str(e)})
         except UnicodeDecodeError as e:
-            logger.warning(f"Encoding error in {file_path}: {e}")
-        except Exception as e:
-            logger.debug(f"Unexpected error parsing {file_path}: {e}")
+            logger.warning(msg="Encoding error in file", extra={"file": str(file_path), "error": str(e)})
+        except OSError as e:
+            logger.info(msg="Unexpected error parsing file", extra={"file": str(file_path), "error": str(e)})
 
         return fixtures
 
@@ -2080,23 +2116,23 @@ class MarkerTestAnalyzer:
                 file_path = Path(file_path_str)
                 # Security: Skip symlinks to prevent path traversal attacks
                 if file_path.is_symlink():
-                    logger.warning(f"Skipping symlink for security: {file_path_str}")
+                    logger.warning(msg="Skipping symlink for security", extra={"file": file_path_str})
                     continue
                 file_path = file_path.resolve()
                 if not file_path.exists():
-                    logger.warning(f"File does not exist: {file_path_str}")
+                    logger.warning(msg="File does not exist", extra={"file": file_path_str})
                     continue
                 # Verify it's within repo
                 try:
                     file_path.relative_to(other=self.repo_root.resolve())
                     validated_files.append(file_path)
                 except ValueError:
-                    logger.warning(f"File is outside repository: {file_path_str}")
+                    logger.warning(msg="File is outside repository", extra={"file": file_path_str})
             return validated_files
 
         # Validate branch name (alphanumeric, dash, underscore, slash, dot)
         if not re.match(pattern=r"^[a-zA-Z0-9/_.-]+$", string=base_branch):
-            logger.error(f"Invalid branch name: {base_branch}")
+            logger.error(msg="Invalid branch name", extra={"branch": base_branch})
             return []
 
         # Get changed files from git
@@ -2109,11 +2145,11 @@ class MarkerTestAnalyzer:
                 check=True,
             )
             changed = [self.repo_root / line.strip() for line in result.stdout.splitlines() if line.strip()]
-            logger.info(f"Found {len(changed)} changed files from git")
+            logger.info(msg="Found changed files from git", extra={"file_count": len(changed)})
             return changed
 
         except subprocess.CalledProcessError as e:
-            logger.error(f"Failed to get changed files from git: {e}")
+            logger.error(msg="Failed to get changed files from git", extra={"error": str(e)})
             return []
 
     def analyze_impact(self, changed_files: list[Path]) -> AnalysisResult:
@@ -2156,8 +2192,8 @@ class MarkerTestAnalyzer:
                     if result is not None:
                         affected_tests.append(result)
                         should_run = True
-                except Exception as e:
-                    logger.debug(f"Error checking impact for {node_id}: {e}")
+                except (SyntaxError, UnicodeDecodeError, OSError, subprocess.SubprocessError) as e:  # fmt: skip
+                    logger.info(msg="Error checking impact", extra={"node_id": node_id, "error": str(e)})
 
         if affected_tests:
             reasons.append(
@@ -2244,7 +2280,7 @@ def report_to_external_system(
     # Validate URL
     parsed = urllib.parse.urlparse(url=url)
     if parsed.scheme not in ("http", "https"):
-        logger.warning(f"Invalid URL scheme: {parsed.scheme}, skipping report")
+        logger.warning(msg="Invalid URL scheme, skipping report", extra={"scheme": parsed.scheme})
         return
     if not parsed.netloc:
         logger.warning(msg="Invalid URL: missing hostname, skipping report")
@@ -2317,31 +2353,30 @@ def report_to_external_system(
             )
 
         else:
-            logger.warning(f"Unknown report format: {format_type}, skipping external reporting")
+            logger.warning(msg="Unknown report format, skipping external reporting", extra={"format": format_type})
             return
 
         # Send the request
-        logger.info(f"Reporting test decision to {url} (format: {format_type})")
-        logger.debug(f"Report payload: {payload_data}")
+        logger.info(msg="Reporting test decision", extra={"url": url, "format": format_type})
+        logger.info(msg="Report payload", extra={"payload": payload_data})
 
         with urllib.request.urlopen(request, timeout=REPORT_TIMEOUT_SECONDS) as response:
             status_code = response.getcode()
-            logger.info(f"Successfully reported to external system (HTTP {status_code})")
+            logger.info(msg="Successfully reported to external system", extra={"http_status": status_code})
 
     except urllib.error.HTTPError as e:
-        logger.warning(f"Failed to report to external system: HTTP {e.code} {e.reason}")
+        logger.warning(msg="Failed to report to external system", extra={"http_code": e.code, "reason": e.reason})
         try:
             error_body = e.read().decode()
-            logger.debug(f"Error response: {error_body}")
-        except Exception:
-            pass
+            logger.info(msg="Error response from external system", extra={"body": error_body})
+        except (OSError, UnicodeDecodeError):  # fmt: skip
+            logger.info(msg="Failed to read external system error body")
 
     except urllib.error.URLError as e:
-        logger.warning(f"Failed to connect to external system: {e}")
+        logger.warning(msg="Failed to connect to external system", extra={"error": str(e)})
 
-    except Exception as e:
-        logger.warning(f"Unexpected error reporting to external system: {e}")
-        logger.debug(f"Error details: {e}", exc_info=True)
+    except (json.JSONDecodeError, OSError) as e:  # fmt: skip
+        logger.exception(msg="Unexpected error reporting to external system", extra={"error": str(e)})
 
 
 def run_github_mode(args: argparse.Namespace) -> tuple[AnalysisResult | None, int]:
@@ -2367,12 +2402,15 @@ def run_github_mode(args: argparse.Namespace) -> tuple[AnalysisResult | None, in
         # Get PR info to determine base branch
         pr_info = get_pr_info(repo=args.repo, pr_number=args.pr, token=token)
         base_branch = pr_info["base_ref"]
-        logger.info(f"PR #{args.pr}: {pr_info['head_ref']} -> {base_branch}")
+        logger.info(
+            msg="PR info",
+            extra={"pr_number": args.pr, "head_ref": pr_info["head_ref"], "base_branch": base_branch},
+        )
 
         changed_file_names = get_pr_changed_files(repo=args.repo, pr_number=args.pr, token=token)
 
         if not changed_file_names:
-            logger.warning(f"No files changed in PR #{args.pr}")
+            logger.warning(msg="No files changed in PR", extra={"pr_number": args.pr})
 
         if args.checkout:
             if args.workdir:
@@ -2391,10 +2429,10 @@ def run_github_mode(args: argparse.Namespace) -> tuple[AnalysisResult | None, in
 
             # Change to the cloned repository directory
             os.chdir(repo_root)
-            logger.info(f"Changed working directory to {repo_root}")
+            logger.info(msg="Changed working directory", extra={"repo_root": str(repo_root)})
 
             # Fetch the base branch for comparison
-            logger.info(f"Fetching base branch {base_branch}...")
+            logger.info(msg="Fetching base branch", extra={"base_branch": base_branch})
             try:
                 subprocess.run(
                     ["git", "-C", str(workdir), "fetch", "origin", f"{base_branch}:{base_branch}"],
@@ -2404,7 +2442,9 @@ def run_github_mode(args: argparse.Namespace) -> tuple[AnalysisResult | None, in
                     timeout=60,
                 )
             except subprocess.CalledProcessError as e:
-                logger.warning(f"Failed to fetch base branch {base_branch}: {e.stderr}")
+                logger.warning(
+                    msg="Failed to fetch base branch", extra={"base_branch": base_branch, "stderr": e.stderr}
+                )
                 # Continue anyway - the branch might already be available
 
             # When we checkout, we can use local git diff, so no need to pass github_pr_info
@@ -2429,15 +2469,15 @@ def run_github_mode(args: argparse.Namespace) -> tuple[AnalysisResult | None, in
         analyzer.discover_marked_tests()
 
         if not analyzer.marked_tests:
-            logger.error(f"No tests found with marker expression: {args.markers}")
+            logger.error(msg="No tests found with marker expression", extra={"marker_expression": args.markers})
             return None, 1
 
         analyzer.analyze_dependencies()
         result = analyzer.analyze_impact(changed_files=changed_files_list)
         return result, 0
 
-    except (ValueError, RuntimeError) as e:
-        logger.error(f"GitHub API error: {e}")
+    except (ValueError, RuntimeError) as e:  # fmt: skip
+        logger.error(msg="GitHub API error", extra={"error": str(e)})
         return None, 1
     finally:
         os.chdir(original_dir)  # Restore original directory
@@ -2454,7 +2494,7 @@ def run_local_mode(args: argparse.Namespace) -> tuple[AnalysisResult | None, int
     analyzer.discover_marked_tests()
 
     if not analyzer.marked_tests:
-        logger.error(f"No tests found with marker expression: {args.markers}")
+        logger.error(msg="No tests found with marker expression", extra={"marker_expression": args.markers})
         return None, 1
 
     analyzer.analyze_dependencies()
@@ -2613,10 +2653,10 @@ def main() -> int:
 
             # Write output to file
             output_file.write_text(data=output_content, encoding="utf-8")
-            logger.info(f"Analysis output written to {output_file}")
+            logger.info(msg="Analysis output written", extra={"output_file": str(output_file)})
 
         except OSError as e:
-            logger.error(f"Failed to write output to {args.output_dir}: {e}")
+            logger.error(msg="Failed to write output", extra={"output_dir": str(args.output_dir), "error": str(e)})
             return 1
 
     # Report to external system if URL provided
