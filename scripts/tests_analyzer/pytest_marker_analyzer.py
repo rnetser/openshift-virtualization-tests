@@ -1307,7 +1307,7 @@ class MarkerTestAnalyzer:
         env = os.environ.copy()
         env["OPENSHIFT_VIRTUALIZATION_TEST_IMAGES_ARCH"] = "x86_64"
 
-        logger.info(msg="Executing pytest command", extra={"args": " ".join(args)})
+        logger.info(msg="Executing pytest command", extra={"cmd_args": " ".join(args)})
 
         # Try direct pytest first (works in containers with venv)
         try:
@@ -2677,4 +2677,4 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(code=main())
+    sys.exit(main())
