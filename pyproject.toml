@@ -93,6 +93,9 @@ utilities-test = [
   "pytest-watch>=4.2.0",
 ]
 
+[project.scripts]
+pytest-marker-analyzer = "scripts.tests_analyzer.pytest_marker_analyzer:main"
+
 [tool.hatch.build.targets.wheel]
 packages = ["*"]
 
