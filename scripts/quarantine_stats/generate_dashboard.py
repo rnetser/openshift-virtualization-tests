@@ -770,7 +770,8 @@ class TestScanner:
 
         try:
             tree = parse(source=content, filename=str(file_path))
-        except SyntaxError:
+        except SyntaxError as error:
+            LOGGER.warning("Syntax error parsing %s: %s", file_path, error)
             return tests
 
         quarantined_classes: dict[str, tuple[str, str]] = {}
@@ -874,26 +875,26 @@ class TestScanner:
         decorator_lines: list[str] = []
 
         # Walk backwards from the function definition to find its decorators
-        for i in range(line_number - 2, max(0, line_number - 50) - 1, -1):
-            line = lines[i].strip()
+        for line_idx in range(line_number - 2, max(0, line_number - 50) - 1, -1):
+            line = lines[line_idx].strip()
             if not line:
                 # Blank line - stop searching (decorators must be contiguous)
                 break
             if line.startswith(("@", "def ", "class ")):
                 # Part of decorator block or we hit the function/class def
-                decorator_lines.insert(0, lines[i])
+                decorator_lines.insert(0, lines[line_idx])
             elif line.startswith((")", "(")) or line.endswith((",", "(")):
                 # Continuation of multi-line decorator
-                decorator_lines.insert(0, lines[i])
+                decorator_lines.insert(0, lines[line_idx])
             elif "pytest.param" in line or "marks=" in line or "indirect=" in line:
                 # Part of parametrize
-                decorator_lines.insert(0, lines[i])
+                decorator_lines.insert(0, lines[line_idx])
             elif line.startswith(('"', "'", 'f"', "f'")):
                 # String continuation
-                decorator_lines.insert(0, lines[i])
+                decorator_lines.insert(0, lines[line_idx])
             elif "{" in line or "}" in line or "[" in line or "]" in line:
                 # Dict/list in decorator
-                decorator_lines.insert(0, lines[i])
+                decorator_lines.insert(0, lines[line_idx])
             elif line.startswith("#"):
                 # Comment - skip but continue
                 continue
@@ -976,7 +977,7 @@ class TestScanner:
             active_tests=active_tests,
             quarantined_tests=len(quarantined_tests),
             category_breakdown=dict(category_breakdown),
-            quarantined_list=sorted(quarantined_tests, key=lambda t: t.category),
+            quarantined_list=sorted(quarantined_tests, key=lambda test: test.category),
         )
 
 
