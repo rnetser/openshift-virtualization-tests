@@ -24,12 +24,13 @@ import json
 import logging
 import os
 import re
+import shutil
 import subprocess
 import sys
 import urllib.error
 import urllib.request
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -41,12 +42,17 @@ logger = get_logger(name=__name__, level=logging.INFO)
 
 def get_default_repo() -> str:
     """Try to detect repo from git remote, fallback to hardcoded default."""
+    git_path = shutil.which("git")
+    if not git_path:
+        return "RedHatQE/openshift-virtualization-tests"
+
     try:
         result = subprocess.run(
-            ["git", "config", "--get", "remote.origin.url"],
+            [git_path, "config", "--get", "remote.origin.url"],
             capture_output=True,
             text=True,
             timeout=5,
+            check=False,
         )
         if result.returncode == 0:
             url = result.stdout.strip()
@@ -54,8 +60,8 @@ def get_default_repo() -> str:
             match = re.search(r"github\.com[:/]([^/]+/[^/\.]+)", url)
             if match:
                 return match.group(1).rstrip(".git")
-    except Exception:
-        pass
+    except (subprocess.TimeoutExpired, subprocess.SubprocessError, OSError) as exc:
+        logger.info("Failed to detect repo from git remote", extra={"error": str(exc)})
     return "RedHatQE/openshift-virtualization-tests"
 
 
@@ -127,8 +133,18 @@ class ComparisonResult:
         }
 
 
+def _validate_github_url(url: str) -> None:
+    """Validate that URL uses HTTPS scheme and targets GitHub API."""
+    if not url.startswith("https://"):
+        raise ValueError(f"URL must use HTTPS scheme: {url}")
+    if not url.startswith(GITHUB_API_BASE):
+        raise ValueError(f"URL must target GitHub API: {url}")
+
+
 def github_request(url: str, token: str | None = None) -> dict[str, Any] | list[dict[str, Any]]:
     """Make a GitHub API request with error handling."""
+    _validate_github_url(url=url)
+
     headers = {
         "Accept": "application/vnd.github.v3+json",
         "User-Agent": "coderabbit-comparison-tool",
@@ -139,11 +155,14 @@ def github_request(url: str, token: str | None = None) -> dict[str, Any] | list[
     request = urllib.request.Request(url, headers=headers)
 
     try:
-        with urllib.request.urlopen(request, timeout=30) as response:
+        with urllib.request.urlopen(request, timeout=30) as response:  # noqa: S310 - URL validated above
             return json.loads(response.read().decode())
-    except urllib.error.HTTPError as e:
-        if e.code == 403:
-            logger.error("GitHub API rate limit exceeded. Provide a token via GITHUB_TOKEN env var.")
+    except urllib.error.HTTPError as exc:
+        if exc.code == 403:
+            logger.exception(
+                "GitHub API rate limit exceeded",
+                extra={"url": url, "status_code": exc.code},
+            )
         raise
 
 
@@ -155,7 +174,7 @@ def get_open_prs(repo: str, token: str | None = None) -> list[dict]:
 
     while True:
         url = f"{GITHUB_API_BASE}/repos/{repo}/pulls?state=open&base=main&per_page={per_page}&page={page}"
-        logger.debug(f"Fetching PRs page {page}...")
+        logger.info(msg="Fetching PRs page", extra={"page": page, "repo": repo})
 
         try:
             data = github_request(url=url, token=token)
@@ -166,11 +185,14 @@ def get_open_prs(repo: str, token: str | None = None) -> list[dict]:
             if len(data) < per_page:
                 break
             page += 1
-        except Exception as e:
-            logger.error(f"Failed to fetch PRs: {e}")
+        except urllib.error.HTTPError:
+            logger.exception("Failed to fetch PRs", extra={"repo": repo, "page": page})
+            break
+        except urllib.error.URLError as exc:
+            logger.info(msg="Network error fetching PRs", extra={"repo": repo, "error": str(exc)})
             break
 
-    logger.info(f"Found {len(prs)} open PRs targeting main branch")
+    logger.info(msg="Found open PRs targeting main branch", extra={"count": len(prs), "repo": repo})
     return prs
 
 
@@ -191,8 +213,17 @@ def get_pr_comments(repo: str, pr_number: int, token: str | None = None) -> list
             if len(data) < per_page:
                 break
             page += 1
-        except Exception as e:
-            logger.warning(f"Failed to fetch issue comments for PR #{pr_number}: {e}")
+        except urllib.error.HTTPError:
+            logger.exception(
+                "Failed to fetch issue comments",
+                extra={"pr_number": pr_number, "page": page},
+            )
+            break
+        except urllib.error.URLError as exc:
+            logger.warning(
+                "Network error fetching issue comments",
+                extra={"pr_number": pr_number, "error": str(exc)},
+            )
             break
 
     # Get review comments (inline code comments)
@@ -207,8 +238,17 @@ def get_pr_comments(repo: str, pr_number: int, token: str | None = None) -> list
             if len(data) < per_page:
                 break
             page += 1
-        except Exception as e:
-            logger.warning(f"Failed to fetch review comments for PR #{pr_number}: {e}")
+        except urllib.error.HTTPError:
+            logger.exception(
+                "Failed to fetch review comments",
+                extra={"pr_number": pr_number, "page": page},
+            )
+            break
+        except urllib.error.URLError as exc:
+            logger.warning(
+                "Network error fetching review comments",
+                extra={"pr_number": pr_number, "error": str(exc)},
+            )
             break
 
     # Get reviews (PR review summaries which may contain the decision)
@@ -232,11 +272,20 @@ def get_pr_comments(repo: str, pr_number: int, token: str | None = None) -> list
             if len(data) < per_page:
                 break
             page += 1
-        except Exception as e:
-            logger.warning(f"Failed to fetch reviews for PR #{pr_number}: {e}")
+        except urllib.error.HTTPError:
+            logger.exception(
+                "Failed to fetch reviews",
+                extra={"pr_number": pr_number, "page": page},
+            )
+            break
+        except urllib.error.URLError as exc:
+            logger.warning(
+                "Network error fetching reviews",
+                extra={"pr_number": pr_number, "error": str(exc)},
+            )
             break
 
-    logger.debug(f"Fetched {len(comments)} total comments for PR #{pr_number}")
+    logger.info(msg="Fetched comments for PR", extra={"pr_number": pr_number, "count": len(comments)})
     return comments
 
 
@@ -261,7 +310,7 @@ def find_coderabbit_decision(comments: list[dict]) -> CodeRabbitDecision:
         if not TEST_PLAN_PATTERN.search(body):
             continue
 
-        logger.debug(f"Found Test Execution Plan in comment from {login}")
+        logger.info(msg="Found Test Execution Plan in comment", extra={"login": login})
 
         # Extract the decision
         # Matches various formats:
@@ -275,7 +324,7 @@ def find_coderabbit_decision(comments: list[dict]) -> CodeRabbitDecision:
             decision_str = match.group(1).lower()
             should_run = decision_str == "true"
 
-            logger.debug(f"Extracted decision: Run smoke tests = {should_run}")
+            logger.info(msg="Extracted decision", extra={"should_run": should_run})
 
             return CodeRabbitDecision(
                 found=True,
@@ -283,9 +332,8 @@ def find_coderabbit_decision(comments: list[dict]) -> CodeRabbitDecision:
                 comment_url=comment.get("html_url"),
                 comment_body=body[:500] + "..." if len(body) > 500 else body,
             )
-        else:
-            # Found Test Execution Plan but no smoke test decision pattern
-            logger.debug(msg="Test Execution Plan found but no smoke test decision matched")
+        # Found Test Execution Plan but no smoke test decision pattern
+        logger.info(msg="Test Execution Plan found but no smoke test decision matched")
 
     return CodeRabbitDecision(found=False)
 
@@ -299,6 +347,13 @@ def run_analyzer(repo: str, pr_number: int, token: str | None = None) -> Analyze
         return AnalyzerDecision(
             success=False,
             error=f"Analyzer not found at {analyzer_path}",
+        )
+
+    # Validate repo format to prevent command injection
+    if not re.match(r"^[\w.-]+/[\w.-]+$", repo):
+        return AnalyzerDecision(
+            success=False,
+            error=f"Invalid repository format: {repo}",
         )
 
     cmd = [
@@ -317,16 +372,20 @@ def run_analyzer(repo: str, pr_number: int, token: str | None = None) -> Analyze
         env["GITHUB_TOKEN"] = token
 
     try:
-        result = subprocess.run(
+        result = subprocess.run(  # noqa: S603 - cmd built from validated inputs
             cmd,
             capture_output=True,
             text=True,
             timeout=120,
             env=env,
+            check=False,
         )
 
         if result.returncode != 0:
-            logger.debug(f"Analyzer stderr: {result.stderr}")
+            logger.info(
+                msg="Analyzer returned non-zero exit code",
+                extra={"returncode": result.returncode, "stderr": result.stderr[:200]},
+            )
             return AnalyzerDecision(
                 success=False,
                 error=f"Analyzer failed (rc={result.returncode}): {result.stderr[:200]}",
@@ -346,10 +405,10 @@ def run_analyzer(repo: str, pr_number: int, token: str | None = None) -> Analyze
                 affected_tests=affected_tests,
                 changed_files=data.get("changed_files", []),
             )
-        except json.JSONDecodeError as e:
+        except json.JSONDecodeError as exc:
             return AnalyzerDecision(
                 success=False,
-                error=f"Failed to parse analyzer output: {e}",
+                error=f"Failed to parse analyzer output: {exc}",
             )
 
     except subprocess.TimeoutExpired:
@@ -357,10 +416,10 @@ def run_analyzer(repo: str, pr_number: int, token: str | None = None) -> Analyze
             success=False,
             error="Analyzer timed out after 120 seconds",
         )
-    except Exception as e:
+    except (subprocess.SubprocessError, OSError) as exc:
         return AnalyzerDecision(
             success=False,
-            error=str(e),
+            error=str(exc),
         )
 
 
@@ -375,33 +434,49 @@ def compare_pr(
     pr_url = pr["html_url"]
     pr_author = pr["user"]["login"]
 
-    logger.info(f"Processing PR #{pr_number}: {pr_title[:50]}...")
+    logger.info(msg="Processing PR", extra={"pr_number": pr_number, "pr_title": pr_title[:50]})
 
     # Get CodeRabbit's decision
     comments = get_pr_comments(repo=repo, pr_number=pr_number, token=token)
     coderabbit = find_coderabbit_decision(comments=comments)
 
     if not coderabbit.found:
-        logger.debug(f"  No CodeRabbit decision found for PR #{pr_number}")
+        logger.info(msg="No CodeRabbit decision found", extra={"pr_number": pr_number})
     else:
-        logger.debug(f"  CodeRabbit says: Run smoke tests = {coderabbit.should_run}")
+        logger.info(
+            msg="CodeRabbit decision",
+            extra={"pr_number": pr_number, "should_run": coderabbit.should_run},
+        )
 
     # Run local analyzer
     analyzer = run_analyzer(repo=repo, pr_number=pr_number, token=token)
 
     if not analyzer.success:
-        logger.warning(f"  Analyzer failed: {analyzer.error}")
+        logger.warning(msg="Analyzer failed", extra={"pr_number": pr_number, "error": analyzer.error})
     else:
-        logger.debug(f"  Analyzer says: Run smoke tests = {analyzer.should_run}")
+        logger.info(
+            msg="Analyzer decision",
+            extra={"pr_number": pr_number, "should_run": analyzer.should_run},
+        )
 
     # Determine if they match
     match = None
     if coderabbit.found and analyzer.success:
         match = coderabbit.should_run == analyzer.should_run
         if match:
-            logger.info(f"  ✓ MATCH: Both say {coderabbit.should_run}")
+            logger.info(
+                msg="MATCH: Both decisions agree",
+                extra={"pr_number": pr_number, "decision": coderabbit.should_run},
+            )
         else:
-            logger.info(f"  ✗ MISMATCH: CodeRabbit={coderabbit.should_run}, Analyzer={analyzer.should_run}")
+            logger.info(
+                msg="MISMATCH: Decisions disagree",
+                extra={
+                    "pr_number": pr_number,
+                    "coderabbit": coderabbit.should_run,
+                    "analyzer": analyzer.should_run,
+                },
+            )
 
     return ComparisonResult(
         pr_number=pr_number,
@@ -464,7 +539,7 @@ def generate_markdown_report(results: list[ComparisonResult], repo: str, *, deta
         "# CodeRabbit vs Pytest Marker Analyzer Comparison Report",
         "",
         f"**Repository:** [{repo}](https://github.com/{repo})",
-        f"**Generated:** {datetime.now(tz=timezone.utc).strftime('%Y-%m-%d %H:%M:%S')}",
+        f"**Generated:** {datetime.now(tz=UTC).strftime('%Y-%m-%d %H:%M:%S')}",
         f"**Total PRs analyzed:** {len(results)}",
         "",
     ]
@@ -631,8 +706,9 @@ def main() -> int:
 
     args = parser.parse_args()
 
+    # Note: verbose flag kept for backward compatibility but INFO is always used
     if args.verbose:
-        logger.setLevel(level=logging.DEBUG)
+        logger.info(msg="Verbose mode enabled")
 
     # Get GitHub token
     token = os.environ.get("GITHUB_TOKEN")
@@ -643,7 +719,7 @@ def main() -> int:
         )
 
     # Fetch open PRs
-    logger.info(f"Fetching open PRs from {args.repo}...")
+    logger.info(msg="Fetching open PRs", extra={"repo": args.repo})
     prs = get_open_prs(repo=args.repo, token=token)
 
     if not prs:
@@ -653,7 +729,7 @@ def main() -> int:
     # Apply limit if specified
     if args.limit:
         prs = prs[: args.limit]
-        logger.info(f"Limited to {len(prs)} PRs")
+        logger.info(msg="Limited PR count", extra={"count": len(prs)})
 
     # Compare each PR
     results = []
@@ -670,7 +746,7 @@ def main() -> int:
     # Write output
     if args.output_file:
         args.output_file.write_text(data=output)
-        logger.info(f"Report written to {args.output_file}")
+        logger.info(msg="Report written", extra={"output_file": str(args.output_file)})
     else:
         print(output)
 
@@ -680,7 +756,10 @@ def main() -> int:
 
     if comparable:
         accuracy = (len(matches) / len(comparable)) * 100
-        logger.info(f"Agreement rate: {accuracy:.1f}% ({len(matches)}/{len(comparable)})")
+        logger.info(
+            msg="Agreement rate calculated",
+            extra={"accuracy": f"{accuracy:.1f}%", "matches": len(matches), "comparable": len(comparable)},
+        )
 
     return 0
 
