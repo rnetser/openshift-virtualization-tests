@@ -18,21 +18,28 @@ Output:
 
 from __future__ import annotations
 
-import argparse
-import ast
-import json
-import os
-import re
-import shutil
-import subprocess
-import sys
+from argparse import ArgumentParser, Namespace, RawDescriptionHelpFormatter
+from ast import AST, ClassDef, FunctionDef, parse, walk
 from collections import defaultdict
 from datetime import UTC, datetime
+from json import dumps as json_dumps
+from os import environ
 from pathlib import Path
+from re import DOTALL, MULTILINE, Pattern
+from re import compile as re_compile
+from re import search as re_search
+from shutil import rmtree
+from subprocess import CalledProcessError
+from subprocess import run as subprocess_run
+from tempfile import gettempdir
 from typing import ClassVar, NamedTuple
 
+from simple_logger.logger import get_logger
+
+LOGGER = get_logger(name=__name__)
+
 # Pattern to match valid CNV version branches (e.g., cnv-4.15, cnv-5.0)
-CNV_BRANCH_PATTERN = re.compile(r"^cnv-\d+\.\d+$")
+CNV_BRANCH_PATTERN: Pattern[str] = re_compile(pattern=r"^cnv-\d+\.\d+$")
 
 # Repositories to scan (hardcoded)
 REPOS = [
@@ -61,7 +68,7 @@ REPO_FOLDER_MAPPINGS: dict[str, dict[str, str]] = {
 }
 
 # Working directory for cloned repos (hardcoded)
-WORKDIR = Path("/tmp/quarantine-stats")
+WORKDIR = Path(gettempdir()) / "quarantine-stats"
 
 
 def is_valid_branch(branch: str) -> bool:
@@ -111,7 +118,7 @@ def filter_branches_for_repo(repo: str, branches: list[str]) -> list[str]:
                     if version >= min_version:
                         filtered.append(branch)
                 except ValueError:
-                    pass
+                    LOGGER.warning("Invalid version format in branch '%s', skipping", branch)
     return filtered
 
 
@@ -132,14 +139,14 @@ def get_valid_branches(cwd: Path | None = None) -> list[str]:
         RuntimeError: If git command fails.
     """
     try:
-        result = subprocess.run(
-            ["git", "branch", "-r", "--list", "origin/main", "origin/cnv-*"],
+        result = subprocess_run(
+            args=["git", "branch", "-r", "--list", "origin/main", "origin/cnv-*"],
             capture_output=True,
             text=True,
             check=True,
             cwd=cwd,
         )
-    except subprocess.CalledProcessError as error:
+    except CalledProcessError as error:
         raise RuntimeError(f"Failed to get remote branches: {error.stderr}") from error
 
     branches: list[str] = []
@@ -193,14 +200,14 @@ def checkout_branch(branch: str, cwd: Path | None = None) -> None:
         RuntimeError: If checkout fails.
     """
     try:
-        subprocess.run(
-            ["git", "checkout", branch],
+        subprocess_run(
+            args=["git", "checkout", branch],
             capture_output=True,
             text=True,
             check=True,
             cwd=cwd,
         )
-    except subprocess.CalledProcessError as error:
+    except CalledProcessError as error:
         raise RuntimeError(f"Failed to checkout branch '{branch}': {error.stderr}") from error
 
 
@@ -230,7 +237,7 @@ def scan_branch(
         stats = scanner.scan_all_tests()
         return stats
     except RuntimeError as error:
-        print(f"Warning: Failed to scan branch '{branch}': {error}", file=sys.stderr)
+        LOGGER.warning("Failed to scan branch '%s': %s", branch, error)
         return None
     finally:
         # Return to original branch if specified
@@ -238,69 +245,7 @@ def scan_branch(
             try:
                 checkout_branch(branch=original_branch, cwd=cwd)
             except RuntimeError as error:
-                print(f"Warning: Failed to restore branch '{original_branch}': {error}", file=sys.stderr)
-
-
-def format_stats_table(stats: DashboardStats) -> str:
-    """Format stats as an ASCII table for CLI output.
-
-    Creates a formatted table showing the breakdown by team with columns
-    for Team, Total, Active, Quarantined, and Health percentage.
-
-    Args:
-        stats: DashboardStats containing category breakdown data.
-
-    Returns:
-        Formatted ASCII table as a string.
-    """
-    # Define column widths
-    col_team = 20
-    col_total = 7
-    col_active = 8
-    col_quarantined = 13
-    col_health = 8
-
-    # Create separator line
-    separator = "+" + "-" * col_team + "+" + "-" * col_total + "+" + "-" * col_active + "+"
-    separator += "-" * col_quarantined + "+" + "-" * col_health + "+"
-
-    # Create header
-    header = f"| {'Team':<{col_team - 2}} | {'Total':>{col_total - 2}} | {'Active':>{col_active - 2}} |"
-    header += f" {'Quarantined':>{col_quarantined - 2}} | {'Health':>{col_health - 2}} |"
-
-    lines = [
-        "",
-        "Team Breakdown:",
-        separator,
-        header,
-        separator,
-    ]
-
-    # Sort categories by total test count (descending)
-    sorted_categories = sorted(
-        stats.category_breakdown.items(),
-        key=lambda item: item[1]["total"],
-        reverse=True,
-    )
-
-    for category, counts in sorted_categories:
-        total = counts["total"]
-        active = counts["active"]
-        quarantined = counts["quarantined"]
-        health_pct = (active / total * 100) if total > 0 else 0
-
-        category_display = category.replace("_", " ").title()
-        # Truncate category name if too long
-        if len(category_display) > col_team - 2:
-            category_display = category_display[: col_team - 5] + "..."
-
-        row = f"| {category_display:<{col_team - 2}} | {total:>{col_total - 2},} | {active:>{col_active - 2},} |"
-        row += f" {quarantined:>{col_quarantined - 2},} | {health_pct:>{col_health - 3}.1f}% |"
-        lines.append(row)
-
-    lines.append(separator)
-
-    return "\n".join(lines)
+                LOGGER.warning("Failed to restore branch '%s': %s", original_branch, error)
 
 
 def format_unified_version_table(repo_stats: dict[str, list[VersionStats]]) -> str:
@@ -485,39 +430,39 @@ def clone_or_update_repo(repo: str, base_dir: Path, github_token: str | None = N
 
     if repo_dir.exists():
         # Update existing repo
-        print(f"  Updating existing clone: {repo_dir}")
+        LOGGER.info("Updating existing clone: %s", repo_dir)
         try:
-            subprocess.run(
-                ["git", "fetch", "--all", "--prune"],
+            subprocess_run(
+                args=["git", "fetch", "--all", "--prune"],
                 capture_output=True,
                 text=True,
                 check=True,
                 cwd=repo_dir,
             )
             return repo_dir
-        except subprocess.CalledProcessError as error:
+        except CalledProcessError as error:
             raise RuntimeError(f"Failed to fetch updates for '{repo}': {error.stderr}") from error
 
     # Clone new repo - use token if provided for private repos
     if github_token:
         repo_url = f"https://{github_token}@github.com/{repo}.git"
         # Log without exposing the token
-        print(f"  Cloning: https://***@github.com/{repo}.git (with token)")
+        LOGGER.info("Cloning: https://***@github.com/%s.git (with token)", repo)
     else:
         repo_url = f"https://github.com/{repo}.git"
-        print(f"  Cloning: {repo_url}")
+        LOGGER.info("Cloning: %s", repo_url)
 
     base_dir.mkdir(parents=True, exist_ok=True)
 
     try:
-        subprocess.run(
-            ["git", "clone", repo_url, str(repo_dir)],
+        subprocess_run(
+            args=["git", "clone", repo_url, str(repo_dir)],
             capture_output=True,
             text=True,
             check=True,
         )
         return repo_dir
-    except subprocess.CalledProcessError as error:
+    except CalledProcessError as error:
         raise RuntimeError(f"Failed to clone '{repo}': {error.stderr}") from error
 
 
@@ -551,7 +496,7 @@ def scan_repo_branch(repo_dir: Path, branch: str, repo: str | None = None) -> Da
     """
     tests_dir = repo_dir / "tests"
     if not tests_dir.exists():
-        print(f"    Warning: tests/ directory not found in {repo_dir}")
+        LOGGER.warning("tests/ directory not found in %s", repo_dir)
         return None
 
     return scan_branch(branch=branch, tests_dir=tests_dir, cwd=repo_dir, repo=repo)
@@ -577,46 +522,46 @@ def scan_all_repos(
     results: dict[str, list[VersionStats]] = {}
 
     for repo in repos:
-        print(f"\nProcessing repository: {repo}")
+        LOGGER.info("Processing repository: %s", repo)
         repo_stats: list[VersionStats] = []
 
         try:
             repo_dir = clone_or_update_repo(repo=repo, base_dir=workdir, github_token=github_token)
         except RuntimeError as error:
-            print(f"  Error: {error}")
-            print(f"  Skipping repository: {repo}")
+            LOGGER.error("Error processing repository '%s': %s", repo, error)
+            LOGGER.info("Skipping repository: %s", repo)
             continue
 
         # Get branches to scan
         if branch_filter:
             branches = [branch_filter] if is_valid_branch(branch=branch_filter) else []
             if not branches:
-                print(f"  Warning: Branch '{branch_filter}' is not a valid pattern")
+                LOGGER.warning("Branch '%s' is not a valid pattern", branch_filter)
                 branches = [branch_filter]  # Try anyway
         else:
             try:
                 branches = get_repo_branches(repo_dir=repo_dir)
             except RuntimeError as error:
-                print(f"  Error getting branches: {error}")
+                LOGGER.error("Error getting branches: %s", error)
                 continue
 
         # Apply repo-specific branch filtering (e.g., minimum version requirements)
         branches = filter_branches_for_repo(repo=repo, branches=branches)
 
         if not branches:
-            print(f"  No valid branches found in {repo}")
+            LOGGER.info("No valid branches found in %s", repo)
             continue
 
-        print(f"  Found {len(branches)} branches: {', '.join(branches)}")
+        LOGGER.info("Found %d branches: %s", len(branches), ", ".join(branches))
 
         for branch in branches:
-            print(f"    Scanning branch: {branch}...")
+            LOGGER.info("Scanning branch: %s...", branch)
             stats = scan_repo_branch(repo_dir=repo_dir, branch=branch, repo=repo)
             if stats:
                 repo_stats.append(VersionStats(branch=branch, stats=stats))
-                print(f"      -> {stats.total_tests} tests, {stats.quarantined_tests} quarantined")
+                LOGGER.info("  -> %d tests, %d quarantined", stats.total_tests, stats.quarantined_tests)
             else:
-                print("      -> Failed to scan")
+                LOGGER.warning("  -> Failed to scan")
 
         if repo_stats:
             results[repo] = repo_stats
@@ -634,11 +579,11 @@ def cleanup_workdir(workdir: Path) -> None:
         OSError: If removal fails.
     """
     if workdir.exists():
-        print(f"\nCleaning up working directory: {workdir}")
+        LOGGER.info("Cleaning up working directory: %s", workdir)
         try:
-            shutil.rmtree(path=workdir)
+            rmtree(path=workdir)
         except OSError as error:
-            print(f"Error: Failed to remove {workdir}: {error}", file=sys.stderr)
+            LOGGER.error("Failed to remove %s: %s", workdir, error)
             raise
 
 
@@ -764,12 +709,12 @@ class TestScanner:
         )
         _simple_pattern = r"@pytest\.mark\.xfail\s*\([^)]*QUARANTINED[^)]*run\s*=\s*False"
 
-        self.quarantine_patterns = [
-            re.compile(pattern=_paren_pattern, flags=re.MULTILINE | re.DOTALL),
-            re.compile(pattern=_no_paren_pattern, flags=re.MULTILINE | re.DOTALL),
-            re.compile(pattern=_simple_pattern, flags=re.MULTILINE | re.DOTALL),
+        self.quarantine_patterns: list[Pattern[str]] = [
+            re_compile(pattern=_paren_pattern, flags=MULTILINE | DOTALL),
+            re_compile(pattern=_no_paren_pattern, flags=MULTILINE | DOTALL),
+            re_compile(pattern=_simple_pattern, flags=MULTILINE | DOTALL),
         ]
-        self.jira_pattern = re.compile(r"CNV-\d+")
+        self.jira_pattern: Pattern[str] = re_compile(pattern=r"CNV-\d+")
 
     def scan_all_tests(self) -> DashboardStats:
         """Scan all test files and return aggregated statistics.
@@ -790,8 +735,8 @@ class TestScanner:
             try:
                 tests = self._scan_file(file_path=test_file)
                 all_tests.extend(tests)
-            except (SyntaxError, OSError, UnicodeDecodeError) as e:
-                print(f"Warning: Error scanning {test_file}: {e}", file=sys.stderr)
+            except (SyntaxError, OSError, UnicodeDecodeError) as error:
+                LOGGER.warning("Error scanning %s: %s", test_file, error)
 
         return self._calculate_stats(all_tests=all_tests)
 
@@ -824,22 +769,22 @@ class TestScanner:
             return tests
 
         try:
-            tree = ast.parse(source=content, filename=str(file_path))
+            tree = parse(source=content, filename=str(file_path))
         except SyntaxError:
             return tests
 
         quarantined_classes: dict[str, tuple[str, str]] = {}
 
         # First pass: identify quarantined classes
-        for node in ast.walk(tree):
-            if isinstance(node, ast.ClassDef):
+        for node in walk(tree):
+            if isinstance(node, ClassDef):
                 is_quarantined, reason, jira = self._check_quarantine(content=content, line_number=node.lineno)
                 if is_quarantined:
                     quarantined_classes[node.name] = (reason, jira)
 
         # Second pass: find all test functions
-        for node in ast.walk(tree):
-            if isinstance(node, ast.FunctionDef) and node.name.startswith("test_"):
+        for node in walk(tree):
+            if isinstance(node, FunctionDef) and node.name.startswith("test_"):
                 # Check if test is quarantined (either directly or via parent class)
                 is_quarantined, reason, jira = self._check_quarantine(content=content, line_number=node.lineno)
 
@@ -863,7 +808,7 @@ class TestScanner:
 
         return tests
 
-    def _get_parent_class(self, tree: ast.AST, func_node: ast.FunctionDef) -> str | None:
+    def _get_parent_class(self, tree: AST, func_node: FunctionDef) -> str | None:
         """Find the parent class of a function node, if any.
 
         Args:
@@ -873,9 +818,9 @@ class TestScanner:
         Returns:
             The class name if the function is inside a class, None otherwise.
         """
-        for node in ast.walk(tree):
-            if isinstance(node, ast.ClassDef):
-                for child in ast.walk(node):
+        for node in walk(tree):
+            if isinstance(node, ClassDef):
+                for child in walk(node):
                     if child is func_node:
                         return node.name
         return None
@@ -981,7 +926,7 @@ class TestScanner:
         # If no reason captured, extract it manually
         if not reason:
             # Find the reason text between QUARANTINED and the closing quote/paren
-            reason_match = re.search(r'QUARANTINED[}"\']?:\s*([^"\']+)', decorator_section)
+            reason_match = re_search(pattern=r'QUARANTINED[}"\']?:\s*([^"\']+)', string=decorator_section)
             if reason_match:
                 reason = reason_match.group(1).strip().rstrip('",)')
 
@@ -1196,28 +1141,6 @@ class DashboardGenerator:
         <h1>Tier2 Quarantine Status</h1>
 
 {self._generate_version_comparison_section()}
-        <div class="section">
-            <h2>Breakdown by Team</h2>
-            <table>
-                <thead>
-                    <tr>
-                        <th>Team</th>
-                        <th>Total</th>
-                        <th>Active</th>
-                        <th>Quarantined</th>
-                        <th>Health</th>
-                    </tr>
-                </thead>
-                <tbody>
-{self._generate_team_rows()}
-                </tbody>
-            </table>
-            <div class="note">
-                Team is determined by the top-level folder under <code>tests/</code>.
-                Counts are based on test functions; parametrized tests are counted as single functions.
-            </div>
-        </div>
-
 {
             self._generate_quarantined_details_by_version()
             if self.repo_stats
@@ -1254,46 +1177,6 @@ class DashboardGenerator:
     </script>
 </body>
 </html>"""
-
-    def _generate_team_rows(self) -> str:
-        """Generate HTML table rows for team breakdown.
-
-        Creates table rows sorted by total test count (descending).
-        Each row includes team name, counts, and health indicator
-        (green=100%, yellow>=95%, red<95%).
-
-        Returns:
-            HTML string containing all <tr> elements.
-        """
-        rows = []
-        sorted_categories = sorted(self.stats.category_breakdown.items(), key=lambda x: x[1]["total"], reverse=True)
-
-        for category, counts in sorted_categories:
-            total = counts["total"]
-            active = counts["active"]
-            quarantined = counts["quarantined"]
-            active_pct = (active / total * 100) if total > 0 else 0
-            category_display = category.replace("_", " ").title()
-
-            if active_pct == 100:
-                health_class = "green"
-                health_text = "100%"
-            elif active_pct >= 95:
-                health_class = "yellow"
-                health_text = f"{active_pct:.1f}%"
-            else:
-                health_class = "red"
-                health_text = f"{active_pct:.1f}%"
-
-            rows.append(f"""                    <tr>
-                        <td>{category_display}</td>
-                        <td>{total:,}</td>
-                        <td>{active:,}</td>
-                        <td>{quarantined:,}</td>
-                        <td><span class="health {health_class}">{health_text}</span></td>
-                    </tr>""")
-
-        return "\n".join(rows)
 
     def _generate_version_comparison_section(self) -> str:
         """Generate HTML section for version comparison.
@@ -1799,18 +1682,18 @@ def generate_json_output(repo_stats: dict[str, list[VersionStats]]) -> str:
 
         output["repositories"][repo] = repo_data
 
-    return json.dumps(output, indent=2)
+    return json_dumps(obj=output, indent=2)
 
 
-def parse_args() -> argparse.Namespace:
+def parse_args() -> Namespace:
     """Parse command line arguments.
 
     Returns:
         Parsed arguments namespace.
     """
-    parser = argparse.ArgumentParser(
+    parser = ArgumentParser(
         description="Tier2 Quarantine Status Dashboard Generator",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
+        formatter_class=RawDescriptionHelpFormatter,
         epilog="""
 Scans both repositories (RedHatQE/openshift-virtualization-tests, RedHatQE/cnv-tests)
 across all valid branches (main and cnv-X.Y versions).
@@ -1827,6 +1710,11 @@ Examples:
 
     # Use custom directories
     python generate_dashboard.py --workdir /path/to/clones --output-dir /path/to/output
+
+    # Run from container (using entry point defined in pyproject.toml)
+    podman run --rm -e GITHUB_TOKEN="${GITHUB_TOKEN}" \\
+        -v $(pwd)/output:/openshift-virtualization-tests/output:Z \\
+        cnv-tests:latest uv run quarantine-dashboard --output-dir /openshift-virtualization-tests/output
         """,
     )
     parser.add_argument(
@@ -1884,48 +1772,44 @@ def run_multi_repo_mode(
     Returns:
         Exit code: 0 on success, 1 on error.
     """
-    print("Mode: Multi-Repository (all versions)", file=sys.stderr)
-    print(file=sys.stderr)
-
-    print(f"Repositories: {', '.join(REPOS)}", file=sys.stderr)
-    print(f"Working directory: {workdir}", file=sys.stderr)
-    print(file=sys.stderr)
+    LOGGER.info("Mode: Multi-Repository (all versions)")
+    LOGGER.info("Repositories: %s", ", ".join(REPOS))
+    LOGGER.info("Working directory: %s", workdir)
 
     # Scan all repos and all branches
     repo_stats = scan_all_repos(repos=REPOS, workdir=workdir, branch_filter=None, github_token=github_token)
 
     if not repo_stats:
-        print("\nError: No repositories could be scanned.", file=sys.stderr)
+        LOGGER.error("No repositories could be scanned.")
         return 1
 
     # Handle JSON output mode
     if json_output:
         json_content = generate_json_output(repo_stats=repo_stats)
         output_file.write_text(data=json_content, encoding="utf-8")
-        print(f"JSON output generated: {output_file}", file=sys.stderr)
+        LOGGER.info("JSON output generated: %s", output_file)
 
         # Cleanup unless --keep-clones was specified
         if not keep_clones:
             cleanup_workdir(workdir=workdir)
         else:
-            print(f"\nCloned repositories preserved at: {workdir}", file=sys.stderr)
+            LOGGER.info("Cloned repositories preserved at: %s", workdir)
 
         return 0
 
     # Display CLI output with unified version summary table
-    print("\n" + "=" * 60)
-    print("Summary by Repository and Version")
-    print("=" * 60)
+    LOGGER.info("=" * 60)
+    LOGGER.info("Summary by Repository and Version")
+    LOGGER.info("=" * 60)
 
     # Print unified version summary table (single table for all repos)
     version_summary = format_unified_version_table(repo_stats=repo_stats)
-    print(version_summary)
+    LOGGER.info("%s", version_summary)
 
     # Print unified team breakdown with all repos/versions as columns
-    print()
-    print("=" * 60)
+    LOGGER.info("=" * 60)
     team_breakdown = format_team_breakdown_by_version(repo_stats=repo_stats)
-    print(team_breakdown)
+    LOGGER.info("%s", team_breakdown)
 
     # Determine primary stats for dashboard header (first repo, first branch)
     first_repo = next(iter(repo_stats))
@@ -1934,7 +1818,7 @@ def run_multi_repo_mode(
     primary_branch = first_version_stats.branch
 
     # Generate dashboard
-    print("\nGenerating dashboard...")
+    LOGGER.info("Generating dashboard...")
     generator = DashboardGenerator(
         stats=primary_stats,
         branch=primary_branch,
@@ -1944,15 +1828,14 @@ def run_multi_repo_mode(
 
     # Write output
     output_file.write_text(data=dashboard_content, encoding="utf-8")
-    print(f"Dashboard generated: {output_file}")
+    LOGGER.info("Dashboard generated: %s", output_file)
 
     # Cleanup unless --keep-clones was specified
     if not keep_clones:
         cleanup_workdir(workdir=workdir)
     else:
-        print(f"\nCloned repositories preserved at: {workdir}")
+        LOGGER.info("Cloned repositories preserved at: %s", workdir)
 
-    print()
     return 0
 
 
@@ -1975,10 +1858,10 @@ def main() -> int:
         output_file = output_dir / "dashboard.html"
 
     # Resolve GitHub token: CLI argument takes precedence over environment variable
-    github_token = args.github_token or os.environ.get("GITHUB_TOKEN")
+    github_token = args.github_token or environ.get("GITHUB_TOKEN")
 
-    print("Tier2 Quarantine Status Dashboard Generator", file=sys.stderr)
-    print("=" * 60, file=sys.stderr)
+    LOGGER.info("Tier2 Quarantine Status Dashboard Generator")
+    LOGGER.info("=" * 60)
 
     return run_multi_repo_mode(
         keep_clones=args.keep_clones,
@@ -1990,4 +1873,4 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    exit(main())
+    raise SystemExit(main())
