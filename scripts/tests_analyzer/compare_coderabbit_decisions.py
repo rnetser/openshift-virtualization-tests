@@ -257,10 +257,8 @@ def get_pr_comments(repo: str, pr_number: int, token: str | None = None) -> list
         url = f"{GITHUB_API_BASE}/repos/{repo}/pulls/{pr_number}/reviews?per_page={per_page}&page={page}"
         try:
             data = github_request(url=url, token=token)
-            if not data:
-                break
             # Reviews have a body field that may contain the Test Execution Plan
-            if not isinstance(data, list):
+            if not data or not isinstance(data, list):
                 break
             for review in data:
                 if review.get("body"):
@@ -520,7 +518,7 @@ def generate_detailed_mismatch_analysis(result: ComparisonResult) -> list[str]:
             deps = test.get("dependencies", [])
             lines.append(f"- `{node_id}`")
             if deps:
-                lines.append(f"  - Dependencies: {', '.join(f'`{d}`' for d in deps[:3])}")
+                lines.append(f"  - Dependencies: {', '.join(f'`{dep}`' for dep in deps[:3])}")
                 if len(deps) > 3:
                     lines.append(f"  - _(and {len(deps) - 3} more dependencies)_")
         if result.analyzer.affected_test_count > 10:
@@ -546,11 +544,11 @@ def generate_markdown_report(results: list[ComparisonResult], repo: str, *, deta
     ]
 
     # Summary statistics
-    with_coderabbit = [r for r in results if r.coderabbit.found]
-    with_analyzer = [r for r in results if r.analyzer.success]
-    comparable = [r for r in results if r.match is not None]
-    matches = [r for r in comparable if r.match]
-    mismatches = [r for r in comparable if not r.match]
+    with_coderabbit = [result for result in results if result.coderabbit.found]
+    with_analyzer = [result for result in results if result.analyzer.success]
+    comparable = [result for result in results if result.match is not None]
+    matches = [result for result in comparable if result.match]
+    mismatches = [result for result in comparable if not result.match]
 
     lines.extend([
         "## Summary",
@@ -579,13 +577,20 @@ def generate_markdown_report(results: list[ComparisonResult], repo: str, *, deta
             "| PR | CodeRabbit | Analyzer | Affected Tests | Changed Files | Analyzer Reason |",
             "|----|------------|----------|----------------|---------------|-----------------|",
         ])
-        for r in mismatches:
-            cr = "Run" if r.coderabbit.should_run else "Skip"
-            an = "Run" if r.analyzer.should_run else "Skip"
-            affected = f"{r.analyzer.affected_test_count}/{r.analyzer.total_tests}" if r.analyzer.total_tests else "N/A"
-            changed = str(len(r.analyzer.changed_files)) if r.analyzer.changed_files else "0"
-            reason = (r.analyzer.reason or "N/A")[:50]
-            lines.append(f"| [#{r.pr_number}]({r.pr_url}) | {cr} | {an} | {affected} | {changed} | {reason} |")
+        for mismatch in mismatches:
+            coderabbit_decision = "Run" if mismatch.coderabbit.should_run else "Skip"
+            analyzer_decision = "Run" if mismatch.analyzer.should_run else "Skip"
+            affected = (
+                f"{mismatch.analyzer.affected_test_count}/{mismatch.analyzer.total_tests}"
+                if mismatch.analyzer.total_tests
+                else "N/A"
+            )
+            changed = str(len(mismatch.analyzer.changed_files)) if mismatch.analyzer.changed_files else "0"
+            reason = (mismatch.analyzer.reason or "N/A")[:50]
+            lines.append(
+                f"| [#{mismatch.pr_number}]({mismatch.pr_url}) | {coderabbit_decision} | "
+                f"{analyzer_decision} | {affected} | {changed} | {reason} |"
+            )
         lines.append("")
 
         # Detailed breakdown if requested
@@ -594,8 +599,8 @@ def generate_markdown_report(results: list[ComparisonResult], repo: str, *, deta
                 "### Detailed Mismatch Analysis",
                 "",
             ])
-            for r in mismatches:
-                lines.extend(generate_detailed_mismatch_analysis(result=r))
+            for mismatch in mismatches:
+                lines.extend(generate_detailed_mismatch_analysis(result=mismatch))
                 lines.append("---")
                 lines.append("")
 
@@ -607,16 +612,23 @@ def generate_markdown_report(results: list[ComparisonResult], repo: str, *, deta
             "| PR | Decision | Affected Tests | Changed Files | Analyzer Reason |",
             "|----|----------|----------------|---------------|-----------------|",
         ])
-        for r in matches:
-            decision = "Run" if r.coderabbit.should_run else "Skip"
-            affected = f"{r.analyzer.affected_test_count}/{r.analyzer.total_tests}" if r.analyzer.total_tests else "N/A"
-            changed = str(len(r.analyzer.changed_files)) if r.analyzer.changed_files else "0"
-            reason = (r.analyzer.reason or "N/A")[:50]
-            lines.append(f"| [#{r.pr_number}]({r.pr_url}) | {decision} | {affected} | {changed} | {reason} |")
+        for match_result in matches:
+            decision = "Run" if match_result.coderabbit.should_run else "Skip"
+            affected = (
+                f"{match_result.analyzer.affected_test_count}/{match_result.analyzer.total_tests}"
+                if match_result.analyzer.total_tests
+                else "N/A"
+            )
+            changed = str(len(match_result.analyzer.changed_files)) if match_result.analyzer.changed_files else "0"
+            reason = (match_result.analyzer.reason or "N/A")[:50]
+            lines.append(
+                f"| [#{match_result.pr_number}]({match_result.pr_url}) | {decision} | "
+                f"{affected} | {changed} | {reason} |"
+            )
         lines.append("")
 
     # PRs without CodeRabbit decision
-    no_coderabbit = [r for r in results if not r.coderabbit.found]
+    no_coderabbit = [result for result in results if not result.coderabbit.found]
     if no_coderabbit:
         lines.extend([
             "## PRs Without CodeRabbit Decision",
@@ -624,18 +636,18 @@ def generate_markdown_report(results: list[ComparisonResult], repo: str, *, deta
             "| PR | Analyzer Decision | Reason |",
             "|----|-------------------|--------|",
         ])
-        for r in no_coderabbit:
-            if r.analyzer.success:
-                decision = "Run" if r.analyzer.should_run else "Skip"
-                reason = (r.analyzer.reason or "N/A")[:50]
+        for pr_result in no_coderabbit:
+            if pr_result.analyzer.success:
+                decision = "Run" if pr_result.analyzer.should_run else "Skip"
+                reason = (pr_result.analyzer.reason or "N/A")[:50]
             else:
                 decision = "Error"
-                reason = (r.analyzer.error or "Unknown")[:50]
-            lines.append(f"| [#{r.pr_number}]({r.pr_url}) | {decision} | {reason} |")
+                reason = (pr_result.analyzer.error or "Unknown")[:50]
+            lines.append(f"| [#{pr_result.pr_number}]({pr_result.pr_url}) | {decision} | {reason} |")
         lines.append("")
 
     # Analyzer errors
-    errors = [r for r in results if not r.analyzer.success]
+    errors = [result for result in results if not result.analyzer.success]
     if errors:
         lines.extend([
             "## Analyzer Errors",
@@ -643,9 +655,9 @@ def generate_markdown_report(results: list[ComparisonResult], repo: str, *, deta
             "| PR | Error |",
             "|----|-------|",
         ])
-        for r in errors:
-            error = (r.analyzer.error or "Unknown")[:100]
-            lines.append(f"| [#{r.pr_number}]({r.pr_url}) | {error} |")
+        for error_result in errors:
+            error_message = (error_result.analyzer.error or "Unknown")[:100]
+            lines.append(f"| [#{error_result.pr_number}]({error_result.pr_url}) | {error_message} |")
         lines.append("")
 
     # Detailed results
@@ -655,11 +667,14 @@ def generate_markdown_report(results: list[ComparisonResult], repo: str, *, deta
         "| PR | Author | CodeRabbit | Analyzer | Match |",
         "|----|--------|------------|----------|-------|",
     ])
-    for r in results:
-        cr = "Run" if r.coderabbit.should_run else ("Skip" if r.coderabbit.found else "N/A")
-        an = "Run" if r.analyzer.should_run else ("Skip" if r.analyzer.success else "Error")
-        match_str = "✓" if r.match else ("✗" if r.match is False else "-")
-        lines.append(f"| [#{r.pr_number}]({r.pr_url}) | {r.pr_author} | {cr} | {an} | {match_str} |")
+    for result in results:
+        coderabbit_status = "Run" if result.coderabbit.should_run else ("Skip" if result.coderabbit.found else "N/A")
+        analyzer_status = "Run" if result.analyzer.should_run else ("Skip" if result.analyzer.success else "Error")
+        match_str = "✓" if result.match else ("✗" if result.match is False else "-")
+        lines.append(
+            f"| [#{result.pr_number}]({result.pr_url}) | {result.pr_author} | "
+            f"{coderabbit_status} | {analyzer_status} | {match_str} |"
+        )
 
     return "\n".join(lines)
 
@@ -740,7 +755,7 @@ def main() -> int:
 
     # Generate output
     if args.output == "json":
-        output = json.dumps([r.to_dict() for r in results], indent=2)
+        output = json.dumps([result.to_dict() for result in results], indent=2)
     else:
         output = generate_markdown_report(results=results, repo=args.repo, detailed=args.detailed)
 
@@ -752,8 +767,8 @@ def main() -> int:
         print(output)
 
     # Summary
-    comparable = [r for r in results if r.match is not None]
-    matches = [r for r in comparable if r.match]
+    comparable = [result for result in results if result.match is not None]
+    matches = [result for result in comparable if result.match]
 
     if comparable:
         accuracy = (len(matches) / len(comparable)) * 100
