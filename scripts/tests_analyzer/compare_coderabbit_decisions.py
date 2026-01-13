@@ -159,9 +159,9 @@ def github_request(url: str, token: str | None = None) -> dict[str, Any] | list[
             return json.loads(response.read().decode())
     except urllib.error.HTTPError as exc:
         if exc.code == 403:
-            logger.exception(
+            logger.error(
                 "GitHub API rate limit exceeded",
-                extra={"url": url, "status_code": exc.code},
+                extra={"url": url, "status_code": exc.code, "error": str(exc)},
             )
         raise
 
@@ -715,9 +715,8 @@ def main() -> int:
     token = os.environ.get("GITHUB_TOKEN")
     if not token:
         logger.warning(
-            msg="No GITHUB_TOKEN set. API rate limits will be low. "
-            "Set GITHUB_TOKEN environment variable for better performance.",
-            extra={"env_var": "GITHUB_TOKEN"},
+            msg="GITHUB_TOKEN not set, API rate limits will apply",
+            extra={"hint": "Set GITHUB_TOKEN environment variable for better performance"},
         )
 
     # Fetch open PRs
