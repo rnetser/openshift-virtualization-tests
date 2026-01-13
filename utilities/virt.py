@@ -2287,7 +2287,7 @@ def get_oc_image_info(  # type: ignore[return]
     def _get_image_json(cmd: str) -> dict[str, Any] | None:
         _, out, err = run_command(command=shlex.split(cmd), check=False)
         if err:
-            LOGGER.error(f"Failed to get image info from quay: {err}")
+            LOGGER.error("Failed to get image info from quay", extra={"image": image, "error": err})
             return None
 
         else:
