@@ -155,7 +155,7 @@ def github_request(url: str, token: str | None = None) -> dict[str, Any] | list[
     request = urllib.request.Request(url, headers=headers)
 
     try:
-        with urllib.request.urlopen(request, timeout=30) as response:  # noqa: S310 - URL validated above
+        with urllib.request.urlopen(request, timeout=30) as response:
             return json.loads(response.read().decode())
     except urllib.error.HTTPError as exc:
         if exc.code == 403:
@@ -372,7 +372,7 @@ def run_analyzer(repo: str, pr_number: int, token: str | None = None) -> Analyze
         env["GITHUB_TOKEN"] = token
 
     try:
-        result = subprocess.run(  # noqa: S603 - cmd built from validated inputs
+        result = subprocess.run(
             cmd,
             capture_output=True,
             text=True,
