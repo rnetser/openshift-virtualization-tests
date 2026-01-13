@@ -189,7 +189,7 @@ def get_open_prs(repo: str, token: str | None = None) -> list[dict]:
             logger.exception("Failed to fetch PRs", extra={"repo": repo, "page": page})
             break
         except urllib.error.URLError as exc:
-            logger.info(msg="Network error fetching PRs", extra={"repo": repo, "error": str(exc)})
+            logger.warning(msg="Network error fetching PRs", extra={"repo": repo, "error": str(exc)})
             break
 
     logger.info(msg="Found open PRs targeting main branch", extra={"count": len(prs), "repo": repo})
@@ -333,7 +333,7 @@ def find_coderabbit_decision(comments: list[dict]) -> CodeRabbitDecision:
                 comment_body=body[:500] + "..." if len(body) > 500 else body,
             )
         # Found Test Execution Plan but no smoke test decision pattern
-        logger.info(msg="Test Execution Plan found but no smoke test decision matched")
+        logger.info(msg="Test Execution Plan found but no smoke test decision matched", extra={"login": login})
 
     return CodeRabbitDecision(found=False)
 
@@ -432,7 +432,8 @@ def compare_pr(
     pr_number = pr["number"]
     pr_title = pr["title"]
     pr_url = pr["html_url"]
-    pr_author = pr["user"]["login"]
+    pr_user = pr.get("user")
+    pr_author = pr_user["login"] if pr_user else "[deleted]"
 
     logger.info(msg="Processing PR", extra={"pr_number": pr_number, "pr_title": pr_title[:50]})
 
@@ -708,14 +709,15 @@ def main() -> int:
 
     # Note: verbose flag kept for backward compatibility but INFO is always used
     if args.verbose:
-        logger.info(msg="Verbose mode enabled")
+        logger.info(msg="Verbose mode enabled", extra={"verbose": True})
 
     # Get GitHub token
     token = os.environ.get("GITHUB_TOKEN")
     if not token:
         logger.warning(
             msg="No GITHUB_TOKEN set. API rate limits will be low. "
-            "Set GITHUB_TOKEN environment variable for better performance."
+            "Set GITHUB_TOKEN environment variable for better performance.",
+            extra={"env_var": "GITHUB_TOKEN"},
         )
 
     # Fetch open PRs
@@ -723,7 +725,7 @@ def main() -> int:
     prs = get_open_prs(repo=args.repo, token=token)
 
     if not prs:
-        logger.error(msg="No open PRs found")
+        logger.error(msg="No open PRs found", extra={"repo": args.repo})
         return 1
 
     # Apply limit if specified
@@ -745,7 +747,7 @@ def main() -> int:
 
     # Write output
     if args.output_file:
-        args.output_file.write_text(data=output)
+        args.output_file.write_text(data=output, encoding="utf-8")
         logger.info(msg="Report written", extra={"output_file": str(args.output_file)})
     else:
         print(output)
