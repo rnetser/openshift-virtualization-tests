@@ -434,7 +434,7 @@ def compare_pr(
     pr_title = pr["title"]
     pr_url = pr["html_url"]
     pr_user = pr.get("user")
-    pr_author = pr_user["login"] if pr_user else "[deleted]"
+    pr_author = pr_user.get("login", "unknown") if pr_user else "[deleted]"
 
     logger.info(msg="Processing PR", extra={"pr_number": pr_number, "pr_title": pr_title[:50]})
 
