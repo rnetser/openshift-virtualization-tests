@@ -1,5 +1,4 @@
-"""
-Generated using Claude cli
+"""Generated using Claude cli
 
 Tier2 Quarantine Status Dashboard Generator
 
@@ -29,11 +28,10 @@ from re import DOTALL, MULTILINE, Pattern
 from re import compile as re_compile
 from re import search as re_search
 from shutil import rmtree
-from subprocess import CalledProcessError
-from subprocess import run as subprocess_run
 from tempfile import gettempdir
 from typing import ClassVar, NamedTuple
 
+from pyhelper_utils.shell import run_command
 from simple_logger.logger import get_logger
 
 LOGGER = get_logger(name=__name__)
@@ -80,6 +78,7 @@ def is_valid_branch(branch: str) -> bool:
     Returns:
         True if the branch is 'main' or matches the cnv-X.Y pattern,
         False otherwise.
+
     """
     if branch == "main":
         return True
@@ -99,6 +98,7 @@ def filter_branches_for_repo(repo: str, branches: list[str]) -> list[str]:
     Returns:
         Filtered list of branch names. If repo has no minimum version
         requirement, returns the original list unchanged.
+
     """
     min_version = REPO_MIN_VERSIONS.get(repo)
     if not min_version:
@@ -137,20 +137,18 @@ def get_valid_branches(cwd: Path | None = None) -> list[str]:
 
     Raises:
         RuntimeError: If git command fails.
+
     """
-    try:
-        result = subprocess_run(
-            args=["git", "branch", "-r", "--list", "origin/main", "origin/cnv-*"],
-            capture_output=True,
-            text=True,
-            check=True,
-            cwd=cwd,
-        )
-    except CalledProcessError as error:
-        raise RuntimeError(f"Failed to get remote branches: {error.stderr}") from error
+    success, stdout, stderr = run_command(
+        command=["git", "branch", "-r", "--list", "origin/main", "origin/cnv-*"],
+        check=False,
+        cwd=cwd,
+    )
+    if not success:
+        raise RuntimeError(f"Failed to get remote branches: {stderr}")
 
     branches: list[str] = []
-    for line in result.stdout.strip().split("\n"):
+    for line in stdout.strip().split("\n"):
         line = line.strip()
         if not line:
             continue
@@ -170,6 +168,7 @@ def sort_branches(branches: list[str]) -> list[str]:
 
     Returns:
         Sorted list of branch names.
+
     """
 
     def sort_key(branch_name: str) -> tuple[int, float]:
@@ -198,17 +197,15 @@ def checkout_branch(branch: str, cwd: Path | None = None) -> None:
 
     Raises:
         RuntimeError: If checkout fails.
+
     """
-    try:
-        subprocess_run(
-            args=["git", "checkout", branch],
-            capture_output=True,
-            text=True,
-            check=True,
-            cwd=cwd,
-        )
-    except CalledProcessError as error:
-        raise RuntimeError(f"Failed to checkout branch '{branch}': {error.stderr}") from error
+    success, _, stderr = run_command(
+        command=["git", "checkout", branch],
+        check=False,
+        cwd=cwd,
+    )
+    if not success:
+        raise RuntimeError(f"Failed to checkout branch '{branch}': {stderr}")
 
 
 def scan_branch(
@@ -230,6 +227,7 @@ def scan_branch(
 
     Returns:
         DashboardStats for the branch, or None if scanning failed.
+
     """
     try:
         checkout_branch(branch=branch, cwd=cwd)
@@ -259,6 +257,7 @@ def format_unified_version_table(repo_stats: dict[str, list[VersionStats]]) -> s
 
     Returns:
         Formatted ASCII table as a string.
+
     """
     if not repo_stats:
         return ""
@@ -322,6 +321,7 @@ def format_team_breakdown_by_version(repo_stats: dict[str, list[VersionStats]]) 
 
     Returns:
         Formatted ASCII table as a string.
+
     """
     if not repo_stats:
         return ""
@@ -423,6 +423,7 @@ def clone_or_update_repo(repo: str, base_dir: Path, github_token: str | None = N
 
     Raises:
         RuntimeError: If git clone/fetch fails.
+
     """
     # Extract repo name from full path
     repo_name = repo.rsplit("/", maxsplit=1)[-1]
@@ -431,17 +432,14 @@ def clone_or_update_repo(repo: str, base_dir: Path, github_token: str | None = N
     if repo_dir.exists():
         # Update existing repo
         LOGGER.info("Updating existing clone: %s", repo_dir)
-        try:
-            subprocess_run(
-                args=["git", "fetch", "--all", "--prune"],
-                capture_output=True,
-                text=True,
-                check=True,
-                cwd=repo_dir,
-            )
-            return repo_dir
-        except CalledProcessError as error:
-            raise RuntimeError(f"Failed to fetch updates for '{repo}': {error.stderr}") from error
+        success, _, stderr = run_command(
+            command=["git", "fetch", "--all", "--prune"],
+            check=False,
+            cwd=repo_dir,
+        )
+        if not success:
+            raise RuntimeError(f"Failed to fetch updates for '{repo}': {stderr}")
+        return repo_dir
 
     # Clone new repo - use token if provided for private repos
     if github_token:
@@ -454,16 +452,13 @@ def clone_or_update_repo(repo: str, base_dir: Path, github_token: str | None = N
 
     base_dir.mkdir(parents=True, exist_ok=True)
 
-    try:
-        subprocess_run(
-            args=["git", "clone", repo_url, str(repo_dir)],
-            capture_output=True,
-            text=True,
-            check=True,
-        )
-        return repo_dir
-    except CalledProcessError as error:
-        raise RuntimeError(f"Failed to clone '{repo}': {error.stderr}") from error
+    success, _, stderr = run_command(
+        command=["git", "clone", repo_url, str(repo_dir)],
+        check=False,
+    )
+    if not success:
+        raise RuntimeError(f"Failed to clone '{repo}': {stderr}")
+    return repo_dir
 
 
 def get_repo_branches(repo_dir: Path) -> list[str]:
@@ -479,6 +474,7 @@ def get_repo_branches(repo_dir: Path) -> list[str]:
 
     Raises:
         RuntimeError: If git command fails.
+
     """
     return get_valid_branches(cwd=repo_dir)
 
@@ -493,6 +489,7 @@ def scan_repo_branch(repo_dir: Path, branch: str, repo: str | None = None) -> Da
 
     Returns:
         DashboardStats for the branch, or None if scanning failed.
+
     """
     tests_dir = repo_dir / "tests"
     if not tests_dir.exists():
@@ -518,6 +515,7 @@ def scan_all_repos(
 
     Returns:
         Dict mapping repository name to list of VersionStats for each branch.
+
     """
     results: dict[str, list[VersionStats]] = {}
 
@@ -577,6 +575,7 @@ def cleanup_workdir(workdir: Path) -> None:
 
     Raises:
         OSError: If removal fails.
+
     """
     if workdir.exists():
         LOGGER.info("Cleaning up working directory: %s", workdir)
@@ -598,6 +597,7 @@ class TestInfo(NamedTuple):
         is_quarantined: Whether the test is marked as quarantined.
         quarantine_reason: Reason for quarantine if applicable.
         jira_ticket: Associated Jira ticket (e.g., "CNV-12345") if found.
+
     """
 
     name: str
@@ -619,6 +619,7 @@ class DashboardStats(NamedTuple):
         category_breakdown: Dict mapping category name to counts
             ({"total": N, "active": N, "quarantined": N}).
         quarantined_list: List of TestInfo for all quarantined tests.
+
     """
 
     total_tests: int
@@ -634,6 +635,7 @@ class VersionStats(NamedTuple):
     Attributes:
         branch: The branch name (e.g., "main", "cnv-4.18").
         stats: DashboardStats for this branch.
+
     """
 
     branch: str
@@ -647,6 +649,7 @@ class RepoVersionStats(NamedTuple):
         repo: The repository name (e.g., "RedHatQE/openshift-virtualization-tests").
         branch: The branch name (e.g., "main", "cnv-4.18").
         stats: DashboardStats for this repo+branch combination.
+
     """
 
     repo: str
@@ -663,6 +666,7 @@ class TestScanner:
     Attributes:
         DEFAULT_EXCLUDED_FOLDERS: Set of folder names to exclude from scanning.
         DEFAULT_FOLDER_MAPPINGS: Dict mapping source folders to target team names.
+
     """
 
     # Default folders to exclude from the report (for openshift-virtualization-tests)
@@ -682,6 +686,7 @@ class TestScanner:
             tests_dir: Path to the tests/ directory to scan.
             repo: Repository name in "owner/name" format. Used for repo-specific
                 configurations. If None, uses default configurations.
+
         """
         self.tests_dir = tests_dir
         self.repo = repo
@@ -726,6 +731,7 @@ class TestScanner:
         Returns:
             DashboardStats containing total counts, category breakdown,
             and list of quarantined tests.
+
         """
         all_tests: list[TestInfo] = []
 
@@ -753,6 +759,7 @@ class TestScanner:
         Returns:
             List of TestInfo objects for each test function found.
             Returns empty list if file cannot be parsed.
+
         """
         tests: list[TestInfo] = []
 
@@ -819,6 +826,7 @@ class TestScanner:
 
         Returns:
             The class name if the function is inside a class, None otherwise.
+
         """
         for node in walk(tree):
             if isinstance(node, ClassDef):
@@ -842,6 +850,7 @@ class TestScanner:
         Example:
             tests/network/bgp/test_foo.py -> "network"
             tests/data_protection/test_bar.py -> "storage" (mapped)
+
         """
         parts = file_path.relative_to(self.tests_dir).parts
         if parts:
@@ -869,6 +878,7 @@ class TestScanner:
         Returns:
             Tuple of (is_quarantined, reason, jira_ticket).
             If not quarantined, returns (False, "", "").
+
         """
         # Extract lines before the function definition (decorators area)
         # Only look at contiguous decorator block (stop at blank lines or non-decorator/non-continuation lines)
@@ -959,6 +969,7 @@ class TestScanner:
 
         Returns:
             DashboardStats with totals, breakdowns, and quarantined list.
+
         """
         total_tests = len(all_tests)
         quarantined_tests = [t for t in all_tests if t.is_quarantined]
@@ -1005,6 +1016,7 @@ class DashboardGenerator:
             branch: The current git branch name for version display.
             version_stats_list: Optional list of VersionStats for multi-version display (single repo mode).
             repo_stats: Optional dict mapping repo names to VersionStats lists (multi-repo mode).
+
         """
         self.stats = stats
         self.branch = branch
@@ -1020,6 +1032,7 @@ class DashboardGenerator:
 
         Returns:
             Complete HTML document as a string.
+
         """
         timestamp = datetime.now(tz=UTC).strftime("%Y-%m-%d %H:%M:%S UTC")
 
@@ -1189,6 +1202,7 @@ class DashboardGenerator:
         Returns:
             HTML string containing the version comparison section,
             or empty string if no multi-version data available.
+
         """
         # Multi-repo mode
         if self.repo_stats:
@@ -1257,6 +1271,7 @@ class DashboardGenerator:
 
         Returns:
             HTML string containing the multi-repo comparison section.
+
         """
         sections = []
 
@@ -1339,6 +1354,7 @@ class DashboardGenerator:
 
         Returns:
             HTML string containing the unified team breakdown table.
+
         """
         if not self.repo_stats:
             return ""
@@ -1360,7 +1376,7 @@ class DashboardGenerator:
         for repo, version_stats_list in self.repo_stats.items():
             for version_stat in version_stats_list:
                 repo_version_pairs.append(
-                    RepoVersionStats(repo=repo, branch=version_stat.branch, stats=version_stat.stats)
+                    RepoVersionStats(repo=repo, branch=version_stat.branch, stats=version_stat.stats),
                 )
 
         # Build header row with repo name sub-header and version columns
@@ -1452,6 +1468,7 @@ class DashboardGenerator:
 
         Returns:
             A relative or shortened path suitable for display.
+
         """
         try:
             return str(file_path.relative_to(Path.cwd()))
@@ -1474,6 +1491,7 @@ class DashboardGenerator:
         Returns:
             HTML string containing the quarantined tests section.
             Returns success message if no tests are quarantined.
+
         """
         if not self.stats.quarantined_list:
             return '            <p style="color: var(--green);">✅ No tests are currently quarantined!</p>'
@@ -1522,6 +1540,7 @@ class DashboardGenerator:
         Returns:
             HTML string containing the unified quarantined tests details section
             with tabbed interface, or empty string if no multi-repo data available.
+
         """
         if not self.repo_stats:
             return ""
@@ -1548,7 +1567,7 @@ class DashboardGenerator:
                 # Tab button with version and quarantine count
                 tab_label = f"{version_stat.branch} ({quarantined_count})"
                 all_tab_buttons.append(
-                    f'            <button class="tab-btn{active_class}" data-tab="{tab_id}">{tab_label}</button>'
+                    f'            <button class="tab-btn{active_class}" data-tab="{tab_id}">{tab_label}</button>',
                 )
 
                 # Tab content
@@ -1556,7 +1575,7 @@ class DashboardGenerator:
 
                 if quarantined_count == 0:
                     content_parts.append(
-                        '                <p style="color: var(--green);">No tests are currently quarantined!</p>'
+                        '                <p style="color: var(--green);">No tests are currently quarantined!</p>',
                     )
                 else:
                     # Group by team/category
@@ -1598,7 +1617,7 @@ class DashboardGenerator:
                 all_tab_contents.append(
                     f'            <div class="tab-content{active_class}" id="{tab_id}"{display_style}>\n'
                     + "\n".join(content_parts)
-                    + "\n            </div>"
+                    + "\n            </div>",
                 )
 
                 first_tab = False
@@ -1628,6 +1647,7 @@ def generate_json_output(repo_stats: dict[str, list[VersionStats]]) -> str:
 
     Returns:
         JSON string with complete quarantine statistics.
+
     """
     output: dict = {
         "generated_at": datetime.now(tz=UTC).isoformat(),
@@ -1692,6 +1712,7 @@ def parse_args() -> Namespace:
 
     Returns:
         Parsed arguments namespace.
+
     """
     parser = ArgumentParser(
         description="Tier2 Quarantine Status Dashboard Generator",
@@ -1773,6 +1794,7 @@ def run_multi_repo_mode(
 
     Returns:
         Exit code: 0 on success, 1 on error.
+
     """
     LOGGER.info("Mode: Multi-Repository (all versions)")
     LOGGER.info("Repositories: %s", ", ".join(REPOS))
@@ -1849,11 +1871,12 @@ def main() -> int:
 
     Returns:
         Exit code: 0 on success, 1 on error.
+
     """
     args = parse_args()
 
     # Determine output file path based on format
-    output_dir = args.output_dir if args.output_dir else Path(__file__).parent
+    output_dir = args.output_dir or Path(__file__).parent
     if args.json_output:
         output_file = output_dir / "dashboard.json"
     else:
