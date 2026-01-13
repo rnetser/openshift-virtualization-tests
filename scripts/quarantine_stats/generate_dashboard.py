@@ -758,7 +758,8 @@ class TestScanner:
 
         try:
             content = file_path.read_text(encoding="utf-8")
-        except UnicodeDecodeError:
+        except UnicodeDecodeError as error:
+            LOGGER.warning("Unicode decode error reading %s: %s", file_path, error)
             return tests
 
         # Determine category from file path
