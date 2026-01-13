@@ -2290,8 +2290,7 @@ def get_oc_image_info(  # type: ignore[return]
             LOGGER.error("Failed to get image info from quay", extra={"image": image, "error": err})
             return None
 
-        else:
-            return json.loads(out)
+        return json.loads(out)
 
     base_command = f"oc image -o json info {image} --filter-by-os {architecture}"
     if pull_secret:
