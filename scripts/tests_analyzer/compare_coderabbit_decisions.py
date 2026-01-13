@@ -185,8 +185,11 @@ def get_open_prs(repo: str, token: str | None = None) -> list[dict]:
             if len(data) < per_page:
                 break
             page += 1
-        except urllib.error.HTTPError:
-            logger.exception("Failed to fetch PRs", extra={"repo": repo, "page": page})
+        except urllib.error.HTTPError as exc:
+            logger.error(
+                msg="Failed to fetch PRs",
+                extra={"repo": repo, "page": page, "error": str(exc)},
+            )
             break
         except urllib.error.URLError as exc:
             logger.warning(msg="Network error fetching PRs", extra={"repo": repo, "error": str(exc)})
@@ -213,10 +216,10 @@ def get_pr_comments(repo: str, pr_number: int, token: str | None = None) -> list
             if len(data) < per_page:
                 break
             page += 1
-        except urllib.error.HTTPError:
-            logger.exception(
-                "Failed to fetch issue comments",
-                extra={"pr_number": pr_number, "page": page},
+        except urllib.error.HTTPError as exc:
+            logger.error(
+                msg="Failed to fetch issue comments",
+                extra={"pr_number": pr_number, "page": page, "error": str(exc)},
             )
             break
         except urllib.error.URLError as exc:
@@ -238,10 +241,10 @@ def get_pr_comments(repo: str, pr_number: int, token: str | None = None) -> list
             if len(data) < per_page:
                 break
             page += 1
-        except urllib.error.HTTPError:
-            logger.exception(
-                "Failed to fetch review comments",
-                extra={"pr_number": pr_number, "page": page},
+        except urllib.error.HTTPError as exc:
+            logger.error(
+                msg="Failed to fetch review comments",
+                extra={"pr_number": pr_number, "page": page, "error": str(exc)},
             )
             break
         except urllib.error.URLError as exc:
@@ -270,10 +273,10 @@ def get_pr_comments(repo: str, pr_number: int, token: str | None = None) -> list
             if len(data) < per_page:
                 break
             page += 1
-        except urllib.error.HTTPError:
-            logger.exception(
-                "Failed to fetch reviews",
-                extra={"pr_number": pr_number, "page": page},
+        except urllib.error.HTTPError as exc:
+            logger.error(
+                msg="Failed to fetch reviews",
+                extra={"pr_number": pr_number, "page": page, "error": str(exc)},
             )
             break
         except urllib.error.URLError as exc:
