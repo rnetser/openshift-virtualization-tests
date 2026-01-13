@@ -9,12 +9,12 @@ Compares CodeRabbit's smoke test decisions with the local pytest marker analyzer
 for all open PRs in a repository.
 
 Usage:
-    uv run python scripts/test_analyzer/compare_coderabbit_decisions.py
-    uv run python scripts/test_analyzer/compare_coderabbit_decisions.py --repo owner/repo
-    uv run python scripts/test_analyzer/compare_coderabbit_decisions.py --output json
-    uv run python scripts/test_analyzer/compare_coderabbit_decisions.py --verbose
-    uv run python scripts/test_analyzer/compare_coderabbit_decisions.py --detailed  # Include full dependency analysis
-    uv run python scripts/test_analyzer/compare_coderabbit_decisions.py --output-file report.md --detailed
+    uv run python scripts/tests_analyzer/compare_coderabbit_decisions.py
+    uv run python scripts/tests_analyzer/compare_coderabbit_decisions.py --repo owner/repo
+    uv run python scripts/tests_analyzer/compare_coderabbit_decisions.py --output json
+    uv run python scripts/tests_analyzer/compare_coderabbit_decisions.py --verbose
+    uv run python scripts/tests_analyzer/compare_coderabbit_decisions.py --detailed  # Include full dependency analysis
+    uv run python scripts/tests_analyzer/compare_coderabbit_decisions.py --output-file report.md --detailed
 """
 
 from __future__ import annotations
@@ -742,8 +742,8 @@ def main() -> int:
     prs = get_open_prs(repo=args.repo, token=token)
 
     if not prs:
-        logger.error(msg="No open PRs found", extra={"repo": args.repo})
-        return 1
+        logger.info(msg="No open PRs found", extra={"repo": args.repo})
+        return 0
 
     # Apply limit if specified
     if args.limit:
