@@ -143,6 +143,7 @@ def get_valid_branches(cwd: Path | None = None) -> list[str]:
     success, stdout, stderr = run_command(
         command=["git", "branch", "-r", "--list", "origin/main", "origin/cnv-*"],
         check=False,
+        verify_stderr=False,
         cwd=cwd,
     )
     if not success:
@@ -229,6 +230,7 @@ def checkout_branch(branch: str, cwd: Path | None = None) -> None:
     success, _, stderr = run_command(
         command=["git", "checkout", branch],
         check=False,
+        verify_stderr=False,
         cwd=cwd,
     )
     if not success:
@@ -462,6 +464,7 @@ def clone_or_update_repo(repo: str, base_dir: Path, github_token: str | None = N
         success, _, stderr = run_command(
             command=["git", "fetch", "--all", "--prune"],
             check=False,
+            verify_stderr=False,
             cwd=repo_dir,
         )
         if not success:
@@ -482,6 +485,7 @@ def clone_or_update_repo(repo: str, base_dir: Path, github_token: str | None = N
     success, _, stderr = run_command(
         command=["git", "clone", repo_url, str(repo_dir)],
         check=False,
+        verify_stderr=False,
     )
     if not success:
         raise RuntimeError(f"Failed to clone '{repo}': {stderr}")
