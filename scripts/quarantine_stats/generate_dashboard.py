@@ -710,6 +710,9 @@ class TestScanner:
         "cross_cluster_live_migration": "storage",
     }
 
+    # Maximum number of lines to search backwards for decorators
+    MAX_DECORATOR_SEARCH_LINES: ClassVar[int] = 50
+
     def __init__(self, tests_dir: Path, repo: str | None = None) -> None:
         """Initialize the scanner.
 
@@ -917,7 +920,7 @@ class TestScanner:
         decorator_lines: list[str] = []
 
         # Walk backwards from the function definition to find its decorators
-        for line_idx in range(line_number - 2, max(0, line_number - 50) - 1, -1):
+        for line_idx in range(line_number - 2, max(0, line_number - self.MAX_DECORATOR_SEARCH_LINES) - 1, -1):
             line = lines[line_idx].strip()
             if not line:
                 # Blank line - stop searching (decorators must be contiguous)
@@ -1067,14 +1070,34 @@ class DashboardGenerator:
         """
         timestamp = datetime.now(tz=UTC).strftime("%Y-%m-%d %H:%M:%S UTC")
 
-        return f"""<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Tier2 Quarantine Status</title>
-    <style>
-        :root {{
+        # Build quarantined details section based on mode
+        if self.repo_stats:
+            quarantined_details = self._generate_quarantined_details_by_version()
+        else:
+            quarantined_details = f"""        <div class="section">
+            <h2>Quarantined Tests Details</h2>
+{self._generate_quarantined_html()}
+        </div>"""
+
+        # Assemble all sections
+        parts = [
+            self._render_header(),
+            self._generate_version_comparison_section(),
+            quarantined_details,
+            self._render_footer(timestamp=timestamp),
+        ]
+
+        return "".join(parts)
+
+    def _render_css(self) -> str:
+        """Render the embedded CSS styles for the dashboard.
+
+        Returns:
+            HTML style block containing all CSS rules.
+
+        """
+        return """    <style>
+        :root {
             --green: #22c55e;
             --yellow: #eab308;
             --red: #ef4444;
@@ -1082,120 +1105,139 @@ class DashboardGenerator:
             --gray: #6b7280;
             --light-gray: #f3f4f6;
             --dark: #1f2937;
-        }}
-        * {{ box-sizing: border-box; margin: 0; padding: 0; }}
-        body {{
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
             background: var(--light-gray);
             color: var(--dark);
             line-height: 1.6;
             padding: 2rem;
-        }}
-        .container {{ max-width: 1200px; margin: 0 auto; }}
-        h1 {{
+        }
+        .container { max-width: 1200px; margin: 0 auto; }
+        h1 {
             text-align: center;
             margin-bottom: 2rem;
             color: var(--dark);
-        }}
-        .section {{
+        }
+        .section {
             background: white;
             border-radius: 8px;
             padding: 1.5rem;
             margin-bottom: 2rem;
             box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-        }}
-        .section h2 {{ margin-bottom: 1rem; color: var(--dark); }}
-        table {{ width: 100%; border-collapse: collapse; }}
-        th, td {{ padding: 0.75rem; text-align: left; border-bottom: 1px solid var(--light-gray); }}
-        th {{ background: var(--light-gray); font-weight: 600; }}
-        tr:hover {{ background: #f9fafb; }}
-        .health {{ font-weight: bold; }}
-        .health.green {{ color: var(--green); }}
-        .health.yellow {{ color: var(--yellow); }}
-        .health.red {{ color: var(--red); }}
-        .team-header {{
+        }
+        .section h2 { margin-bottom: 1rem; color: var(--dark); }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { padding: 0.75rem; text-align: left; border-bottom: 1px solid var(--light-gray); }
+        th { background: var(--light-gray); font-weight: 600; }
+        tr:hover { background: #f9fafb; }
+        .health { font-weight: bold; }
+        .health.green { color: var(--green); }
+        .health.yellow { color: var(--yellow); }
+        .health.red { color: var(--red); }
+        .team-header {
             background: var(--light-gray);
             padding: 0.75rem 1rem;
             margin: 1rem 0 0.5rem;
             border-radius: 4px;
             font-weight: 600;
-        }}
-        .test-item {{
+        }
+        .test-item {
             padding: 0.75rem 1rem;
             border-left: 3px solid var(--red);
             margin-bottom: 0.5rem;
             background: #fef2f2;
-        }}
-        .test-item code {{ background: #fee2e2; padding: 0.125rem 0.375rem; border-radius: 4px; font-size: 0.875rem; }}
-        .test-item a {{ color: var(--blue); text-decoration: none; }}
-        .test-item a:hover {{ text-decoration: underline; }}
-        .test-item .meta {{ color: var(--gray); font-size: 0.875rem; margin-top: 0.25rem; }}
-        .note {{
+        }
+        .test-item code { background: #fee2e2; padding: 0.125rem 0.375rem; border-radius: 4px; font-size: 0.875rem; }
+        .test-item a { color: var(--blue); text-decoration: none; }
+        .test-item a:hover { text-decoration: underline; }
+        .test-item .meta { color: var(--gray); font-size: 0.875rem; margin-top: 0.25rem; }
+        .note {
             background: #eff6ff;
             border-left: 3px solid var(--blue);
             padding: 0.75rem 1rem;
             margin-top: 1rem;
             font-size: 0.875rem;
             color: var(--gray);
-        }}
-        .tabs {{
+        }
+        .tabs {
             display: flex;
             flex-wrap: wrap;
             gap: 0.5rem;
             margin-bottom: 1rem;
             border-bottom: 2px solid var(--light-gray);
             padding-bottom: 0.5rem;
-        }}
-        .tab-btn {{
+        }
+        .tab-btn {
             padding: 0.5rem 1rem;
             border: none;
             background: var(--light-gray);
             cursor: pointer;
             border-radius: 4px 4px 0 0;
             font-size: 0.875rem;
-        }}
-        .tab-btn.active {{
+        }
+        .tab-btn.active {
             background: var(--blue);
             color: white;
-        }}
-        .tab-btn:hover:not(.active) {{
+        }
+        .tab-btn:hover:not(.active) {
             background: #e5e7eb;
-        }}
-        .tab-separator {{
+        }
+        .tab-separator {
             display: flex;
             align-items: center;
             padding: 0 0.25rem;
             color: var(--gray);
             font-weight: bold;
-        }}
-        .tab-content {{
+        }
+        .tab-content {
             display: none;
-        }}
-        .tab-content.active {{
+        }
+        .tab-content.active {
             display: block;
-        }}
-        .footer {{
+        }
+        .footer {
             text-align: center;
             color: var(--gray);
             font-size: 0.875rem;
             margin-top: 2rem;
-        }}
-    </style>
+        }
+    </style>"""
+
+    def _render_header(self) -> str:
+        """Render the HTML header section including doctype, head, and opening body/container.
+
+        Returns:
+            HTML string from doctype through the opening of the main container
+            and page title.
+
+        """
+        return f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tier2 Quarantine Status</title>
+{self._render_css()}
 </head>
 <body>
     <div class="container">
         <h1>Tier2 Quarantine Status</h1>
 
-{self._generate_version_comparison_section()}
-{
-            self._generate_quarantined_details_by_version()
-            if self.repo_stats
-            else f'''        <div class="section">
-            <h2>Quarantined Tests Details</h2>
-{self._generate_quarantined_html()}
-        </div>'''
-        }
-        <div class="footer">
+"""
+
+    def _render_footer(self, timestamp: str) -> str:
+        """Render the HTML footer section with timestamp and closing tags.
+
+        Args:
+            timestamp: Formatted timestamp string for the "Last updated" display.
+
+        Returns:
+            HTML string containing footer content, JavaScript, and closing tags.
+
+        """
+        return f"""        <div class="footer">
             Last updated: {timestamp}<br>
             Generated by generate_dashboard.py
         </div>
