@@ -21,6 +21,7 @@ from argparse import ArgumentParser, Namespace, RawDescriptionHelpFormatter
 from ast import AST, ClassDef, FunctionDef, parse, walk
 from collections import defaultdict
 from datetime import UTC, datetime
+from html import escape as html_escape
 from json import dumps as json_dumps
 from os import environ
 from pathlib import Path
@@ -149,11 +150,11 @@ def get_valid_branches(cwd: Path | None = None) -> list[str]:
 
     branches: list[str] = []
     for line in stdout.strip().split("\n"):
-        line = line.strip()
-        if not line:
+        stripped_line = line.strip()
+        if not stripped_line:
             continue
         # Remove 'origin/' prefix
-        branch = line.replace("origin/", "").strip()
+        branch = stripped_line.replace("origin/", "").strip()
         if is_valid_branch(branch=branch):
             branches.append(branch)
 
@@ -186,6 +187,32 @@ def sort_branches(branches: list[str]) -> list[str]:
         return (2, 0)
 
     return sorted(branches, key=sort_key)
+
+
+def get_display_path(file_path: Path) -> str:
+    """Get a display-friendly path for a test file.
+
+    In local mode, returns path relative to cwd.
+    In multi-repo mode (files under /tmp/), extracts path from 'tests/' onwards.
+
+    Args:
+        file_path: Absolute path to the test file.
+
+    Returns:
+        A relative or shortened path suitable for display.
+
+    """
+    try:
+        return str(file_path.relative_to(Path.cwd()))
+    except ValueError:
+        # Multi-repo mode: file is not under cwd
+        # Try to extract path from 'tests/' onwards
+        path_parts = file_path.parts
+        if "tests" in path_parts:
+            tests_index = path_parts.index("tests")
+            return str(Path(*path_parts[tests_index:]))
+        # Fallback to just the filename
+        return file_path.name
 
 
 def checkout_branch(branch: str, cwd: Path | None = None) -> None:
@@ -972,7 +999,7 @@ class TestScanner:
 
         """
         total_tests = len(all_tests)
-        quarantined_tests = [t for t in all_tests if t.is_quarantined]
+        quarantined_tests = [test for test in all_tests if test.is_quarantined]
         active_tests = total_tests - len(quarantined_tests)
 
         # Category breakdown
@@ -1460,8 +1487,7 @@ class DashboardGenerator:
     def _get_display_path(self, file_path: Path) -> str:
         """Get a display-friendly path for a test file.
 
-        In local mode, returns path relative to cwd.
-        In multi-repo mode (files under /tmp/), extracts path from 'tests/' onwards.
+        Delegates to the module-level get_display_path function.
 
         Args:
             file_path: Absolute path to the test file.
@@ -1470,17 +1496,7 @@ class DashboardGenerator:
             A relative or shortened path suitable for display.
 
         """
-        try:
-            return str(file_path.relative_to(Path.cwd()))
-        except ValueError:
-            # Multi-repo mode: file is not under cwd
-            # Try to extract path from 'tests/' onwards
-            path_parts = file_path.parts
-            if "tests" in path_parts:
-                tests_index = path_parts.index("tests")
-                return str(Path(*path_parts[tests_index:]))
-            # Fallback to just the filename
-            return file_path.name
+        return get_display_path(file_path=file_path)
 
     def _generate_quarantined_html(self) -> str:
         """Generate HTML for quarantined tests section.
@@ -1512,8 +1528,10 @@ class DashboardGenerator:
                 f'            <div class="team-header">📁 {category_display} ({test_count} test{plural})</div>',
             )
 
-            for test in sorted(tests, key=lambda t: t.name):
-                rel_path = self._get_display_path(file_path=test.file_path)
+            for test in sorted(tests, key=lambda test_item: test_item.name):
+                rel_path = html_escape(s=self._get_display_path(file_path=test.file_path))
+                escaped_name = html_escape(s=test.name)
+                escaped_reason = html_escape(s=test.quarantine_reason) if test.quarantine_reason else ""
                 jira_link = f"https://issues.redhat.com/browse/{test.jira_ticket}"
                 jira_html = (
                     f' <a href="{jira_link}" target="_blank">[{test.jira_ticket}]</a>'
@@ -1521,11 +1539,11 @@ class DashboardGenerator:
                     else ' <span style="color: var(--yellow);">⚠️ No Jira ticket</span>'
                 )
                 reason_html = (
-                    f'<br><span class="meta">Reason: {test.quarantine_reason}</span>' if test.quarantine_reason else ""
+                    f'<br><span class="meta">Reason: {escaped_reason}</span>' if test.quarantine_reason else ""
                 )
 
                 lines.append(f"""            <div class="test-item">
-                <code>{test.name}</code>{jira_html}
+                <code>{escaped_name}</code>{jira_html}
                 <div class="meta">File: {rel_path}:{test.line_number}</div>{reason_html}
             </div>""")
 
@@ -1595,8 +1613,10 @@ class DashboardGenerator:
                         )
                         content_parts.append(header_html)
 
-                        for test in sorted(tests, key=lambda t: t.name):
-                            rel_path = self._get_display_path(file_path=test.file_path)
+                        for test in sorted(tests, key=lambda test_item: test_item.name):
+                            rel_path = html_escape(s=self._get_display_path(file_path=test.file_path))
+                            escaped_name = html_escape(s=test.name)
+                            escaped_reason = html_escape(s=test.quarantine_reason) if test.quarantine_reason else ""
                             jira_link = f"https://issues.redhat.com/browse/{test.jira_ticket}"
                             jira_html = (
                                 f' <a href="{jira_link}" target="_blank">[{test.jira_ticket}]</a>'
@@ -1604,13 +1624,13 @@ class DashboardGenerator:
                                 else ' <span style="color: var(--yellow);">No Jira ticket</span>'
                             )
                             reason_html = (
-                                f'<br><span class="meta">Reason: {test.quarantine_reason}</span>'
+                                f'<br><span class="meta">Reason: {escaped_reason}</span>'
                                 if test.quarantine_reason
                                 else ""
                             )
 
                             content_parts.append(f"""                <div class="test-item">
-                    <code>{test.name}</code>{jira_html}
+                    <code>{escaped_name}</code>{jira_html}
                     <div class="meta">File: {rel_path}:{test.line_number}</div>{reason_html}
                 </div>""")
 
@@ -1676,17 +1696,9 @@ def generate_json_output(repo_stats: dict[str, list[VersionStats]]) -> str:
             # Build quarantined tests list
             quarantined_tests: list[dict] = []
             for test in stats.quarantined_list:
-                # Get display path
-                path_parts = test.file_path.parts
-                if "tests" in path_parts:
-                    tests_index = path_parts.index("tests")
-                    file_path = str(Path(*path_parts[tests_index:]))
-                else:
-                    file_path = test.file_path.name
-
                 quarantined_tests.append({
                     "name": test.name,
-                    "file": file_path,
+                    "file": get_display_path(file_path=test.file_path),
                     "line": test.line_number,
                     "team": test.category.replace("_", " ").title(),
                     "jira": test.jira_ticket,
