@@ -173,19 +173,21 @@ def sort_branches(branches: list[str]) -> list[str]:
 
     """
 
-    def sort_key(branch_name: str) -> tuple[int, float]:
+    def sort_key(branch_name: str) -> tuple[int, int, int]:
         if branch_name == "main":
-            return (0, 0)
+            return (0, 0, 0)
         # Extract version number for cnv-X.Y branches
         match = CNV_BRANCH_PATTERN.match(string=branch_name)
         if match:
             version_str = branch_name.replace("cnv-", "")
-            try:
-                version = float(version_str)
-                return (1, -version)  # Negative for descending order
-            except ValueError:
-                return (2, 0)
-        return (2, 0)
+            parts = version_str.split(".")
+            if len(parts) == 2:
+                try:
+                    major, minor = int(parts[0]), int(parts[1])
+                    return (1, -major, -minor)  # Negative for descending order
+                except ValueError:
+                    return (2, 0, 0)
+        return (2, 0, 0)
 
     return sorted(branches, key=sort_key)
 
