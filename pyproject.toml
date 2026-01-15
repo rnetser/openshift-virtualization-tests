@@ -94,6 +94,7 @@ utilities-test = [
 ]
 
 [project.scripts]
+quarantine-dashboard = "scripts.quarantine_stats.generate_dashboard:main"
 pytest-marker-analyzer = "scripts.tests_analyzer.pytest_marker_analyzer:main"
 
 [tool.hatch.build.targets.wheel]
