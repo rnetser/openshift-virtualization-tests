@@ -77,7 +77,6 @@ fcn_exclude_functions =
     QueueListener,
     requests,
     multiprocessing,
-    Path,
     ast,
     ThreadPoolExecutor,
     as_completed,
