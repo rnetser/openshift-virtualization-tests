@@ -121,25 +121,25 @@ uv run python scripts/test_analyzer/pytest_marker_analyzer.py --markers smoke
 AND logic:
 ```bash
 uv run python scripts/test_analyzer/pytest_marker_analyzer.py \
-  --markers "smoke and sanity"
+  --markers "smoke and tier2"
 ```
 
 OR logic:
 ```bash
 uv run python scripts/test_analyzer/pytest_marker_analyzer.py \
-  --markers "smoke or sanity or critical"
+  --markers "smoke or gating"
 ```
 
 NOT logic:
 ```bash
 uv run python scripts/test_analyzer/pytest_marker_analyzer.py \
-  --markers "smoke and not slow"
+  --markers "gating and not ipv4"
 ```
 
 Complex expressions:
 ```bash
 uv run python scripts/test_analyzer/pytest_marker_analyzer.py \
-  --markers "(smoke or sanity) and not slow"
+  --markers "(tier2 or tier3) and not gpu"
 ```
 
 ### Output Formats
