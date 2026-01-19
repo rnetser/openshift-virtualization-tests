@@ -1,7 +1,5 @@
-"""SSH utilities using OpenSSH via virtctl ssh.
-
-This module replaces paramiko/rrmngmnt SSH functionality with OpenSSH
-executed through `virtctl ssh`, providing better stability and compatibility.
+"""
+Assisted-by: Claude cli
 """
 
 from __future__ import annotations
@@ -58,19 +56,19 @@ class SSHConnectionError(Exception):
     """Exception raised when SSH connection fails."""
 
 
+class TimezoneInfo(NamedTuple):
+    """Timezone information structure."""
+
+    name: str
+    offset: str
+
+
 class KernelInfo(NamedTuple):
     """Kernel information structure."""
 
     release: str
     version: str
     type: str
-
-
-class TimezoneInfo(NamedTuple):
-    """Timezone information structure."""
-
-    name: str
-    offset: str
 
 
 @dataclass(frozen=True)
@@ -340,7 +338,7 @@ def is_connective(vm: VirtualMachineForTests, timeout: int | float = 30) -> bool
 
 
 class OSInfo:
-    """OS information accessor for a VM, mimicking rrmngmnt Host.os interface."""
+    """OS information accessor for a VM."""
 
     def __init__(self, vm: VirtualMachineForTests) -> None:
         """Initialize OSInfo.
@@ -349,6 +347,23 @@ class OSInfo:
             vm: VirtualMachine object.
         """
         self._vm = vm
+        self._os_release_cache: dict[str, str] | None = None
+
+    def _get_os_release(self) -> dict[str, str]:
+        """Parse /etc/os-release file (cached).
+
+        Returns:
+            Dictionary of key-value pairs from /etc/os-release.
+        """
+        if self._os_release_cache is None:
+            result = run_command(vm=self._vm, command="cat /etc/os-release", check=True)
+            info: dict[str, str] = {}
+            for line in result.stdout.strip().splitlines():
+                if "=" in line:
+                    key, value = line.split("=", 1)
+                    info[key.strip()] = value.strip(" \"'")
+            self._os_release_cache = info
+        return self._os_release_cache
 
     @property
     def release_str(self) -> str:
@@ -357,26 +372,16 @@ class OSInfo:
         Returns:
             OS release string (e.g., "Red Hat Enterprise Linux 9.2").
         """
-        result = run_command(vm=self._vm, command="cat /etc/os-release", check=True)
-        for line in result.stdout.strip().splitlines():
-            if line.startswith("PRETTY_NAME="):
-                return line.split("=", 1)[1].strip(" \"'")
-        return ""
+        return self._get_os_release().get("PRETTY_NAME", "")
 
     @property
     def release_info(self) -> dict[str, str]:
         """Get OS release information as dictionary.
 
         Returns:
-            Dictionary with keys like NAME, VERSION, VERSION_ID, PRETTY_NAME, ID.
+            Dictionary of key-value pairs from /etc/os-release.
         """
-        result = run_command(vm=self._vm, command="cat /etc/os-release", check=True)
-        info: dict[str, str] = {}
-        for line in result.stdout.strip().splitlines():
-            if "=" in line:
-                key, value = line.split("=", 1)
-                info[key.strip()] = value.strip(" \"'")
-        return info
+        return self._get_os_release()
 
     @property
     def kernel_info(self) -> KernelInfo:
@@ -414,28 +419,6 @@ class OSInfo:
         return TimezoneInfo(name=tz_name, offset=offset_value)
 
 
-class NetworkInfo:
-    """Network information accessor for a VM, mimicking rrmngmnt Host.network interface."""
-
-    def __init__(self, vm: VirtualMachineForTests) -> None:
-        """Initialize NetworkInfo.
-
-        Args:
-            vm: VirtualMachine object.
-        """
-        self._vm = vm
-
-    @property
-    def hostname(self) -> str:
-        """Get the hostname of the VM.
-
-        Returns:
-            Hostname string.
-        """
-        result = run_command(vm=self._vm, command="hostname", check=True)
-        return result.stdout.strip()
-
-
 class PackageManager:
     """Package manager accessor for a VM, mimicking rrmngmnt Host.package_manager interface."""
 
@@ -446,6 +429,24 @@ class PackageManager:
             vm: VirtualMachine object.
         """
         self._vm = vm
+
+    def exist(self, package: str) -> bool:
+        """Check if package is installed.
+
+        Args:
+            package: Package name.
+
+        Returns:
+            True if package is installed.
+        """
+        rpm_cmd = f"rpm -q {shlex.quote(package)}"
+        result = run_command(vm=self._vm, command=rpm_cmd, check=False)
+        if result.returncode == 0:
+            return True
+
+        dpkg_cmd = f"dpkg -l {shlex.quote(package)}"
+        result = run_command(vm=self._vm, command=dpkg_cmd, check=False)
+        return result.returncode == 0
 
     def info(self, package: str) -> str:
         """Get package information.
@@ -465,23 +466,27 @@ class PackageManager:
         result = run_command(vm=self._vm, command=dpkg_cmd, check=False)
         return result.stdout
 
-    def exist(self, package: str) -> bool:
-        """Check if package is installed.
+
+class NetworkInfo:
+    """Network information accessor for a VM."""
+
+    def __init__(self, vm: VirtualMachineForTests) -> None:
+        """Initialize NetworkInfo.
 
         Args:
-            package: Package name.
+            vm: VirtualMachine object.
+        """
+        self._vm = vm
+
+    @property
+    def hostname(self) -> str:
+        """Get the hostname of the VM.
 
         Returns:
-            True if package is installed.
+            Hostname string.
         """
-        rpm_cmd = f"rpm -q {shlex.quote(package)}"
-        result = run_command(vm=self._vm, command=rpm_cmd, check=False)
-        if result.returncode == 0:
-            return True
-
-        dpkg_cmd = f"dpkg -l {shlex.quote(package)}"
-        result = run_command(vm=self._vm, command=dpkg_cmd, check=False)
-        return result.returncode == 0
+        result = run_command(vm=self._vm, command="hostname", check=True)
+        return result.stdout.strip()
 
 
 class FileSystem:
@@ -562,141 +567,6 @@ class FileSystem:
                 message=f"File transfer timed out: {path_src} -> {path_dst}",
             ) from exc
 
-    def upload(self, local_path: str, remote_path: str) -> None:
-        """Upload a file from local machine to VM.
-
-        Args:
-            local_path: Path to local file.
-            remote_path: Destination path on VM.
-
-        Raises:
-            SSHCommandError: If upload fails.
-        """
-        username, _ = _get_vm_credentials(vm=self._vm)
-        ssh_key_path = _get_ssh_key_path() if _should_use_ssh_key(vm=self._vm) else None
-
-        scp_cmd = [
-            VIRTCTL,
-            "scp",
-            "--local-ssh-opts=-o StrictHostKeyChecking=no",
-            "--local-ssh-opts=-o UserKnownHostsFile=/dev/null",
-            "--local-ssh-opts=-o LogLevel=ERROR",
-        ]
-
-        if ssh_key_path:
-            scp_cmd.extend(["--identity-file", ssh_key_path])
-
-        scp_cmd.extend([
-            local_path,
-            f"{username}@vmi/{self._vm.name}.{self._vm.namespace}:{remote_path}",
-        ])
-
-        LOGGER.info(
-            "Uploading file to VM",
-            extra={"vm": self._vm.name, "local_path": local_path, "remote_path": remote_path},
-        )
-
-        try:
-            success, stdout, stderr = shell_run_command(
-                command=scp_cmd,
-                check=False,
-                verify_stderr=False,
-                timeout=int(TIMEOUT_2MIN),
-            )
-            if not success:
-                raise SSHCommandError(
-                    message=f"File upload failed: {stderr}",
-                    returncode=1,
-                    stdout=stdout,
-                    stderr=stderr,
-                )
-        except subprocess.TimeoutExpired as exc:
-            raise SSHCommandError(
-                message=f"File upload timed out: {local_path} -> {remote_path}",
-            ) from exc
-
-    def download(self, remote_path: str, local_path: str) -> None:
-        """Download a file from VM to local machine.
-
-        Args:
-            remote_path: Path to file on VM.
-            local_path: Destination path on local machine.
-
-        Raises:
-            SSHCommandError: If download fails.
-        """
-        username, _ = _get_vm_credentials(vm=self._vm)
-        ssh_key_path = _get_ssh_key_path() if _should_use_ssh_key(vm=self._vm) else None
-
-        scp_cmd = [
-            VIRTCTL,
-            "scp",
-            "--local-ssh-opts=-o StrictHostKeyChecking=no",
-            "--local-ssh-opts=-o UserKnownHostsFile=/dev/null",
-            "--local-ssh-opts=-o LogLevel=ERROR",
-        ]
-
-        if ssh_key_path:
-            scp_cmd.extend(["--identity-file", ssh_key_path])
-
-        scp_cmd.extend([
-            f"{username}@vmi/{self._vm.name}.{self._vm.namespace}:{remote_path}",
-            local_path,
-        ])
-
-        LOGGER.info(
-            "Downloading file from VM",
-            extra={"vm": self._vm.name, "remote_path": remote_path, "local_path": local_path},
-        )
-
-        try:
-            success, stdout, stderr = shell_run_command(
-                command=scp_cmd,
-                check=False,
-                verify_stderr=False,
-                timeout=int(TIMEOUT_2MIN),
-            )
-            if not success:
-                raise SSHCommandError(
-                    message=f"File download failed: {stderr}",
-                    returncode=1,
-                    stdout=stdout,
-                    stderr=stderr,
-                )
-        except subprocess.TimeoutExpired as exc:
-            raise SSHCommandError(
-                message=f"File download timed out: {remote_path} -> {local_path}",
-            ) from exc
-
-
-class SSHExecutor:
-    """SSH executor for a VM, providing command execution interface."""
-
-    def __init__(self, vm: VirtualMachineForTests) -> None:
-        """Initialize SSHExecutor.
-
-        Args:
-            vm: VirtualMachine object.
-        """
-        self._vm = vm
-
-    def run_cmd(
-        self,
-        command: list[str],
-        timeout: int = TIMEOUT_1MIN,
-    ) -> tuple[int, str, str]:
-        """Run command and return (rc, stdout, stderr).
-
-        Args:
-            command: Command as list of arguments.
-            timeout: Command timeout in seconds.
-
-        Returns:
-            Tuple of (returncode, stdout, stderr).
-        """
-        result = run_command(vm=self._vm, command=command, timeout=timeout, check=False)
-        return result.returncode, result.stdout, result.stderr
-
 
 class SSHClient:
     """SSH client wrapper for a VM, mimicking rrmngmnt Host interface.
@@ -744,123 +614,3 @@ class SSHClient:
 
         result = run_command(vm=self._vm, command=cmd_str, timeout=int(tcp_timeout), check=False)
         return result.returncode, result.stdout, result.stderr
-
-    def executor(self) -> SSHExecutor:
-        """Get an SSHExecutor for this VM.
-
-        Returns:
-            SSHExecutor instance.
-        """
-        return SSHExecutor(vm=self._vm)
-
-
-def get_os_release_str(vm: VirtualMachineForTests) -> str:
-    """Get the OS release string from a VM.
-
-    Args:
-        vm: VirtualMachine object.
-
-    Returns:
-        OS release string (e.g., "Red Hat Enterprise Linux 9.2").
-    """
-    return OSInfo(vm=vm).release_str
-
-
-def get_os_release_info(vm: VirtualMachineForTests) -> dict[str, str]:
-    """Get OS release information from a VM.
-
-    Args:
-        vm: VirtualMachine object.
-
-    Returns:
-        Dictionary with keys like NAME, VERSION, VERSION_ID, PRETTY_NAME, ID.
-    """
-    return OSInfo(vm=vm).release_info
-
-
-def get_kernel_info(vm: VirtualMachineForTests) -> KernelInfo:
-    """Get kernel information from a VM.
-
-    Args:
-        vm: VirtualMachine object.
-
-    Returns:
-        KernelInfo namedtuple with release, version, and type.
-    """
-    return OSInfo(vm=vm).kernel_info
-
-
-def get_timezone(vm: VirtualMachineForTests) -> TimezoneInfo:
-    """Get timezone information from a VM.
-
-    Args:
-        vm: VirtualMachine object.
-
-    Returns:
-        TimezoneInfo namedtuple with name and offset.
-    """
-    return OSInfo(vm=vm).timezone
-
-
-def get_hostname(vm: VirtualMachineForTests) -> str:
-    """Get the hostname of a VM.
-
-    Args:
-        vm: VirtualMachine object.
-
-    Returns:
-        Hostname string.
-    """
-    return NetworkInfo(vm=vm).hostname
-
-
-def get_package_info(vm: VirtualMachineForTests, package_name: str) -> str:
-    """Get package information from a VM.
-
-    Args:
-        vm: VirtualMachine object.
-        package_name: Name of the package.
-
-    Returns:
-        Package info string.
-    """
-    return PackageManager(vm=vm).info(package=package_name)
-
-
-def transfer_file(
-    vm: VirtualMachineForTests,
-    src_path: str,
-    dst_path: str,
-    upload: bool = True,
-) -> None:
-    """Transfer file to/from VM.
-
-    Args:
-        vm: VirtualMachine object.
-        src_path: Source file path.
-        dst_path: Destination file path.
-        upload: If True, upload local file to VM. If False, download from VM.
-
-    Raises:
-        SSHCommandError: If transfer fails.
-    """
-    fs = FileSystem(vm=vm)
-    if upload:
-        fs.upload(local_path=src_path, remote_path=dst_path)
-    else:
-        fs.download(remote_path=src_path, local_path=dst_path)
-
-
-def create_ssh_client(vm: VirtualMachineForTests) -> SSHClient:
-    """Create an SSHClient for a VM.
-
-    This is the main entry point for creating an SSH client that can be
-    used as a drop-in replacement for the rrmngmnt Host object.
-
-    Args:
-        vm: VirtualMachine object.
-
-    Returns:
-        SSHClient instance with os, network, package_manager, and fs accessors.
-    """
-    return SSHClient(vm=vm)
