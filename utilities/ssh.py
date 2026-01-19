@@ -388,24 +388,24 @@ class OSInfo:
         """Get kernel information.
 
         Returns:
-            KernelInfo namedtuple with release, version, and type.
+            KernelInfo namedtuple with release, version, and type (machine architecture).
         """
-        result = run_command(vm=self._vm, command="uname -r -v -s", check=True)
+        result = run_command(vm=self._vm, command="uname -r -v -m", check=True)
         parts = result.stdout.strip().split(maxsplit=2)
-        kernel_type = parts[0] if len(parts) > 0 else ""
-        release = parts[1] if len(parts) > 1 else ""
-        version = parts[2] if len(parts) > 2 else ""
-        return KernelInfo(release=release, version=version, type=kernel_type)
+        release = parts[0] if len(parts) > 0 else ""
+        version = parts[1] if len(parts) > 1 else ""
+        machine = parts[2] if len(parts) > 2 else ""
+        return KernelInfo(release=release, version=version, type=machine)
 
     @property
     def timezone(self) -> TimezoneInfo:
         """Get timezone information.
 
         Returns:
-            TimezoneInfo namedtuple with name and offset.
+            TimezoneInfo namedtuple with name (abbreviation like EST, PST) and offset.
             The offset is in QEMU guest agent format (seconds / 36).
         """
-        result = run_command(vm=self._vm, command="timedatectl show --property=Timezone --value", check=True)
+        result = run_command(vm=self._vm, command="date +%Z", check=True)
         tz_name = result.stdout.strip()
 
         offset_result = run_command(vm=self._vm, command="date +%z", check=True)
