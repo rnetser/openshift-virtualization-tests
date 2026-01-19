@@ -10,7 +10,6 @@ from ocp_resources.mig_plan import MigPlan
 from ocp_resources.resource import ResourceEditor
 from ocp_resources.virtual_machine_cluster_instancetype import VirtualMachineClusterInstancetype
 from ocp_resources.virtual_machine_cluster_preference import VirtualMachineClusterPreference
-from pyhelper_utils.shell import run_ssh_commands
 
 from tests.storage.storage_migration.constants import (
     CONTENT,
@@ -34,6 +33,7 @@ from utilities.constants import (
     U1_SMALL,
     Images,
 )
+from utilities.ssh import run_ssh_commands
 from utilities.storage import (
     create_dv,
     data_volume_template_with_source_ref_dict,
@@ -346,7 +346,7 @@ def vm_for_storage_class_migration_with_hotplugged_volume(
 def vm_with_mounted_hotplugged_disk(vm_for_storage_class_migration_with_hotplugged_volume):
     # Mount the disk to the VM
     run_ssh_commands(
-        host=vm_for_storage_class_migration_with_hotplugged_volume.ssh_exec,
+        vm=vm_for_storage_class_migration_with_hotplugged_volume,
         commands=[
             shlex.split(cmd)
             for cmd in [
@@ -362,7 +362,7 @@ def vm_with_mounted_hotplugged_disk(vm_for_storage_class_migration_with_hotplugg
 @pytest.fixture(scope="class")
 def written_file_to_the_mounted_hotplugged_disk(vm_with_mounted_hotplugged_disk):
     run_ssh_commands(
-        host=vm_with_mounted_hotplugged_disk.ssh_exec,
+        vm=vm_with_mounted_hotplugged_disk,
         commands=shlex.split(
             f"echo '{CONTENT}' | sudo tee {MOUNT_HOTPLUGGED_DEVICE_PATH}/{FILE_BEFORE_STORAGE_MIGRATION}"
         ),
@@ -419,7 +419,7 @@ def written_file_to_windows_vms_before_migration(booted_vms_for_storage_class_mi
         cmd = shlex.split(
             f'powershell -command "\\"{CONTENT}\\" | Out-File -FilePath {WINDOWS_FILE_WITH_PATH} -Append"'
         )
-        run_ssh_commands(host=vm.ssh_exec, commands=cmd)
+        run_ssh_commands(vm=vm, commands=cmd)
     yield booted_vms_for_storage_class_migration
 
 
