@@ -138,7 +138,11 @@ def _build_virtctl_ssh_command(
     command: str,
     ssh_key_path: str | None = None,
 ) -> list[str]:
-    """Build the virtctl ssh command with proper options.
+    """Build SSH command using virtctl port-forward as ProxyCommand.
+
+    This tunnels SSH through the Kubernetes API server, which works
+    in environments where direct pod network access is not available
+    (e.g., IPv6 single-stack clusters accessed through a proxy).
 
     Args:
         vm_name: Name of the virtual machine.
@@ -150,23 +154,24 @@ def _build_virtctl_ssh_command(
     Returns:
         List of command arguments for subprocess.
     """
+    proxy_command = f"{VIRTCTL} port-forward --stdio vmi/{vm_name}.{namespace} 22"
+
     cmd = [
-        VIRTCTL,
         "ssh",
-        "-l",
-        username,
-        f"vmi/{vm_name}",
-        "-n",
-        namespace,
-        "--command",
-        command,
-        "--local-ssh-opts=-o StrictHostKeyChecking=no",
-        "--local-ssh-opts=-o UserKnownHostsFile=/dev/null",
-        "--local-ssh-opts=-o LogLevel=ERROR",
+        "-o",
+        f"ProxyCommand={proxy_command}",
+        "-o",
+        "StrictHostKeyChecking=no",
+        "-o",
+        "UserKnownHostsFile=/dev/null",
+        "-o",
+        "LogLevel=ERROR",
     ]
 
     if ssh_key_path:
-        cmd.extend(["--identity-file", ssh_key_path])
+        cmd.extend(["-i", ssh_key_path])
+
+    cmd.extend([f"{username}@localhost", command])
 
     return cmd
 
@@ -191,7 +196,12 @@ def run_command(
     timeout: int | float = TIMEOUT_1MIN,
     check: bool = False,
 ) -> CommandResult:
-    """Execute a command on the VM via virtctl ssh.
+    """Execute a command on the VM via SSH using virtctl port-forward.
+
+    Uses OpenSSH with virtctl port-forward as ProxyCommand to tunnel
+    through the Kubernetes API server. This works in environments where
+    direct pod network access is not available (e.g., IPv6 single-stack
+    clusters accessed through a proxy).
 
     Args:
         vm: VirtualMachine object.
@@ -262,7 +272,7 @@ def run_command(
             stderr=stderr,
         ) from exc
     except OSError as exc:
-        raise SSHConnectionError(f"Failed to execute virtctl ssh: {exc}") from exc
+        raise SSHConnectionError(f"Failed to execute SSH command: {exc}") from exc
 
 
 def run_ssh_commands(
