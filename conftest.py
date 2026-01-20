@@ -759,7 +759,7 @@ def pytest_sessionstart(session):
             py_config["servers"] = {
                 name: _server.format(server=py_config["server_url"]) for name, _server in py_config["servers"].items()
             }
-            py_config["os_login_param"] = get_cnv_tests_secret_by_name(name="os_login", session=session)
+            py_config["os_login_param"] = get_cnv_tests_secret_by_name(secret_name="os_login", session=session)
 
     # must be at the end to make sure we create it only after all pytest_sessionstart checks pass.
     if not skip_if_pytest_flags_exists(pytest_config=session.config):
