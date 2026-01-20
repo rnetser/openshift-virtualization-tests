@@ -390,12 +390,13 @@ class OSInfo:
         Returns:
             KernelInfo namedtuple with release, version, and type (machine architecture).
         """
-        result = run_command(vm=self._vm, command="uname -r -v -m", check=True)
-        parts = result.stdout.strip().split(maxsplit=2)
-        release = parts[0] if len(parts) > 0 else ""
-        version = parts[1] if len(parts) > 1 else ""
-        machine = parts[2] if len(parts) > 2 else ""
-        return KernelInfo(release=release, version=version, type=machine)
+        result = run_command(vm=self._vm, command="uname -r; uname -v; uname -m", check=True)
+        lines = result.stdout.strip().split("\n")
+        return KernelInfo(
+            release=lines[0],
+            version=lines[1],
+            type=lines[2],
+        )
 
     @property
     def timezone(self) -> TimezoneInfo:

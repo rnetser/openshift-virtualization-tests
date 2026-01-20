@@ -391,12 +391,12 @@ def get_libvirt_user_info(vm):
 def get_linux_user_info(vm):
     if any(os_version in vm.name for os_version in ["rhel-7", "rhel-8", "centos-8"]):
         # Older versions use lastlog and who to get the login time
-        cmd = shlex.split("lastlog | grep tty; who | awk \"'{print$3}'\"")
+        cmd = ["lastlog | grep tty; who | awk '{print $3}'"]
         output = run_ssh_commands(vm=vm, commands=cmd)[0].strip().split()
         date = datetime.strptime(f"{output[7]}-{output[3]}-{output[4]} {output[5]}", "%Y-%b-%d %H:%M:%S")
     else:
         # Newer versions use last -w --time-format iso to get the login time
-        cmd = shlex.split("last -w --time-format iso | grep 'tty.*still logged in'")
+        cmd = ["last -w --time-format iso | grep 'tty.*still logged in'"]
         output = run_ssh_commands(vm=vm, commands=cmd)[0].strip().split()
         date = datetime.fromisoformat(output[2])
 
