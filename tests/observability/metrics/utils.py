@@ -19,7 +19,6 @@ from ocp_utilities.monitoring import Prometheus
 from pyhelper_utils.shell import run_ssh_commands
 from timeout_sampler import TimeoutExpiredError, TimeoutSampler
 
-from tests.observability.constants import KUBEVIRT_VIRT_OPERATOR_READY
 from tests.observability.metrics.constants import (
     BINDING_NAME,
     BINDING_TYPE,
@@ -28,10 +27,8 @@ from tests.observability.metrics.constants import (
     KUBEVIRT_VMI_FILESYSTEM_BYTES,
     KUBEVIRT_VMI_FILESYSTEM_BYTES_WITH_MOUNT_POINT,
 )
-from tests.observability.utils import validate_metrics_value
 from utilities.constants import (
     CAPACITY,
-    KUBEVIRT_VIRT_OPERATOR_UP,
     NODE_STR,
     OS_FLAVOR_WINDOWS,
     TIMEOUT_1MIN,
@@ -506,17 +503,6 @@ def compare_kubevirt_vmi_info_metric_with_vm_info(
         raise
 
 
-def validate_initial_virt_operator_replicas_reverted(
-    prometheus: Prometheus, initial_virt_operator_replicas: str
-) -> None:
-    for metric in [KUBEVIRT_VIRT_OPERATOR_READY, KUBEVIRT_VIRT_OPERATOR_UP]:
-        validate_metrics_value(
-            prometheus=prometheus,
-            expected_value=initial_virt_operator_replicas,
-            metric_name=metric,
-        )
-
-
 def timestamp_to_seconds(timestamp: str) -> int:
     # Parse the timestamp with UTC timezone and convert to seconds
     dt = datetime.strptime(timestamp, "%Y-%m-%dT%H:%M:%SZ")
@@ -748,7 +734,7 @@ def get_pvc_size_bytes(vm: VirtualMachineForTests) -> str:
 
 
 def validate_metric_value_greater_than_initial_value(
-    prometheus: Prometheus, metric_name: str, initial_value: int, timeout: int = TIMEOUT_4MIN
+    prometheus: Prometheus, metric_name: str, initial_value: float, timeout: int = TIMEOUT_4MIN
 ) -> None:
     samples = TimeoutSampler(
         wait_timeout=timeout,
@@ -757,10 +743,11 @@ def validate_metric_value_greater_than_initial_value(
         prometheus=prometheus,
         metrics_name=metric_name,
     )
+    sample = None
     try:
         for sample in samples:
             if sample:
-                if int(sample) > initial_value:
+                if float(sample) > initial_value:
                     return
     except TimeoutExpiredError:
         LOGGER.error(f"{sample} should be greater than {initial_value}")

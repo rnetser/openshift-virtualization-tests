@@ -53,7 +53,6 @@ from ocp_resources.secret import Secret
 from ocp_resources.service_account import ServiceAccount
 from ocp_resources.sriov_network_node_state import SriovNetworkNodeState
 from ocp_resources.storage_class import StorageClass
-from ocp_resources.virtual_machine import VirtualMachine
 from ocp_resources.virtual_machine_cluster_instancetype import (
     VirtualMachineClusterInstancetype,
 )
@@ -109,6 +108,7 @@ from utilities.constants import (
     RHEL9_STR,
     RHEL_WITH_INSTANCETYPE_AND_PREFERENCE,
     RHSM_SECRET_NAME,
+    S390X,
     SSP_CR_COMMON_TEMPLATES_LIST_KEY_NAME,
     TIMEOUT_3MIN,
     TIMEOUT_4MIN,
@@ -1873,21 +1873,6 @@ def upgrade_namespace_scope_session(admin_client, unprivileged_client):
 
 
 @pytest.fixture(scope="session")
-def migratable_vms(admin_client, upgrade_namespace_scope_session, kmp_enabled_namespace):
-    migratable_vms = []
-    for ns in [kmp_enabled_namespace, upgrade_namespace_scope_session]:
-        for vm in VirtualMachine.get(client=admin_client, namespace=ns.name):
-            if vm.ready and any(
-                condition.type == "LiveMigratable" and condition.status == "True"
-                for condition in vm.vmi.instance.status.conditions
-            ):
-                migratable_vms.append(vm)
-
-    LOGGER.info(f"All migratable vms: {[vm.name for vm in migratable_vms]}")
-    return migratable_vms
-
-
-@pytest.fixture(scope="session")
 def kmp_enabled_namespace(kmp_vm_label, unprivileged_client, admin_client):
     # Enabling label "allocate" (or any other non-configured label) - Allocates.
     kmp_vm_label[KMP_VM_ASSIGNMENT_LABEL] = KMP_ENABLED_LABEL
@@ -2350,22 +2335,6 @@ def rhel_vm_with_instance_type_and_preference(
             yield vm
 
 
-@pytest.fixture(scope="class")
-def vm_from_template_scope_class(
-    request,
-    unprivileged_client,
-    namespace,
-    golden_image_data_source_scope_class,
-):
-    with vm_instance_from_template(
-        request=request,
-        unprivileged_client=unprivileged_client,
-        namespace=namespace,
-        data_source=golden_image_data_source_scope_class,
-    ) as vm:
-        yield vm
-
-
 @pytest.fixture(scope="session")
 def is_disconnected_cluster():
     # To enable disconnected_cluster pass --tc=disconnected_cluster:True to pytest commandline.
@@ -2487,9 +2456,11 @@ def migrated_vm_multiple_times(request, vm_for_migration_test):
 
 
 @pytest.fixture()
-def removed_default_storage_classes(cluster_storage_classes):
+def removed_default_storage_classes(admin_client, golden_images_namespace, cluster_storage_classes):
     with remove_default_storage_classes(cluster_storage_classes=cluster_storage_classes):
         yield
+    if not verify_boot_sources_reimported(admin_client=admin_client, namespace=golden_images_namespace.name):
+        pytest.fail("Failed to reimport all boot sources at teardown")
 
 
 @pytest.fixture(scope="session")
@@ -2587,7 +2558,7 @@ def updated_default_storage_class_ocs_virt(
         and ocs_storage_class.instance.metadata.get("annotations", {}).get(
             StorageClass.Annotations.IS_DEFAULT_VIRT_CLASS
         )
-        == "false"
+        != "true"
     ):
         boot_source_imported_successfully = False
         with remove_default_storage_classes(cluster_storage_classes=cluster_storage_classes):
@@ -2917,3 +2888,8 @@ def application_aware_resource_quota(admin_client, namespace):
         hard=ARQ_QUOTA_HARD_SPEC,
     ) as arq:
         yield arq
+
+
+@pytest.fixture(scope="session")
+def is_s390x_cluster(nodes_cpu_architecture):
+    return nodes_cpu_architecture == S390X

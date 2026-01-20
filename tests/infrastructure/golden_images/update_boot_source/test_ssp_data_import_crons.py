@@ -14,12 +14,11 @@ from timeout_sampler import TimeoutExpiredError, TimeoutSampler
 from tests.infrastructure.golden_images.constants import (
     CUSTOM_DATA_IMPORT_CRON_NAME,
     CUSTOM_DATA_SOURCE_NAME,
-    DEFAULT_FEDORA_REGISTRY_URL,
 )
 from tests.infrastructure.golden_images.update_boot_source.utils import get_all_dic_volume_names, get_image_version
 from utilities.constants import (
     BIND_IMMEDIATE_ANNOTATION,
-    QUARANTINED,
+    DEFAULT_FEDORA_REGISTRY_URL,
     TIMEOUT_1MIN,
     TIMEOUT_2MIN,
     TIMEOUT_5MIN,
@@ -328,10 +327,6 @@ class TestDataImportCronDefaultStorageClass:
         )
 
 
-@pytest.mark.xfail(
-    reason=f"{QUARANTINED}: This test still fail in some cases ; tracked in CNV-62615",
-    run=False,
-)
 @pytest.mark.polarion("CNV-7532")
 def test_data_import_cron_deletion_on_opt_out(
     admin_client,
