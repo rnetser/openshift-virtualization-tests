@@ -1,69 +1,83 @@
+"""
+Bitwarden utilities for accessing secrets via bws CLI.
+
+Assisted-by: Claude cli
+"""
+
+from __future__ import annotations
+
 import json
 import logging
 import os
-from functools import lru_cache
+from functools import cache
+from typing import TYPE_CHECKING
 
-from bitwarden_sdk import BitwardenClient
+from pyhelper_utils.shell import run_command
 
-from utilities.exceptions import MissingEnvironmentVariableError
+if TYPE_CHECKING:
+    from _pytest.main import Session
 
 LOGGER = logging.getLogger(__name__)
-# Bitwarden SDK: https://github.com/bitwarden/sdk/blob/main/languages/python/bitwarden_sdk/bitwarden_client.py
+
+BWS_ACCESS_TOKEN_ENV_VAR = "BWS_ACCESS_TOKEN"
 
 
-def get_bitwarden_secrets_client():
-    """
-    Creates a BitwardenClient instance, logs in using ACCESS_TOKEN environment variable and bitwarden AuthClient
-    instance, and returns SecretsClient. To use bitwarden secret manager ACCESS_TOKEN and ORGANIZATION_ID environment
-    variables must be set
-
-    Returns:
-        SecretsClient: Returns SecretsClient instance to be used for secret manager calls
-    """
-    if not (os.getenv("ACCESS_TOKEN") and os.getenv("ORGANIZATION_ID")):
-        raise MissingEnvironmentVariableError(
-            "Bitwarden client needs ORGANIZATION_ID and ACCESS_TOKEN environment variable set up"
-        )
-    bitwarden_client = BitwardenClient()
-    bitwarden_client.auth().login_access_token(access_token=os.getenv("ACCESS_TOKEN"))
-    return bitwarden_client.secrets()
-
-
-@lru_cache
-def get_all_cnv_tests_secrets(bitwarden_secrets_client):
-    """
-    Using Bitwarden SecretsClient, gets a list of all cnv-secrets saved in bitwarden secret manager (associated with
-    a specific organization id). ORGANIZATION_ID is expected to set via environment variable.
+def _run_bws_command(args: list[str]) -> str:
+    """Run bws CLI command and return output.
 
     Args:
-        bitwarden_secrets_client (SecretsClient): Bitwarden SecretsClient instance
+        args: Command arguments to pass to bws.
 
     Returns:
-        dict: dictionary of secret name and secret uuid associated with the organization
+        Command stdout.
+
+    Raises:
+        ValueError: If BWS_ACCESS_TOKEN environment variable is not set.
+        RuntimeError: If bws command fails.
     """
-    secrets = bitwarden_secrets_client.list(organization_id=os.getenv("ORGANIZATION_ID")).data.data
-    LOGGER.info(f"Cache info stats for pulling secrets: {get_all_cnv_tests_secrets.cache_info()}")
-    return {secret.key: secret.id for secret in secrets}
+    access_token = os.environ.get(BWS_ACCESS_TOKEN_ENV_VAR)
+    if not access_token:
+        raise ValueError(f"{BWS_ACCESS_TOKEN_ENV_VAR} environment variable is not set")
+
+    cmd = ["bws", *args, "--access-token", access_token]
+    result = run_command(command=cmd, check=True)
+    return result.out
 
 
-@lru_cache
-def get_cnv_tests_secret_by_name(secret_name):
+@cache
+def get_all_cnv_tests_secrets() -> dict[str, str]:
+    """Get all CNV tests secrets from Bitwarden.
+
+    Returns:
+        Dictionary mapping secret names to their values.
     """
-    Pull a specific secret from bitwarden secret manager by name
+    try:
+        output = _run_bws_command(args=["secret", "list"])
+        secrets = json.loads(output)
+        return {secret["key"]: secret["value"] for secret in secrets}
+    except Exception as exc:
+        LOGGER.error(f"Failed to get secrets from Bitwarden: {exc}")
+        raise
+
+
+def get_cnv_tests_secret_by_name(name: str, session: Session | None = None) -> dict[str, str]:
+    """Get a specific secret from Bitwarden by name.
 
     Args:
-        secret_name (str): Bitwarden secret manager secret name
+        name: Name of the secret to retrieve.
+        session: Optional pytest session for checking --disabled-bitwarden flag.
 
     Returns:
-        dict: value of the saved secret
+        Dictionary with the secret value.
+
+    Raises:
+        ValueError: If the secret is not found.
     """
-    bitwarden_secrets_client = get_bitwarden_secrets_client()
-    secrets = get_all_cnv_tests_secrets(bitwarden_secrets_client=bitwarden_secrets_client)
-    secret_dict = None
-    for secret_key, secret_value in secrets.items():
-        if secret_key == secret_name:
-            secret_dict = json.loads(bitwarden_secrets_client.get(id=secret_value).data.value)
-            break
-    LOGGER.info(f"Cache info stats for getting specific secret: {get_cnv_tests_secret_by_name.cache_info()}")
-    assert secret_dict, f"secret {secret_name} is either not found or does not have valid values."
-    return secret_dict
+    if session and session.config.getoption("--disabled-bitwarden", default=False):
+        return {}
+
+    secrets = get_all_cnv_tests_secrets()
+    if name not in secrets:
+        raise ValueError(f"Secret '{name}' not found in Bitwarden")
+
+    return json.loads(secrets[name])
