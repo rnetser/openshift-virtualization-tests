@@ -197,22 +197,25 @@ class TestBuildVirtctlSshCommand:
     """Test cases for _build_virtctl_ssh_command function"""
 
     def test_build_command_without_ssh_key(self):
-        """Test building SSH command with virtctl port-forward as ProxyCommand"""
+        """Test building virtctl ssh command without SSH key"""
         result = _build_virtctl_ssh_command(
             vm_name="test-vm",
             namespace="default",
             username="testuser",
             command="ls -la",
         )
-        assert result[0] == "ssh"
-        assert "virtctl port-forward" in result[2]
-        assert "vmi/test-vm.default" in result[2]
-        assert "testuser@localhost" in result
-        assert "ls -la" in result
-        assert "-i" not in result
+        assert "virtctl" in result or result[0].endswith("virtctl")
+        assert "ssh" in result
+        assert "--local-ssh=false" in result
+        assert "-n" in result
+        assert "-l" in result
+        assert "--command" in result
+        assert "--identity-file" not in result
+        assert "test-vm" in result
+        assert "testuser" in result
 
     def test_build_command_with_ssh_key(self):
-        """Test building SSH command with virtctl port-forward and SSH key"""
+        """Test building virtctl ssh command with SSH key"""
         result = _build_virtctl_ssh_command(
             vm_name="test-vm",
             namespace="default",
@@ -220,12 +223,7 @@ class TestBuildVirtctlSshCommand:
             command="ls -la",
             ssh_key_path="/path/to/key",
         )
-        assert result[0] == "ssh"
-        assert "virtctl port-forward" in result[2]
-        assert "vmi/test-vm.default" in result[2]
-        assert "testuser@localhost" in result
-        assert "ls -la" in result
-        assert "-i" in result
+        assert "--identity-file" in result
         assert "/path/to/key" in result
 
 
@@ -379,7 +377,7 @@ class TestRunCommand:
         mock_get_key.return_value = None
         mock_shell_run.side_effect = OSError("virtctl not found")
 
-        with pytest.raises(SSHConnectionError, match="Failed to execute SSH command"):
+        with pytest.raises(SSHConnectionError, match="Failed to execute virtctl ssh"):
             run_command(vm=mock_vm, command="ls")
 
 
