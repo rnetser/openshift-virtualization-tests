@@ -33,10 +33,10 @@ ENV LANG=C.UTF-8
 ENV CNV_TESTS_CONTAINER=Yes
 ENV UV_PYTHON=python3.12
 ENV UV_NO_SYNC=1
-ENV HOME=${TEST_DIR}
 
 WORKDIR ${TEST_DIR}
 ENV UV_CACHE_DIR=${TEST_DIR}/.cache
+ENV HOME=${TEST_DIR}
 
 ##TODO: We can remove wget, and use curl instead, this will require to change some tests
 RUN dnf update -y \
@@ -46,17 +46,13 @@ RUN dnf update -y \
   && rm -rf /var/lib/dnf \
   && truncate -s0 /var/log/*.log
 
-# Install Bitwarden CLI
-RUN curl -sL "https://github.com/bitwarden/sdk-sm/releases/download/bws-v1.0.0/bws-x86_64-unknown-linux-gnu-1.0.0.zip" -o /tmp/bws.zip && \
-    unzip /tmp/bws.zip -d /usr/local/bin && \
-    rm /tmp/bws.zip && \
-    chmod +x /usr/local/bin/bws && \
-    mkdir -p ${TEST_DIR}/.config/bws
-
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /usr/bin/
 COPY --from=builder /usr/bin/which /usr/bin/which
 COPY --from=builder /usr/bin/sshpass /usr/bin/sshpass
 COPY --from=builder ${TEST_DIR}/ ${TEST_DIR}/
+
+RUN curl -fsSL https://bws.bitwarden.com/install | sh \
+  && mkdir -p ${TEST_DIR}/.config/bws/state
 
 RUN uv sync --locked \
   && uv export --no-hashes \
