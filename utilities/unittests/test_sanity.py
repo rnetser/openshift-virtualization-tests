@@ -4,6 +4,7 @@
 
 from unittest.mock import MagicMock, patch
 
+import pytest
 from kubernetes.dynamic.exceptions import ResourceNotFoundError
 from ocp_utilities.exceptions import NodeNotReadyError, NodeUnschedulableError
 from timeout_sampler import TimeoutExpiredError
@@ -141,7 +142,7 @@ class TestClusterSanity:
         )
 
         # Should have warning about skipping
-        warning_calls = [call for call in mock_logger.warning.call_args_list]
+        warning_calls = list(mock_logger.warning.call_args_list)
         assert any("Skipping cluster sanity check" in str(call) for call in warning_calls)
 
     @patch("utilities.sanity.check_webhook_endpoints_health")
@@ -169,7 +170,7 @@ class TestClusterSanity:
 
         mock_storage_sanity.assert_not_called()
         # Should have warning about skipping storage check
-        warning_calls = [call for call in mock_logger.warning.call_args_list]
+        warning_calls = list(mock_logger.warning.call_args_list)
         assert any("Skipping storage classes check" in str(call) for call in warning_calls)
 
     @patch("utilities.sanity.py_config", {"storage_class_matrix": []})
@@ -189,8 +190,8 @@ class TestClusterSanity:
         mock_assert_schedulable,
         mock_assert_healthy,
         mock_storage_sanity,
-        mock_check_vm,
-        mock_check_webhook,
+        _mock_check_vm,
+        _mock_check_webhook,
     ):
         """Test skip nodes check when --cluster-sanity-skip-nodes-check flag is set"""
         from utilities.sanity import cluster_sanity
@@ -212,7 +213,7 @@ class TestClusterSanity:
         mock_assert_schedulable.assert_not_called()
         mock_wait_pods.assert_not_called()
         # Should have warning about skipping nodes check
-        warning_calls = [call for call in mock_logger.warning.call_args_list]
+        warning_calls = list(mock_logger.warning.call_args_list)
         assert any("Skipping nodes check" in str(call) for call in warning_calls)
 
     @patch("utilities.sanity.check_webhook_endpoints_health")
@@ -225,7 +226,7 @@ class TestClusterSanity:
     @patch("utilities.sanity.LOGGER")
     def test_cluster_sanity_successful_full_check(
         self,
-        mock_logger,
+        _mock_logger,
         mock_wait_hco,
         mock_wait_pods,
         mock_assert_schedulable,
@@ -272,12 +273,12 @@ class TestClusterSanity:
     @patch("utilities.sanity.LOGGER")
     def test_cluster_sanity_storage_sanity_error(
         self,
-        mock_logger,
+        _mock_logger,
         mock_wait_hco,
         mock_exit_pytest,
         mock_storage_sanity,
-        mock_check_vm,
-        mock_check_webhook,
+        _mock_check_vm,
+        _mock_check_webhook,
     ):
         """Test StorageSanityError raised and exit_pytest_execution called"""
         from utilities.sanity import cluster_sanity
@@ -309,13 +310,13 @@ class TestClusterSanity:
     @patch("utilities.sanity.LOGGER")
     def test_cluster_sanity_node_unschedulable_error(
         self,
-        mock_logger,
+        _mock_logger,
         mock_exit_pytest,
         mock_wait_hco,
         mock_assert_healthy,
         mock_storage_sanity,
-        mock_check_vm,
-        mock_check_webhook,
+        _mock_check_vm,
+        _mock_check_webhook,
     ):
         """Test NodeUnschedulableError caught and exit_pytest_execution called"""
         from utilities.sanity import cluster_sanity
@@ -350,13 +351,13 @@ class TestClusterSanity:
     @patch("utilities.sanity.LOGGER")
     def test_cluster_sanity_node_not_ready_error(
         self,
-        mock_logger,
+        _mock_logger,
         mock_exit_pytest,
         mock_wait_hco,
         mock_assert_healthy,
         mock_storage_sanity,
-        mock_check_vm,
-        mock_check_webhook,
+        _mock_check_vm,
+        _mock_check_webhook,
     ):
         """Test NodeNotReadyError caught and exit_pytest_execution called"""
         from utilities.sanity import cluster_sanity
@@ -391,13 +392,13 @@ class TestClusterSanity:
     @patch("utilities.sanity.LOGGER")
     def test_cluster_sanity_cluster_sanity_error(
         self,
-        mock_logger,
+        _mock_logger,
         mock_exit_pytest,
         mock_wait_hco,
         mock_assert_healthy,
         mock_storage_sanity,
-        mock_check_vm,
-        mock_check_webhook,
+        _mock_check_vm,
+        _mock_check_webhook,
     ):
         """Test ClusterSanityError caught and exit_pytest_execution called"""
         from utilities.sanity import cluster_sanity
@@ -434,15 +435,15 @@ class TestClusterSanity:
     @patch("utilities.sanity.LOGGER")
     def test_cluster_sanity_timeout_expired_error_converted(
         self,
-        mock_logger,
+        _mock_logger,
         mock_exit_pytest,
         mock_wait_hco,
         mock_wait_pods,
         mock_assert_schedulable,
         mock_assert_healthy,
         mock_storage_sanity,
-        mock_check_vm,
-        mock_check_webhook,
+        _mock_check_vm,
+        _mock_check_webhook,
     ):
         """Test TimeoutExpiredError during wait_for_pods_running converted to ClusterSanityError"""
         from utilities.sanity import cluster_sanity
@@ -481,7 +482,7 @@ class TestClusterSanity:
     @patch("utilities.sanity.LOGGER")
     def test_cluster_sanity_components_called_in_order(
         self,
-        mock_logger,
+        _mock_logger,
         mock_wait_hco,
         mock_wait_pods,
         mock_assert_schedulable,
@@ -552,14 +553,14 @@ class TestClusterSanity:
     @patch("utilities.sanity.LOGGER")
     def test_cluster_sanity_assert_nodes_healthy_parameters(
         self,
-        mock_logger,
+        _mock_logger,
         mock_wait_hco,
         mock_wait_pods,
         mock_assert_schedulable,
         mock_assert_healthy,
         mock_storage_sanity,
-        mock_check_vm,
-        mock_check_webhook,
+        _mock_check_vm,
+        _mock_check_webhook,
     ):
         """Test assert_nodes_in_healthy_condition called with correct parameters"""
         from utilities.sanity import cluster_sanity
@@ -591,14 +592,14 @@ class TestClusterSanity:
     @patch("utilities.sanity.LOGGER")
     def test_cluster_sanity_assert_nodes_schedulable_called(
         self,
-        mock_logger,
+        _mock_logger,
         mock_wait_hco,
         mock_wait_pods,
         mock_assert_schedulable,
         mock_assert_healthy,
         mock_storage_sanity,
-        mock_check_vm,
-        mock_check_webhook,
+        _mock_check_vm,
+        _mock_check_webhook,
     ):
         """Test assert_nodes_schedulable called"""
         from utilities.sanity import cluster_sanity
@@ -631,14 +632,14 @@ class TestClusterSanity:
     @patch("utilities.sanity.LOGGER")
     def test_cluster_sanity_wait_for_pods_running_parameters(
         self,
-        mock_logger,
+        _mock_logger,
         mock_wait_hco,
         mock_wait_pods,
         mock_assert_schedulable,
         mock_assert_healthy,
         mock_storage_sanity,
-        mock_check_vm,
-        mock_check_webhook,
+        _mock_check_vm,
+        _mock_check_webhook,
     ):
         """Test wait_for_pods_running called with correct namespace and filter"""
         from utilities.sanity import cluster_sanity
@@ -675,14 +676,14 @@ class TestClusterSanity:
     @patch("utilities.sanity.LOGGER")
     def test_cluster_sanity_wait_for_hco_conditions_called(
         self,
-        mock_logger,
+        _mock_logger,
         mock_wait_hco,
         mock_wait_pods,
         mock_assert_schedulable,
         mock_assert_healthy,
         mock_storage_sanity,
-        mock_check_vm,
-        mock_check_webhook,
+        _mock_check_vm,
+        _mock_check_webhook,
     ):
         """Test wait_for_hco_conditions called"""
         from utilities.sanity import cluster_sanity
@@ -719,15 +720,15 @@ class TestClusterSanity:
     @patch("utilities.sanity.LOGGER")
     def test_cluster_sanity_with_junitxml_property(
         self,
-        mock_logger,
+        _mock_logger,
         mock_exit_pytest,
         mock_wait_hco,
         mock_wait_pods,
         mock_assert_schedulable,
         mock_assert_healthy,
         mock_storage_sanity,
-        mock_check_vm,
-        mock_check_webhook,
+        _mock_check_vm,
+        _mock_check_webhook,
     ):
         """Test junitxml_property passed to exit_pytest_execution"""
         from utilities.sanity import cluster_sanity
@@ -779,7 +780,7 @@ class TestClusterSanity:
         mock_check_webhook.assert_not_called()
         mock_check_vm.assert_not_called()
         # Should have warning about skipping webhook check
-        warning_calls = [call for call in mock_logger.warning.call_args_list]
+        warning_calls = list(mock_logger.warning.call_args_list)
         assert any("Skipping webhook health check" in str(call) for call in warning_calls), (
             "Expected warning about skipping webhook health check"
         )
@@ -792,7 +793,7 @@ class TestDiscoverWebhookServices:
     @patch("utilities.sanity.MutatingWebhookConfiguration")
     @patch("utilities.sanity.LOGGER")
     def test_discover_webhook_services_finds_services_in_hco_namespace(
-        self, mock_logger, mock_mutating_class, mock_validating_class
+        self, _mock_logger, mock_mutating_class, mock_validating_class
     ):
         """Test discovery finds services in the HCO namespace"""
         from utilities.sanity import _discover_webhook_services
@@ -821,13 +822,15 @@ class TestDiscoverWebhookServices:
 
         result = _discover_webhook_services(admin_client=mock_admin_client, namespace=mock_hco_namespace)
 
-        assert result == {"virt-api", "cdi-api", "kubevirt-operator-webhook"}
+        assert result == {"virt-api", "cdi-api", "kubevirt-operator-webhook"}, (
+            "Expected all three webhook services to be discovered in HCO namespace"
+        )
 
     @patch("utilities.sanity.ValidatingWebhookConfiguration")
     @patch("utilities.sanity.MutatingWebhookConfiguration")
     @patch("utilities.sanity.LOGGER")
     def test_discover_webhook_services_ignores_other_namespaces(
-        self, mock_logger, mock_mutating_class, mock_validating_class
+        self, _mock_logger, mock_mutating_class, mock_validating_class
     ):
         """Test discovery ignores services in other namespaces"""
         from utilities.sanity import _discover_webhook_services
@@ -850,13 +853,13 @@ class TestDiscoverWebhookServices:
 
         result = _discover_webhook_services(admin_client=mock_admin_client, namespace=mock_hco_namespace)
 
-        assert result == {"virt-api"}
+        assert result == {"virt-api"}, "Expected only virt-api service, other namespace services should be ignored"
 
     @patch("utilities.sanity.ValidatingWebhookConfiguration")
     @patch("utilities.sanity.MutatingWebhookConfiguration")
     @patch("utilities.sanity.LOGGER")
     def test_discover_webhook_services_skips_url_webhooks(
-        self, mock_logger, mock_mutating_class, mock_validating_class
+        self, _mock_logger, mock_mutating_class, mock_validating_class
     ):
         """Test discovery skips URL-based webhooks (no service config)"""
         from utilities.sanity import _discover_webhook_services
@@ -880,12 +883,12 @@ class TestDiscoverWebhookServices:
 
         result = _discover_webhook_services(admin_client=mock_admin_client, namespace=mock_hco_namespace)
 
-        assert result == {"virt-api"}
+        assert result == {"virt-api"}, "Expected only virt-api service, URL-based webhooks should be skipped"
 
     @patch("utilities.sanity.ValidatingWebhookConfiguration")
     @patch("utilities.sanity.MutatingWebhookConfiguration")
     @patch("utilities.sanity.LOGGER")
-    def test_discover_webhook_services_empty_webhooks(self, mock_logger, mock_mutating_class, mock_validating_class):
+    def test_discover_webhook_services_empty_webhooks(self, _mock_logger, mock_mutating_class, mock_validating_class):
         """Test discovery handles webhook configs with no webhooks"""
         from utilities.sanity import _discover_webhook_services
 
@@ -904,12 +907,12 @@ class TestDiscoverWebhookServices:
 
         result = _discover_webhook_services(admin_client=mock_admin_client, namespace=mock_hco_namespace)
 
-        assert result == set()
+        assert result == set(), "Expected empty set when webhook config has no webhooks"
 
     @patch("utilities.sanity.ValidatingWebhookConfiguration")
     @patch("utilities.sanity.MutatingWebhookConfiguration")
     @patch("utilities.sanity.LOGGER")
-    def test_discover_webhook_services_deduplicates(self, mock_logger, mock_mutating_class, mock_validating_class):
+    def test_discover_webhook_services_deduplicates(self, _mock_logger, mock_mutating_class, mock_validating_class):
         """Test discovery deduplicates services referenced by multiple webhooks"""
         from utilities.sanity import _discover_webhook_services
 
@@ -936,7 +939,7 @@ class TestDiscoverWebhookServices:
 
         result = _discover_webhook_services(admin_client=mock_admin_client, namespace=mock_hco_namespace)
 
-        assert result == {"virt-api"}
+        assert result == {"virt-api"}, "Expected single virt-api service after deduplication"
 
 
 class TestCheckWebhookEndpointsHealth:
@@ -945,7 +948,7 @@ class TestCheckWebhookEndpointsHealth:
     @patch("utilities.sanity._discover_webhook_services")
     @patch("utilities.sanity.Endpoints")
     @patch("utilities.sanity.LOGGER")
-    def test_check_webhook_endpoints_health_all_healthy(self, mock_logger, mock_endpoints_class, mock_discover):
+    def test_check_webhook_endpoints_health_all_healthy(self, _mock_logger, mock_endpoints_class, mock_discover):
         """Test successful check when all endpoints are healthy"""
         from utilities.sanity import check_webhook_endpoints_health
 
@@ -966,12 +969,12 @@ class TestCheckWebhookEndpointsHealth:
         check_webhook_endpoints_health(admin_client=mock_admin_client, namespace=mock_hco_namespace)
 
         # Verify endpoints were checked for all discovered services
-        assert mock_endpoints_class.call_count == 3
+        assert mock_endpoints_class.call_count == 3, "Expected endpoints to be checked for all 3 discovered services"
 
     @patch("utilities.sanity._discover_webhook_services")
     @patch("utilities.sanity.Endpoints")
     @patch("utilities.sanity.LOGGER")
-    def test_check_webhook_endpoints_health_missing_endpoint(self, mock_logger, mock_endpoints_class, mock_discover):
+    def test_check_webhook_endpoints_health_missing_endpoint(self, _mock_logger, mock_endpoints_class, mock_discover):
         """Test error when endpoint does not exist"""
         from utilities.sanity import check_webhook_endpoints_health
 
@@ -984,17 +987,17 @@ class TestCheckWebhookEndpointsHealth:
         mock_hco_namespace = MagicMock()
         mock_hco_namespace.name = "openshift-cnv"
 
-        import pytest
-
         with pytest.raises(ClusterSanityError) as exc_info:
             check_webhook_endpoints_health(admin_client=mock_admin_client, namespace=mock_hco_namespace)
 
-        assert "no available endpoints" in str(exc_info.value)
+        assert "no available endpoints" in str(exc_info.value), (
+            "Expected 'no available endpoints' in exception message for missing endpoint"
+        )
 
     @patch("utilities.sanity._discover_webhook_services")
     @patch("utilities.sanity.Endpoints")
     @patch("utilities.sanity.LOGGER")
-    def test_check_webhook_endpoints_health_no_subsets(self, mock_logger, mock_endpoints_class, mock_discover):
+    def test_check_webhook_endpoints_health_no_subsets(self, _mock_logger, mock_endpoints_class, mock_discover):
         """Test error when endpoint has no subsets"""
         from utilities.sanity import check_webhook_endpoints_health
 
@@ -1009,17 +1012,17 @@ class TestCheckWebhookEndpointsHealth:
         mock_hco_namespace = MagicMock()
         mock_hco_namespace.name = "openshift-cnv"
 
-        import pytest
-
         with pytest.raises(ClusterSanityError) as exc_info:
             check_webhook_endpoints_health(admin_client=mock_admin_client, namespace=mock_hco_namespace)
 
-        assert "no available endpoints" in str(exc_info.value)
+        assert "no available endpoints" in str(exc_info.value), (
+            "Expected 'no available endpoints' in exception message for no subsets"
+        )
 
     @patch("utilities.sanity._discover_webhook_services")
     @patch("utilities.sanity.Endpoints")
     @patch("utilities.sanity.LOGGER")
-    def test_check_webhook_endpoints_health_no_addresses(self, mock_logger, mock_endpoints_class, mock_discover):
+    def test_check_webhook_endpoints_health_no_addresses(self, _mock_logger, mock_endpoints_class, mock_discover):
         """Test error when endpoint has no ready addresses"""
         from utilities.sanity import check_webhook_endpoints_health
 
@@ -1036,18 +1039,18 @@ class TestCheckWebhookEndpointsHealth:
         mock_hco_namespace = MagicMock()
         mock_hco_namespace.name = "openshift-cnv"
 
-        import pytest
-
         with pytest.raises(ClusterSanityError) as exc_info:
             check_webhook_endpoints_health(admin_client=mock_admin_client, namespace=mock_hco_namespace)
 
-        assert "no available endpoints" in str(exc_info.value)
+        assert "no available endpoints" in str(exc_info.value), (
+            "Expected 'no available endpoints' in exception message for no addresses"
+        )
 
     @patch("utilities.sanity._discover_webhook_services")
     @patch("utilities.sanity.Endpoints")
     @patch("utilities.sanity.LOGGER")
     def test_check_webhook_endpoints_health_no_webhooks_discovered(
-        self, mock_logger, mock_endpoints_class, mock_discover
+        self, _mock_logger, mock_endpoints_class, mock_discover
     ):
         """Test that warning is logged when no webhooks are discovered"""
         from utilities.sanity import check_webhook_endpoints_health
@@ -1062,13 +1065,13 @@ class TestCheckWebhookEndpointsHealth:
         check_webhook_endpoints_health(admin_client=mock_admin_client, namespace=mock_hco_namespace)
 
         # Verify warning was logged
-        mock_logger.warning.assert_called()
+        _mock_logger.warning.assert_called()
         mock_endpoints_class.assert_not_called()
 
     @patch("utilities.sanity._discover_webhook_services")
     @patch("utilities.sanity.Endpoints")
     @patch("utilities.sanity.LOGGER")
-    def test_check_webhook_endpoints_health_api_exception(self, mock_logger, mock_endpoints_class, mock_discover):
+    def test_check_webhook_endpoints_health_api_exception(self, _mock_logger, mock_endpoints_class, mock_discover):
         """Test error when API exception occurs while checking endpoints"""
         from kubernetes.client import ApiException
 
@@ -1081,13 +1084,11 @@ class TestCheckWebhookEndpointsHealth:
         mock_hco_namespace = MagicMock()
         mock_hco_namespace.name = "openshift-cnv"
 
-        import pytest
-
         with pytest.raises(ClusterSanityError) as exc_info:
             check_webhook_endpoints_health(admin_client=mock_admin_client, namespace=mock_hco_namespace)
 
-        assert "no available endpoints" in str(exc_info.value)
-        mock_logger.error.assert_called()
+        assert "no available endpoints" in str(exc_info.value), "Expected 'no available endpoints' in exception message"
+        _mock_logger.error.assert_called()
 
 
 class TestCheckVmCreationCapability:
@@ -1095,7 +1096,7 @@ class TestCheckVmCreationCapability:
 
     @patch("utilities.sanity.VirtualMachine")
     @patch("utilities.sanity.LOGGER")
-    def test_check_vm_creation_capability_success(self, mock_logger, mock_vm_class):
+    def test_check_vm_creation_capability_success(self, _mock_logger, mock_vm_class):
         """Test successful dry-run VM creation"""
         from utilities.sanity import check_vm_creation_capability
 
@@ -1111,7 +1112,7 @@ class TestCheckVmCreationCapability:
 
     @patch("utilities.sanity.VirtualMachine")
     @patch("utilities.sanity.LOGGER")
-    def test_check_vm_creation_capability_api_error(self, mock_logger, mock_vm_class):
+    def test_check_vm_creation_capability_api_error(self, _mock_logger, mock_vm_class):
         """Test error when VM creation fails due to API error"""
         from kubernetes.client import ApiException
 
@@ -1123,16 +1124,16 @@ class TestCheckVmCreationCapability:
 
         mock_admin_client = MagicMock()
 
-        import pytest
-
         with pytest.raises(ClusterSanityError) as exc_info:
             check_vm_creation_capability(admin_client=mock_admin_client, namespace="openshift-cnv")
 
-        assert "Dry-run VM creation failed" in str(exc_info.value)
+        assert "Dry-run VM creation failed" in str(exc_info.value), (
+            "Expected 'Dry-run VM creation failed' in exception message for API error"
+        )
 
     @patch("utilities.sanity.VirtualMachine")
     @patch("utilities.sanity.LOGGER")
-    def test_check_vm_creation_capability_unexpected_error(self, mock_logger, mock_vm_class):
+    def test_check_vm_creation_capability_unexpected_error(self, _mock_logger, mock_vm_class):
         """Test error when VM creation fails due to unexpected error"""
         from utilities.sanity import check_vm_creation_capability
 
@@ -1142,16 +1143,16 @@ class TestCheckVmCreationCapability:
 
         mock_admin_client = MagicMock()
 
-        import pytest
-
         with pytest.raises(ClusterSanityError) as exc_info:
             check_vm_creation_capability(admin_client=mock_admin_client, namespace="openshift-cnv")
 
-        assert "Unexpected error during dry-run VM creation" in str(exc_info.value)
+        assert "Unexpected error during dry-run VM creation" in str(exc_info.value), (
+            "Expected 'Unexpected error during dry-run VM creation' in exception message"
+        )
 
     @patch("utilities.sanity.VirtualMachine")
     @patch("utilities.sanity.LOGGER")
-    def test_check_vm_creation_capability_connection_error(self, mock_logger, mock_vm_class):
+    def test_check_vm_creation_capability_connection_error(self, _mock_logger, mock_vm_class):
         """Test error when VM creation fails due to connection error"""
         from utilities.sanity import check_vm_creation_capability
 
@@ -1161,16 +1162,16 @@ class TestCheckVmCreationCapability:
 
         mock_admin_client = MagicMock()
 
-        import pytest
-
         with pytest.raises(ClusterSanityError) as exc_info:
             check_vm_creation_capability(admin_client=mock_admin_client, namespace="openshift-cnv")
 
-        assert "Connection error during dry-run VM creation" in str(exc_info.value)
+        assert "Connection error during dry-run VM creation" in str(exc_info.value), (
+            "Expected 'Connection error during dry-run VM creation' in exception message"
+        )
 
     @patch("utilities.sanity.VirtualMachine")
     @patch("utilities.sanity.LOGGER")
-    def test_check_vm_creation_capability_timeout_error(self, mock_logger, mock_vm_class):
+    def test_check_vm_creation_capability_timeout_error(self, _mock_logger, mock_vm_class):
         """Test error when VM creation fails due to timeout"""
         from utilities.sanity import check_vm_creation_capability
 
@@ -1180,9 +1181,9 @@ class TestCheckVmCreationCapability:
 
         mock_admin_client = MagicMock()
 
-        import pytest
-
         with pytest.raises(ClusterSanityError) as exc_info:
             check_vm_creation_capability(admin_client=mock_admin_client, namespace="openshift-cnv")
 
-        assert "Connection error during dry-run VM creation" in str(exc_info.value)
+        assert "Connection error during dry-run VM creation" in str(exc_info.value), (
+            "Expected 'Connection error during dry-run VM creation' in exception message for timeout"
+        )
