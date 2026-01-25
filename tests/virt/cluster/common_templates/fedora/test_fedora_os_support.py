@@ -24,7 +24,7 @@ from utilities.virt import (
     migrate_vm_and_verify,
     running_vm,
     validate_libvirt_persistent_domain,
-    validate_pause_optional_migrate_unpause_linux_vm,
+    validate_pause_unpause_linux_vm,
     validate_virtctl_guest_agent_after_guest_reboot,
     validate_virtctl_guest_agent_data_over_time,
     wait_for_console,
@@ -78,7 +78,6 @@ HYPERV_DICT = {
     [({"vm_dict": HYPERV_DICT})],
     indirect=True,
 )
-@pytest.mark.usefixtures("cluster_cpu_model_scope_class")
 class TestCommonTemplatesFedora:
     @pytest.mark.sno
     @pytest.mark.ibm_bare_metal
@@ -174,6 +173,7 @@ class TestCommonTemplatesFedora:
     @pytest.mark.sno
     @pytest.mark.dependency(depends=[f"{TESTS_CLASS_NAME}::vm_expose_ssh"])
     @pytest.mark.polarion("CNV-3574")
+    @pytest.mark.jira("CNV-76696", run=False)
     def test_virtctl_guest_agent_fs_info(self, matrix_fedora_os_vm_from_template):
         validate_fs_info_virtctl_vs_linux_os(vm=matrix_fedora_os_vm_from_template)
 
@@ -194,7 +194,7 @@ class TestCommonTemplatesFedora:
     @pytest.mark.dependency(depends=[f"{TESTS_CLASS_NAME}::start_vm"])
     @pytest.mark.polarion("CNV-5917")
     def test_pause_unpause_vm(self, matrix_fedora_os_vm_from_template):
-        validate_pause_optional_migrate_unpause_linux_vm(vm=matrix_fedora_os_vm_from_template)
+        validate_pause_unpause_linux_vm(vm=matrix_fedora_os_vm_from_template)
 
     @pytest.mark.rwx_default_storage
     @pytest.mark.ibm_bare_metal
@@ -211,9 +211,7 @@ class TestCommonTemplatesFedora:
     @pytest.mark.polarion("CNV-5901")
     @pytest.mark.dependency(depends=[f"{TESTS_CLASS_NAME}::migrate_vm_and_verify"])
     def test_pause_unpause_after_migrate(self, matrix_fedora_os_vm_from_template, ping_process_in_fedora_os):
-        validate_pause_optional_migrate_unpause_linux_vm(
-            vm=matrix_fedora_os_vm_from_template, pre_pause_pid=ping_process_in_fedora_os
-        )
+        validate_pause_unpause_linux_vm(vm=matrix_fedora_os_vm_from_template, pre_pause_pid=ping_process_in_fedora_os)
 
     @pytest.mark.polarion("CNV-6006")
     @pytest.mark.dependency(depends=[f"{TESTS_CLASS_NAME}::migrate_vm_and_verify"])

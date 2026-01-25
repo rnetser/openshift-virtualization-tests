@@ -48,11 +48,12 @@ def migration_interface(hosts_common_available_ports):
 
 
 @pytest.fixture(scope="module")
-def dedicated_network_nad(migration_interface, hco_namespace):
+def dedicated_network_nad(admin_client, migration_interface, hco_namespace):
     with MACVLANNetworkAttachmentDefinition(
         name="migration-nad",
         namespace=hco_namespace.name,
         master=migration_interface,
+        client=admin_client,
     ) as nad:
         yield nad
 
@@ -101,14 +102,13 @@ def dedicated_migration_network_hco_config(
 
 @pytest.fixture(scope="class")
 def migration_vm_1(
-    namespace,
-    unprivileged_client,
-    golden_image_data_volume_template_for_test_scope_class,
+    namespace, unprivileged_client, golden_image_data_volume_template_for_test_scope_class, cpu_for_migration
 ):
     with VirtualMachineForTestsFromTemplate(
         name="migration-vm-1",
         labels=Template.generate_template_labels(**RHEL_LATEST_LABELS),
         namespace=namespace.name,
+        cpu_model=cpu_for_migration,
         client=unprivileged_client,
         data_volume_template=golden_image_data_volume_template_for_test_scope_class,
     ) as vm:
@@ -138,11 +138,13 @@ def migration_vm_2(
     unprivileged_client,
     golden_image_data_volume_template_for_test_scope_class,
     tainted_all_nodes_but_one,
+    cpu_for_migration,
 ):
     with VirtualMachineForTestsFromTemplate(
         name="migration-vm-2",
         labels=Template.generate_template_labels(**RHEL_LATEST_LABELS),
         namespace=namespace.name,
+        cpu_model=cpu_for_migration,
         client=unprivileged_client,
         data_volume_template=golden_image_data_volume_template_for_test_scope_class,
     ) as vm:
@@ -185,7 +187,6 @@ class TestDedicatedLiveMigrationNetwork:
     @pytest.mark.polarion("CNV-7877")
     def test_migrate_vm_via_dedicated_network(
         self,
-        cluster_cpu_model_scope_module,
         workers_utility_pods,
         migration_interface,
         virt_handler_pods_with_migration_network,
@@ -241,7 +242,7 @@ class TestDedicatedLiveMigrationNetwork:
         # TCPDUMP check not used due to possibility that utility-pod
         # might be killed before vm migration
         assert_node_drain_and_vm_migration(
-            dyn_client=admin_client,
+            client=admin_client,
             vm=restarted_migration_vm_1,
             virt_handler_pods=virt_handler_pods_with_migration_network,
         )

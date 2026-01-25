@@ -6,8 +6,9 @@ import logging
 
 import pytest
 
+from libs.net.vmspec import lookup_iface_status_ip
 from tests.network.utils import assert_no_ping
-from utilities.network import assert_ping_successful, get_vmi_ip_v4_by_name
+from utilities.network import assert_ping_successful
 
 LOGGER = logging.getLogger(__name__)
 
@@ -16,6 +17,7 @@ pytestmark = [
     pytest.mark.usefixtures(
         "enable_multi_network_policy_usage",
     ),
+    pytest.mark.ipv4,
 ]
 
 
@@ -35,28 +37,13 @@ class TestFlatOverlayConnectivity:
     """
 
     @pytest.mark.gating
-    @pytest.mark.ipv4
     @pytest.mark.polarion("CNV-10158")
     # Not marked as `conformance`; requires NMState
     @pytest.mark.dependency(name="test_flat_overlay_basic_ping")
-    def test_flat_overlay_basic_ping(self, flat_overlay_vma_vmb_nad, vma_flat_overlay, vmb_flat_overlay):
-        """
-        Test that VMs on the same flat overlay network can communicate.
-
-        Markers:
-            - gating
-            - ipv4
-
-        Steps:
-            1. Get IPv4 address of VM-B
-            2. Execute ping from VM-A to VM-B
-
-        Expected:
-            - Ping succeeds with 0% packet loss
-        """
+    def test_flat_overlay_basic_ping(self, vma_flat_overlay, vmb_flat_overlay_ip_address):
         assert_ping_successful(
             src_vm=vma_flat_overlay,
-            dst_ip=get_vmi_ip_v4_by_name(vm=vmb_flat_overlay, name=flat_overlay_vma_vmb_nad.name),
+            dst_ip=vmb_flat_overlay_ip_address,
         )
 
     @pytest.mark.polarion("CNV-10159")
@@ -140,13 +127,12 @@ class TestFlatOverlayConnectivity:
             - Ping succeeds with 0% packet loss
         """
         assert flat_overlay_vma_vmb_nad.name == flat_overlay_vme_nad.name, (
-            f"NAD names are not identical:\n first NAD's "
-            f"name: {flat_overlay_vma_vmb_nad.name}, second NAD's name: "
-            f"{flat_overlay_vme_nad.name}"
+            f"NAD names are not identical:\n first NAD's name: {flat_overlay_vma_vmb_nad.name}, "
+            f"second NAD's name: {flat_overlay_vme_nad.name}"
         )
         assert_ping_successful(
             src_vm=vma_flat_overlay,
-            dst_ip=get_vmi_ip_v4_by_name(vm=vme_flat_overlay, name=flat_overlay_vma_vmb_nad.name),
+            dst_ip=lookup_iface_status_ip(vm=vme_flat_overlay, iface_name=flat_overlay_vma_vmb_nad.name, ip_family=4),
         )
 
     @pytest.mark.polarion("CNV-10173")
@@ -178,6 +164,7 @@ class TestFlatOverlayConnectivity:
         )
 
 
+@pytest.mark.jumbo_frame
 class TestFlatOverlayJumboConnectivity:
     """
     Tests for flat overlay network jumbo frame connectivity.
@@ -213,5 +200,7 @@ class TestFlatOverlayJumboConnectivity:
         assert_ping_successful(
             src_vm=vma_jumbo_flat_l2,
             packet_size=flat_l2_jumbo_frame_packet_size,
-            dst_ip=get_vmi_ip_v4_by_name(vm=vmb_jumbo_flat_l2, name=flat_overlay_jumbo_frame_nad.name),
+            dst_ip=lookup_iface_status_ip(
+                vm=vmb_jumbo_flat_l2, iface_name=flat_overlay_jumbo_frame_nad.name, ip_family=4
+            ),
         )

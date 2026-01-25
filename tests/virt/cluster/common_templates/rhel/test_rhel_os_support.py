@@ -8,14 +8,13 @@ import pytest
 
 from tests.virt.cluster.common_templates.utils import (
     check_machine_type,
-    restart_qemu_guest_agent_service,
     validate_fs_info_virtctl_vs_linux_os,
     validate_os_info_virtctl_vs_linux_os,
     validate_user_info_virtctl_vs_linux_os,
     vm_os_version,
 )
 from utilities import console
-from utilities.constants import LINUX_STR, QUARANTINED
+from utilities.constants import LINUX_STR
 from utilities.infra import validate_os_info_vmi_vs_linux_os
 from utilities.virt import (
     assert_linux_efi,
@@ -26,7 +25,7 @@ from utilities.virt import (
     running_vm,
     update_vm_efi_spec_and_restart,
     validate_libvirt_persistent_domain,
-    validate_pause_optional_migrate_unpause_linux_vm,
+    validate_pause_unpause_linux_vm,
     validate_virtctl_guest_agent_after_guest_reboot,
     validate_virtctl_guest_agent_data_over_time,
     wait_for_console,
@@ -39,7 +38,6 @@ LOGGER = logging.getLogger(__name__)
 TESTS_CLASS_NAME = "TestCommonTemplatesRhel"
 
 
-@pytest.mark.usefixtures("cluster_cpu_model_scope_class")
 class TestCommonTemplatesRhel:
     @pytest.mark.arm64
     @pytest.mark.sno
@@ -138,11 +136,7 @@ class TestCommonTemplatesRhel:
     @pytest.mark.sno
     @pytest.mark.dependency(depends=[f"{TESTS_CLASS_NAME}::vmi_guest_agent"])
     @pytest.mark.polarion("CNV-4195")
-    def test_virtctl_guest_agent_os_info(self, matrix_rhel_os_vm_from_template, rhel_os_matrix__class__):
-        # QGA Service restart is needed because of bugs 1910326 and 1845127
-        # when test rhel7, we need to restart QGA to synchronize hostname to the kernel
-        if "rhel-7" in [*rhel_os_matrix__class__][0]:
-            restart_qemu_guest_agent_service(vm=matrix_rhel_os_vm_from_template)
+    def test_virtctl_guest_agent_os_info(self, matrix_rhel_os_vm_from_template):
         validate_os_info_virtctl_vs_linux_os(vm=matrix_rhel_os_vm_from_template)
 
     @pytest.mark.arm64
@@ -174,13 +168,12 @@ class TestCommonTemplatesRhel:
     def test_vm_smbios_default(self, smbios_from_kubevirt_config, matrix_rhel_os_vm_from_template):
         check_vm_xml_smbios(vm=matrix_rhel_os_vm_from_template, cm_values=smbios_from_kubevirt_config)
 
-    @pytest.mark.xfail(reason=f"{QUARANTINED}: Flake in pause VM checks; CNV-70033", run=False)
     @pytest.mark.arm64
     @pytest.mark.sno
     @pytest.mark.dependency(depends=[f"{TESTS_CLASS_NAME}::start_vm"])
     @pytest.mark.polarion("CNV-5916")
     def test_pause_unpause_vm(self, matrix_rhel_os_vm_from_template):
-        validate_pause_optional_migrate_unpause_linux_vm(vm=matrix_rhel_os_vm_from_template)
+        validate_pause_unpause_linux_vm(vm=matrix_rhel_os_vm_from_template)
 
     @pytest.mark.arm64
     @pytest.mark.smoke
@@ -199,7 +192,7 @@ class TestCommonTemplatesRhel:
     @pytest.mark.polarion("CNV-5902")
     @pytest.mark.dependency(depends=[f"{TESTS_CLASS_NAME}::migrate_vm_and_verify"])
     def test_pause_unpause_after_migrate(self, matrix_rhel_os_vm_from_template, ping_process_in_rhel_os):
-        validate_pause_optional_migrate_unpause_linux_vm(
+        validate_pause_unpause_linux_vm(
             vm=matrix_rhel_os_vm_from_template,
             pre_pause_pid=ping_process_in_rhel_os(matrix_rhel_os_vm_from_template),
         )

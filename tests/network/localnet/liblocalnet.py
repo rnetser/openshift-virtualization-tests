@@ -1,11 +1,12 @@
 import contextlib
 import logging
+import uuid
 from typing import Generator
 
 from kubernetes.client import ApiException
 from kubernetes.dynamic import DynamicClient
 
-from libs.net.traffic_generator import TcpServer
+from libs.net.traffic_generator import IPERF_SERVER_PORT, TcpServer
 from libs.net.traffic_generator import VMTcpClient as TcpClient
 from libs.net.vmspec import IP_ADDRESS, add_volume_disk, lookup_iface_status
 from libs.vm.affinity import new_pod_anti_affinity
@@ -14,7 +15,9 @@ from libs.vm.spec import CloudInitNoCloud, Devices, Interface, Metadata, Network
 from libs.vm.vm import BaseVirtualMachine, cloudinitdisk_storage
 from tests.network.libs import cloudinit
 from tests.network.libs import cluster_user_defined_network as libcudn
+from tests.network.libs import nodenetworkconfigurationpolicy as libnncp
 from tests.network.libs.label_selector import LabelSelector
+from utilities.constants import OVS_BRIDGE, WORKER_NODE_LABEL_KEY
 
 LOCALNET_BR_EX_NETWORK = "localnet-br-ex-network"
 LOCALNET_BR_EX_NETWORK_NO_VLAN = "localnet-br-ex-network-no-vlan"
@@ -25,7 +28,7 @@ LOCALNET_OVS_BRIDGE_INTERFACE = "localnet-iface-ovs-bridge"
 LOCALNET_TEST_LABEL = {"test": "localnet"}
 LINK_STATE_UP = "up"
 LINK_STATE_DOWN = "down"
-_IPERF_SERVER_PORT = 5201
+NNCP_INTERFACE_TYPE_ETHERNET = "ethernet"
 LOGGER = logging.getLogger(__name__)
 
 
@@ -44,7 +47,7 @@ def run_vms(vms: tuple[BaseVirtualMachine, ...]) -> tuple[BaseVirtualMachine, ..
 
 
 def create_traffic_server(vm: BaseVirtualMachine) -> TcpServer:
-    return TcpServer(vm=vm, port=_IPERF_SERVER_PORT)
+    return TcpServer(vm=vm, port=IPERF_SERVER_PORT)
 
 
 def create_traffic_client(
@@ -53,7 +56,7 @@ def create_traffic_client(
     return TcpClient(
         vm=client_vm,
         server_ip=lookup_iface_status(vm=server_vm, iface_name=spec_logical_network)[IP_ADDRESS],
-        server_port=_IPERF_SERVER_PORT,
+        server_port=IPERF_SERVER_PORT,
     )
 
 
@@ -132,7 +135,9 @@ def localnet_cudn(
     name: str,
     match_labels: dict[str, str],
     physical_network_name: str,
+    client: DynamicClient,
     vlan_id: int | None = None,
+    mtu: int | None = None,
 ) -> libcudn.ClusterUserDefinedNetwork:
     """
     Create a ClusterUserDefinedNetwork resource configured for localnet with the specified VLAN ID.
@@ -147,7 +152,9 @@ def localnet_cudn(
         name (str): The name of the CUDN resource.
         match_labels (dict[str, str]): Labels for namespace selection.
         physical_network_name (str): The name of the physical network to associate with the localnet configuration.
+        client (DynamicClient): Dynamic client for resource creation.
         vlan_id (int|None): The VLAN ID to configure for the network. If None, no VLAN is configured.
+        mtu (int): Optional customized MTU of the network.
 
     Returns:
         ClusterUserDefinedNetwork: The configured CUDN object ready for creation.
@@ -159,26 +166,89 @@ def localnet_cudn(
         else None
     )
     localnet = libcudn.Localnet(
-        role=libcudn.Localnet.Role.SECONDARY.value, physicalNetworkName=physical_network_name, vlan=vlan, ipam=ipam
+        role=libcudn.Localnet.Role.SECONDARY.value,
+        physicalNetworkName=physical_network_name,
+        vlan=vlan,
+        ipam=ipam,
+        mtu=mtu,
     )
     network = libcudn.Network(topology=libcudn.Network.Topology.LOCALNET.value, localnet=localnet)
 
     return libcudn.ClusterUserDefinedNetwork(
-        name=name, namespace_selector=LabelSelector(matchLabels=match_labels), network=network
+        name=name,
+        namespace_selector=LabelSelector(matchLabels=match_labels),
+        network=network,
+        client=client,
     )
 
 
 @contextlib.contextmanager
-def client_server_active_connection(
-    client_vm: BaseVirtualMachine,
-    server_vm: BaseVirtualMachine,
-    spec_logical_network: str,
-    port: int = _IPERF_SERVER_PORT,
-) -> Generator[tuple[TcpClient, TcpServer], None, None]:
-    with TcpServer(vm=server_vm, port=port) as server:
-        with TcpClient(
-            vm=client_vm,
-            server_ip=lookup_iface_status(vm=server_vm, iface_name=spec_logical_network)[IP_ADDRESS],
-            server_port=port,
-        ) as client:
-            yield client, server
+def create_nncp_localnet_on_secondary_node_nic(
+    node_nic_name: str,
+    client: DynamicClient,
+    mtu: int | None = None,
+) -> Generator[libnncp.NodeNetworkConfigurationPolicy, None, None]:
+    """Create NNCP to configure an OVS bridge on a secondary NIC across all worker nodes.
+
+    Note:
+        This function assumes homogeneous hardware—all workers must have a NIC with
+        the same name. The configuration is applied to all workers to support anti-affinity scheduled VMs.
+
+    Args:
+        node_nic_name: Name of the available NIC on all nodes.
+        client: Dynamic client used to create and manage the NNCP resource.
+        mtu: Optional MTU to configure on the physical NIC.
+
+    Yields:
+        The created NodeNetworkConfigurationPolicy.
+    """
+    bridge_name = f"localnet-ovs-br-{uuid.uuid4().hex[:16]}"
+    interfaces = []
+
+    if mtu:
+        # Ensure the physical NIC MTU matches the network MTU
+        interfaces.append(
+            libnncp.Interface(
+                name=node_nic_name,
+                type=NNCP_INTERFACE_TYPE_ETHERNET,
+                mtu=mtu,
+                state=libnncp.Resource.Interface.State.UP,
+            )
+        )
+
+    interfaces.append(
+        libnncp.Interface(
+            name=bridge_name,
+            type=OVS_BRIDGE,
+            ipv4=libnncp.IPv4(enabled=False),
+            ipv6=libnncp.IPv6(enabled=False),
+            state=libnncp.Resource.Interface.State.UP,
+            bridge=libnncp.Bridge(
+                options=libnncp.BridgeOptions(libnncp.STP(enabled=False)),
+                port=[
+                    libnncp.Port(
+                        name=node_nic_name,
+                    )
+                ],
+            ),
+        ),
+    )
+
+    desired_state = libnncp.DesiredState(
+        interfaces=interfaces,
+        ovn=libnncp.OVN([
+            libnncp.BridgeMappings(
+                localnet=LOCALNET_OVS_BRIDGE_NETWORK,
+                bridge=bridge_name,
+                state=libnncp.BridgeMappings.State.PRESENT.value,
+            )
+        ]),
+    )
+    with libnncp.NodeNetworkConfigurationPolicy(
+        client=client,
+        name=bridge_name,
+        desired_state=desired_state,
+        node_selector={WORKER_NODE_LABEL_KEY: ""},
+    ) as nncp:
+        nncp.wait_for_status_success()
+        yield nncp

@@ -1,41 +1,36 @@
 import logging
 import shlex
-from collections import OrderedDict
 
-from kubernetes.dynamic.exceptions import ResourceNotFoundError
 from ocp_resources.deployment import Deployment
 from ocp_resources.node_network_state import NodeNetworkState
 from ocp_resources.service import Service
 from pyhelper_utils.shell import run_ssh_commands
 from timeout_sampler import TimeoutExpiredError, TimeoutSampler
 
-from tests.network.constants import BRCNV
-from tests.network.libs.ip import random_ipv4_address
+from libs.net.vmspec import lookup_iface_status_ip
 from utilities.constants import (
     IPV4_STR,
     OS_FLAVOR_FEDORA,
-    SSH_PORT_22,
     TIMEOUT_1MIN,
     TIMEOUT_2MIN,
     TIMEOUT_10SEC,
 )
 from utilities.network import (
-    compose_cloud_init_data_dict,
     get_ip_from_vm_or_virt_handler_pod,
-    get_vmi_ip_v4_by_name,
     ping,
 )
-from utilities.virt import VirtualMachineForTests, fedora_vm_body, running_vm
+from utilities.virt import VirtualMachineForTests, fedora_vm_body
 
 LOGGER = logging.getLogger(__name__)
 SERVICE_MESH_INJECT_ANNOTATION = "sidecar.istio.io/inject"
 
 
 class ServiceMeshDeploymentService(Service):
-    def __init__(self, app_name, namespace, port, port_name=None):
+    def __init__(self, app_name, namespace, port, client, port_name=None):
         super().__init__(
             name=app_name,
             namespace=namespace,
+            client=client,
         )
         self.port = port
         self.app_name = app_name
@@ -85,6 +80,7 @@ class ServiceMeshDeployments(Deployment):
         namespace,
         version,
         image,
+        client,
         replicas=1,
         command=None,
         strategy=None,
@@ -106,7 +102,7 @@ class ServiceMeshDeployments(Deployment):
             },
         }
 
-        super().__init__(name=self.name, namespace=namespace, template=template, selector=selector)
+        super().__init__(name=self.name, namespace=namespace, template=template, selector=selector, client=client)
         self.version = version
         self.replicas = replicas
         self.image = image
@@ -183,7 +179,7 @@ def wait_for_address_on_iface(worker_pod, iface_name):
     samples = TimeoutSampler(
         wait_timeout=TIMEOUT_2MIN,
         sleep=1,
-        func=NodeNetworkState(worker_pod.node.name).ipv4,
+        func=NodeNetworkState(name=worker_pod.node.name, client=worker_pod.client).ipv4,
         iface=iface_name,
     )
     try:
@@ -228,8 +224,8 @@ def run_ssh_in_background(nad, src_vm, dst_vm, dst_vm_user, dst_vm_password):
     """
     Start ssh connection to the vm
     """
-    dst_ip = get_vmi_ip_v4_by_name(vm=dst_vm, name=nad.name)
-    src_ip = str(get_vmi_ip_v4_by_name(vm=src_vm, name=nad.name))
+    dst_ip = lookup_iface_status_ip(vm=dst_vm, iface_name=nad.name, ip_family=4)
+    src_ip = str(lookup_iface_status_ip(vm=src_vm, iface_name=nad.name, ip_family=4))
     LOGGER.info(f"Start ssh connection to {dst_vm.name} from {src_vm.name}")
     run_ssh_commands(
         host=src_vm.ssh_exec,
@@ -261,38 +257,6 @@ def assert_nncp_successfully_configured(nncp):
         raise
 
 
-def vm_for_brcnv_tests(
-    vm_name,
-    namespace,
-    unprivileged_client,
-    nads,
-    address_suffix,
-    node_selector=None,
-):
-    vm_name = f"{BRCNV}-{vm_name}"
-    networks = OrderedDict()
-    network_data = {"ethernets": {}}
-    for idx, nad in enumerate(nads, start=1):
-        networks[nad.name] = nad.name
-        network_data["ethernets"][f"eth{idx}"] = {
-            "addresses": [f"{random_ipv4_address(net_seed=idx, host_address=address_suffix)}/24"]
-        }
-    cloud_init_data = compose_cloud_init_data_dict(network_data=network_data)
-
-    with VirtualMachineForTests(
-        namespace=namespace.name,
-        name=vm_name,
-        body=fedora_vm_body(name=vm_name),
-        networks=networks,
-        interfaces=networks.keys(),
-        node_selector=node_selector,
-        cloud_init_data=cloud_init_data,
-        client=unprivileged_client,
-    ) as vm:
-        running_vm(vm=vm)
-        yield vm
-
-
 def get_vlan_index_number(vlans_list):
     yield from vlans_list
     raise ValueError(f"vlans list is exhausted. Current list size is {len(vlans_list)} and all vlans are in use.")
@@ -306,26 +270,3 @@ def get_destination_ip_address(destination_vm):
     assert dst_ip, f"Cannot get valid IP address from {destination_vm.name}."
 
     return dst_ip
-
-
-def basic_expose_command(
-    resource_name,
-    svc_name,
-    resource="vm",
-    port="27017",
-    target_port=SSH_PORT_22,
-    service_type="NodePort",
-    protocol="TCP",
-):
-    return (
-        f"expose {resource} {resource_name} --port={port} --target-port="
-        f"{target_port} --type={service_type} --name={svc_name} --protocol={protocol}"
-    )
-
-
-def get_service(name, namespace):
-    service = Service(name=name, namespace=namespace)
-    if service.exists:
-        return service
-
-    raise ResourceNotFoundError(f"Service {name}.")

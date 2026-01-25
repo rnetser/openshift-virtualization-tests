@@ -16,16 +16,15 @@ from tests.install_upgrade_operators.strict_reconciliation.utils import (
     wait_for_resource_version_update,
 )
 from tests.utils import wait_for_cr_labels_change
-from utilities.constants import HCO_BEARER_AUTH, TIMEOUT_1MIN, VERSION_LABEL_KEY
+from utilities.constants import TIMEOUT_1MIN, VERSION_LABEL_KEY
 from utilities.hco import ResourceEditorValidateHCOReconcile
-from utilities.jira import is_jira_open
 
 LOGGER = logging.getLogger(__name__)
 DISABLED_KUBEVIRT_FEATUREGATES_IN_SNO = ["LiveMigration", "SRIOVLiveMigration"]
 
 
 @pytest.fixture()
-def deleted_stanza_on_hco_cr(request, hyperconverged_resource_scope_function, admin_client, hco_namespace):
+def deleted_stanza_on_hco_cr(request, hyperconverged_resource_scope_function):
     with ResourceEditorValidateHCOReconcile(
         patches={hyperconverged_resource_scope_function: request.param["rpatch"]},
         action="replace",
@@ -36,7 +35,7 @@ def deleted_stanza_on_hco_cr(request, hyperconverged_resource_scope_function, ad
 
 
 @pytest.fixture()
-def hco_cr_custom_values(hyperconverged_resource_scope_function, admin_client, hco_namespace):
+def hco_cr_custom_values(hyperconverged_resource_scope_function):
     """
     This fixture updates HCO CR with custom values for spec.CertConfig, spec.liveMigrationConfig and
     spec.featureGates and cleans those up at the end.
@@ -55,7 +54,7 @@ def hco_cr_custom_values(hyperconverged_resource_scope_function, admin_client, h
 
 
 @pytest.fixture()
-def updated_cdi_cr(request, cdi_resource_scope_function, admin_client, hco_namespace):
+def updated_cdi_cr(request, cdi_resource_scope_function):
     """
     Attempts to update cdi, however, since these changes get reconciled to values propagated by hco cr, we don't need
     to restore these.
@@ -71,7 +70,7 @@ def updated_cdi_cr(request, cdi_resource_scope_function, admin_client, hco_names
 
 
 @pytest.fixture()
-def updated_cnao_cr(request, cnao_resource, admin_client, hco_namespace):
+def updated_cnao_cr(request, cnao_resource):
     """
     Attempts to update cnao, however, since these changes get reconciled to values propagated by hco cr, we don't need
     to restore these.
@@ -85,7 +84,7 @@ def updated_cnao_cr(request, cnao_resource, admin_client, hco_namespace):
 
 
 @pytest.fixture()
-def updated_kv_with_feature_gates(request, admin_client, hco_namespace, kubevirt_resource):
+def updated_kv_with_feature_gates(request, kubevirt_resource):
     kv_dict = kubevirt_resource.instance.to_dict()
     fgs = kv_dict["spec"]["configuration"]["developerConfiguration"]["featureGates"].copy()
     fgs.extend(request.param)
@@ -99,7 +98,7 @@ def updated_kv_with_feature_gates(request, admin_client, hco_namespace, kubevirt
 
 
 @pytest.fixture()
-def updated_cdi_with_feature_gates(request, cdi_resource_scope_function, admin_client, hco_namespace):
+def updated_cdi_with_feature_gates(request, cdi_resource_scope_function):
     cdi_dict = cdi_resource_scope_function.instance.to_dict()
     fgs = cdi_dict["spec"]["config"]["featureGates"].copy()
     fgs.extend(request.param)
@@ -114,8 +113,6 @@ def updated_cdi_with_feature_gates(request, cdi_resource_scope_function, admin_c
 @pytest.fixture()
 def hco_with_non_default_feature_gates(
     request,
-    admin_client,
-    hco_namespace,
     hyperconverged_resource_scope_function,
 ):
     new_fgs = request.param["fgs"]
@@ -165,6 +162,7 @@ def reconciled_cr_post_hco_update(
         resource=request.param["resource_class"],
         resource_name=request.param["resource_name"],
         resource_namespace=hco_namespace.name,
+        admin_client=admin_client,
     )
 
     start_resource_version = get_resource_version_from_related_object(
@@ -206,14 +204,3 @@ def updated_resource_labels(ocp_resource_by_name):
     ):
         wait_for_cr_labels_change(expected_value=expected_labels, component=ocp_resource_by_name, timeout=TIMEOUT_1MIN)
         yield expected_labels
-
-
-@pytest.fixture(scope="package")
-def is_jira_71826_open():
-    return is_jira_open(jira_id="CNV-71826")
-
-
-@pytest.fixture()
-def skip_if_hco_bearer_token_bug_open(is_jira_71826_open, ocp_resource_by_name):
-    if is_jira_71826_open and ocp_resource_by_name.name == HCO_BEARER_AUTH:
-        pytest.skip(f"{HCO_BEARER_AUTH} resource labels doesn't reconcile due to 71826 bug")

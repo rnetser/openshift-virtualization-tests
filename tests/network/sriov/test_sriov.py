@@ -6,9 +6,10 @@ import logging
 
 import pytest
 
+from libs.net.vmspec import lookup_iface_status_ip
 from tests.network.utils import assert_no_ping
-from utilities.constants import MTU_9000
-from utilities.network import assert_ping_successful, get_vmi_ip_v4_by_name
+from utilities.constants import MTU_9000, QUARANTINED
+from utilities.network import assert_ping_successful
 from utilities.virt import migrate_vm_and_verify
 
 LOGGER = logging.getLogger(__name__)
@@ -28,7 +29,7 @@ class TestPingConnectivity:
     ):
         assert_ping_successful(
             src_vm=sriov_vm1,
-            dst_ip=get_vmi_ip_v4_by_name(vm=sriov_vm2, name=sriov_network.name),
+            dst_ip=lookup_iface_status_ip(vm=sriov_vm2, iface_name=sriov_network.name, ip_family=4),
         )
 
     @pytest.mark.ipv4
@@ -42,12 +43,16 @@ class TestPingConnectivity:
     ):
         assert_ping_successful(
             src_vm=sriov_vm1,
-            dst_ip=get_vmi_ip_v4_by_name(vm=sriov_vm2, name=sriov_network.name),
+            dst_ip=lookup_iface_status_ip(vm=sriov_vm2, iface_name=sriov_network.name, ip_family=4),
             packet_size=MTU_9000,
         )
 
     @pytest.mark.ipv4
     @pytest.mark.polarion("CNV-3958")
+    @pytest.mark.xfail(
+        reason=f"{QUARANTINED}: fails in CI due to issue in specific cluster; tracked in CNV-75730",
+        run=False,
+    )
     def test_sriov_basic_connectivity_vlan(
         self,
         sriov_network_vlan,
@@ -56,11 +61,15 @@ class TestPingConnectivity:
     ):
         assert_ping_successful(
             src_vm=sriov_vm3,
-            dst_ip=get_vmi_ip_v4_by_name(vm=sriov_vm4, name=sriov_network_vlan.name),
+            dst_ip=lookup_iface_status_ip(vm=sriov_vm4, iface_name=sriov_network_vlan.name, ip_family=4),
         )
 
     @pytest.mark.ipv4
     @pytest.mark.polarion("CNV-4713")
+    @pytest.mark.xfail(
+        reason=f"{QUARANTINED}: fails in CI due to issue in specific cluster; tracked in CNV-75730",
+        run=False,
+    )
     def test_sriov_no_connectivity_no_vlan_to_vlan(
         self,
         sriov_network_vlan,
@@ -69,7 +78,7 @@ class TestPingConnectivity:
     ):
         assert_no_ping(
             src_vm=sriov_vm1,
-            dst_ip=get_vmi_ip_v4_by_name(vm=sriov_vm4, name=sriov_network_vlan.name),
+            dst_ip=lookup_iface_status_ip(vm=sriov_vm4, iface_name=sriov_network_vlan.name, ip_family=4),
         )
 
     @pytest.mark.post_upgrade
@@ -97,7 +106,7 @@ class TestSriovLiveMigration:
         migrate_vm_and_verify(vm=sriov_vm_migrate, check_ssh_connectivity=True)
         assert_ping_successful(
             src_vm=sriov_vm2,
-            dst_ip=get_vmi_ip_v4_by_name(vm=sriov_vm_migrate, name=sriov_network.name),
+            dst_ip=lookup_iface_status_ip(vm=sriov_vm_migrate, iface_name=sriov_network.name, ip_family=4),
         )
 
 

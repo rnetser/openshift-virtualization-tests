@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import logging
-import re
 import shlex
 from contextlib import contextmanager
 from typing import Any, Generator
@@ -31,12 +30,9 @@ from utilities.constants import (
     OS_FLAVOR_WINDOWS,
     OS_PROC_NAME,
     TCP_TIMEOUT_30SEC,
-    TIMEOUT_1MIN,
     TIMEOUT_1SEC,
     TIMEOUT_2MIN,
-    TIMEOUT_3MIN,
     TIMEOUT_5SEC,
-    TIMEOUT_15SEC,
     TIMEOUT_30MIN,
     TIMEOUT_30SEC,
 )
@@ -50,6 +46,7 @@ from utilities.storage import (
     create_dv,
     create_or_update_data_source,
     data_volume_template_with_source_ref_dict,
+    get_storage_class_dict_from_matrix,
 )
 from utilities.virt import (
     VirtualMachineForTests,
@@ -58,7 +55,7 @@ from utilities.virt import (
     get_vm_boot_time,
     kill_processes_by_name_linux,
     migrate_vm_and_verify,
-    pause_optional_migrate_unpause_and_check_connectivity,
+    pause_unpause_vm_and_check_connectivity,
     start_and_fetch_processid_on_linux_vm,
     start_and_fetch_processid_on_windows_vm,
     verify_vm_migrated,
@@ -127,69 +124,6 @@ def verify_stress_ng_pid_not_changed(vm, initial_pid, windows=False):
     )
     assert initial_pid == current_stress_ng_pid, (
         f"stress-ng pid changed. Before: {initial_pid}. Current: {current_stress_ng_pid}"
-    )
-
-
-def verify_wsl2_guest_running(vm, timeout=TIMEOUT_3MIN):
-    def _get_wsl2_running_status():
-        guests_status = run_ssh_commands(
-            host=vm.ssh_exec,
-            commands=shlex.split("powershell.exe -command wsl -l -v"),
-            tcp_timeout=TCP_TIMEOUT_30SEC,
-        )[0]
-        guests_status = guests_status.replace("\x00", "")
-        LOGGER.info(guests_status)
-        return re.search(r".*(Running).*\n", guests_status) is not None
-
-    sampler = TimeoutSampler(wait_timeout=timeout, sleep=TIMEOUT_5SEC, func=_get_wsl2_running_status)
-    try:
-        for sample in sampler:
-            if sample:
-                return True
-    except TimeoutExpiredError:
-        LOGGER.error("WSL2 guest is not running in the VM!")
-        raise
-
-
-def verify_wsl2_guest_works(vm: VirtualMachineForTests) -> None:
-    """
-    Verifies that WSL2 is functioning on windows vm.
-    Args:
-        vm: An instance of `VirtualMachineForTests`
-    Raises:
-        TimeoutExpiredError: If WSL2 fails to return the expected output within
-            the specified timeout period.
-    """
-    echo_string = "TEST"
-    samples = TimeoutSampler(
-        wait_timeout=TIMEOUT_1MIN,
-        sleep=TIMEOUT_15SEC,
-        func=run_ssh_commands,
-        host=vm.ssh_exec,
-        commands=shlex.split(f"wsl echo {echo_string}"),
-    )
-    try:
-        for sample in samples:
-            if sample and echo_string in sample[0]:
-                return
-    except TimeoutExpiredError:
-        LOGGER.error(f"VM {vm.name} failed to start WSL2")
-        raise
-
-
-def start_stress_on_vm(vm, stress_command):
-    LOGGER.info(f"Running memory load in VM {vm.name}")
-    if "windows" in vm.name:
-        verify_wsl2_guest_running(vm=vm)
-        verify_wsl2_guest_works(vm=vm)
-        command = f"wsl nohup bash -c '{stress_command}'"
-    else:
-        run_ssh_commands(host=vm.ssh_exec, commands=shlex.split("sudo dnf install -y stress-ng"))
-        command = stress_command
-    run_ssh_commands(
-        host=vm.ssh_exec,
-        commands=shlex.split(command),
-        tcp_timeout=TCP_TIMEOUT_30SEC,
     )
 
 
@@ -283,11 +217,11 @@ def kill_processes_by_name_windows(vm, process_name):
     run_ssh_commands(host=vm.ssh_exec, commands=cmd, tcp_timeout=TCP_TIMEOUT_30SEC)
 
 
-def validate_pause_optional_migrate_unpause_windows_vm(vm, pre_pause_pid=None, migrate=False):
+def validate_pause_unpause_windows_vm(vm: VirtualMachineForTests, pre_pause_pid: int | None = None) -> None:
     proc_name = OS_PROC_NAME["windows"]
     if not pre_pause_pid:
         pre_pause_pid = start_and_fetch_processid_on_windows_vm(vm=vm, process_name=proc_name)
-    pause_optional_migrate_unpause_and_check_connectivity(vm=vm, migrate=migrate)
+    pause_unpause_vm_and_check_connectivity(vm=vm)
     post_pause_pid = fetch_pid_from_windows_vm(vm=vm, process_name=proc_name)
     kill_processes_by_name_windows(vm=vm, process_name=proc_name)
     assert post_pause_pid == pre_pause_pid, (
@@ -474,7 +408,7 @@ def get_pod_memory_requests(pod_instance):
 def get_non_terminated_pods(client, node):
     return list(
         Pod.get(
-            dyn_client=client,
+            client=client,
             field_selector=f"spec.nodeName={node.name},status.phase!=Succeeded,status.phase!=Failed",
         )
     )
@@ -484,7 +418,7 @@ def get_boot_time_for_multiple_vms(vm_list):
     return {vm.name: get_vm_boot_time(vm=vm) for vm in vm_list}
 
 
-def verify_linux_boot_time(vm_list, initial_boot_time):
+def verify_guest_boot_time(vm_list, initial_boot_time):
     rebooted_vms = {}
     for vm in vm_list:
         current_boot_time = get_vm_boot_time(vm=vm)
@@ -529,29 +463,31 @@ def get_or_create_golden_image_data_source(
 
 
 def get_data_volume_template_dict_with_default_storage_class(
-    data_source: DataSource, params: dict[str, Any] | None = None
+    data_source: DataSource, storage_class: str | None = None
 ) -> dict[str, dict]:
     """
     Generates a dataVolumeTemplate dict with the py_config based storage class.
 
     Args:
         data_source (DataSource): The data source object used to create the data volume template.
-        params (dict[str, Any], optional): dict of request.param passed to pytest fixture.
+        storage_class (str, optional): Storage class name.
 
     Returns:
         dict[str, dict]: A dict representing the dataVolumeTemplate to be used in VM spec.
     """
     data_volume_template = data_volume_template_with_source_ref_dict(data_source=data_source)
-    if params and (storage_class_params := params.get("storage_class")):
-        data_volume_template["spec"]["storage"]["storageClassName"] = storage_class_params["name"]
-        data_volume_template["spec"]["storage"]["accessModes"] = [storage_class_params["access_mode"]]
-        data_volume_template["spec"]["storage"]["volumeMode"] = storage_class_params["volume_mode"]
-    else:
-        default_sc_config = py_config["default_storage_class_configuration"]
-        data_volume_template["spec"]["storage"]["storageClassName"] = py_config["default_storage_class"]
-        data_volume_template["spec"]["storage"]["accessModes"] = [default_sc_config["access_mode"]]
-        data_volume_template["spec"]["storage"]["volumeMode"] = default_sc_config["volume_mode"]
 
+    # access modes is needed to correctly set eviction strategy in VMs from template
+    # (see to_dict method in VirtualMachineForTestsFromTemplate class)
+    # TODO: remove access modes after the logic in VirtualMachineForTestsFromTemplate is updated
+    if storage_class:
+        data_volume_template["spec"]["storage"]["storageClassName"] = storage_class
+        data_volume_template["spec"]["storage"]["accessModes"] = [
+            get_storage_class_dict_from_matrix(storage_class=storage_class)[storage_class]["access_mode"]
+        ]
+    else:
+        data_volume_template["spec"]["storage"]["storageClassName"] = py_config["default_storage_class"]
+        data_volume_template["spec"]["storage"]["accessModes"] = [py_config["default_access_mode"]]
     return data_volume_template
 
 

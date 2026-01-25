@@ -1,13 +1,14 @@
 import pytest
 
-pytestmark = [pytest.mark.sno, pytest.mark.s390x]
+pytestmark = [pytest.mark.sno, pytest.mark.s390x, pytest.mark.skip_must_gather_collection]
 
 
 @pytest.mark.polarion("CNV-7169")
-def test_channels_in_manifest(kubevirt_package_manifest_channels):
-    expected_channels = {"stable", "dev-preview"}
-    missing_channels = expected_channels - {channel.name for channel in kubevirt_package_manifest_channels}
-    assert not missing_channels, f"Missing channels: {missing_channels}"
+def test_stable_channel_in_manifest(kubevirt_package_manifest_channels):
+    channels_names_from_manifest = [channel.name for channel in kubevirt_package_manifest_channels]
+    assert "stable" in channels_names_from_manifest, (
+        f"Stable channel must be on package manifest\nAvailable channels: {channels_names_from_manifest}"
+    )
 
 
 @pytest.mark.polarion("CNV-11944")

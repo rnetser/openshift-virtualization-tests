@@ -21,11 +21,11 @@ from _pytest.nodes import Collector, Node
 from _pytest.reports import CollectReport, TestReport
 from _pytest.runner import CallInfo
 from kubernetes.dynamic.exceptions import ConflictError
-from ocp_resources.resource import get_client
 from pyhelper_utils.shell import run_command
 from pytest import Item
 from pytest_testconfig import config as py_config
 
+import utilities.cluster
 import utilities.infra
 from libs.storage.config import StorageClassConfig
 from utilities.bitwarden import get_cnv_tests_secret_by_name
@@ -74,12 +74,11 @@ EXCLUDE_MARKER_FROM_TIER2_MARKER = [
     "sap_hana",
     "scale",
     "longevity",
-    "ovs_brcnv",
     "node_remediation",
     "swap",
     "numa",
-    "bgp",
     "cclm",
+    "mtv",
 ]
 
 TEAM_MARKERS = {
@@ -118,6 +117,7 @@ def pytest_addoption(parser):
     session_group = parser.getgroup(name="Session")
     csv_group = parser.getgroup(name="CSV")
     ci_group = parser.getgroup(name="CI")
+    component_sanity_group = parser.getgroup(name="ComponentSanity")
     csv_group.addoption("--update-csv", action="store_true")
 
     # Upgrade addoption
@@ -301,12 +301,7 @@ def pytest_addoption(parser):
         default=False,
         help="Skip artifactory environment variable checks. To be used for tests that does not need articatory access",
     )
-    session_group.addoption(
-        "--skip-virt-sanity-check",
-        action="store_true",
-        default=False,
-        help="Skip verification that cluster has all required capabilities for virt special_infra marked tests",
-    )
+
     session_group.addoption(
         "--remote_cluster_host",
         help="Host address of the remote cluster for cross-cluster tests",
@@ -329,6 +324,25 @@ def pytest_addoption(parser):
     ci_group.addoption(
         "--tests-markers-file",
         help="Full filepath to store collected test markers.",
+    )
+    ci_group.addoption(
+        "--disabled-bitwarden",
+        help="Disable Bitwarden secret fetching; use local/environment secrets instead.",
+        action="store_true",
+        default=False,
+    )
+
+    component_sanity_group.addoption(
+        "--skip-virt-sanity-check",
+        action="store_true",
+        default=False,
+        help="Skip virtualization infrastructure sanity checks",
+    )
+    component_sanity_group.addoption(
+        "--skip-infra-sanity-check",
+        action="store_true",
+        default=False,
+        help="Skip infrastructure prerequisite sanity checks",
     )
 
 
@@ -789,21 +803,21 @@ def pytest_sessionstart(session):
     # Set py_config["servers"] and py_config["os_login_param"]
     # Send --tc=server_url:<url> to override servers URL
     if not skip_if_pytest_flags_exists(pytest_config=session.config):
+        admin_client = utilities.cluster.cache_admin_client()
         py_config["version_explorer_url"] = get_cnv_version_explorer_url(pytest_config=session.config)
         if not session.config.getoption("--skip-artifactory-check"):
             py_config["server_url"] = py_config["server_url"] or get_artifactory_server_url(
-                cluster_host_url=get_client().configuration.host
+                cluster_host_url=admin_client.configuration.host, session=session
             )
             py_config["servers"] = {
                 name: _server.format(server=py_config["server_url"]) for name, _server in py_config["servers"].items()
             }
-            py_config["os_login_param"] = get_cnv_tests_secret_by_name(secret_name="os_login")
+            py_config["os_login_param"] = get_cnv_tests_secret_by_name(secret_name="os_login", session=session)
 
-    # must be at the end to make sure we create it only after all pytest_sessionstart checks pass.
-    if not skip_if_pytest_flags_exists(pytest_config=session.config):
-        stop_if_run_in_progress()
-        deploy_run_in_progress_namespace()
-        deploy_run_in_progress_config_map(session=session)
+        # must be at the end to make sure we create it only after all pytest_sessionstart checks pass.
+        stop_if_run_in_progress(client=admin_client)
+        deploy_run_in_progress_namespace(client=admin_client)
+        deploy_run_in_progress_config_map(client=admin_client, session=session)
 
 
 def pytest_collection_finish(session):
@@ -815,8 +829,9 @@ def pytest_collection_finish(session):
 def pytest_sessionfinish(session, exitstatus):
     shutil.rmtree(path=session.config.option.basetemp, ignore_errors=True)
     if not skip_if_pytest_flags_exists(pytest_config=session.config):
-        run_in_progress_config_map().clean_up()
-        deploy_run_in_progress_namespace().clean_up()
+        admin_client = utilities.cluster.cache_admin_client()
+        run_in_progress_config_map(client=admin_client).clean_up()
+        deploy_run_in_progress_namespace(client=admin_client).clean_up()
 
     reporter = session.config.pluginmanager.get_plugin("terminalreporter")
     reporter.summary_stats()
@@ -892,6 +907,7 @@ def pytest_exception_interact(node: Item | Collector, call: CallInfo[Any], repor
                 collect_default_cnv_must_gather_with_vm_gather(
                     since_time=calculate_must_gather_timer(test_start_time=test_start_time),
                     target_dir=collection_dir,
+                    admin_client=utilities.cluster.cache_admin_client(),
                 )
                 if inspect_str := get_inspect_command_namespace_string(test_name=test_name, node=node):
                     target_dir = os.path.join(collection_dir, "inspect_collection")

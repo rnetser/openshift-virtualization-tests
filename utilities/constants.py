@@ -75,7 +75,6 @@ class ArchImages:
         )
 
         Rhel = Rhel(
-            RHEL7_9_IMG="rhel-79.qcow2",
             RHEL8_0_IMG="rhel-8.qcow2",
             RHEL8_9_IMG="rhel-89.qcow2",
             RHEL8_10_IMG="rhel-810.qcow2",
@@ -435,6 +434,7 @@ KUBEVIRT_UI_CONFIG_READER_ROLE_BINDING = "kubevirt-ui-config-reader-rolebinding"
 HCO_BEARER_AUTH = "hco-bearer-auth"
 KUBEVIRT_CONSOLE_PLUGIN_NP = "kubevirt-console-plugin-np"
 KUBEVIRT_APISERVER_PROXY_NP = "kubevirt-apiserver-proxy-np"
+MIGCONTROLLER_KUBEVIRT_HYPERCONVERGED = "migcontroller-kubevirt-hyperconverged"
 # components kind
 ROLEBINDING_STR = "RoleBinding"
 POD_STR = "Pod"
@@ -460,6 +460,9 @@ KUBEVIRT_APISERVER_PROXY = "kubevirt-apiserver-proxy"
 NETWORKPOLICY_STR = "NetworkPolicy"
 AAQ_OPERATOR = "aaq-operator"
 WINDOWS_BOOTSOURCE_PIPELINE = "windows-bootsource-pipeline"
+KUBEVIRT_MIGRATION_OPERATOR = "kubevirt-migration-operator"
+KUBEVIRT_MIGRATION_CONTROLLER = "kubevirt-migration-controller"
+KUBEVIRT_OPERATOR = "kubevirt-operator"
 # All hco relate objects with kind
 ALL_HCO_RELATED_OBJECTS = [
     {KUBEVIRT_HYPERCONVERGED_PROMETHEUS_RULE: PROMETHEUSRULE_STR},
@@ -499,6 +502,7 @@ ALL_HCO_RELATED_OBJECTS = [
     {HCO_BEARER_AUTH: SECRET_STR},
     {KUBEVIRT_CONSOLE_PLUGIN_NP: NETWORKPOLICY_STR},
     {KUBEVIRT_APISERVER_PROXY_NP: NETWORKPOLICY_STR},
+    {MIGCONTROLLER_KUBEVIRT_HYPERCONVERGED: "MigController"},
 ]
 CNV_PODS_NO_HPP_CSI_HPP_POOL = [
     AAQ_OPERATOR,
@@ -516,6 +520,8 @@ CNV_PODS_NO_HPP_CSI_HPP_POOL = [
     KUBEMACPOOL_CERT_MANAGER,
     KUBEMACPOOL_MAC_CONTROLLER_MANAGER,
     KUBEVIRT_CONSOLE_PLUGIN,
+    KUBEVIRT_MIGRATION_OPERATOR,
+    KUBEVIRT_MIGRATION_CONTROLLER,
     SSP_OPERATOR,
     VIRT_API,
     VIRT_CONTROLLER,
@@ -526,8 +532,8 @@ CNV_PODS_NO_HPP_CSI_HPP_POOL = [
     KUBEVIRT_APISERVER_PROXY,
     KUBEVIRT_IPAM_CONTROLLER_MANAGER,
 ]
-ALL_CNV_PODS = CNV_PODS_NO_HPP_CSI_HPP_POOL + [HOSTPATH_PROVISIONER_CSI]
-ALL_CNV_DEPLOYMENTS_NO_HPP_POOL = [
+ALL_CNV_PODS = CNV_PODS_NO_HPP_CSI_HPP_POOL + [HOSTPATH_PROVISIONER_CSI, HPP_POOL]
+ALL_CNV_DEPLOYMENTS = [
     AAQ_OPERATOR,
     CDI_APISERVER,
     CDI_DEPLOYMENT,
@@ -549,14 +555,16 @@ ALL_CNV_DEPLOYMENTS_NO_HPP_POOL = [
     VIRT_EXPORTPROXY,
     KUBEVIRT_APISERVER_PROXY,
     KUBEVIRT_IPAM_CONTROLLER_MANAGER,
+    HPP_POOL,
+    KUBEVIRT_MIGRATION_OPERATOR,
+    KUBEVIRT_MIGRATION_CONTROLLER,
 ]
-ALL_CNV_DEPLOYMENTS = ALL_CNV_DEPLOYMENTS_NO_HPP_POOL + [HPP_POOL]
-ALL_CNV_DAEMONSETS_NO_HPP_CSI = [
+ALL_CNV_DAEMONSETS = [
     BRIDGE_MARKER,
+    HOSTPATH_PROVISIONER_CSI,
     KUBE_CNI_LINUX_BRIDGE_PLUGIN,
     VIRT_HANDLER,
 ]
-ALL_CNV_DAEMONSETS = [HOSTPATH_PROVISIONER_CSI] + ALL_CNV_DAEMONSETS_NO_HPP_CSI
 
 
 CNV_OPERATORS = [
@@ -565,7 +573,8 @@ CNV_OPERATORS = [
     CLUSTER_NETWORK_ADDONS_OPERATOR,
     HOSTPATH_PROVISIONER_OPERATOR,
     HYPERCONVERGED_CLUSTER_OPERATOR,
-    "kubevirt-operator",
+    KUBEVIRT_MIGRATION_OPERATOR,
+    KUBEVIRT_OPERATOR,
     SSP_OPERATOR,
     HYPERCONVERGED_CLUSTER_CLI_DOWNLOAD,
 ]
@@ -619,8 +628,7 @@ BASE_EXCEPTIONS_DICT: dict[type[Exception], list[str]] = {
 }
 
 # Container images
-NET_UTIL_CONTAINER_IMAGE = "quay.io/openshift-cnv/qe-cnv-tests-net-util-container:centos-stream-9"
-
+NET_UTIL_CONTAINER_IMAGE = "quay.io/openshift-cnv/qe-net-utils:latest"
 
 OC_ADM_LOGS_COMMAND = "oc adm node-logs"
 AUDIT_LOGS_PATH = "--path=kube-apiserver"
@@ -638,6 +646,7 @@ ALL_CNV_CRDS = [
     f"hostpathprovisioners.{Resource.ApiGroup.HOSTPATHPROVISIONER_KUBEVIRT_IO}",
     f"hyperconvergeds.{Resource.ApiGroup.HCO_KUBEVIRT_IO}",
     f"kubevirts.{Resource.ApiGroup.KUBEVIRT_IO}",
+    f"migcontrollers.{Resource.ApiGroup.MIGRATIONS_KUBEVIRT_IO}",
     f"migrationpolicies.{Resource.ApiGroup.MIGRATIONS_KUBEVIRT_IO}",
     f"networkaddonsconfigs.{Resource.ApiGroup.NETWORKADDONSOPERATOR_NETWORK_KUBEVIRT_IO}",
     f"objecttransfers.{Resource.ApiGroup.CDI_KUBEVIRT_IO}",
@@ -663,6 +672,10 @@ ALL_CNV_CRDS = [
     f"volumeclonesources.{Resource.ApiGroup.CDI_KUBEVIRT_IO}",
     f"openstackvolumepopulators.forklift.{Resource.ApiGroup.CDI_KUBEVIRT_IO}",
     f"ovirtvolumepopulators.forklift.{Resource.ApiGroup.CDI_KUBEVIRT_IO}",
+    f"multinamespacevirtualmachinestoragemigrationplans.{Resource.ApiGroup.MIGRATIONS_KUBEVIRT_IO}",
+    f"multinamespacevirtualmachinestoragemigrations.{Resource.ApiGroup.MIGRATIONS_KUBEVIRT_IO}",
+    f"virtualmachinestoragemigrationplans.{Resource.ApiGroup.MIGRATIONS_KUBEVIRT_IO}",
+    f"virtualmachinestoragemigrations.{Resource.ApiGroup.MIGRATIONS_KUBEVIRT_IO}",
 ]
 PRODUCTION_CATALOG_SOURCE = "redhat-operators"
 TLS_OLD_POLICY = "old"
@@ -831,9 +844,43 @@ POD_CONTAINER_SPEC = {
         "capabilities": {"drop": ["ALL"]},
     },
 }
+
+EXCLUDED_CPU_MODELS_S390X = [
+    # Below are deprecated & usable models, but violate RHEL 9 ALS (min z14) causing guest to crash (disable-wait)
+    # Ref: https://docs.redhat.com/en/documentation/red_hat_enterprise_linux/9/html/automatically_installing_rhel/preparing-a-rhel-installation-on-64-bit-ibm-z_rhel-installer#planning-for-installation-on-ibm-z_preparing-a-rhel-installation-on-64-bit-ibm-z # noqa: E501
+    "z114",
+    "z114-base",
+    "z13",
+    "z13-base",
+    "z13.2",
+    "z13.2-base",
+    "z13s",
+    "z13s-base",
+    "z196",
+    "z196-base",
+    "z196.2",
+    "z196.2-base",
+    "zBC12",
+    "zBC12-base",
+    "zEC12",
+    "zEC12-base",
+    "zEC12.2",
+    "zEC12.2-base",
+    # Below are usable (non-deprecated) models, but base models doesn't work on RHEL guests
+    # unless required features are appended (ex: 'gen15b-base,vx=on,..'),
+    "z14ZR1-base",
+    "z14.2-base",
+    "z14-base",
+    "gen15a-base",
+    "gen15b-base",
+    "gen16a-base",
+    "gen16b-base",
+    "gen17a-base",
+    "gen17b-base",
+]
 # Opteron - Windows image can't boot
 # Penryn - does not support WSL2
-EXCLUDED_CPU_MODELS = ["Opteron", "Penryn"]
+EXCLUDED_CPU_MODELS = [*EXCLUDED_CPU_MODELS_S390X, "Opteron", "Penryn"]
 # Latest windows can't boot with old cpu models
 EXCLUDED_OLD_CPU_MODELS = [*EXCLUDED_CPU_MODELS, "Westmere", "SandyBridge", "Nehalem", "IvyBridge", "Skylake"]
 
@@ -1002,3 +1049,12 @@ QUOTA_FOR_ONE_VMI = {
 }
 
 ARQ_QUOTA_HARD_SPEC = {**QUOTA_FOR_POD, **QUOTA_FOR_ONE_VMI}
+DEFAULT_FEDORA_REGISTRY_URL = "docker://quay.io/containerdisks/fedora:latest"
+REGISTRY_STR = "registry"
+STRESS_CPU_MEM_IO_COMMAND = (
+    "nohup stress-ng --vm {workers} --vm-bytes {memory} --vm-method all "
+    "--verify -t {timeout} -v --hdd 1 --io 1 --vm-keep &> /dev/null &"
+)
+
+# High performance & Numa related constants
+NODE_HUGE_PAGES_1GI_KEY = "hugepages-1Gi"

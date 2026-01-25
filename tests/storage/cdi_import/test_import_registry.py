@@ -4,12 +4,12 @@ import pytest
 from kubernetes.client.rest import ApiException
 from ocp_resources.datavolume import DataVolume
 
-from tests.storage.constants import QUAY_FEDORA_CONTAINER_IMAGE, REGISTRY_STR
+from tests.storage.constants import QUAY_FEDORA_CONTAINER_IMAGE
 from tests.storage.utils import (
     get_importer_pod,
     wait_for_importer_container_message,
 )
-from utilities.constants import OS_FLAVOR_FEDORA, TIMEOUT_5MIN, Images
+from utilities.constants import OS_FLAVOR_FEDORA, REGISTRY_STR, TIMEOUT_5MIN, Images
 from utilities.ssp import wait_for_condition_message_value
 from utilities.storage import ErrorMsg, check_disk_count_in_vm, create_dv, create_vm_from_dv
 from utilities.virt import running_vm
@@ -52,7 +52,7 @@ def test_disk_image_not_conform_to_registy_disk(
             timeout=TIMEOUT_5MIN,
             stop_status=DataVolume.Status.SUCCEEDED,
         )
-        importer_pod = get_importer_pod(dyn_client=admin_client, namespace=dv.namespace)
+        importer_pod = get_importer_pod(client=admin_client, namespace=dv.namespace)
         wait_for_importer_container_message(
             importer_pod=importer_pod,
             msg=ErrorMsg.DISK_IMAGE_IN_CONTAINER_NOT_FOUND,

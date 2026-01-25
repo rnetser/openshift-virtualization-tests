@@ -12,11 +12,9 @@ from tests.storage.constants import (
     HPP_STORAGE_CLASSES,
     HTTP,
     QUAY_FEDORA_CONTAINER_IMAGE,
-    REGISTRY_STR,
 )
 from tests.storage.utils import (
     clean_up_multiprocess,
-    create_cirros_dv,
     create_pod_for_pvc,
     get_file_url,
     wait_for_processes_exit_successfully,
@@ -24,6 +22,7 @@ from tests.storage.utils import (
 from utilities.constants import (
     LINUX_BRIDGE,
     OS_FLAVOR_FEDORA,
+    REGISTRY_STR,
     TIMEOUT_1MIN,
     TIMEOUT_4MIN,
     Images,
@@ -46,22 +45,24 @@ def skip_non_shared_storage(storage_class_name_scope_function):
 
 
 @pytest.fixture()
-def bridge_on_node():
+def bridge_on_node(admin_client):
     with network_device(
         interface_type=LINUX_BRIDGE,
         nncp_name=BRIDGE_NAME,
         interface_name=BRIDGE_NAME,
+        client=admin_client,
     ) as br:
         yield br
 
 
 @pytest.fixture()
-def linux_nad(namespace, bridge_on_node):
+def linux_nad(admin_client, namespace, bridge_on_node):
     with network_nad(
         namespace=namespace,
         nad_type=LINUX_BRIDGE,
         nad_name=f"{BRIDGE_NAME}-nad",
         interface_name=bridge_on_node.bridge_name,
+        client=admin_client,
     ) as nad:
         yield nad
 
@@ -91,6 +92,7 @@ def dv_non_exist_url(namespace, storage_class_name_scope_module):
         url=NON_EXIST_URL,
         size=DEFAULT_DV_SIZE,
         storage_class=storage_class_name_scope_module,
+        client=namespace.client,
     ) as dv:
         yield dv
 
@@ -113,7 +115,9 @@ def dv_from_http_import(
         cert_configmap=request.param.get("configmap_name"),
         size=request.param.get("size", DEFAULT_DV_SIZE),
         storage_class=storage_class_name_scope_module,
+        client=namespace.client,
     ) as dv:
+        dv.pvc.wait()
         yield dv
 
 
@@ -129,21 +133,6 @@ def running_pod_with_dv_pvc(
         volume_mode=storage_class_matrix__module__[storage_class_name_scope_module]["volume_mode"],
     ) as pod:
         yield pod
-
-
-@pytest.fixture(scope="module")
-def cirros_dv_unprivileged(
-    namespace,
-    storage_class_name_scope_module,
-    unprivileged_client,
-):
-    yield from create_cirros_dv(
-        namespace=namespace.name,
-        name=f"cirros-dv-{storage_class_name_scope_module}",
-        storage_class=storage_class_name_scope_module,
-        client=unprivileged_client,
-        dv_size=DEFAULT_DV_SIZE,
-    )
 
 
 @pytest.fixture()
@@ -178,7 +167,7 @@ def vm_list_created_by_multiprocess(
     vms_list = []
     processes = {}
     for dv in dv_list_created_by_multiprocess:
-        if sc_volume_binding_mode_is_wffc(sc=storage_class_name_scope_module):
+        if sc_volume_binding_mode_is_wffc(sc=storage_class_name_scope_module, client=unprivileged_client):
             dv.wait_for_status(status=DataVolume.Status.PENDING_POPULATION, timeout=TIMEOUT_1MIN)
         else:
             dv.wait_for_dv_success(timeout=TIMEOUT_1MIN)

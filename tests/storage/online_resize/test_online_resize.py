@@ -24,8 +24,11 @@ from utilities.virt import migrate_vm_and_verify, running_vm
 
 LOGGER = logging.getLogger(__name__)
 
+pytestmark = pytest.mark.usefixtures("xfail_if_gcp_storage_class")
+
 
 @pytest.mark.gating
+@pytest.mark.conformance
 @pytest.mark.polarion("CNV-6793")
 @pytest.mark.parametrize(
     "rhel_dv_for_online_resize, rhel_vm_for_online_resize",
@@ -128,6 +131,7 @@ def test_disk_expand_then_clone_fail(
 
 
 @pytest.mark.gating
+@pytest.mark.conformance
 @pytest.mark.polarion("CNV-6578")
 @pytest.mark.parametrize(
     "rhel_dv_for_online_resize, rhel_vm_for_online_resize",

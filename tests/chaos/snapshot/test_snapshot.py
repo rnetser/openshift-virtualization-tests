@@ -11,6 +11,7 @@ pytestmark = [
     pytest.mark.gpfs,
     pytest.mark.usefixtures(
         "skip_if_no_storage_class_for_snapshot",
+        "multiprocessing_start_method_fork",
         "chaos_namespace",
         "cluster_monitoring_process",
     ),
@@ -90,6 +91,7 @@ pytestmark = [
     indirect=True,
 )
 def test_pod_delete_snapshot(
+    admin_client,
     chaos_vm_rhel9_for_snapshot,
     pod_deleting_process,
     chaos_online_snapshots,
@@ -102,6 +104,7 @@ def test_pod_delete_snapshot(
     chaos_vm_rhel9_for_snapshot.stop(wait=True)
     for idx, snapshot in enumerate(chaos_online_snapshots):
         with VirtualMachineRestore(
+            client=admin_client,
             name=f"restore-snapshot-{idx}",
             namespace=chaos_vm_rhel9_for_snapshot.namespace,
             vm_name=chaos_vm_rhel9_for_snapshot.name,

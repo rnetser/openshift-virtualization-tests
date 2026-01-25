@@ -3,13 +3,11 @@ from datetime import datetime, timezone
 
 import bitmath
 import pytest
-from ocp_resources.datavolume import DataVolume
 from ocp_resources.persistent_volume_claim import PersistentVolumeClaim
 from ocp_resources.virtual_machine import VirtualMachine
 from ocp_resources.virtual_machine_instance_migration import (
     VirtualMachineInstanceMigration,
 )
-from pytest_testconfig import py_config
 from timeout_sampler import TimeoutExpiredError, TimeoutSampler
 
 from tests.observability.metrics.constants import (
@@ -27,11 +25,12 @@ from tests.observability.metrics.utils import (
     validate_vnic_info,
 )
 from tests.observability.utils import validate_metrics_value
-from tests.os_params import FEDORA_LATEST_LABELS, RHEL_LATEST
+from tests.os_params import FEDORA_LATEST_LABELS
 from utilities.constants import (
     CAPACITY,
     LIVE_MIGRATE,
     MIGRATION_POLICY_VM_LABEL,
+    QUARANTINED,
     TIMEOUT_2MIN,
     TIMEOUT_3MIN,
     TIMEOUT_30SEC,
@@ -93,13 +92,14 @@ def vm_in_error_state(namespace):
 
 
 @pytest.fixture()
-def pvc_for_vm_in_starting_state(namespace):
+def pvc_for_vm_in_starting_state(unprivileged_client, namespace):
     with PersistentVolumeClaim(
         name="vm-in-starting-state-pvc",
         namespace=namespace.name,
         accessmodes=PersistentVolumeClaim.AccessMode.RWX,
         size="1Gi",
         pvlabel="non-existent-pv",
+        client=unprivileged_client,
     ) as pvc:
         yield pvc
 
@@ -134,11 +134,12 @@ def vm_metric_1(namespace, unprivileged_client, cluster_common_node_cpu):
 
 
 @pytest.fixture()
-def vm_metric_1_vmim(vm_metric_1):
+def vm_metric_1_vmim(admin_client, vm_metric_1):
     with VirtualMachineInstanceMigration(
         name="vm-metric-1-vmim",
         namespace=vm_metric_1.namespace,
         vmi_name=vm_metric_1.vmi.name,
+        client=admin_client,
     ) as vmim:
         vmim.wait_for_status(status=vmim.Status.RUNNING, timeout=TIMEOUT_3MIN)
         yield
@@ -185,6 +186,11 @@ class TestVMStatusLastTransitionMetrics:
 
     @pytest.mark.polarion("CNV-9751")
     @pytest.mark.s390x
+    @pytest.mark.xfail(
+        reason=f"{QUARANTINED}: Storage Classes act differently when "
+        f"attaching broken pvc and stuck in other state than expected; tracked in CNV-76518 ",
+        run=False,
+    )
     def test_vm_starting_status_metrics(self, prometheus, vm_in_starting_state):
         check_vm_last_transition_metric_value(
             prometheus=prometheus,
@@ -373,16 +379,9 @@ class TestVmResourceLimits:
 
 class TestKubevirtVmiNonEvictable:
     @pytest.mark.parametrize(
-        "data_volume_scope_function, vm_from_template_with_existing_dv",
+        "vm_with_rwo_dv",
         [
             pytest.param(
-                {
-                    "dv_name": "non-evictable-dv",
-                    "image": RHEL_LATEST["image_path"],
-                    "storage_class": py_config["default_storage_class"],
-                    "dv_size": RHEL_LATEST["dv_size"],
-                    "access_modes": DataVolume.AccessMode.RWO,
-                },
                 {
                     "vm_name": "non-evictable-vm",
                     "template_labels": FEDORA_LATEST_LABELS,
@@ -399,8 +398,7 @@ class TestKubevirtVmiNonEvictable:
     def test_kubevirt_vmi_non_evictable(
         self,
         prometheus,
-        data_volume_scope_function,
-        vm_from_template_with_existing_dv,
+        vm_with_rwo_dv,
     ):
         validate_metrics_value(
             prometheus=prometheus,

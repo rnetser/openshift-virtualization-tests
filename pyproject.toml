@@ -30,9 +30,9 @@ strict_concatenate = true
 
 
 [project]
-name = "openshift-virtualization-tests-4.21"
+name = "openshift-virtualization-tests-4.22"
 requires-python = ">=3.14"
-version = "4.21"
+version = "4.22"
 description = "Tests for Openshift Virtualization"
 authors = [{ "name" = "openshift-virtualization-tests" }]
 dependencies = [
@@ -80,6 +80,7 @@ dependencies = [
   "openshift-python-wrapper>=11.0.93",
   "marshmallow==3.26.1",
   "cachetools>=6.2.2",
+  "dacite>=1.9.2",
 ]
 
 [project.optional-dependencies]
@@ -93,8 +94,13 @@ utilities-test = [
   "pytest-watch>=4.2.0",
 ]
 
+[project.scripts]
+quarantine-dashboard = "scripts.quarantine_stats.generate_dashboard:main"
+pytest-marker-analyzer = "scripts.tests_analyzer.pytest_marker_analyzer:main"
+compare-coderabbit-decisions = "scripts.tests_analyzer.compare_coderabbit_decisions:main"
+
 [tool.hatch.build.targets.wheel]
-packages = ["*"]
+packages = ["libs", "scripts", "tests", "utilities"]
 
 [dependency-groups]
 dev = [
@@ -135,11 +141,9 @@ omit = [
   "*/test_*.py",
   "__init__.py",
   "utilities/unittests/conftest.py",
-  # TODO: Add coverage to these large modules when individual fixes are needed
-  "utilities/hco.py",
+  # Large modules with partial test coverage - excluded until full coverage is achieved
   "utilities/infra.py",
   "utilities/network.py",
-  "utilities/operator.py",
   "utilities/storage.py",
   "utilities/virt.py",
 ]

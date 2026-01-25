@@ -12,11 +12,11 @@ from ocp_resources.service import Service
 from pyhelper_utils.shell import run_ssh_commands
 from timeout_sampler import TimeoutSampler
 
+from libs.net.vmspec import lookup_iface_status_ip
 from tests.network.libs.ip import random_ipv4_address
 from tests.network.utils import (
     assert_ssh_alive,
     run_ssh_in_background,
-    vm_for_brcnv_tests,
 )
 from utilities.constants import (
     IP_FAMILY_POLICY_PREFER_DUAL_STACK,
@@ -30,7 +30,6 @@ from utilities.network import (
     assert_ping_successful,
     compose_cloud_init_data_dict,
     get_valid_ip_address,
-    get_vmi_ip_v4_by_name,
     network_device,
     network_nad,
 )
@@ -64,23 +63,26 @@ def http_port_accessible(vm, server_ip, server_port):
 
 @pytest.fixture(scope="module")
 def bridge_worker_1(
+    admin_client,
     worker_node1,
-    nodes_available_nics,
+    hosts_common_available_ports,
 ):
     with network_device(
         interface_type=LINUX_BRIDGE,
         nncp_name="migration-worker-1",
         interface_name="migration-br",
         node_selector=get_node_selector_dict(node_selector=worker_node1.hostname),
-        ports=[nodes_available_nics[worker_node1.name][-1]],
+        ports=[hosts_common_available_ports[-1]],
+        client=admin_client,
     ) as br:
         yield br
 
 
 @pytest.fixture(scope="module")
 def bridge_worker_2(
+    admin_client,
     worker_node2,
-    nodes_available_nics,
+    hosts_common_available_ports,
     bridge_worker_1,
 ):
     with network_device(
@@ -88,18 +90,20 @@ def bridge_worker_2(
         nncp_name="migration-worker-2",
         interface_name=bridge_worker_1.bridge_name,
         node_selector=get_node_selector_dict(node_selector=worker_node2.hostname),
-        ports=[nodes_available_nics[worker_node2.name][-1]],
+        ports=[hosts_common_available_ports[-1]],
+        client=admin_client,
     ) as br:
         yield br
 
 
 @pytest.fixture(scope="module")
-def br1test_nad(namespace, bridge_worker_1, bridge_worker_2):
+def br1test_nad(admin_client, namespace, bridge_worker_1, bridge_worker_2):
     with network_nad(
         nad_type=bridge_worker_1.bridge_type,
         nad_name="network-migration-nad",
         interface_name=bridge_worker_1.bridge_name,
         namespace=namespace,
+        client=admin_client,
     ) as nad:
         yield nad
 
@@ -109,7 +113,7 @@ def vma(
     namespace,
     unprivileged_client,
     cpu_for_migration,
-    dual_stack_network_data,
+    ipv6_primary_interface_cloud_init_data,
     br1test_nad,
 ):
     name = "vma"
@@ -119,8 +123,9 @@ def vma(
     }
     cloud_init_data = compose_cloud_init_data_dict(
         network_data=network_data_data,
-        ipv6_network_data=dual_stack_network_data,
+        ipv6_network_data=ipv6_primary_interface_cloud_init_data,
     )
+
     with VirtualMachineForTests(
         namespace=namespace.name,
         name=name,
@@ -140,7 +145,7 @@ def vmb(
     namespace,
     unprivileged_client,
     cpu_for_migration,
-    dual_stack_network_data,
+    ipv6_primary_interface_cloud_init_data,
     br1test_nad,
 ):
     name = "vmb"
@@ -150,7 +155,7 @@ def vmb(
     }
     cloud_init_data = compose_cloud_init_data_dict(
         network_data=network_data_data,
-        ipv6_network_data=dual_stack_network_data,
+        ipv6_network_data=ipv6_primary_interface_cloud_init_data,
     )
 
     with VirtualMachineForTests(
@@ -165,21 +170,6 @@ def vmb(
     ) as vm:
         vm.start(wait=True)
         yield vm
-
-
-@pytest.fixture()
-def brcnv_vm_for_migration(
-    unprivileged_client,
-    namespace,
-    brcnv_ovs_nad_vlan_1,
-):
-    yield from vm_for_brcnv_tests(
-        vm_name="migration-vm",
-        namespace=namespace,
-        unprivileged_client=unprivileged_client,
-        nads=[brcnv_ovs_nad_vlan_1],
-        address_suffix=4,
-    )
 
 
 @pytest.fixture(scope="module")
@@ -222,7 +212,7 @@ def http_service(namespace, running_vma, running_vmb):
 
 @pytest.fixture(scope="module")
 def ping_in_background(br1test_nad, running_vma, running_vmb):
-    dst_ip = get_vmi_ip_v4_by_name(vm=running_vmb, name=br1test_nad.name)
+    dst_ip = lookup_iface_status_ip(vm=running_vmb, iface_name=br1test_nad.name, ip_family=4)
     assert_ping_successful(src_vm=running_vma, dst_ip=dst_ip)
     LOGGER.info(f"Ping {dst_ip} from {running_vma.name} to {running_vmb.name}")
     run_ssh_commands(
@@ -266,21 +256,6 @@ def ssh_in_background(br1test_nad, running_vma, running_vmb):
     )
 
 
-@pytest.fixture()
-def brcnv_ssh_in_background(brcnv_ovs_nad_vlan_1, brcnv_vma_with_vlan_1, brcnv_vm_for_migration):
-    """
-    Start ssh connection to the vm
-    """
-
-    run_ssh_in_background(
-        nad=brcnv_ovs_nad_vlan_1,
-        src_vm=brcnv_vma_with_vlan_1,
-        dst_vm=brcnv_vm_for_migration,
-        dst_vm_user=brcnv_vm_for_migration.login_params["username"],
-        dst_vm_password=brcnv_vm_for_migration.login_params["password"],
-    )
-
-
 @pytest.fixture(scope="module")
 def migrated_vmb_and_wait_for_success(running_vmb, http_service):
     migrate_vm_and_verify(
@@ -290,7 +265,7 @@ def migrated_vmb_and_wait_for_success(running_vmb, http_service):
 
 @pytest.fixture(scope="module")
 def vma_ip_address(br1test_nad, running_vma):
-    return get_vmi_ip_v4_by_name(vm=running_vma, name=br1test_nad.name)
+    return lookup_iface_status_ip(vm=running_vma, iface_name=br1test_nad.name, ip_family=4)
 
 
 @pytest.fixture(scope="module")
@@ -313,13 +288,6 @@ def migrated_vmb_without_waiting_for_success(vma_ip_address, running_vmb, br1tes
             break
     yield
     migrated_vmi.clean_up()
-
-
-@pytest.fixture()
-def brcnv_migrated_vm(
-    brcnv_vm_for_migration,
-):
-    migrate_vm_and_verify(vm=brcnv_vm_for_migration)
 
 
 @pytest.mark.xfail(
@@ -356,22 +324,8 @@ def test_ssh_vm_migration(
     ssh_in_background,
     migrated_vmb_and_wait_for_success,
 ):
-    src_ip = str(get_vmi_ip_v4_by_name(vm=running_vma, name=br1test_nad.name))
+    src_ip = str(lookup_iface_status_ip(vm=running_vma, iface_name=br1test_nad.name, ip_family=4))
     assert_ssh_alive(ssh_vm=running_vma, src_ip=src_ip)
-
-
-@pytest.mark.ovs_brcnv
-@pytest.mark.ipv4
-@pytest.mark.polarion("CNV-8600")
-def test_cnv_bridge_ssh_vm_migration(
-    brcnv_ovs_nad_vlan_1,
-    brcnv_vma_with_vlan_1,
-    brcnv_vm_for_migration,
-    brcnv_ssh_in_background,
-    brcnv_migrated_vm,
-):
-    src_ip = str(get_vmi_ip_v4_by_name(vm=brcnv_vma_with_vlan_1, name=brcnv_ovs_nad_vlan_1.name))
-    assert_ssh_alive(ssh_vm=brcnv_vma_with_vlan_1, src_ip=src_ip)
 
 
 @pytest.mark.post_upgrade
@@ -389,27 +343,27 @@ def test_connectivity_after_migration_and_restart(
 ):
     assert_ping_successful(
         src_vm=running_vma,
-        dst_ip=get_vmi_ip_v4_by_name(vm=running_vmb, name=br1test_nad.name),
+        dst_ip=lookup_iface_status_ip(vm=running_vmb, iface_name=br1test_nad.name, ip_family=4),
     )
 
 
-@pytest.mark.polarion("CNV-2061")
 @pytest.mark.s390x
+@pytest.mark.usefixtures("http_service", "migrated_vmb_and_wait_for_success")
+@pytest.mark.parametrize(
+    "ip_family",
+    [
+        pytest.param("ipv4", marks=[pytest.mark.ipv4, pytest.mark.polarion("CNV-12508")]),
+        pytest.param("ipv6", marks=[pytest.mark.ipv6, pytest.mark.polarion("CNV-12509")]),
+    ],
+)
 def test_migration_with_masquerade(
-    ip_stack_version_matrix__module__,
-    admin_client,
-    fail_if_not_ipv4_supported_cluster_from_mtx,
-    fail_if_not_ipv6_supported_cluster_from_mtx,
-    vma,
-    vmb,
     running_vma,
     running_vmb,
-    migrated_vmb_and_wait_for_success,
+    ip_family,
 ):
-    LOGGER.info(f"Testing HTTP service after migration on node {running_vmb.vmi.node.name}")
     http_port_accessible(
         vm=running_vma,
-        server_ip=running_vmb.custom_service.service_ip(ip_family=ip_stack_version_matrix__module__),
+        server_ip=running_vmb.custom_service.service_ip(ip_family=ip_family),
         server_port=running_vmb.custom_service.service_port,
     )
 

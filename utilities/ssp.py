@@ -94,13 +94,13 @@ def matrix_auto_boot_data_import_cron_prefixes():
 
 
 def get_data_import_crons(admin_client, namespace):
-    return list(DataImportCron.get(dyn_client=admin_client, namespace=namespace.name))
+    return list(DataImportCron.get(client=admin_client, namespace=namespace.name))
 
 
 def get_ssp_resource(admin_client, namespace):
     try:
         for ssp in SSP.get(
-            dyn_client=admin_client,
+            client=admin_client,
             name=SSP_KUBEVIRT_HYPERCONVERGED,
             namespace=namespace.name,
         ):
@@ -150,7 +150,7 @@ def wait_for_condition_message_value(resource, expected_message):
 
 
 @contextmanager
-def create_custom_template_from_url(url, template_name, template_dir, namespace):
+def create_custom_template_from_url(url, template_name, template_dir, namespace, client):
     template_filepath = os.path.join(template_dir, template_name)
     urllib.request.urlretrieve(
         url=url,
@@ -159,6 +159,7 @@ def create_custom_template_from_url(url, template_name, template_dir, namespace)
     with Template(
         yaml_file=template_filepath,
         namespace=namespace,
+        client=client,
     ) as template:
         yield template
 
@@ -243,9 +244,9 @@ def validate_os_info_vmi_vs_windows_os(vm):
     assert not data_mismatch, f"Data mismatch {data_mismatch}!\nVMI: {vmi_info}\nOS: {windows_info}"
 
 
-def is_ssp_pod_running(dyn_client: DynamicClient, hco_namespace: Namespace) -> bool:
+def is_ssp_pod_running(client: DynamicClient, hco_namespace: Namespace) -> bool:
     pod = utilities.infra.get_pod_by_name_prefix(
-        dyn_client=dyn_client,
+        client=client,
         pod_prefix=SSP_OPERATOR,
         namespace=hco_namespace.name,
     )
@@ -253,7 +254,7 @@ def is_ssp_pod_running(dyn_client: DynamicClient, hco_namespace: Namespace) -> b
 
 
 def verify_ssp_pod_is_running(
-    dyn_client: DynamicClient,
+    client: DynamicClient,
     hco_namespace: Namespace,
     wait_timeout: int = TIMEOUT_6MIN,
     sleep: int = TIMEOUT_10SEC,
@@ -268,7 +269,7 @@ def verify_ssp_pod_is_running(
     is up and running for at least 'consecutive_checks_count'
 
     Args:
-        dyn_client (DynamicClient): Dynamic client object
+        client (DynamicClient): Dynamic client object
         hco_namespace (Namespace): Namespace object
         wait_timeout (int) : Maximum time to wait till SSP pod is up
         sleep (int): polling interval
@@ -283,7 +284,7 @@ def verify_ssp_pod_is_running(
         wait_timeout=wait_timeout,
         sleep=sleep,
         func=is_ssp_pod_running,
-        dyn_client=dyn_client,
+        client=client,
         hco_namespace=hco_namespace,
     )
     sample = None

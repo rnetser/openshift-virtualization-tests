@@ -1,6 +1,6 @@
 import pytest
 
-from utilities.constants import HPP_POOL
+from utilities.constants import HPP_POOL, KUBEVIRT_MIGRATION_CONTROLLER
 from utilities.infra import get_deployment_by_name, get_deployments
 
 
@@ -10,7 +10,9 @@ def deployment_by_name(request, admin_client, hco_namespace):
     Gets a deployment object by name.
     """
     deployment_name = request.param["deployment_name"]
-    yield get_deployment_by_name(namespace_name=hco_namespace.name, deployment_name=deployment_name)
+    yield get_deployment_by_name(
+        namespace_name=hco_namespace.name, deployment_name=deployment_name, admin_client=admin_client
+    )
 
 
 @pytest.fixture(scope="module")
@@ -20,3 +22,9 @@ def cnv_deployments_excluding_hpp_pool(admin_client, hco_namespace):
         for deployment in get_deployments(admin_client=admin_client, namespace=hco_namespace.name)
         if not deployment.name.startswith(HPP_POOL)
     ]
+
+
+@pytest.fixture()
+def xfail_if_jira_76659_open_and_migration_controller_deployment(jira_76659_open, cnv_deployment_by_name):
+    if cnv_deployment_by_name.name == KUBEVIRT_MIGRATION_CONTROLLER and jira_76659_open:
+        pytest.xfail(f"{KUBEVIRT_MIGRATION_CONTROLLER} deployment is not running due to CNV-76659 bug")

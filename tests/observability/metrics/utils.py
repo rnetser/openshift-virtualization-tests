@@ -19,7 +19,6 @@ from ocp_utilities.monitoring import Prometheus
 from pyhelper_utils.shell import run_ssh_commands
 from timeout_sampler import TimeoutExpiredError, TimeoutSampler
 
-from tests.observability.constants import KUBEVIRT_VIRT_OPERATOR_READY
 from tests.observability.metrics.constants import (
     BINDING_NAME,
     BINDING_TYPE,
@@ -28,7 +27,6 @@ from tests.observability.metrics.constants import (
     KUBEVIRT_VMI_FILESYSTEM_BYTES,
     KUBEVIRT_VMI_FILESYSTEM_BYTES_WITH_MOUNT_POINT,
 )
-from tests.observability.utils import validate_metrics_value
 from utilities.artifactory import (
     cleanup_artifactory_secret_and_config_map,
     get_artifactory_config_map,
@@ -37,7 +35,6 @@ from utilities.artifactory import (
 )
 from utilities.constants import (
     CAPACITY,
-    KUBEVIRT_VIRT_OPERATOR_UP,
     NODE_STR,
     OS_FLAVOR_WINDOWS,
     TIMEOUT_1MIN,
@@ -358,7 +355,8 @@ def compare_network_traffic_bytes_and_metrics(
     LOGGER.info("Waiting for metric kubevirt_vmi_network_traffic_bytes_total to update")
     time.sleep(TIMEOUT_15SEC)
     metric_result = (
-        prometheus.query(query=f"kubevirt_vmi_network_traffic_bytes_total{{name='{vm.name}'}}")
+        prometheus
+        .query(query=f"kubevirt_vmi_network_traffic_bytes_total{{name='{vm.name}'}}")
         .get("data")
         .get("result")
     )
@@ -447,9 +445,8 @@ def metric_result_output_dict_by_mountpoint(
 ) -> dict[str, str]:
     return {
         entry["metric"]["mount_point"]: entry["value"][1]
-        for entry in prometheus.query(
-            query=KUBEVIRT_VMI_FILESYSTEM_BYTES.format(capacity_or_used=capacity_or_used, vm_name=vm_name)
-        )
+        for entry in prometheus
+        .query(query=KUBEVIRT_VMI_FILESYSTEM_BYTES.format(capacity_or_used=capacity_or_used, vm_name=vm_name))
         .get("data")
         .get("result")
     }
@@ -504,17 +501,6 @@ def compare_kubevirt_vmi_info_metric_with_vm_info(
             f"The following values has a mismatch between metric and vm values: {values_mismatch}\n"
         )
         raise
-
-
-def validate_initial_virt_operator_replicas_reverted(
-    prometheus: Prometheus, initial_virt_operator_replicas: str
-) -> None:
-    for metric in [KUBEVIRT_VIRT_OPERATOR_READY, KUBEVIRT_VIRT_OPERATOR_UP]:
-        validate_metrics_value(
-            prometheus=prometheus,
-            expected_value=initial_virt_operator_replicas,
-            metric_name=metric,
-        )
 
 
 def timestamp_to_seconds(timestamp: str) -> int:
@@ -644,7 +630,21 @@ def binding_name_and_type_from_vm_or_vmi(vm_interface: dict[str, str]) -> dict[s
 
 
 def validate_vnic_info(prometheus: Prometheus, vnic_info_to_compare: dict[str, str], metric_name: str) -> None:
-    vnic_info_metric_result = prometheus.query_sampler(query=metric_name)[0].get("metric")
+    samples = TimeoutSampler(
+        wait_timeout=TIMEOUT_5MIN,
+        sleep=TIMEOUT_30SEC,
+        func=prometheus.query,
+        query=metric_name,
+    )
+    sample = None
+    try:
+        for sample in samples:
+            if sample and (result := sample.get("data", {}).get("result")):
+                vnic_info_metric_result = result[0].get("metric")
+                break
+    except TimeoutExpiredError:
+        LOGGER.error(f"Metric value of: {metric_name} is: {sample}, should not be empty.")
+        raise
     mismatch_vnic_info = {}
     for info, expected_value in vnic_info_to_compare.items():
         actual_value = vnic_info_metric_result.get(info)
@@ -673,8 +673,22 @@ def get_metric_labels_non_empty_value(prometheus: Prometheus, metric_name: str) 
 
 @contextmanager
 def create_windows11_wsl2_vm(
-    dv_name: str, namespace: str, client: DynamicClient, vm_name: str, storage_class: str
+    dv_name: str,
+    namespace: str,
+    client: DynamicClient,
+    vm_name: str,
+    storage_class: str,
 ) -> Generator:
+    """
+    Create a Windows 11 WSL2 VM with a DataVolume template
+
+    Args:
+        dv_name (str): The name of the DataVolume
+        namespace (str): The namespace of the VM
+        client (DynamicClient): Client to use to create the VM.
+        vm_name (str): The name of the VM
+        storage_class (str): The storage class to use for the DataVolume
+    """
     artifactory_secret = get_artifactory_secret(namespace=namespace)
     artifactory_config_map = get_artifactory_config_map(namespace=namespace)
     dv = DataVolume(
@@ -695,8 +709,8 @@ def create_windows11_wsl2_vm(
         name=vm_name,
         namespace=namespace,
         client=client,
-        vm_instance_type=VirtualMachineClusterInstancetype(name="u1.xlarge"),
-        vm_preference=VirtualMachineClusterPreference(name="windows.11"),
+        vm_instance_type=VirtualMachineClusterInstancetype(client=client, name="u1.xlarge"),
+        vm_preference=VirtualMachineClusterPreference(client=client, name="windows.11"),
         data_volume_template={"metadata": dv.res["metadata"], "spec": dv.res["spec"]},
     ) as vm:
         running_vm(vm=vm)
@@ -741,6 +755,7 @@ def get_pvc_size_bytes(vm: VirtualMachineForTests) -> str:
                 PersistentVolumeClaim(
                     name=vm_dv_templates[0].metadata.name,
                     namespace=vm.namespace,
+                    client=vm.client,
                 ).instance.spec.resources.requests.storage
             ).Byte.bytes
         )
@@ -748,7 +763,7 @@ def get_pvc_size_bytes(vm: VirtualMachineForTests) -> str:
 
 
 def validate_metric_value_greater_than_initial_value(
-    prometheus: Prometheus, metric_name: str, initial_value: int, timeout: int = TIMEOUT_4MIN
+    prometheus: Prometheus, metric_name: str, initial_value: float, timeout: int = TIMEOUT_4MIN
 ) -> None:
     samples = TimeoutSampler(
         wait_timeout=timeout,
@@ -757,10 +772,11 @@ def validate_metric_value_greater_than_initial_value(
         prometheus=prometheus,
         metrics_name=metric_name,
     )
+    sample = None
     try:
         for sample in samples:
             if sample:
-                if int(sample) > initial_value:
+                if float(sample) > initial_value:
                     return
     except TimeoutExpiredError:
         LOGGER.error(f"{sample} should be greater than {initial_value}")

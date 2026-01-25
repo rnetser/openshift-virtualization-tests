@@ -29,6 +29,7 @@ resource.get_client = _mock_get_client  # type: ignore[assignment]
 
 # Create mock modules to break circular imports
 # Set up mock modules before any imports
+# Note: utilities.hco is mocked here but test_hco.py will clear it and import real module
 mock_hco = MagicMock()
 mock_infra = MagicMock()
 mock_data_collector = MagicMock()
@@ -45,7 +46,6 @@ sys.modules["utilities.data_collector"] = mock_data_collector
 sys.modules["jira"] = mock_jira
 
 # Also set them as attributes of the utilities module for tests that need them
-
 utilities.hco = mock_hco  # type: ignore[attr-defined]
 utilities.infra = mock_infra  # type: ignore[attr-defined]
 utilities.data_collector = mock_data_collector  # type: ignore[attr-defined]
@@ -157,7 +157,6 @@ def mock_os_images():
     mock_rhel_class = MagicMock()
     mock_rhel_class.LATEST_RELEASE_STR = "rhel-9.6.qcow2"
     mock_rhel_class.DEFAULT_DV_SIZE = "20Gi"
-    mock_rhel_class.RHEL7_9_IMG = "rhel-7.9.qcow2"
     mock_rhel_class.RHEL8_10_IMG = "rhel-8.10.qcow2"
     mock_rhel_class.RHEL9_5_IMG = "rhel-9.5.qcow2"
     mock_rhel_class.RHEL9_6_IMG = "rhel-9.6.qcow2"

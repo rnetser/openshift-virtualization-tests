@@ -29,6 +29,7 @@ ALLOWLIST_STRING_LIST = [
     "hyperconverged-cluster-operator-lock",
     "kubevirt-ipam-controller-webhook-service",
     "istio-ca-root-cert",
+    "istio-ca-crl",
 ]
 PRINT_COMMAND = '{printf "%s%s",sep,$0;sep=","}'
 AWK_COMMAND = f"awk '{PRINT_COMMAND}'"
@@ -57,14 +58,18 @@ OPEN_JIRA = {
     },
     "ConfigMap": {
         "CNV-28182": ["kubevirt-install-strategy"],
+        "CNV-75722": ["kubevirt-migration-controller-config"],
     },
 }
 
 
-def is_jira_allowlisted(kind, resource_name):
-    jira_key = list(OPEN_JIRA[kind].keys())[0] if OPEN_JIRA.get(kind) else None
-    jira_allowlisted_names = OPEN_JIRA[kind][jira_key] if jira_key and is_jira_open(jira_id=jira_key) else []
-    return bool(resource_name.startswith(tuple(jira_allowlisted_names))) if jira_allowlisted_names else False
+def is_jira_allowlisted(kind: str, resource_name: str) -> bool:
+    for jira_key, allowed_names in OPEN_JIRA.get(kind, {}).items():
+        if is_jira_open(jira_id=jira_key) and any(
+            resource_name.startswith(allowed_name) for allowed_name in allowed_names
+        ):
+            return True
+    return False
 
 
 def get_all_api_resources(
@@ -136,7 +141,7 @@ def test_relationship_labels_all_cnv_resources(
 
                         else:
                             errors.setdefault(kind, []).append(
-                                f"{name} has missing labels: {labels} and is not managed by olm"
+                                f'{name} has missing labels. Current labels are "{labels}" and is not managed by olm'
                             )
             else:
                 errors.setdefault(kind, []).append(f"{name} resource not found")

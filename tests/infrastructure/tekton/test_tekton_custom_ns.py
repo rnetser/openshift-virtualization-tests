@@ -12,7 +12,7 @@ from tests.infrastructure.tekton.utils import (
 )
 from utilities.constants import WIN_2K22, WIN_2K25, WIN_10, WIN_11
 
-pytestmark = [pytest.mark.tier3, pytest.mark.special_infra]
+pytestmark = [pytest.mark.tier3, pytest.mark.special_infra, pytest.mark.tekton]
 
 
 @pytest.mark.usefixtures("extracted_kubevirt_tekton_resources", "processed_yaml_files")
@@ -21,6 +21,7 @@ class TestTektonResources:
     @pytest.mark.polarion("CNV-11254")
     def test_validate_tekton_pipeline_resources(
         self,
+        unprivileged_client,
         custom_pipeline_namespace,
         cnv_tekton_pipelines_resource_matrix__class__,
     ):
@@ -28,11 +29,13 @@ class TestTektonResources:
             tekton_namespace=custom_pipeline_namespace,
             tekton_resource_kind=Pipeline,
             resource_name=cnv_tekton_pipelines_resource_matrix__class__,
+            client=unprivileged_client,
         )
 
     @pytest.mark.polarion("CNV-11252")
     def test_validate_tekton_tasks_resources(
         self,
+        unprivileged_client,
         custom_pipeline_namespace,
         cnv_tekton_tasks_resource_matrix__class__,
     ):
@@ -40,6 +43,7 @@ class TestTektonResources:
             tekton_namespace=custom_pipeline_namespace,
             tekton_resource_kind=Task,
             resource_name=cnv_tekton_tasks_resource_matrix__class__,
+            client=unprivileged_client,
         )
 
 

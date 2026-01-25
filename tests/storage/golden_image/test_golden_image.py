@@ -8,7 +8,7 @@ from pytest_testconfig import config as py_config
 
 from tests.os_params import RHEL_LATEST, RHEL_LATEST_LABELS
 from utilities.artifactory import get_test_artifact_server_url
-from utilities.constants import PVC, TIMEOUT_20MIN
+from utilities.constants import PVC, QUARANTINED, TIMEOUT_20MIN
 from utilities.storage import ErrorMsg, create_dv
 from utilities.virt import wait_for_ssh_connectivity
 
@@ -117,6 +117,13 @@ def test_regular_user_cant_delete_dv_from_cloned_dv(
     ],
     indirect=True,
 )
+@pytest.mark.xfail(
+    reason=(
+        f"{QUARANTINED}: Template label selector fails with BadRequestError "
+        "during VM creation from template. Tracked in CNV-75736"
+    ),
+    run=False,
+)
 @pytest.mark.s390x
 def test_regular_user_can_create_vm_from_cloned_dv(
     golden_image_data_volume_multi_storage_scope_function,
@@ -142,7 +149,7 @@ def test_regular_user_can_list_all_pvc_in_ns(
     LOGGER.info("Make sure regular user have permissions to view PVC's in golden image NS")
     assert list(
         PersistentVolumeClaim.get(
-            dyn_client=unprivileged_client,
+            client=unprivileged_client,
             namespace=golden_images_namespace.name,
             field_selector=f"metadata.name=={golden_image_data_volume_scope_module.name}",
         )
