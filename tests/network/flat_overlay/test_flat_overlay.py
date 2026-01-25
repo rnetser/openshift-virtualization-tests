@@ -1,5 +1,8 @@
 """
 Flat Overlay Network Connectivity Tests
+
+STP Reference:
+# TODO: add STP
 """
 
 import logging
@@ -28,6 +31,7 @@ class TestFlatOverlayConnectivity:
 
     Markers:
         - s390x
+        - ipv4
 
     Preconditions:
         - Multi-network policy usage enabled
@@ -41,6 +45,18 @@ class TestFlatOverlayConnectivity:
     # Not marked as `conformance`; requires NMState
     @pytest.mark.dependency(name="test_flat_overlay_basic_ping")
     def test_flat_overlay_basic_ping(self, vma_flat_overlay, vmb_flat_overlay_ip_address):
+        """
+        Test that VMs on the same flat overlay network can communicate.
+
+        Markers:
+            - gating
+
+        Steps:
+            Execute ping from VM-A to VM-B
+
+        Expected:
+            - Ping succeeds with 0% packet loss
+        """
         assert_ping_successful(
             src_vm=vma_flat_overlay,
             dst_ip=vmb_flat_overlay_ip_address,
@@ -59,7 +75,7 @@ class TestFlatOverlayConnectivity:
         Test that adding a second flat overlay network does not break existing connectivity.
 
         Preconditions:
-            - Second flat overlay NAD created (flat_overlay_vmc_vmd_nad)
+            - Second flat overlay NAD created
             - VM-C running and attached to a second flat overlay network
             - VM-D running and attached to a second flat overlay network
 
@@ -169,6 +185,10 @@ class TestFlatOverlayJumboConnectivity:
     """
     Tests for flat overlay network jumbo frame connectivity.
 
+    Markers:
+        - jumbo_frame
+        - ipv4
+
     Preconditions:
         - Flat overlay NAD configured for jumbo frames
         - VM-A running and attached to jumbo frame NAD
@@ -191,8 +211,7 @@ class TestFlatOverlayJumboConnectivity:
             - s390x
 
         Steps:
-            1. Get IPv4 address of VM-B
-            2. Execute ping from VM-A to VM-B with jumbo frame packet size
+            Execute ping from VM-A to VM-B with jumbo frame packet size
 
         Expected:
             - Ping succeeds with 0% packet loss
