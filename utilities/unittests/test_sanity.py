@@ -819,7 +819,7 @@ class TestDiscoverWebhookServices:
         mock_hco_namespace = MagicMock()
         mock_hco_namespace.name = "openshift-cnv"
 
-        result = _discover_webhook_services(admin_client=mock_admin_client, hco_namespace=mock_hco_namespace)
+        result = _discover_webhook_services(admin_client=mock_admin_client, namespace=mock_hco_namespace)
 
         assert result == {"virt-api", "cdi-api", "kubevirt-operator-webhook"}
 
@@ -848,7 +848,7 @@ class TestDiscoverWebhookServices:
         mock_hco_namespace = MagicMock()
         mock_hco_namespace.name = "openshift-cnv"
 
-        result = _discover_webhook_services(admin_client=mock_admin_client, hco_namespace=mock_hco_namespace)
+        result = _discover_webhook_services(admin_client=mock_admin_client, namespace=mock_hco_namespace)
 
         assert result == {"virt-api"}
 
@@ -878,7 +878,7 @@ class TestDiscoverWebhookServices:
         mock_hco_namespace = MagicMock()
         mock_hco_namespace.name = "openshift-cnv"
 
-        result = _discover_webhook_services(admin_client=mock_admin_client, hco_namespace=mock_hco_namespace)
+        result = _discover_webhook_services(admin_client=mock_admin_client, namespace=mock_hco_namespace)
 
         assert result == {"virt-api"}
 
@@ -902,7 +902,7 @@ class TestDiscoverWebhookServices:
         mock_hco_namespace = MagicMock()
         mock_hco_namespace.name = "openshift-cnv"
 
-        result = _discover_webhook_services(admin_client=mock_admin_client, hco_namespace=mock_hco_namespace)
+        result = _discover_webhook_services(admin_client=mock_admin_client, namespace=mock_hco_namespace)
 
         assert result == set()
 
@@ -934,7 +934,7 @@ class TestDiscoverWebhookServices:
         mock_hco_namespace = MagicMock()
         mock_hco_namespace.name = "openshift-cnv"
 
-        result = _discover_webhook_services(admin_client=mock_admin_client, hco_namespace=mock_hco_namespace)
+        result = _discover_webhook_services(admin_client=mock_admin_client, namespace=mock_hco_namespace)
 
         assert result == {"virt-api"}
 
@@ -963,7 +963,7 @@ class TestCheckWebhookEndpointsHealth:
         mock_hco_namespace.name = "openshift-cnv"
 
         # Should not raise
-        check_webhook_endpoints_health(admin_client=mock_admin_client, hco_namespace=mock_hco_namespace)
+        check_webhook_endpoints_health(admin_client=mock_admin_client, namespace=mock_hco_namespace)
 
         # Verify endpoints were checked for all discovered services
         assert mock_endpoints_class.call_count == 3
@@ -987,7 +987,7 @@ class TestCheckWebhookEndpointsHealth:
         import pytest
 
         with pytest.raises(ClusterSanityError) as exc_info:
-            check_webhook_endpoints_health(admin_client=mock_admin_client, hco_namespace=mock_hco_namespace)
+            check_webhook_endpoints_health(admin_client=mock_admin_client, namespace=mock_hco_namespace)
 
         assert "no available endpoints" in str(exc_info.value)
 
@@ -1012,7 +1012,7 @@ class TestCheckWebhookEndpointsHealth:
         import pytest
 
         with pytest.raises(ClusterSanityError) as exc_info:
-            check_webhook_endpoints_health(admin_client=mock_admin_client, hco_namespace=mock_hco_namespace)
+            check_webhook_endpoints_health(admin_client=mock_admin_client, namespace=mock_hco_namespace)
 
         assert "no available endpoints" in str(exc_info.value)
 
@@ -1039,7 +1039,7 @@ class TestCheckWebhookEndpointsHealth:
         import pytest
 
         with pytest.raises(ClusterSanityError) as exc_info:
-            check_webhook_endpoints_health(admin_client=mock_admin_client, hco_namespace=mock_hco_namespace)
+            check_webhook_endpoints_health(admin_client=mock_admin_client, namespace=mock_hco_namespace)
 
         assert "no available endpoints" in str(exc_info.value)
 
@@ -1059,7 +1059,7 @@ class TestCheckWebhookEndpointsHealth:
         mock_hco_namespace.name = "openshift-cnv"
 
         # Should log warning and return, not raise error
-        check_webhook_endpoints_health(admin_client=mock_admin_client, hco_namespace=mock_hco_namespace)
+        check_webhook_endpoints_health(admin_client=mock_admin_client, namespace=mock_hco_namespace)
 
         # Verify warning was logged
         mock_logger.warning.assert_called()

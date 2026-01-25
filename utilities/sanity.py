@@ -45,19 +45,19 @@ def storage_sanity_check(cluster_storage_classes_names: List[str]) -> bool:
     return True
 
 
-def _discover_webhook_services(admin_client: DynamicClient, hco_namespace: Namespace) -> set[str]:
+def _discover_webhook_services(admin_client: DynamicClient, namespace: Namespace) -> set[str]:
     """
     Discover all webhook services in the HCO namespace.
 
     Scans all MutatingWebhookConfiguration and ValidatingWebhookConfiguration resources
-    and extracts service names that point to the HCO namespace.
+    and extracts service names that point to the namespace.
 
     Args:
         admin_client: Kubernetes dynamic client with admin privileges for cluster operations.
-        hco_namespace: Namespace resource where HyperConverged Operator is deployed.
+        namespace: Namespace resource.
 
     Returns:
-        Set of service names that are referenced by webhook configurations in the HCO namespace.
+        Set of service names that are referenced by webhook configurations in the namespace.
     """
     webhook_services: set[str] = set()
 
@@ -68,19 +68,20 @@ def _discover_webhook_services(admin_client: DynamicClient, hco_namespace: Names
             if not webhook_items:
                 LOGGER.warning(f"Webhook configuration {webhook.name} has no webhooks")
                 continue
+
             for webhook_item in webhook_items:
                 service_config = webhook_item.get("clientConfig", {}).get("service")
                 # Skip URL-based webhooks (they don't use a service)
                 if not service_config:
                     continue
 
-                if service_config["namespace"] == hco_namespace.name:
+                if service_config["namespace"] == namespace.name:
                     webhook_services.add(service_config["name"])
 
     return webhook_services
 
 
-def check_webhook_endpoints_health(admin_client: DynamicClient, hco_namespace: Namespace) -> None:
+def check_webhook_endpoints_health(admin_client: DynamicClient, namespace: Namespace) -> None:
     """
     Check that all webhook services in the HCO namespace have available endpoints.
 
@@ -88,17 +89,17 @@ def check_webhook_endpoints_health(admin_client: DynamicClient, hco_namespace: N
 
     Args:
         admin_client: Kubernetes dynamic client with admin privileges for cluster operations.
-        hco_namespace: Namespace resource where HyperConverged Operator is deployed.
+        namespace: Namespace resource.
 
     Raises:
         ClusterSanityError: When any webhook service has no ready endpoint addresses.
     """
-    LOGGER.info(f"Checking webhook endpoints health for services in namespace: {hco_namespace.name}")
+    LOGGER.info(f"Checking webhook endpoints health for services in namespace: {namespace.name}")
 
-    webhook_services = _discover_webhook_services(admin_client=admin_client, hco_namespace=hco_namespace)
+    webhook_services = _discover_webhook_services(admin_client=admin_client, namespace=namespace)
 
     if not webhook_services:
-        LOGGER.warning(f"No webhook services discovered in namespace {hco_namespace.name}")
+        LOGGER.warning(f"No webhook services discovered in namespace {namespace.name}")
         return
 
     services_without_endpoints = []
@@ -108,7 +109,7 @@ def check_webhook_endpoints_health(admin_client: DynamicClient, hco_namespace: N
         try:
             endpoint = Endpoints(
                 name=service_name,
-                namespace=hco_namespace.name,
+                namespace=namespace.name,
                 client=admin_client,
                 ensure_exists=True,
             )
@@ -304,7 +305,7 @@ def cluster_sanity(
             LOGGER.warning(f"Skipping webhook health check, got {skip_webhook_check}")
         else:
             LOGGER.info(f"Check webhook endpoints health. (To skip webhook check pass {skip_webhook_check} to pytest)")
-            check_webhook_endpoints_health(admin_client=admin_client, hco_namespace=hco_namespace)
+            check_webhook_endpoints_health(admin_client=admin_client, namespace=hco_namespace)
             check_vm_creation_capability(admin_client=admin_client, namespace="default")
 
         # Wait for hco to be healthy
