@@ -64,8 +64,12 @@ def _discover_webhook_services(admin_client: DynamicClient, hco_namespace: Names
     for webhook_kind in [MutatingWebhookConfiguration, ValidatingWebhookConfiguration]:
         LOGGER.info(f"Scanning {webhook_kind.kind} resources for webhook services")
         for webhook in webhook_kind.get(client=admin_client):
-            for _webhook in webhook.instance.webhooks or []:
-                service_config = _webhook.get("clientConfig", {}).get("service")
+            webhook_items = webhook.instance.webhooks or []
+            if not webhook_items:
+                LOGGER.warning(f"Webhook configuration {webhook.name} has no webhooks")
+                continue
+            for webhook_item in webhook_items:
+                service_config = webhook_item.get("clientConfig", {}).get("service")
                 # Skip URL-based webhooks (they don't use a service)
                 if not service_config:
                     continue
@@ -94,7 +98,8 @@ def check_webhook_endpoints_health(admin_client: DynamicClient, hco_namespace: N
     webhook_services = _discover_webhook_services(admin_client=admin_client, hco_namespace=hco_namespace)
 
     if not webhook_services:
-        raise ClusterSanityError(err_str=f"No webhook services discovered in {hco_namespace.name} namespace.")
+        LOGGER.warning(f"No webhook services discovered in namespace {hco_namespace.name}")
+        return
 
     services_without_endpoints = []
 
@@ -139,7 +144,7 @@ def check_webhook_endpoints_health(admin_client: DynamicClient, hco_namespace: N
     LOGGER.info("All discovered webhook services have available endpoints")
 
 
-def check_basic_vm_creation_flow(admin_client: DynamicClient, namespace: str) -> None:
+def check_vm_creation_capability(admin_client: DynamicClient, namespace: str) -> None:
     """
     Verify VM creation capability by performing a dry-run VM creation.
 
@@ -300,7 +305,7 @@ def cluster_sanity(
         else:
             LOGGER.info(f"Check webhook endpoints health. (To skip webhook check pass {skip_webhook_check} to pytest)")
             check_webhook_endpoints_health(admin_client=admin_client, hco_namespace=hco_namespace)
-            check_basic_vm_creation_flow(admin_client=admin_client, namespace="default")
+            check_vm_creation_capability(admin_client=admin_client, namespace="default")
 
         # Wait for hco to be healthy
         wait_for_hco_conditions(

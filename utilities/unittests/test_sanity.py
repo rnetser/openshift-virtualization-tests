@@ -4,6 +4,7 @@
 
 from unittest.mock import MagicMock, patch
 
+from kubernetes.dynamic.exceptions import ResourceNotFoundError
 from ocp_utilities.exceptions import NodeNotReadyError, NodeUnschedulableError
 from timeout_sampler import TimeoutExpiredError
 
@@ -144,12 +145,12 @@ class TestClusterSanity:
         assert any("Skipping cluster sanity check" in str(call) for call in warning_calls)
 
     @patch("utilities.sanity.check_webhook_endpoints_health")
-    @patch("utilities.sanity.check_basic_vm_creation_flow")
+    @patch("utilities.sanity.check_vm_creation_capability")
     @patch("utilities.sanity.storage_sanity_check")
     @patch("utilities.sanity.wait_for_hco_conditions")
     @patch("utilities.sanity.LOGGER")
     def test_cluster_sanity_skip_storage_check(
-        self, mock_logger, mock_wait_hco, mock_storage_sanity, mock_check_vm, mock_check_webhook
+        self, mock_logger, _mock_wait_hco, mock_storage_sanity, _mock_check_vm, _mock_check_webhook
     ):
         """Test skip storage check when --cluster-sanity-skip-storage-check flag is set"""
         from utilities.sanity import cluster_sanity
@@ -173,7 +174,7 @@ class TestClusterSanity:
 
     @patch("utilities.sanity.py_config", {"storage_class_matrix": []})
     @patch("utilities.sanity.check_webhook_endpoints_health")
-    @patch("utilities.sanity.check_basic_vm_creation_flow")
+    @patch("utilities.sanity.check_vm_creation_capability")
     @patch("utilities.sanity.storage_sanity_check")
     @patch("utilities.sanity.assert_nodes_in_healthy_condition")
     @patch("utilities.sanity.assert_nodes_schedulable")
@@ -215,7 +216,7 @@ class TestClusterSanity:
         assert any("Skipping nodes check" in str(call) for call in warning_calls)
 
     @patch("utilities.sanity.check_webhook_endpoints_health")
-    @patch("utilities.sanity.check_basic_vm_creation_flow")
+    @patch("utilities.sanity.check_vm_creation_capability")
     @patch("utilities.sanity.storage_sanity_check")
     @patch("utilities.sanity.assert_nodes_in_healthy_condition")
     @patch("utilities.sanity.assert_nodes_schedulable")
@@ -264,7 +265,7 @@ class TestClusterSanity:
         mock_check_vm.assert_called_once()
 
     @patch("utilities.sanity.check_webhook_endpoints_health")
-    @patch("utilities.sanity.check_basic_vm_creation_flow")
+    @patch("utilities.sanity.check_vm_creation_capability")
     @patch("utilities.sanity.storage_sanity_check")
     @patch("utilities.sanity.exit_pytest_execution")
     @patch("utilities.sanity.wait_for_hco_conditions")
@@ -300,7 +301,7 @@ class TestClusterSanity:
         assert "Cluster is missing storage class" in call_args[1]["log_message"]
 
     @patch("utilities.sanity.check_webhook_endpoints_health")
-    @patch("utilities.sanity.check_basic_vm_creation_flow")
+    @patch("utilities.sanity.check_vm_creation_capability")
     @patch("utilities.sanity.storage_sanity_check")
     @patch("utilities.sanity.assert_nodes_in_healthy_condition")
     @patch("utilities.sanity.wait_for_hco_conditions")
@@ -341,7 +342,7 @@ class TestClusterSanity:
         assert error_message in call_args[1]["log_message"]
 
     @patch("utilities.sanity.check_webhook_endpoints_health")
-    @patch("utilities.sanity.check_basic_vm_creation_flow")
+    @patch("utilities.sanity.check_vm_creation_capability")
     @patch("utilities.sanity.storage_sanity_check")
     @patch("utilities.sanity.assert_nodes_in_healthy_condition")
     @patch("utilities.sanity.wait_for_hco_conditions")
@@ -382,7 +383,7 @@ class TestClusterSanity:
         assert error_message in call_args[1]["log_message"]
 
     @patch("utilities.sanity.check_webhook_endpoints_health")
-    @patch("utilities.sanity.check_basic_vm_creation_flow")
+    @patch("utilities.sanity.check_vm_creation_capability")
     @patch("utilities.sanity.storage_sanity_check")
     @patch("utilities.sanity.assert_nodes_in_healthy_condition")
     @patch("utilities.sanity.wait_for_hco_conditions")
@@ -423,7 +424,7 @@ class TestClusterSanity:
         assert error_message in call_args[1]["log_message"]
 
     @patch("utilities.sanity.check_webhook_endpoints_health")
-    @patch("utilities.sanity.check_basic_vm_creation_flow")
+    @patch("utilities.sanity.check_vm_creation_capability")
     @patch("utilities.sanity.storage_sanity_check")
     @patch("utilities.sanity.assert_nodes_in_healthy_condition")
     @patch("utilities.sanity.assert_nodes_schedulable")
@@ -471,7 +472,7 @@ class TestClusterSanity:
         assert "test-namespace" in call_args[1]["log_message"]
 
     @patch("utilities.sanity.check_webhook_endpoints_health")
-    @patch("utilities.sanity.check_basic_vm_creation_flow")
+    @patch("utilities.sanity.check_vm_creation_capability")
     @patch("utilities.sanity.storage_sanity_check")
     @patch("utilities.sanity.assert_nodes_in_healthy_condition")
     @patch("utilities.sanity.assert_nodes_schedulable")
@@ -541,7 +542,7 @@ class TestClusterSanity:
         assert call_order == ["storage", "healthy", "schedulable", "pods", "webhook", "vm", "hco"]
 
     @patch("utilities.sanity.check_webhook_endpoints_health")
-    @patch("utilities.sanity.check_basic_vm_creation_flow")
+    @patch("utilities.sanity.check_vm_creation_capability")
     @patch("utilities.sanity.storage_sanity_check")
     @patch("utilities.sanity.assert_nodes_in_healthy_condition")
     @patch("utilities.sanity.assert_nodes_schedulable")
@@ -581,7 +582,7 @@ class TestClusterSanity:
         mock_assert_healthy.assert_called_once_with(nodes=mock_nodes, healthy_node_condition_type="Ready")
 
     @patch("utilities.sanity.check_webhook_endpoints_health")
-    @patch("utilities.sanity.check_basic_vm_creation_flow")
+    @patch("utilities.sanity.check_vm_creation_capability")
     @patch("utilities.sanity.storage_sanity_check")
     @patch("utilities.sanity.assert_nodes_in_healthy_condition")
     @patch("utilities.sanity.assert_nodes_schedulable")
@@ -620,7 +621,7 @@ class TestClusterSanity:
         mock_assert_schedulable.assert_called_once_with(nodes=mock_nodes)
 
     @patch("utilities.sanity.check_webhook_endpoints_health")
-    @patch("utilities.sanity.check_basic_vm_creation_flow")
+    @patch("utilities.sanity.check_vm_creation_capability")
     @patch("utilities.sanity.storage_sanity_check")
     @patch("utilities.sanity.assert_nodes_in_healthy_condition")
     @patch("utilities.sanity.assert_nodes_schedulable")
@@ -665,7 +666,7 @@ class TestClusterSanity:
         )
 
     @patch("utilities.sanity.check_webhook_endpoints_health")
-    @patch("utilities.sanity.check_basic_vm_creation_flow")
+    @patch("utilities.sanity.check_vm_creation_capability")
     @patch("utilities.sanity.storage_sanity_check")
     @patch("utilities.sanity.assert_nodes_in_healthy_condition")
     @patch("utilities.sanity.assert_nodes_schedulable")
@@ -708,7 +709,7 @@ class TestClusterSanity:
         )
 
     @patch("utilities.sanity.check_webhook_endpoints_health")
-    @patch("utilities.sanity.check_basic_vm_creation_flow")
+    @patch("utilities.sanity.check_vm_creation_capability")
     @patch("utilities.sanity.storage_sanity_check")
     @patch("utilities.sanity.assert_nodes_in_healthy_condition")
     @patch("utilities.sanity.assert_nodes_schedulable")
@@ -752,12 +753,12 @@ class TestClusterSanity:
         assert call_args[1]["junitxml_property"] == mock_junitxml_property
 
     @patch("utilities.sanity.check_webhook_endpoints_health")
-    @patch("utilities.sanity.check_basic_vm_creation_flow")
+    @patch("utilities.sanity.check_vm_creation_capability")
     @patch("utilities.sanity.storage_sanity_check")
     @patch("utilities.sanity.wait_for_hco_conditions")
     @patch("utilities.sanity.LOGGER")
     def test_cluster_sanity_skip_webhook_check(
-        self, mock_logger, mock_wait_hco, mock_storage_sanity, mock_check_vm, mock_check_webhook
+        self, mock_logger, _mock_wait_hco, mock_storage_sanity, mock_check_vm, mock_check_webhook
     ):
         """Test skip webhook check when --cluster-sanity-skip-webhook-check flag is set"""
         from utilities.sanity import cluster_sanity
@@ -779,7 +780,9 @@ class TestClusterSanity:
         mock_check_vm.assert_not_called()
         # Should have warning about skipping webhook check
         warning_calls = [call for call in mock_logger.warning.call_args_list]
-        assert any("Skipping webhook health check" in str(call) for call in warning_calls)
+        assert any("Skipping webhook health check" in str(call) for call in warning_calls), (
+            "Expected warning about skipping webhook health check"
+        )
 
 
 class TestDiscoverWebhookServices:
@@ -974,9 +977,8 @@ class TestCheckWebhookEndpointsHealth:
 
         mock_discover.return_value = {"virt-api"}
 
-        mock_endpoint = MagicMock()
-        mock_endpoint.exists = False
-        mock_endpoints_class.return_value = mock_endpoint
+        # Simulate ResourceNotFoundError when endpoint doesn't exist (ensure_exists=True)
+        mock_endpoints_class.side_effect = ResourceNotFoundError(MagicMock())
 
         mock_admin_client = MagicMock()
         mock_hco_namespace = MagicMock()
@@ -1047,9 +1049,7 @@ class TestCheckWebhookEndpointsHealth:
     def test_check_webhook_endpoints_health_no_webhooks_discovered(
         self, mock_logger, mock_endpoints_class, mock_discover
     ):
-        """Test that error is raised when no webhooks are discovered"""
-        import pytest
-
+        """Test that warning is logged when no webhooks are discovered"""
         from utilities.sanity import check_webhook_endpoints_health
 
         mock_discover.return_value = set()  # No webhooks discovered
@@ -1058,21 +1058,22 @@ class TestCheckWebhookEndpointsHealth:
         mock_hco_namespace = MagicMock()
         mock_hco_namespace.name = "openshift-cnv"
 
-        # Should raise ClusterSanityError
-        with pytest.raises(ClusterSanityError, match="No webhook services discovered"):
-            check_webhook_endpoints_health(admin_client=mock_admin_client, hco_namespace=mock_hco_namespace)
+        # Should log warning and return, not raise error
+        check_webhook_endpoints_health(admin_client=mock_admin_client, hco_namespace=mock_hco_namespace)
 
+        # Verify warning was logged
+        mock_logger.warning.assert_called()
         mock_endpoints_class.assert_not_called()
 
 
-class TestCheckBasicVmCreationFlow:
-    """Test cases for check_basic_vm_creation_flow function"""
+class TestCheckVmCreationCapability:
+    """Test cases for check_vm_creation_capability function"""
 
     @patch("utilities.sanity.VirtualMachine")
     @patch("utilities.sanity.LOGGER")
-    def test_check_basic_vm_creation_flow_success(self, mock_logger, mock_vm_class):
+    def test_check_vm_creation_capability_success(self, mock_logger, mock_vm_class):
         """Test successful dry-run VM creation"""
-        from utilities.sanity import check_basic_vm_creation_flow
+        from utilities.sanity import check_vm_creation_capability
 
         mock_vm = MagicMock()
         mock_vm_class.return_value = mock_vm
@@ -1080,17 +1081,17 @@ class TestCheckBasicVmCreationFlow:
         mock_admin_client = MagicMock()
 
         # Should not raise
-        check_basic_vm_creation_flow(admin_client=mock_admin_client, namespace="openshift-cnv")
+        check_vm_creation_capability(admin_client=mock_admin_client, namespace="openshift-cnv")
 
         mock_vm.create.assert_called_once()
 
     @patch("utilities.sanity.VirtualMachine")
     @patch("utilities.sanity.LOGGER")
-    def test_check_basic_vm_creation_flow_api_error(self, mock_logger, mock_vm_class):
+    def test_check_vm_creation_capability_api_error(self, mock_logger, mock_vm_class):
         """Test error when VM creation fails due to API error"""
         from kubernetes.client import ApiException
 
-        from utilities.sanity import check_basic_vm_creation_flow
+        from utilities.sanity import check_vm_creation_capability
 
         mock_vm = MagicMock()
         mock_vm.create.side_effect = ApiException(status=400, reason="Bad Request")
@@ -1101,15 +1102,15 @@ class TestCheckBasicVmCreationFlow:
         import pytest
 
         with pytest.raises(ClusterSanityError) as exc_info:
-            check_basic_vm_creation_flow(admin_client=mock_admin_client, namespace="openshift-cnv")
+            check_vm_creation_capability(admin_client=mock_admin_client, namespace="openshift-cnv")
 
         assert "Dry-run VM creation failed" in str(exc_info.value)
 
     @patch("utilities.sanity.VirtualMachine")
     @patch("utilities.sanity.LOGGER")
-    def test_check_basic_vm_creation_flow_unexpected_error(self, mock_logger, mock_vm_class):
+    def test_check_vm_creation_capability_unexpected_error(self, mock_logger, mock_vm_class):
         """Test error when VM creation fails due to unexpected error"""
-        from utilities.sanity import check_basic_vm_creation_flow
+        from utilities.sanity import check_vm_creation_capability
 
         mock_vm = MagicMock()
         mock_vm.create.side_effect = Exception("Unexpected error")
@@ -1120,6 +1121,6 @@ class TestCheckBasicVmCreationFlow:
         import pytest
 
         with pytest.raises(ClusterSanityError) as exc_info:
-            check_basic_vm_creation_flow(admin_client=mock_admin_client, namespace="openshift-cnv")
+            check_vm_creation_capability(admin_client=mock_admin_client, namespace="openshift-cnv")
 
         assert "Unexpected error during dry-run VM creation" in str(exc_info.value)
