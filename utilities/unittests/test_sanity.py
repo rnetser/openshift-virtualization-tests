@@ -1065,6 +1065,30 @@ class TestCheckWebhookEndpointsHealth:
         mock_logger.warning.assert_called()
         mock_endpoints_class.assert_not_called()
 
+    @patch("utilities.sanity._discover_webhook_services")
+    @patch("utilities.sanity.Endpoints")
+    @patch("utilities.sanity.LOGGER")
+    def test_check_webhook_endpoints_health_api_exception(self, mock_logger, mock_endpoints_class, mock_discover):
+        """Test error when API exception occurs while checking endpoints"""
+        from kubernetes.client import ApiException
+
+        from utilities.sanity import check_webhook_endpoints_health
+
+        mock_discover.return_value = {"virt-api"}
+        mock_endpoints_class.side_effect = ApiException(status=500, reason="Internal Server Error")
+
+        mock_admin_client = MagicMock()
+        mock_hco_namespace = MagicMock()
+        mock_hco_namespace.name = "openshift-cnv"
+
+        import pytest
+
+        with pytest.raises(ClusterSanityError) as exc_info:
+            check_webhook_endpoints_health(admin_client=mock_admin_client, namespace=mock_hco_namespace)
+
+        assert "no available endpoints" in str(exc_info.value)
+        mock_logger.error.assert_called()
+
 
 class TestCheckVmCreationCapability:
     """Test cases for check_vm_creation_capability function"""
@@ -1124,3 +1148,41 @@ class TestCheckVmCreationCapability:
             check_vm_creation_capability(admin_client=mock_admin_client, namespace="openshift-cnv")
 
         assert "Unexpected error during dry-run VM creation" in str(exc_info.value)
+
+    @patch("utilities.sanity.VirtualMachine")
+    @patch("utilities.sanity.LOGGER")
+    def test_check_vm_creation_capability_connection_error(self, mock_logger, mock_vm_class):
+        """Test error when VM creation fails due to connection error"""
+        from utilities.sanity import check_vm_creation_capability
+
+        mock_vm = MagicMock()
+        mock_vm.create.side_effect = ConnectionError("Connection refused")
+        mock_vm_class.return_value = mock_vm
+
+        mock_admin_client = MagicMock()
+
+        import pytest
+
+        with pytest.raises(ClusterSanityError) as exc_info:
+            check_vm_creation_capability(admin_client=mock_admin_client, namespace="openshift-cnv")
+
+        assert "Connection error during dry-run VM creation" in str(exc_info.value)
+
+    @patch("utilities.sanity.VirtualMachine")
+    @patch("utilities.sanity.LOGGER")
+    def test_check_vm_creation_capability_timeout_error(self, mock_logger, mock_vm_class):
+        """Test error when VM creation fails due to timeout"""
+        from utilities.sanity import check_vm_creation_capability
+
+        mock_vm = MagicMock()
+        mock_vm.create.side_effect = TimeoutError("Connection timed out")
+        mock_vm_class.return_value = mock_vm
+
+        mock_admin_client = MagicMock()
+
+        import pytest
+
+        with pytest.raises(ClusterSanityError) as exc_info:
+            check_vm_creation_capability(admin_client=mock_admin_client, namespace="openshift-cnv")
+
+        assert "Connection error during dry-run VM creation" in str(exc_info.value)
