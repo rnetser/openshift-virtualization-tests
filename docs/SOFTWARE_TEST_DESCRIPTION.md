@@ -101,6 +101,17 @@ Expected:
 
 ### Exclude new test stubs from pytest collection [customizing-test-collection](https://doc.pytest.org/en/latest/example/pythoncollection.html#customizing-test-collection)
 
+To exclude a whole new module from pytest collection, use:
+
+```python
+# test_module_to_ignore.py
+__test__ = False
+
+def test_abc():
+    assert True # This test will not be collected or run
+
+```
+
 To exclude new test classes from pytest collection, use:
 
 ```python
