@@ -2,8 +2,6 @@ import pytest
 
 from utilities.virt import VirtualMachineForTests, fedora_vm_body, running_vm
 
-__test__ = False
-
 
 @pytest.mark.arm64
 @pytest.mark.smoke

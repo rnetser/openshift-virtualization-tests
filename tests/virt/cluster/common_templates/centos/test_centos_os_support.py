@@ -33,8 +33,6 @@ TESTS_CLASS_NAME = "TestCommonTemplatesCentos"
 
 @pytest.mark.s390x
 class TestCommonTemplatesCentos:
-    __test__ = False
-
     @pytest.mark.dependency(name=f"{TESTS_CLASS_NAME}::create_vm")
     @pytest.mark.polarion("CNV-5337")
     def test_create_vm(self, matrix_centos_os_vm_from_template):
