@@ -99,6 +99,24 @@ Expected:
     - Ping fails with 100% packet loss
 ```
 
+### Exclude new test stubs from pytest collection [customizing-test-collection](https://doc.pytest.org/en/latest/example/pythoncollection.html#customizing-test-collection)
+
+To exclude new test classes from pytest collection, use:
+
+```python
+class TestClass:
+    __test__ = False
+```
+
+To exclude new tests from pytest collection, use:
+
+```python
+def test_abc():
+    ...
+
+test_abc.__test__ = False
+```
+
 ### Negative Test Indicator
 
 Mark tests that verify failure scenarios with `[NEGATIVE]` in the description:
@@ -109,6 +127,7 @@ def test_isolated_vms_cannot_communicate():
     [NEGATIVE] Test that VMs on separate networks cannot ping each other.
     """
     pass
+test_isolated_vms_cannot_communicate.__test__ = False
 ```
 
 ### Parametrization Hints
@@ -152,6 +171,7 @@ class Test<FeatureName>:
         - <Another shared requirement>
 
     """
+    __test__ = False
 
     def test_<specific_behavior>(self):
         """
@@ -192,6 +212,7 @@ def test_<specific_behavior>():
         - <Natural language assertion, e.g., "VM is Running", "File exists">
     """
     pass
+test_<specific_behavior>.__test__ = False
 ```
 
 ### Template Components
@@ -289,6 +310,7 @@ class TestSnapshotRestore:
         - File path="/data/after.txt", content="post-snapshot" (written after snapshot)
         - VM Restored from snapshot, running and SSH accessible
     """
+    __test__ = False
 
     def test_preserves_original_file(self):
         """
@@ -327,6 +349,7 @@ class TestVMLifecycle:
     Preconditions:
         - VM Running latest Fedora virtual machine
     """
+    __test__ = False
 
     def test_vm_restart_completes_successfully(self):
         """
@@ -396,6 +419,7 @@ def test_flat_overlay_ping_between_vms():
         - Ping succeeds with 0% packet loss
     """
     pass
+test_flat_overlay_ping_between_vms.__test__ = False
 ```
 
 ---
@@ -426,6 +450,7 @@ def test_isolated_vms_cannot_communicate():
         - Ping fails with 100% packet loss
     """
     pass
+test_isolated_vms_cannot_communicate.__test__ = False
 ```
 
 ---
@@ -458,6 +483,7 @@ def test_online_disk_resize():
         - Disk size inside VM is greater than original size
     """
     pass
+test_online_disk_resize.__test__ = False
 ```
 
 ---
