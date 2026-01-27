@@ -49,6 +49,8 @@ This project follows a **two-phase development workflow** that separates test de
    - Add the actual test code to the previously merged test stubs
    - Create any required fixtures
    - Implement helper functions as needed
+   - Remove `__test__ = False` from implemented tests
+   - If needed, update the test description. This change must be approved by the team's tech lead.
 
 2. **Submit PR for review**:
    - Reviewers verify the implementation matches the approved design
