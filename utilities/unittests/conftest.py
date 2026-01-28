@@ -157,7 +157,6 @@ def mock_os_images():
     mock_rhel_class = MagicMock()
     mock_rhel_class.LATEST_RELEASE_STR = "rhel-9.6.qcow2"
     mock_rhel_class.DEFAULT_DV_SIZE = "20Gi"
-    mock_rhel_class.RHEL7_9_IMG = "rhel-7.9.qcow2"
     mock_rhel_class.RHEL8_10_IMG = "rhel-8.10.qcow2"
     mock_rhel_class.RHEL9_5_IMG = "rhel-9.5.qcow2"
     mock_rhel_class.RHEL9_6_IMG = "rhel-9.6.qcow2"
@@ -169,7 +168,6 @@ def mock_os_images():
     mock_windows_class.DEFAULT_DV_SIZE = "60Gi"
     mock_windows_class.WIN10_IMG = "win10.qcow2"
     mock_windows_class.WIN11_IMG = "win11.qcow2"
-    mock_windows_class.WIN2k16_IMG = "win2k16.qcow2"
     mock_windows_class.WIN2k19_IMG = "win2k19.qcow2"
     mock_windows_class.WIN2022_IMG = "win2022.qcow2"
     mock_windows_class.WIN2k25_IMG = "win2k25.qcow2"

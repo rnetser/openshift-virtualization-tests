@@ -43,14 +43,14 @@ class TestGenerateOsMatrixDict:
         """Test RHEL OS matrix generation with multiple versions"""
         mock_images.Rhel = mock_os_images["rhel"]
 
-        result = generate_os_matrix_dict("rhel", ["rhel-7-9", "rhel-8-10", "rhel-9-6"])
+        result = generate_os_matrix_dict(os_name="rhel", supported_operating_systems=["rhel-8-10", "rhel-9-6"])
 
-        assert len(result) == 3
+        assert len(result) == 2
 
-        # Check RHEL 7.9
-        rhel_79 = next(item for item in result if "rhel-7-9" in item)["rhel-7-9"]
-        assert rhel_79["os_version"] == "7.9"
-        assert rhel_79["image_name"] == "rhel-7.9.qcow2"
+        # Check RHEL 8.10
+        rhel_810 = next(item for item in result if "rhel-8-10" in item)["rhel-8-10"]
+        assert rhel_810["os_version"] == "8.10"
+        assert rhel_810["image_name"] == "rhel-8.10.qcow2"
 
         # Check RHEL 9.6 (latest)
         rhel_96 = next(item for item in result if "rhel-9-6" in item)["rhel-9-6"]
@@ -63,7 +63,7 @@ class TestGenerateOsMatrixDict:
         """Test Windows OS matrix generation with UEFI support"""
         mock_images.Windows = mock_os_images["windows"]
 
-        result = generate_os_matrix_dict("windows", ["win-10", "win-2016"])
+        result = generate_os_matrix_dict("windows", ["win-10", "win-2019"])
 
         assert len(result) == 2
 
@@ -75,10 +75,10 @@ class TestGenerateOsMatrixDict:
         assert win10["template_labels"]["workload"] == "desktop"
         assert win10["template_labels"]["flavor"] == "medium"
 
-        # Check Windows 2016 (UEFI + server workload)
-        win2016 = next(item for item in result if "win-2016" in item)["win-2016"]
-        assert win2016["image_path"] == "cnv-tests/windows-uefi-images/win2k16.qcow2"
-        assert win2016["template_labels"]["workload"] == "server"
+        # Check Windows 2019 (UEFI + server workload)
+        win2019 = next(item for item in result if "win-2019" in item)["win-2019"]
+        assert win2019["image_path"] == "cnv-tests/windows-uefi-images/win2k19.qcow2"
+        assert win2019["template_labels"]["workload"] == "server"
 
     @patch("utilities.os_utils.Images")
     def test_generate_windows_os_matrix_without_uefi(self, mock_images, mock_os_images):
@@ -282,13 +282,12 @@ class TestOsMappingsConstants:
         """Test RHEL OS mapping has correct structure"""
         assert "workload" in RHEL_OS_MAPPING
         assert "flavor" in RHEL_OS_MAPPING
-        assert "rhel-7-9" in RHEL_OS_MAPPING
         assert "rhel-8-10" in RHEL_OS_MAPPING
         assert "rhel-9-5" in RHEL_OS_MAPPING
         assert "rhel-9-6" in RHEL_OS_MAPPING
 
         # Check required keys in version entries
-        for version_key in ["rhel-7-9", "rhel-8-10", "rhel-9-5", "rhel-9-6"]:
+        for version_key in ["rhel-8-10", "rhel-9-5", "rhel-9-6"]:
             version_data = RHEL_OS_MAPPING[version_key]
             assert "image_name" in version_data
             assert "os_version" in version_data
@@ -301,7 +300,7 @@ class TestOsMappingsConstants:
 
         # Check for UEFI flag where expected
         assert WINDOWS_OS_MAPPING["win-10"]["uefi"] is True
-        assert WINDOWS_OS_MAPPING["win-2016"]["uefi"] is True
+        assert WINDOWS_OS_MAPPING["win-2019"]["uefi"] is True
         assert "uefi" not in WINDOWS_OS_MAPPING["win-2022"]
 
     def test_fedora_os_mapping_structure(self):

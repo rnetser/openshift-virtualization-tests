@@ -30,7 +30,6 @@ class Alpine:
 
 @dataclass
 class Rhel:
-    RHEL7_9_IMG: str | None = None
     RHEL8_0_IMG: str | None = None
     RHEL8_9_IMG: str | None = None
     RHEL8_10_IMG: str | None = None
@@ -52,7 +51,6 @@ class Windows:
     WIN10_IMG: str | None = None
     WIN10_WSL2_IMG: str | None = None
     WIN10_ISO_IMG: str | None = None
-    WIN2k16_IMG: str | None = None
     WIN2k19_IMG: str | None = None
     WIN2k25_IMG: str | None = None
     WIN2k19_HA_IMG: str | None = None
