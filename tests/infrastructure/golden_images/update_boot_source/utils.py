@@ -12,10 +12,8 @@ from ocp_resources.volume_snapshot import VolumeSnapshot
 from packaging.version import Version
 from timeout_sampler import TimeoutExpiredError, TimeoutSampler
 
-from tests.infrastructure.golden_images.constants import (
-    DEFAULT_FEDORA_REGISTRY_URL,
-)
 from utilities.constants import (
+    DEFAULT_FEDORA_REGISTRY_URL,
     TIMEOUT_2MIN,
     TIMEOUT_5MIN,
     TIMEOUT_5SEC,
