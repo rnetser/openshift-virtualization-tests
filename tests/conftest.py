@@ -319,7 +319,7 @@ def admin_client():
 @pytest.fixture(scope="session")
 def unprivileged_secret(admin_client, skip_unprivileged_client):
     if skip_unprivileged_client:
-        yield admin_client
+        yield
 
     else:
         password = UNPRIVILEGED_PASSWORD.encode()
