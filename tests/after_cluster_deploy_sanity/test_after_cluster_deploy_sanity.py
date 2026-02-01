@@ -93,9 +93,7 @@ def test_storage_sanity(cluster_storage_classes_names):
 
 
 @pytest.mark.cluster_health_check
-def test_boot_volume_health(
-    golden_images_namespace, hco_managed_data_import_crons, data_import_cron_managed_datasources
-):
+def test_boot_volume_health(hco_managed_data_import_crons, data_import_cron_managed_datasources):
     """Test that all DataImportCron-managed DataSources are ready."""
     assert len(hco_managed_data_import_crons) == len(data_import_cron_managed_datasources)
     LOGGER.info(f"All dataimport crons: {hco_managed_data_import_crons}")
