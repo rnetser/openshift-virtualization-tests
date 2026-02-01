@@ -15,7 +15,7 @@ from libs.net import netattachdef as libnad
 from libs.net.traffic_generator import PodTcpClient as TcpClient
 from libs.net.traffic_generator import TcpServer
 from libs.net.udn import UDN_BINDING_DEFAULT_PLUGIN_NAME, create_udn_namespace
-from libs.net.vmspec import IP_ADDRESS, lookup_iface_status, lookup_primary_network
+from libs.net.vmspec import lookup_iface_status_ip, lookup_primary_network
 from libs.vm.vm import BaseVirtualMachine
 from tests.network.libs import cluster_user_defined_network as libcudn
 from tests.network.libs import nodenetworkconfigurationpolicy as libnncp
@@ -47,7 +47,9 @@ LOCALNET_NETWORK_NAME: Final[str] = "localnet-network-bgp"
 
 @pytest.fixture(scope="module")
 def nncp_localnet_node1(
-    admin_client: DynamicClient, worker_node1: Node
+    nmstate_dependent_placeholder,
+    admin_client: DynamicClient,
+    worker_node1: Node,
 ) -> Generator[libnncp.NodeNetworkConfigurationPolicy]:
     desired_state = libnncp.DesiredState(
         ovn=libnncp.OVN([
@@ -86,11 +88,15 @@ def nad_localnet(
 
 @pytest.fixture(scope="module")
 def frr_configmap(
-    workers: list[Node], cnv_tests_utilities_namespace: Namespace, admin_client: DynamicClient
+    workers: list[Node],
+    cnv_tests_utilities_namespace: Namespace,
+    admin_client: DynamicClient,
+    nncp_localnet_node1: libnncp.NodeNetworkConfigurationPolicy,
 ) -> Generator[ConfigMap]:
+    node_name_with_nncp = nncp_localnet_node1.node_selector["kubernetes.io/hostname"]
     frr_conf = generate_frr_conf(
         external_subnet_ipv4=EXTERNAL_PROVIDER_SUBNET_IPV4,
-        nodes_ipv4_list=[worker.internal_ip for worker in workers],
+        nodes_ipv4_list=[worker.internal_ip for worker in workers if worker.name != node_name_with_nncp],
     )
 
     with ConfigMap(
@@ -195,7 +201,7 @@ def bgp_setup_ready(
     frr_configuration_created: None,
     workers: list[Node],
 ) -> None:
-    node_names = [worker.name for worker in workers]
+    node_names = [worker.name for worker in workers if worker.name != frr_external_pod.pod.instance.spec.nodeName]
     wait_for_bgp_connection_established(node_names=node_names)
 
 
@@ -233,7 +239,9 @@ def tcp_client_external_network(
 ) -> Generator[TcpClient]:
     with TcpClient(
         pod=frr_external_pod.pod,
-        server_ip=lookup_iface_status(vm=vm_cudn, iface_name=lookup_primary_network(vm=vm_cudn).name)[IP_ADDRESS],
+        server_ip=str(
+            lookup_iface_status_ip(vm=vm_cudn, iface_name=lookup_primary_network(vm=vm_cudn).name, ip_family=4)
+        ),
         server_port=IPERF3_SERVER_PORT,
         bind_interface=EXTERNAL_PROVIDER_IP_V4.split("/")[0],
     ) as client:
