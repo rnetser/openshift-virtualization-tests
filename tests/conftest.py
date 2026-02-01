@@ -269,9 +269,9 @@ def session_start_time() -> datetime:
 
 
 @pytest.fixture(scope="session")
-def exported_kubeconfig(admin_client, unprivileged_secret, kubeconfig_export_path):
+def exported_kubeconfig(unprivileged_secret, kubeconfig_export_path):
     if not unprivileged_secret:
-        yield admin_client
+        yield
 
     else:
         kube_config_path = os.path.join(os.path.expanduser("~"), ".kube/config")
@@ -319,7 +319,7 @@ def admin_client():
 @pytest.fixture(scope="session")
 def unprivileged_secret(admin_client, skip_unprivileged_client):
     if skip_unprivileged_client:
-        yield
+        yield admin_client
 
     else:
         password = UNPRIVILEGED_PASSWORD.encode()
