@@ -25,8 +25,15 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.BOT3_TOKEN }}
         run: |
+          set -euo pipefail
+
           # Get files changed in the merged PR
           MERGED_FILES=$(gh pr diff ${{ github.event.pull_request.number }} --name-only | sort)
+
+          if [ -z "$MERGED_FILES" ]; then
+            echo "No files found in merged PR #${{ github.event.pull_request.number }}"
+            exit 0
+          fi
           echo "Merged PR #${{ github.event.pull_request.number }} changed files:"
           echo "$MERGED_FILES"
 
@@ -39,9 +46,12 @@ jobs:
           echo "EOF" >> $GITHUB_OUTPUT
 
       - name: Check all open PRs for overlap
+        shell: bash
         env:
           GH_TOKEN: ${{ secrets.BOT3_TOKEN }}
         run: |
+          set -euo pipefail
+
           # Get all open PRs with main as base branch (excluding drafts)
           OPEN_PRS=$(gh pr list --base main --state open --json number,isDraft --jq '.[] | select(.isDraft == false) | .number')
 
