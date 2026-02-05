@@ -9,6 +9,10 @@ permissions:
   pull-requests: write
   contents: read
 
+concurrency:
+  group: auto-retest-main
+  cancel-in-progress: false
+
 jobs:
   check-open-prs:
     if: github.event.pull_request.merged == true
@@ -53,7 +57,7 @@ jobs:
           set -euo pipefail
 
           # Get all open PRs with main as base branch (excluding drafts)
-          OPEN_PRS=$(gh pr list --base main --state open --json number,isDraft --jq '.[] | select(.isDraft == false) | .number')
+          OPEN_PRS=$(gh pr list --base main --state open --limit 100 --json number,isDraft --jq '.[] | select(.isDraft == false) | .number')
 
           if [ -z "$OPEN_PRS" ]; then
             echo "No open PRs targeting main branch"
