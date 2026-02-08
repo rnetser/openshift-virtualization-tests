@@ -34,8 +34,10 @@ from ocp_resources.config_map import ConfigMap
 from ocp_resources.console_cli_download import ConsoleCLIDownload
 from ocp_resources.daemonset import DaemonSet
 from ocp_resources.deployment import Deployment
+from ocp_resources.endpoints import Endpoints
 from ocp_resources.hyperconverged import HyperConverged
 from ocp_resources.infrastructure import Infrastructure
+from ocp_resources.mutating_webhook_config import MutatingWebhookConfiguration
 from ocp_resources.namespace import Namespace
 from ocp_resources.node import Node
 from ocp_resources.package_manifest import PackageManifest
@@ -46,6 +48,8 @@ from ocp_resources.project_request import ProjectRequest
 from ocp_resources.resource import Resource, ResourceEditor, get_client
 from ocp_resources.secret import Secret
 from ocp_resources.subscription import Subscription
+from ocp_resources.validating_webhook_config import ValidatingWebhookConfiguration
+from ocp_resources.virtual_machine import VirtualMachine
 from ocp_utilities.exceptions import NodeNotReadyError, NodeUnschedulableError
 from ocp_utilities.infra import (
     assert_nodes_in_healthy_condition,
@@ -614,6 +618,7 @@ def cluster_sanity(
     skip_cluster_sanity_check = "--cluster-sanity-skip-check"
     skip_storage_classes_check = "--cluster-sanity-skip-storage-check"
     skip_nodes_check = "--cluster-sanity-skip-nodes-check"
+    skip_webhook_check = "--cluster-sanity-skip-webhook-check"
     exceptions_filename = "cluster_sanity_failure.txt"
     try:
         if request.session.config.getoption(skip_cluster_sanity_check):
@@ -657,6 +662,15 @@ def cluster_sanity(
                 raise ClusterSanityError(
                     err_str=f"Timed out waiting for all pods in namespace {hco_namespace.name} to get to running state."
                 )
+
+        # Check webhook endpoints only if --cluster-sanity-skip-webhook-check not passed to pytest.
+        if request.session.config.getoption(skip_webhook_check):
+            LOGGER.warning(f"Skipping webhook health check, got {skip_webhook_check}")
+        else:
+            LOGGER.info(f"Check webhook endpoints health. (To skip webhook check pass {skip_webhook_check} to pytest)")
+            check_webhook_endpoints_health(admin_client=admin_client, namespace=hco_namespace)
+            check_vm_creation_capability(admin_client=admin_client, namespace="default")
+
         # Wait for hco to be healthy
         wait_for_hco_conditions(
             admin_client=admin_client,
@@ -668,6 +682,162 @@ def cluster_sanity(
             message=str(ex),
             junitxml_property=junitxml_property,
         )
+
+
+def _discover_webhook_services(admin_client: DynamicClient, namespace: Namespace) -> set[str]:
+    """
+    Discover all webhook services in the HCO namespace.
+
+    Scans all MutatingWebhookConfiguration and ValidatingWebhookConfiguration resources
+    and extracts service names that point to the namespace.
+
+    Args:
+        admin_client: Kubernetes dynamic client with admin privileges for cluster operations.
+        namespace: Namespace resource.
+
+    Returns:
+        Set of service names that are referenced by webhook configurations in the namespace.
+    """
+    webhook_services: set[str] = set()
+
+    for webhook_kind in [MutatingWebhookConfiguration, ValidatingWebhookConfiguration]:
+        LOGGER.info(f"Scanning {webhook_kind.kind} resources for webhook services")
+        for webhook in webhook_kind.get(client=admin_client):
+            webhook_items = webhook.instance.webhooks or []
+            if not webhook_items:
+                LOGGER.warning(f"Webhook configuration {webhook.name} has no webhooks")
+                continue
+
+            for webhook_item in webhook_items:
+                service_config = webhook_item.get("clientConfig", {}).get("service")
+                # Skip URL-based webhooks (they don't use a service)
+                if not service_config:
+                    continue
+
+                if service_config["namespace"] == namespace.name:
+                    webhook_services.add(service_config["name"])
+
+    return webhook_services
+
+
+def check_webhook_endpoints_health(admin_client: DynamicClient, namespace: Namespace) -> None:
+    """
+    Check that all webhook services in the HCO namespace have available endpoints.
+
+    Verify that each discovered service has at least one ready endpoint address.
+
+    Args:
+        admin_client: Kubernetes dynamic client with admin privileges for cluster operations.
+        namespace: Namespace resource.
+
+    Raises:
+        ClusterSanityError: When any webhook service has no ready endpoint addresses.
+    """
+    LOGGER.info(f"Checking webhook endpoints health for services in namespace: {namespace.name}")
+
+    webhook_services = _discover_webhook_services(admin_client=admin_client, namespace=namespace)
+
+    if not webhook_services:
+        LOGGER.warning(f"No webhook services discovered in namespace {namespace.name}")
+        return
+
+    services_without_endpoints = []
+
+    for service_name in sorted(webhook_services):
+        LOGGER.info(f"Checking endpoints for service: {service_name}")
+        try:
+            endpoint = Endpoints(
+                name=service_name,
+                namespace=namespace.name,
+                client=admin_client,
+                ensure_exists=True,
+            )
+
+            subsets = endpoint.instance.subsets
+            if not subsets:
+                LOGGER.error(f"No subsets found in endpoints for service: {service_name}")
+                services_without_endpoints.append(service_name)
+                continue
+
+            for subset in subsets:
+                if addresses := getattr(subset, "addresses", None):
+                    LOGGER.info(f"Service {service_name} has {len(addresses)} ready endpoint address(es)")
+                    break
+            else:
+                LOGGER.error(f"No ready addresses found in endpoints for service: {service_name}")
+                services_without_endpoints.append(service_name)
+
+        except ResourceNotFoundError:
+            LOGGER.error(f"Endpoints resource not found for service: {service_name}")
+            services_without_endpoints.append(service_name)
+
+        except ApiException as ex:
+            LOGGER.error(f"API error checking endpoints for service {service_name}: {ex}")
+            services_without_endpoints.append(service_name)
+
+    if services_without_endpoints:
+        raise ClusterSanityError(
+            err_str=f"Webhook services have no available endpoints: {', '.join(services_without_endpoints)}. "
+            "Check that the corresponding pods are running."
+        )
+
+    LOGGER.info("All discovered webhook services have available endpoints")
+
+
+def check_vm_creation_capability(admin_client: DynamicClient, namespace: str) -> None:
+    """
+    Verify VM creation capability by performing a dry-run VM creation.
+
+    Args:
+        admin_client: Kubernetes dynamic client with admin privileges for cluster operations.
+        namespace: str
+
+    Raises:
+        ClusterSanityError: When dry-run VM creation fails.
+    """
+    LOGGER.info(f"Checking VM creation capability via dry-run in namespace: {namespace}")
+
+    try:
+        vm = VirtualMachine(
+            name="sanity-check-dry-run-vm",
+            namespace=namespace,
+            client=admin_client,
+            body={
+                "spec": {
+                    "running": False,
+                    "template": {
+                        "spec": {
+                            "domain": {
+                                "devices": {},
+                                "resources": {
+                                    "requests": {
+                                        "memory": "64Mi",
+                                    },
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+            dry_run=True,
+        )
+        vm.create()
+        LOGGER.info("Dry-run VM creation succeeded")
+
+    except ApiException as ex:
+        raise ClusterSanityError(
+            err_str=f"Dry-run VM creation failed: {ex}. This may indicate webhook or API server issues."
+        ) from ex
+
+    except (ConnectionError, TimeoutError) as ex:
+        raise ClusterSanityError(
+            err_str=f"Connection error during dry-run VM creation: {ex}. Check cluster connectivity and webhook health."
+        ) from ex
+
+    except Exception as ex:
+        raise ClusterSanityError(
+            err_str=f"Unexpected error during dry-run VM creation: {ex}. Check cluster state and webhook configuration."
+        ) from ex
 
 
 class ResourceMismatch(Exception):

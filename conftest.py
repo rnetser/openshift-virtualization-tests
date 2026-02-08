@@ -218,6 +218,11 @@ def pytest_addoption(parser):
         help="Skip cluster_sanity check",
         action="store_true",
     )
+    cluster_sanity_group.addoption(
+        "--cluster-sanity-skip-webhook-check",
+        help="Skip webhook check in cluster_sanity fixture",
+        action="store_true",
+    )
     # Log collector group
     data_collector_group.addoption(
         "--data-collector",

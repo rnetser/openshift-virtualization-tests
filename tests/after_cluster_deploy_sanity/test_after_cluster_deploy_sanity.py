@@ -13,7 +13,12 @@ from timeout_sampler import TimeoutSampler
 
 from utilities.constants import KUBELET_READY_CONDITION, TIMEOUT_1MIN, TIMEOUT_5MIN, TIMEOUT_5SEC, TIMEOUT_10MIN
 from utilities.hco import get_installed_hco_csv, wait_for_hco_conditions
-from utilities.infra import storage_sanity_check, wait_for_pods_running
+from utilities.infra import (
+    check_vm_creation_capability,
+    check_webhook_endpoints_health,
+    storage_sanity_check,
+    wait_for_pods_running,
+)
 from utilities.operator import wait_for_cluster_operator_stabilize
 from utilities.storage import get_data_sources_managed_by_data_import_cron
 
@@ -171,3 +176,18 @@ def test_common_node_cpu_model(cluster_node_cpus, cluster_common_node_cpu, clust
     assert cluster_common_node_cpu and cluster_common_modern_node_cpu, (
         f"This is a heterogeneous cluster with no common cpus: {cluster_node_cpus}"
     )
+
+
+@pytest.mark.cluster_health_check
+def test_webhook_endpoints_health(admin_client, hco_namespace):
+    """
+    Test that all webhook services in the HCO namespace have available endpoints and
+    each webhook service has at least one ready endpoint address.
+    """
+    check_webhook_endpoints_health(admin_client=admin_client, namespace=hco_namespace)
+
+
+@pytest.mark.cluster_health_check
+def test_vm_creation_capability(admin_client):
+    """Test VM creation capability by performing a dry-run VM creation."""
+    check_vm_creation_capability(admin_client=admin_client, namespace="default")
