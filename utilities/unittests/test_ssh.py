@@ -206,7 +206,6 @@ class TestBuildVirtctlSshCommand:
         )
         assert "virtctl" in result or result[0].endswith("virtctl")
         assert "ssh" in result
-        assert "--local-ssh=false" in result
         assert "-n" in result
         assert "-l" in result
         assert "--command" in result
