@@ -153,7 +153,6 @@ def _build_virtctl_ssh_command(
     cmd = [
         VIRTCTL,
         "ssh",
-        "--local-ssh=false",
         "-n",
         namespace,
         "-l",
