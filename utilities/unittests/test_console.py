@@ -5,6 +5,8 @@
 import os
 from unittest.mock import MagicMock, mock_open, patch
 
+import pytest
+
 from utilities.console import Console
 
 
@@ -402,38 +404,45 @@ class TestConsole:
     @patch("utilities.console.get_data_collector_base_directory")
     def test_console_connect_exception_closes_child(self, mock_get_dir, mock_pexpect):
         """Test that connect closes child and re-raises exception on _connect failure"""
+        import importlib
+        import sys
+
         mock_get_dir.return_value = "/tmp/data"
-        mock_vm = MagicMock()
-        mock_vm.name = "test-vm"
-        mock_vm.namespace = None
-        mock_vm.username = "user"
-        mock_vm.password = "pass"
-        mock_vm.login_params = {}
 
-        mock_child = MagicMock()
-        mock_pexpect.spawn.return_value = mock_child
+        # Patch retry decorator to be a no-op and reload the module
+        with patch("timeout_sampler.retry", lambda **kwargs: lambda func: func):
+            # Remove cached module to force re-import with patched decorator
+            if "utilities.console" in sys.modules:
+                del sys.modules["utilities.console"]
+            utilities_console = importlib.import_module("utilities.console")
 
-        console = Console(vm=mock_vm)
-        # Directly set the child as if console_eof_sampler was called
-        console.child = mock_child
+            mock_vm = MagicMock()
+            mock_vm.name = "test-vm"
+            mock_vm.namespace = None
+            mock_vm.username = "user"
+            mock_vm.password = "pass"
+            mock_vm.login_params = {}
 
-        with (
-            patch.object(console, "console_eof_sampler"),
-            patch.object(
-                console,
-                "_connect",
-                side_effect=Exception("Connection error"),
-            ),
-        ):
-            import pytest
+            mock_child = MagicMock()
+            mock_pexpect.spawn.return_value = mock_child
 
-            # Call _connect directly to avoid the @retry decorator on connect()
-            with pytest.raises(Exception, match="Connection error"):
-                try:
-                    console._connect()
-                except Exception:
-                    console.child.close()
-                    raise
+            console = utilities_console.Console(vm=mock_vm)
+            console.child = mock_child
 
-            # Verify child.close() was called
-            mock_child.close.assert_called_once()
+            with (
+                patch.object(console, "console_eof_sampler"),
+                patch.object(
+                    console,
+                    "_connect",
+                    side_effect=Exception("Connection error"),
+                ),
+            ):
+                with pytest.raises(Exception, match="Connection error"):
+                    console.connect()
+
+                mock_child.close.assert_called_once()
+
+        # Restore original module
+        if "utilities.console" in sys.modules:
+            del sys.modules["utilities.console"]
+        importlib.import_module("utilities.console")

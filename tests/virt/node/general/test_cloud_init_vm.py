@@ -27,4 +27,4 @@ def vm_with_cloud_init_type(namespace):
 
 @pytest.mark.polarion("CNV-3804")
 def test_cloud_init_types(vm_with_cloud_init_type):
-    assert is_connective(vm=vm_with_cloud_init_type)
+    assert is_connective(vm=vm_with_cloud_init_type), "VM should be reachable via SSH after cloud-init"

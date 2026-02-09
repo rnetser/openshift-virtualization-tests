@@ -4,12 +4,13 @@ Assisted-by: Claude cli
 
 from __future__ import annotations
 
-import logging
-import os
-import shlex
-import subprocess
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, NamedTuple
+from logging import getLogger
+from os import environ
+from shlex import join as shlex_join
+from shlex import quote as shlex_quote
+from subprocess import TimeoutExpired
+from typing import TYPE_CHECKING, Iterator, NamedTuple
 
 from pyhelper_utils.shell import run_command as shell_run_command
 from timeout_sampler import TimeoutSampler
@@ -25,7 +26,7 @@ from utilities.constants import (
 if TYPE_CHECKING:
     from utilities.virt import VirtualMachineForTests
 
-LOGGER = logging.getLogger(__name__)
+LOGGER = getLogger(name=__name__)
 
 
 class SSHCommandError(Exception):
@@ -79,7 +80,7 @@ class CommandResult:
     stdout: str
     stderr: str
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator[int | str]:
         """Allow tuple unpacking: rc, out, err = result."""
         return iter((self.returncode, self.stdout, self.stderr))
 
@@ -90,7 +91,7 @@ def _get_ssh_key_path() -> str | None:
     Returns:
         Path to SSH private key or None if not set.
     """
-    return os.environ.get(CNV_VM_SSH_KEY_PATH)
+    return environ.get(CNV_VM_SSH_KEY_PATH)
 
 
 def _should_use_ssh_key(vm: VirtualMachineForTests) -> bool:
@@ -221,7 +222,7 @@ def run_command(
         SSHConnectionError: If SSH connection fails.
     """
     if isinstance(command, list):
-        command_str = shlex.join(command)
+        command_str = shlex_join(split_command=command)
     else:
         command_str = command
 
@@ -271,7 +272,7 @@ def run_command(
 
         return cmd_result
 
-    except subprocess.TimeoutExpired as exc:
+    except TimeoutExpired as exc:
         stdout = exc.stdout.decode() if isinstance(exc.stdout, bytes) else (exc.stdout or "")
         stderr = exc.stderr.decode() if isinstance(exc.stderr, bytes) else (exc.stderr or "")
         raise SSHCommandError(
@@ -286,7 +287,7 @@ def run_command(
 
 def run_ssh_commands(
     vm: VirtualMachineForTests,
-    commands: list[str],
+    commands: list[str] | list[list[str]],
     timeout: int | float = TIMEOUT_1MIN,
     check: bool = True,
 ) -> list[str]:
@@ -297,7 +298,9 @@ def run_ssh_commands(
 
     Args:
         vm: VirtualMachine object.
-        commands: List of commands/arguments to execute.
+        commands: List of commands/arguments to execute. Supports both flat list[str]
+            (e.g., ["echo", "hello"]) and list of lists (e.g., [["echo", "hello"], ["ls", "-la"]])
+            for backwards compatibility.
         timeout: Command timeout in seconds.
         check: If True, raise on non-zero exit code.
 
@@ -307,7 +310,10 @@ def run_ssh_commands(
     Raises:
         SSHCommandError: If check=True and command returns non-zero exit code.
     """
-    command_str = " ".join(commands)
+    if commands and isinstance(commands[0], list):
+        command_str = "; ".join(shlex_join(split_command=cmd) for cmd in commands)  # type: ignore[arg-type]
+    else:
+        command_str = shlex_join(split_command=commands)  # type: ignore[arg-type]
     result = run_command(vm=vm, command=command_str, timeout=timeout, check=check)
     return [result.stdout]
 
@@ -459,12 +465,12 @@ class PackageManager:
         Returns:
             True if package is installed.
         """
-        rpm_cmd = f"rpm -q {shlex.quote(package)}"
+        rpm_cmd = f"rpm -q {shlex_quote(package)}"
         result = run_command(vm=self._vm, command=rpm_cmd, check=False)
         if result.returncode == 0:
             return True
 
-        dpkg_cmd = f"dpkg -l {shlex.quote(package)}"
+        dpkg_cmd = f"dpkg -l {shlex_quote(package)}"
         result = run_command(vm=self._vm, command=dpkg_cmd, check=False)
         return result.returncode == 0
 
@@ -477,12 +483,12 @@ class PackageManager:
         Returns:
             Package info string from rpm or dpkg.
         """
-        rpm_cmd = f"rpm -qi {shlex.quote(package)}"
+        rpm_cmd = f"rpm -qi {shlex_quote(package)}"
         result = run_command(vm=self._vm, command=rpm_cmd, check=False)
         if result.returncode == 0:
             return result.stdout
 
-        dpkg_cmd = f"dpkg -s {shlex.quote(package)}"
+        dpkg_cmd = f"dpkg -s {shlex_quote(package)}"
         result = run_command(vm=self._vm, command=dpkg_cmd, check=False)
         return result.stdout
 
@@ -590,7 +596,7 @@ class FileSystem:
                     stdout=stdout,
                     stderr=stderr,
                 )
-        except subprocess.TimeoutExpired as exc:
+        except TimeoutExpired as exc:
             raise SSHCommandError(
                 message=f"File transfer timed out: {path_src} -> {path_dst}",
             ) from exc
@@ -636,7 +642,7 @@ class SSHClient:
         Returns:
             Tuple of (returncode, stdout, stderr).
         """
-        cmd_str = shlex.join(command)
+        cmd_str = shlex_join(split_command=command)
         if self.sudo:
             cmd_str = f"sudo {cmd_str}"
 

@@ -1538,6 +1538,14 @@ def wait_for_ssh_connectivity(
         timeout: Maximum time to wait for SSH connectivity.
         tcp_timeout: Individual connection timeout (unused, kept for API compatibility).
     """
+    if tcp_timeout != TIMEOUT_1MIN:
+        import warnings
+
+        warnings.warn(
+            message="tcp_timeout parameter is deprecated and ignored",
+            category=DeprecationWarning,
+            stacklevel=2,
+        )
     ssh_wait_for_connectivity(vm=vm, timeout=timeout)
 
 

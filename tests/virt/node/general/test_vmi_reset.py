@@ -12,7 +12,7 @@ LOGGER = logging.getLogger(__name__)
 def get_vm_boot_count(vm):
     reboot_count = run_ssh_commands(
         vm=vm,
-        commands=[shlex.split("journalctl --list-boots | wc -l")],
+        commands=shlex.split("journalctl --list-boots | wc -l"),
     )[0].strip()
 
     return int(reboot_count)

@@ -43,4 +43,4 @@ def test_vm_restart(vm_to_restart):
     vm_to_restart.start(wait=True)
     vm_to_restart.vmi.wait_until_running()
     wait_for_vm_interfaces(vmi=vm_to_restart.vmi)
-    assert is_connective(vm=vm_to_restart)
+    assert is_connective(vm=vm_to_restart), "VM not SSH-connective after restart cycle"

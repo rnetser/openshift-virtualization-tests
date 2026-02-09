@@ -273,24 +273,17 @@ class TestRaiseMultipleExceptions:
     def test_raise_multiple_exceptions_chain(self):
         """Test raise_multiple_exceptions creates proper exception chain"""
         exceptions_list = [
-            RuntimeError("Error 1"),
+            TypeError("Error 1"),
             ValueError("Error 2"),
-            TypeError("Error 3"),
+            RuntimeError("Error 3"),
         ]
 
-        # The last exception in the list is raised first (due to pop())
-        # Then recursively the remaining exceptions are raised
-        try:
+        # pop() removes from end, so RuntimeError is raised first, then ValueError, then TypeError
+        # The finally block causes each subsequent exception to be raised during handling of the previous
+        # Result: TypeError is the outermost exception with ValueError and RuntimeError in its context chain
+        with pytest.raises(TypeError, match="Error 1") as exc_info:
             raise_multiple_exceptions(exceptions=exceptions_list)
-        except TypeError:
-            # The TypeError (Error 3) should be raised
-            pass
-        except ValueError:
-            # The ValueError (Error 2) should be raised if Error 3 was already popped
-            pass
-        except RuntimeError:
-            # The RuntimeError (Error 1) should be raised if others were popped
-            pass
-        except BaseException as exc:
-            # Should have raised one of the exceptions above
-            pytest.fail(f"Unexpected exception type: {type(exc)}")
+
+        chain = exc_info.value
+        assert isinstance(chain.__context__, ValueError), "Expected ValueError in chain"
+        assert isinstance(chain.__context__.__context__, RuntimeError), "Expected RuntimeError in chain"

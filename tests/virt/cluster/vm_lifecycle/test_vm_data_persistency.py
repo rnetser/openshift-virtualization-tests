@@ -165,7 +165,7 @@ def set_passwd(vm, os, passwd):
     vm.password = passwd
 
     LOGGER.info("Verifying password change")
-    is_connective(vm=vm)
+    assert is_connective(vm=vm), f"SSH connectivity failed after password change for VM {vm.name}"
 
 
 def verify_changes(vm, os):

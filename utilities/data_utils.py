@@ -74,7 +74,7 @@ def private_to_public_key(key: str) -> str:
         )
 
     if not isinstance(private_key, RSAPrivateKey):
-        raise ValueError(f"Expected RSA key, got {type(private_key).__name__}")
+        raise TypeError(f"Expected RSA key, got {type(private_key).__name__}")
 
     public_key = private_key.public_key()
     public_bytes = public_key.public_bytes(

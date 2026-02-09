@@ -48,7 +48,9 @@ def test_vm_with_cpu_feature_positive(cpu_features_vm_positive):
     """
     Test VM with cpu flag, test the VM started and is accessible via SSH
     """
-    assert is_connective(vm=cpu_features_vm_positive)
+    assert is_connective(vm=cpu_features_vm_positive), (
+        f"VM with CPU features {cpu_features_vm_positive.cpu_flags} not SSH-connective"
+    )
     assert (
         cpu_features_vm_positive.cpu_flags["features"][0]["name"]
         == (cpu_features_vm_positive.instance["spec"]["template"]["spec"]["domain"]["cpu"]["features"][0]["name"])

@@ -70,7 +70,7 @@ def test_vm_with_cpu_flag_positive_case(cpu_flag_vm_positive, cluster_common_nod
     """
     Test VM with cpu flag, test CPU model and SSH connectivity
     """
-    assert is_connective(vm=cpu_flag_vm_positive)
+    assert is_connective(vm=cpu_flag_vm_positive), "SSH connectivity check failed for VM with CPU flag"
     assert (
         cpu_flag_vm_positive.instance["spec"]["template"]["spec"]["domain"]["cpu"]["model"] == cluster_common_node_cpu
     )

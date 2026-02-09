@@ -6,7 +6,6 @@ import base64
 from unittest.mock import MagicMock, mock_open, patch
 
 import pytest
-from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 from utilities.data_utils import (
     authorized_key,
@@ -24,54 +23,54 @@ class TestBase64EncodeStr:
         text = "hello"
         result = base64_encode_str(text=text)
         expected = base64.b64encode(text.encode()).decode()
-        assert result == expected
-        assert result == "aGVsbG8="
+        assert result == expected, f"base64_encode_str should return the base64-encoded value, got {result}"
+        assert result == "aGVsbG8=", f"Expected 'aGVsbG8=' for 'hello', got {result}"
 
     def test_base64_encode_empty_string(self):
         """Test encoding empty string"""
         result = base64_encode_str(text="")
-        assert result == ""
-        assert isinstance(result, str)
+        assert result == "", f"Empty string should encode to empty string, got {result}"
+        assert isinstance(result, str), f"Result should be str type, got {type(result)}"
 
     def test_base64_encode_special_characters(self):
         """Test encoding special characters"""
         text = "hello@#$%^&*()!~`"
         result = base64_encode_str(text=text)
         expected = base64.b64encode(text.encode()).decode()
-        assert result == expected
+        assert result == expected, f"Special characters should encode correctly, expected {expected}, got {result}"
 
     def test_base64_encode_unicode_utf8(self):
         """Test encoding Unicode/UTF-8 text"""
         text = "Hello world"
         result = base64_encode_str(text=text)
         expected = base64.b64encode(text.encode()).decode()
-        assert result == expected
+        assert result == expected, f"Unicode text should encode correctly, expected {expected}, got {result}"
 
     def test_base64_encode_round_trip(self):
         """Test encoding/decoding round-trip"""
         original = "Test round-trip encoding"
         encoded = base64_encode_str(text=original)
         decoded = base64.b64decode(encoded.encode()).decode()
-        assert decoded == original
+        assert decoded == original, f"Round-trip should preserve original text, expected '{original}', got '{decoded}'"
 
     def test_base64_encode_returns_string(self):
         """Test that result is a string type"""
         result = base64_encode_str(text="test")
-        assert isinstance(result, str)
+        assert isinstance(result, str), f"Result should be str type, got {type(result)}"
 
     def test_base64_encode_multiline_text(self):
         """Test encoding multiline text"""
         text = "line1\nline2\nline3"
         result = base64_encode_str(text=text)
         expected = base64.b64encode(text.encode()).decode()
-        assert result == expected
+        assert result == expected, f"Multiline text should encode correctly, expected {expected}, got {result}"
 
     def test_base64_encode_whitespace(self):
         """Test encoding text with various whitespace"""
         text = "  spaces  \t\ttabs\t\t  \n\nnewlines\n\n  "
         result = base64_encode_str(text=text)
         expected = base64.b64encode(text.encode()).decode()
-        assert result == expected
+        assert result == expected, f"Whitespace text should encode correctly, expected {expected}, got {result}"
 
 
 class TestNamePrefix:
@@ -226,13 +225,14 @@ class TestPrivateToPublicKey:
 
     @patch("utilities.data_utils.serialization.load_pem_private_key")
     def test_private_to_public_key_invalid_key_type(self, mock_load_pem):
-        """Test ValueError for non-RSA key type"""
-        # Mock Ed25519 key (not RSA)
-        mock_private_key = MagicMock(spec=Ed25519PrivateKey)
+        """Test TypeError for non-RSA key type"""
+        # Create a mock that reports as Ed25519PrivateKey for type().__name__
+        mock_private_key = MagicMock()
+        type(mock_private_key).__name__ = "Ed25519PrivateKey"
         mock_load_pem.return_value = mock_private_key
 
         with patch("builtins.open", mock_open(read_data=b"MOCK_PEM_DATA")):
-            with pytest.raises(ValueError, match="Expected RSA key"):
+            with pytest.raises(TypeError, match="Expected RSA key, got Ed25519PrivateKey"):
                 private_to_public_key(key="/path/to/ed25519_key")
 
     @patch("utilities.data_utils.serialization.load_pem_private_key")

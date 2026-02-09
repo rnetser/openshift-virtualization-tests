@@ -2,7 +2,7 @@
 
 """Unit tests for ssh module"""
 
-import subprocess
+from subprocess import TimeoutExpired
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -30,8 +30,6 @@ from utilities.ssh import (
     run_ssh_commands,
     wait_for_ssh_connectivity,
 )
-
-pytestmark = pytest.mark.unit
 
 
 class TestSSHCommandError:
@@ -205,7 +203,7 @@ class TestBuildVirtctlSshCommand:
             username="testuser",
             command="ls -la",
         )
-        assert "virtctl" in result or result[0].endswith("virtctl")
+        assert result[0] == "virtctl" or result[0].endswith("virtctl")
         assert "ssh" in result
         assert "-n" in result
         assert "-l" in result
@@ -256,18 +254,38 @@ class TestGetVmCredentials:
 class TestRunCommand:
     """Test cases for run_command function"""
 
-    @patch("utilities.ssh.shell_run_command")
-    @patch("utilities.ssh._get_ssh_key_path")
-    @patch("utilities.ssh._should_use_ssh_key")
-    def test_run_command_success(self, mock_should_use_key, mock_get_key, mock_shell_run):
-        """Test successful command execution"""
-        mock_vm = MagicMock()
-        mock_vm.name = "test-vm"
-        mock_vm.namespace = "default"
-        mock_vm.username = "testuser"
-        mock_vm.password = "testpass"
-        mock_vm.login_params = {}
+    @pytest.fixture
+    def mock_vm(self):
+        """Create a mock VM with standard test credentials."""
+        vm = MagicMock()
+        vm.name = "test-vm"
+        vm.namespace = "default"
+        vm.username = "testuser"
+        vm.password = "testpass"
+        vm.login_params = {}
+        return vm
 
+    @pytest.fixture
+    def mock_shell_run(self):
+        """Create mock for shell_run_command."""
+        with patch("utilities.ssh.shell_run_command") as mock:
+            yield mock
+
+    @pytest.fixture
+    def mock_get_key(self):
+        """Create mock for _get_ssh_key_path."""
+        with patch("utilities.ssh._get_ssh_key_path") as mock:
+            yield mock
+
+    @pytest.fixture
+    def mock_should_use_key(self):
+        """Create mock for _should_use_ssh_key."""
+        with patch("utilities.ssh._should_use_ssh_key") as mock:
+            yield mock
+
+    @pytest.mark.usefixtures("mock_vm", "mock_should_use_key", "mock_get_key", "mock_shell_run")
+    def test_run_command_success(self, mock_vm, mock_should_use_key, mock_get_key, mock_shell_run):
+        """Test successful command execution"""
         mock_should_use_key.return_value = True
         mock_get_key.return_value = "/path/to/key"
         mock_shell_run.return_value = (True, "output", "")
@@ -278,18 +296,9 @@ class TestRunCommand:
         assert result.stdout == "output"
         assert result.stderr == ""
 
-    @patch("utilities.ssh.shell_run_command")
-    @patch("utilities.ssh._get_ssh_key_path")
-    @patch("utilities.ssh._should_use_ssh_key")
-    def test_run_command_failure(self, mock_should_use_key, mock_get_key, mock_shell_run):
+    @pytest.mark.usefixtures("mock_vm", "mock_should_use_key", "mock_get_key", "mock_shell_run")
+    def test_run_command_failure(self, mock_vm, mock_should_use_key, mock_get_key, mock_shell_run):
         """Test failed command execution"""
-        mock_vm = MagicMock()
-        mock_vm.name = "test-vm"
-        mock_vm.namespace = "default"
-        mock_vm.username = "testuser"
-        mock_vm.password = "testpass"
-        mock_vm.login_params = {}
-
         mock_should_use_key.return_value = False
         mock_get_key.return_value = None
         mock_shell_run.return_value = (False, "", "error")
@@ -299,18 +308,9 @@ class TestRunCommand:
         assert result.returncode == 1
         assert result.stderr == "error"
 
-    @patch("utilities.ssh.shell_run_command")
-    @patch("utilities.ssh._get_ssh_key_path")
-    @patch("utilities.ssh._should_use_ssh_key")
-    def test_run_command_check_raises_error(self, mock_should_use_key, mock_get_key, mock_shell_run):
+    @pytest.mark.usefixtures("mock_vm", "mock_should_use_key", "mock_get_key", "mock_shell_run")
+    def test_run_command_check_raises_error(self, mock_vm, mock_should_use_key, mock_get_key, mock_shell_run):
         """Test command with check=True raises SSHCommandError on failure"""
-        mock_vm = MagicMock()
-        mock_vm.name = "test-vm"
-        mock_vm.namespace = "default"
-        mock_vm.username = "testuser"
-        mock_vm.password = "testpass"
-        mock_vm.login_params = {}
-
         mock_should_use_key.return_value = False
         mock_get_key.return_value = None
         mock_shell_run.return_value = (False, "", "error")
@@ -318,18 +318,9 @@ class TestRunCommand:
         with pytest.raises(SSHCommandError, match="Command failed"):
             run_command(vm=mock_vm, command="invalid-command", check=True)
 
-    @patch("utilities.ssh.shell_run_command")
-    @patch("utilities.ssh._get_ssh_key_path")
-    @patch("utilities.ssh._should_use_ssh_key")
-    def test_run_command_with_list(self, mock_should_use_key, mock_get_key, mock_shell_run):
+    @pytest.mark.usefixtures("mock_vm", "mock_should_use_key", "mock_get_key", "mock_shell_run")
+    def test_run_command_with_list(self, mock_vm, mock_should_use_key, mock_get_key, mock_shell_run):
         """Test command as list is converted to string"""
-        mock_vm = MagicMock()
-        mock_vm.name = "test-vm"
-        mock_vm.namespace = "default"
-        mock_vm.username = "testuser"
-        mock_vm.password = "testpass"
-        mock_vm.login_params = {}
-
         mock_should_use_key.return_value = False
         mock_get_key.return_value = None
         mock_shell_run.return_value = (True, "output", "")
@@ -338,22 +329,13 @@ class TestRunCommand:
 
         assert result.returncode == 0
 
-    @patch("utilities.ssh.shell_run_command")
-    @patch("utilities.ssh._get_ssh_key_path")
-    @patch("utilities.ssh._should_use_ssh_key")
-    def test_run_command_timeout(self, mock_should_use_key, mock_get_key, mock_shell_run):
+    @pytest.mark.usefixtures("mock_vm", "mock_should_use_key", "mock_get_key", "mock_shell_run")
+    def test_run_command_timeout(self, mock_vm, mock_should_use_key, mock_get_key, mock_shell_run):
         """Test command timeout raises SSHCommandError"""
-        mock_vm = MagicMock()
-        mock_vm.name = "test-vm"
-        mock_vm.namespace = "default"
-        mock_vm.username = "testuser"
-        mock_vm.password = "testpass"
-        mock_vm.login_params = {}
-
         mock_should_use_key.return_value = False
         mock_get_key.return_value = None
 
-        timeout_error = subprocess.TimeoutExpired(cmd="test", timeout=60)
+        timeout_error = TimeoutExpired(cmd="test", timeout=60)
         timeout_error.stdout = b"partial output"
         timeout_error.stderr = b"timeout error"
         mock_shell_run.side_effect = timeout_error
@@ -361,18 +343,9 @@ class TestRunCommand:
         with pytest.raises(SSHCommandError, match="Command timed out"):
             run_command(vm=mock_vm, command="sleep 1000", timeout=60)
 
-    @patch("utilities.ssh.shell_run_command")
-    @patch("utilities.ssh._get_ssh_key_path")
-    @patch("utilities.ssh._should_use_ssh_key")
-    def test_run_command_os_error(self, mock_should_use_key, mock_get_key, mock_shell_run):
+    @pytest.mark.usefixtures("mock_vm", "mock_should_use_key", "mock_get_key", "mock_shell_run")
+    def test_run_command_os_error(self, mock_vm, mock_should_use_key, mock_get_key, mock_shell_run):
         """Test OS error raises SSHConnectionError"""
-        mock_vm = MagicMock()
-        mock_vm.name = "test-vm"
-        mock_vm.namespace = "default"
-        mock_vm.username = "testuser"
-        mock_vm.password = "testpass"
-        mock_vm.login_params = {}
-
         mock_should_use_key.return_value = False
         mock_get_key.return_value = None
         mock_shell_run.side_effect = OSError("virtctl not found")
@@ -420,8 +393,7 @@ class TestWaitForSshConnectivity:
     """Test cases for wait_for_ssh_connectivity function"""
 
     @patch("utilities.ssh.TimeoutSampler")
-    @patch("utilities.ssh.is_connective")
-    def test_wait_for_ssh_connectivity_success(self, mock_is_connective, mock_sampler):
+    def test_wait_for_ssh_connectivity_success(self, mock_sampler):
         """Test successful SSH connectivity wait"""
         mock_vm = MagicMock()
         mock_vm.name = "test-vm"
@@ -433,8 +405,7 @@ class TestWaitForSshConnectivity:
         mock_sampler.assert_called_once()
 
     @patch("utilities.ssh.TimeoutSampler")
-    @patch("utilities.ssh.is_connective")
-    def test_wait_for_ssh_connectivity_timeout(self, mock_is_connective, mock_sampler):
+    def test_wait_for_ssh_connectivity_timeout(self, mock_sampler):
         """Test SSH connectivity timeout"""
         mock_vm = MagicMock()
         mock_vm.name = "test-vm"
@@ -759,7 +730,7 @@ class TestFileSystem:
         mock_get_creds.side_effect = [("srcuser", "srcpass"), ("dstuser", "dstpass")]
         mock_should_use_key.return_value = False
         mock_get_key.return_value = None
-        mock_shell_run.side_effect = subprocess.TimeoutExpired(cmd="scp", timeout=120)
+        mock_shell_run.side_effect = TimeoutExpired(cmd="scp", timeout=120)
 
         file_system = FileSystem(vm=mock_vm_src)
 
@@ -864,6 +835,7 @@ class TestSSHClient:
         )
 
         client = SSHClient(vm=mock_vm)
+        # Verify float tcp_timeout is truncated to int for the underlying command
         client.run_command(command=["ls"], tcp_timeout=120.5)
 
         call_kwargs = mock_run_cmd.call_args[1]
