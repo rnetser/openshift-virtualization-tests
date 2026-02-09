@@ -652,6 +652,8 @@ ALL_CNV_CRDS = [
     f"objecttransfers.{Resource.ApiGroup.CDI_KUBEVIRT_IO}",
     f"ssps.{Resource.ApiGroup.SSP_KUBEVIRT_IO}",
     f"storageprofiles.{Resource.ApiGroup.CDI_KUBEVIRT_IO}",
+    f"virtualmachinebackups.backup.{Resource.ApiGroup.KUBEVIRT_IO}",
+    f"virtualmachinebackuptrackers.backup.{Resource.ApiGroup.KUBEVIRT_IO}",
     f"virtualmachineclusterinstancetypes.{Resource.ApiGroup.INSTANCETYPE_KUBEVIRT_IO}",
     f"virtualmachineinstancetypes.{Resource.ApiGroup.INSTANCETYPE_KUBEVIRT_IO}",
     f"virtualmachineinstancemigrations.{Resource.ApiGroup.KUBEVIRT_IO}",
@@ -738,6 +740,9 @@ class NamespacesNames:
     WASP = "wasp"
     OPENSHIFT_KUBE_DESCHEDULER_OPERATOR = "openshift-kube-descheduler-operator"
     OPENSHIFT_NMSTATE = "openshift-nmstate"
+    OPENSHIFT_FRR_K8S = "openshift-frr-k8s"
+    OPENSHIFT_MTV = "openshift-mtv"
+    CNV_TESTS_UTILITIES = "cnv-tests-utilities"
 
 
 # CNV supplemental-templates

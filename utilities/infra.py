@@ -15,7 +15,7 @@ import zipfile
 from contextlib import contextmanager
 from functools import cache
 from subprocess import PIPE, CalledProcessError, Popen
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Generator
 
 if TYPE_CHECKING:
     from utilities.ssh import SSHClient
@@ -656,6 +656,7 @@ def get_hyperconverged_resource(client, hco_ns_name):
         namespace=hco_ns_name,
         name=hco_name,
     )
+    hco.api_version = hco.ApiVersion.V1BETA1
     if hco.exists:
         return hco
     raise ResourceNotFoundError(f"Hyperconverged: {hco_name} not found in {hco_ns_name}")
@@ -851,7 +852,19 @@ def generate_openshift_pull_secret_file(client: DynamicClient = None) -> str:
     sleep=TIMEOUT_10SEC,
     exceptions_dict={RuntimeError: []},
 )
-def get_node_audit_log_entries(log, node, log_entry):
+def get_node_audit_log_entries(log: str, node: str, log_entry: str) -> tuple[bool, list[str]]:
+    """
+    Retrieve audit log entries from a node matching a specific log entry pattern.
+
+    Args:
+        log: Name of the audit log file to read
+        node: Node name to retrieve logs from
+        log_entry: Pattern to search for in the audit logs
+
+    Returns:
+        Tuple of (success: bool, lines: list[str]) where success indicates if operation completed
+        and lines contains matching log entries
+    """
     # Patterns to match errors that should trigger a retry
     error_patterns_list = [
         r"^\s*error:",
@@ -878,7 +891,18 @@ def get_node_audit_log_entries(log, node, log_entry):
     return True, lines
 
 
-def get_node_audit_log_line_dict(logs, node, log_entry):
+def get_node_audit_log_line_dict(logs: list[str], node: str, log_entry: str) -> Generator[dict[str, Any], None, None]:
+    """
+    Parse audit log entries into dictionaries.
+
+    Args:
+        logs: List of audit log file names
+        node: Node name to retrieve logs from
+        log_entry: Pattern to search for in the audit logs
+
+    Yields:
+        Parsed JSON dictionaries from matching audit log lines
+    """
     for log in logs:
         _, deprecated_api_lines = get_node_audit_log_entries(log=log, node=node, log_entry=log_entry)
         if deprecated_api_lines:

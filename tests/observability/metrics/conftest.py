@@ -22,8 +22,11 @@ from tests.observability.metrics.constants import (
     KUBEVIRT_VM_CREATED_BY_POD_TOTAL,
     KUBEVIRT_VMI_MIGRATIONS_IN_RUNNING_PHASE,
     KUBEVIRT_VMI_MIGRATIONS_IN_SCHEDULING_PHASE,
+    KUBEVIRT_VMI_PHASE_TRANSITION_TIME_FROM_DELETION_SECONDS_COUNT_SUCCEEDED,
+    KUBEVIRT_VMI_PHASE_TRANSITION_TIME_FROM_DELETION_SECONDS_SUM_SUCCEEDED,
     KUBEVIRT_VMI_STATUS_ADDRESSES,
     KUBEVIRT_VNC_ACTIVE_CONNECTIONS_BY_VMI,
+    SUM_KUBEVIRT_VMI_PHASE_TRANSITION_TIME_FROM_DELETION_SECONDS_BUCKET_SUCCEEDED,
 )
 from tests.observability.metrics.utils import (
     SINGLE_VM,
@@ -34,6 +37,7 @@ from tests.observability.metrics.utils import (
     get_vm_comparison_info_dict,
     get_vmi_guest_os_kernel_release_info_metric_from_vm,
     metric_result_output_dict_by_mountpoint,
+    network_packets_received,
     vnic_info_from_vm_or_vmi,
 )
 from tests.observability.utils import validate_metrics_value
@@ -233,17 +237,30 @@ def generated_network_traffic_windows_vm(windows_vm_for_test):
         src_vm=windows_vm_for_test,
         dst_ip=get_ip_from_vm_or_virt_handler_pod(family=IPV4_STR, vm=windows_vm_for_test),
         windows=True,
+        quiet_output=False,
     )
 
 
 @pytest.fixture(scope="class")
 def linux_vm_for_test_interface_name(vm_for_test):
-    return vm_for_test.vmi.interfaces[0].interfaceName
+    return vm_for_test.vmi.interfaces[0].podInterfaceName
 
 
 @pytest.fixture(scope="class")
 def windows_vm_for_test_interface_name(windows_vm_for_test):
-    return windows_vm_for_test.vmi.interfaces[0].interfaceName
+    return windows_vm_for_test.vmi.interfaces[0].podInterfaceName
+
+
+@pytest.fixture()
+def network_packet_received_windows_vm(windows_vm_for_test, windows_vm_for_test_interface_name):
+    return network_packets_received(
+        vm=windows_vm_for_test, interface_name=windows_vm_for_test_interface_name, windows_wsl=True
+    )
+
+
+@pytest.fixture()
+def network_packet_received_linux_vm(vm_for_test, linux_vm_for_test_interface_name):
+    return network_packets_received(vm=vm_for_test, interface_name=linux_vm_for_test_interface_name)
 
 
 @pytest.fixture(scope="class")
@@ -466,20 +483,6 @@ def windows_vm_for_test(namespace, unprivileged_client):
         yield vm
 
 
-@pytest.fixture(scope="session")
-def memory_metric_has_bug():
-    return is_jira_open(jira_id="CNV-76656")
-
-
-@pytest.fixture()
-def xfail_if_memory_metric_has_bug(memory_metric_has_bug, cnv_vmi_monitoring_metrics_matrix__function__):
-    if cnv_vmi_monitoring_metrics_matrix__function__ in METRICS_WITH_WINDOWS_VM_BUGS and memory_metric_has_bug:
-        pytest.xfail(
-            f"Bug (CNV-76656), Metric: {cnv_vmi_monitoring_metrics_matrix__function__} not showing "
-            "any value for windows vm"
-        )
-
-
 @pytest.fixture()
 def initial_migration_metrics_values(prometheus):
     yield {
@@ -562,7 +565,7 @@ def initial_metric_value(request, prometheus):
     return int(get_metrics_value(prometheus=prometheus, metrics_name=request.param))
 
 
-@pytest.fixture()
+@pytest.fixture(scope="class")
 def deleted_vmi(running_metric_vm):
     running_metric_vm.delete(wait=True)
 
@@ -694,6 +697,18 @@ def vm_with_rwo_dv(request, unprivileged_client, namespace):
         data_volume_template={"metadata": dv_res["metadata"], "spec": dv_res["spec"]},
     ) as vm:
         yield vm
+
+
+@pytest.fixture(scope="class")
+def initial_vmi_deletion_metrics_values(prometheus):
+    return {
+        metric: int(get_metrics_value(prometheus=prometheus, metrics_name=metric))
+        for metric in [
+            KUBEVIRT_VMI_PHASE_TRANSITION_TIME_FROM_DELETION_SECONDS_SUM_SUCCEEDED,
+            SUM_KUBEVIRT_VMI_PHASE_TRANSITION_TIME_FROM_DELETION_SECONDS_BUCKET_SUCCEEDED,
+            KUBEVIRT_VMI_PHASE_TRANSITION_TIME_FROM_DELETION_SECONDS_COUNT_SUCCEEDED,
+        ]
+    }
 
 
 @pytest.fixture(scope="class")

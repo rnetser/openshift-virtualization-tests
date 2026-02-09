@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import json
 import logging
 import os
@@ -20,6 +22,8 @@ from timeout_sampler import TimeoutExpiredError, TimeoutSampler
 from utilities.ssh import run_ssh_commands
 
 if TYPE_CHECKING:
+    from ocp_resources.resource import Resource
+
     from utilities.virt import VirtualMachineForTests
 
 import utilities.infra
@@ -135,7 +139,7 @@ def wait_for_ssp_conditions(
     )
 
 
-def wait_for_condition_message_value(resource, expected_message):
+def wait_for_condition_message_value(resource: Resource, expected_message: str) -> None:
     LOGGER.info(f"Verify {resource.name} conditions contain expected message: {expected_message}")
     sample = None
     try:
@@ -144,7 +148,7 @@ def wait_for_condition_message_value(resource, expected_message):
             sleep=TIMEOUT_5SEC,
             func=lambda: resource.instance.status.conditions,
         ):
-            if any([condition["message"] == expected_message for condition in sample]):
+            if sample and any(condition.get("message") == expected_message for condition in sample):
                 return
     except TimeoutExpiredError:
         LOGGER.error(
