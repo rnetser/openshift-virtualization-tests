@@ -330,7 +330,7 @@ def is_connective(vm: VirtualMachineForTests, timeout: int | float = 30) -> bool
     try:
         result = run_command(vm=vm, command="exit", timeout=timeout, check=False)
         return result.returncode == 0
-    except SSHCommandError, SSHConnectionError:
+    except (SSHCommandError, SSHConnectionError):  # fmt: skip
         return False
 
 
