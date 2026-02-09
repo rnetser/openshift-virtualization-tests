@@ -224,6 +224,20 @@ class TestBuildVirtctlSshCommand:
         assert "--identity-file" in result
         assert "/path/to/key" in result
 
+    def test_build_command_with_password(self):
+        """Test building virtctl ssh command with password wraps with sshpass"""
+        result = _build_virtctl_ssh_command(
+            vm_name="test-vm",
+            namespace="default",
+            username="testuser",
+            command="ls -la",
+            password="testpass",
+        )
+        assert result[0] == "sshpass"
+        assert result[1] == "-p"
+        assert result[2] == "testpass"
+        assert "virtctl" in result[3] or result[3].endswith("virtctl")
+
 
 class TestGetVmCredentials:
     """Test cases for _get_vm_credentials function"""
@@ -387,6 +401,26 @@ class TestRunSshCommands:
         assert isinstance(result, list)
         assert len(result) == 1
         assert result[0] == "test output"
+
+    @patch("utilities.ssh.run_command")
+    def test_run_ssh_commands_list_of_lists(self, mock_run_command):
+        """Test run_ssh_commands with list of lists format joins commands with semicolon"""
+        mock_vm = MagicMock()
+        mock_run_command.return_value = CommandResult(
+            returncode=0,
+            stdout="output1\noutput2",
+            stderr="",
+        )
+
+        result = run_ssh_commands(
+            vm=mock_vm,
+            commands=[["echo", "hello"], ["echo", "world"]],
+        )
+
+        assert result == ["output1\noutput2"]
+        # Verify the command string contains both commands joined with semicolon
+        call_kwargs = mock_run_command.call_args[1]
+        assert "echo hello; echo world" in call_kwargs["command"]
 
 
 class TestWaitForSshConnectivity:
