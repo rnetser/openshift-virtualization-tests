@@ -144,22 +144,23 @@ class TestShouldUseSshKey:
         assert result is True
 
     def test_should_use_ssh_key_windows_vm(self):
-        """Test SSH key should not be used for Windows VMs"""
+        """Test custom SSH key should not be used for Windows VMs (uses virtctl default)."""
         mock_vm = MagicMock()
         mock_vm.os_flavor = "windows"
         result = _should_use_ssh_key(vm=mock_vm)
         assert result is False
 
     def test_should_use_ssh_key_cirros_vm(self):
-        """Test SSH key should not be used for Cirros VMs"""
+        """Test custom SSH key should not be used for Cirros VMs (uses virtctl default)."""
         mock_vm = MagicMock()
         mock_vm.os_flavor = "cirros"
         result = _should_use_ssh_key(vm=mock_vm)
         assert result is False
 
-    def test_should_use_ssh_key_no_os_flavor(self):
-        """Test SSH key should be used when os_flavor is not set"""
-        mock_vm = MagicMock(spec=[])
+    def test_should_use_ssh_key_empty_os_flavor(self):
+        """Test custom SSH key should be used when os_flavor is empty string."""
+        mock_vm = MagicMock()
+        mock_vm.os_flavor = ""
         result = _should_use_ssh_key(vm=mock_vm)
         assert result is True
 

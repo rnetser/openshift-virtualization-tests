@@ -94,16 +94,23 @@ def _get_ssh_key_path() -> str | None:
 
 
 def _should_use_ssh_key(vm: VirtualMachineForTests) -> bool:
-    """Check if VM should use SSH key authentication.
+    """Check if VM should use the custom SSH key from CNV_VM_SSH_KEY_PATH.
 
-    Windows and Cirros VMs don't support SSH key via cloud-init,
-    so they use password authentication instead.
+    For VMs with cloud-init support (RHEL, Fedora, etc.), SSH keys are injected
+    via cloud-init, so we use the key specified in CNV_VM_SSH_KEY_PATH env var.
+
+    For Windows/Cirros/Alpine VMs, cloud-init SSH key injection is not supported.
+    When this returns False, password-based authentication via sshpass is used
+    if a password is available from VM credentials.
+
+    Note: sshpass exposes the password in the process list. This is acceptable
+    for test environments but should not be used in production.
 
     Args:
         vm: VirtualMachine object.
 
     Returns:
-        True if VM should use SSH key, False for password-based auth.
+        True to use CNV_VM_SSH_KEY_PATH key, False to use password auth via sshpass.
     """
     os_flavor = getattr(vm, "os_flavor", "")
     return not any(flavor in os_flavor for flavor in FLAVORS_EXCLUDED_FROM_CLOUD_INIT)
@@ -137,6 +144,7 @@ def _build_virtctl_ssh_command(
     username: str,
     command: str,
     ssh_key_path: str | None = None,
+    password: str | None = None,
 ) -> list[str]:
     """Build virtctl ssh command.
 
@@ -146,11 +154,13 @@ def _build_virtctl_ssh_command(
         username: SSH username.
         command: Command to execute on the VM.
         ssh_key_path: Path to SSH private key (optional).
+        password: SSH password for sshpass authentication (optional).
+            When provided, command is wrapped with sshpass.
 
     Returns:
         List of command arguments for subprocess.
     """
-    cmd = [
+    virtctl_cmd = [
         VIRTCTL,
         "ssh",
         "-n",
@@ -160,15 +170,23 @@ def _build_virtctl_ssh_command(
     ]
 
     if ssh_key_path:
-        cmd.extend(["--identity-file", ssh_key_path])
+        virtctl_cmd.extend(["--identity-file", ssh_key_path])
 
-    cmd.extend(["--command", command, vm_name])
+    virtctl_cmd.extend(["--command", command, vm_name])
 
-    return cmd
+    if password:
+        # Wrap with sshpass for password-based authentication
+        # Note: Password is visible in process list, acceptable for test environments
+        return ["sshpass", "-p", password] + virtctl_cmd
+
+    return virtctl_cmd
 
 
 def _get_vm_credentials(vm: VirtualMachineForTests) -> tuple[str, str | None]:
     """Extract username and password from VM.
+
+    The password is used for sshpass authentication when SSH key auth is not
+    appropriate (e.g., Windows/Cirros VMs). See _should_use_ssh_key() docstring.
 
     Args:
         vm: VirtualMachine object.
@@ -207,8 +225,12 @@ def run_command(
     else:
         command_str = command
 
-    username, _ = _get_vm_credentials(vm=vm)
-    ssh_key_path = _get_ssh_key_path() if _should_use_ssh_key(vm=vm) else None
+    username, password = _get_vm_credentials(vm=vm)
+    use_ssh_key = _should_use_ssh_key(vm=vm)
+    ssh_key_path = _get_ssh_key_path() if use_ssh_key else None
+
+    # Use password auth when SSH key is not appropriate and password is available
+    auth_password = None if use_ssh_key else password
 
     virtctl_cmd = _build_virtctl_ssh_command(
         vm_name=vm.name,
@@ -216,6 +238,7 @@ def run_command(
         username=username,
         command=command_str,
         ssh_key_path=ssh_key_path,
+        password=auth_password,
     )
 
     LOGGER.info(
@@ -515,9 +538,13 @@ class FileSystem:
         """
         target_vm = target_host._vm if isinstance(target_host, FileSystem) else target_host
 
-        username, _ = _get_vm_credentials(vm=self._vm)
+        username, password = _get_vm_credentials(vm=self._vm)
         target_username, _ = _get_vm_credentials(vm=target_vm)
-        ssh_key_path = _get_ssh_key_path() if _should_use_ssh_key(vm=self._vm) else None
+        use_ssh_key = _should_use_ssh_key(vm=self._vm)
+        ssh_key_path = _get_ssh_key_path() if use_ssh_key else None
+
+        # Use password auth when SSH key is not appropriate and password is available
+        auth_password = None if use_ssh_key else password
 
         scp_cmd = [
             VIRTCTL,
@@ -534,6 +561,10 @@ class FileSystem:
             f"{username}@vmi/{self._vm.name}.{self._vm.namespace}:{path_src}",
             f"{target_username}@vmi/{target_vm.name}.{target_vm.namespace}:{path_dst}",
         ])
+
+        # Wrap with sshpass for password-based authentication
+        if auth_password:
+            scp_cmd = ["sshpass", "-p", auth_password] + scp_cmd
 
         LOGGER.info(
             "Transferring file via virtctl scp",

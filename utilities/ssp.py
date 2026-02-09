@@ -263,19 +263,19 @@ def get_windows_os_info(vm: "VirtualMachineForTests") -> dict:
     version_str = cim_instance_json["Version"]
     reg_product_name = get_reg_product_name(vm=vm)
 
-    version_match = re.search(r"(.+\d+)", caption)
+    version_match = re.search(pattern=r"(.+\d+)", string=caption)
     if version_match is None:
         raise ValueError(f"Failed to extract version from Caption: {caption}")
 
-    pretty_name_match = re.search(r"REG_SZ\s+(.+)\r\n", reg_product_name)
+    pretty_name_match = re.search(pattern=r"REG_SZ\s+(.+)\r\n", string=reg_product_name)
     if pretty_name_match is None:
         raise ValueError(f"Failed to extract pretty name from registry: {reg_product_name}")
 
-    version_id_match = re.search(r"\D+(\d+)", caption)
+    version_id_match = re.search(pattern=r"\D+(\d+)", string=caption)
     if version_id_match is None:
         raise ValueError(f"Failed to extract version ID from Caption: {caption}")
 
-    kernel_version_match = re.search(r"(\d+\.\d+)\.", version_str)
+    kernel_version_match = re.search(pattern=r"(\d+\.\d+)\.", string=version_str)
     if kernel_version_match is None:
         raise ValueError(f"Failed to extract kernel version from Version: {version_str}")
 

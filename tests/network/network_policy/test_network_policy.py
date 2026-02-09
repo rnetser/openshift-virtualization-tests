@@ -5,9 +5,6 @@ import pytest
 from tests.network.network_policy.libnetpolicy import TEST_PORTS, format_curl_command
 from utilities.ssh import SSHCommandError, run_ssh_commands
 
-PORT_81 = 81
-CURL_TIMEOUT = 5
-
 pytestmark = pytest.mark.sno
 
 
