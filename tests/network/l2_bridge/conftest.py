@@ -1,7 +1,6 @@
 import shlex
 
 import pytest
-from pyhelper_utils.shell import run_ssh_commands
 
 from tests.network.l2_bridge.libl2bridge import DHCP_INTERFACE_NAME, bridge_attached_vm
 from tests.network.libs.dhcpd import (
@@ -21,6 +20,7 @@ from utilities.network import (
     network_device,
     network_nad,
 )
+from utilities.ssh import run_ssh_commands
 
 #: Test setup example (third octet is random)
 #       .........                                                                                    ..........
