@@ -15,7 +15,7 @@ from tests.virt.cluster.vm_cloning.utils import (
     check_if_files_present_after_cloning,
 )
 from utilities.constants import RHEL_WITH_INSTANCETYPE_AND_PREFERENCE, Images
-from utilities.ssh import run_ssh_commands
+from utilities.ssh import run_ssh_command
 from utilities.storage import (
     add_dv_to_vm,
     check_disk_count_in_vm,
@@ -99,7 +99,7 @@ def cloning_job_fedora_vm(request, unprivileged_client, namespace):
 
 @pytest.fixture()
 def files_created_on_pvc_disks(vm_with_dv_for_cloning):
-    run_ssh_commands(
+    run_ssh_command(
         vm=vm_with_dv_for_cloning,
         commands=[
             # create file on root disk

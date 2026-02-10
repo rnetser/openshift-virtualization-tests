@@ -51,7 +51,7 @@ from utilities.hco import ResourceEditorValidateHCOReconcile
 from utilities.infra import (
     ExecCommandOnPod,
 )
-from utilities.ssh import run_ssh_commands
+from utilities.ssh import run_ssh_command
 from utilities.virt import (
     VirtualMachineForTests,
     fedora_vm_body,
@@ -212,17 +212,17 @@ def get_os_cpu_count(vm):
         cmd = shlex.split("echo %NUMBER_OF_PROCESSORS%")
     else:
         cmd = shlex.split("nproc")
-    return int(run_ssh_commands(vm=vm, commands=cmd)[0].strip())
+    return int(run_ssh_command(vm=vm, commands=cmd)[0].strip())
 
 
 def get_os_memory_value(vm):
     if "windows" in vm.name:
         cmd = shlex.split("wmic ComputerSystem get TotalPhysicalMemory")
-        wmic_total_mem = run_ssh_commands(vm=vm, commands=cmd)[0].strip().split()[1]
+        wmic_total_mem = run_ssh_command(vm=vm, commands=cmd)[0].strip().split()[1]
         return f"{round(float(bitmath.Bit(int(wmic_total_mem)).to_Gib()))}Gi"
     else:
         cmd = shlex.split("awk \"'{print$2/1024/1024;exit}'\" /proc/meminfo")
-        meminfo = run_ssh_commands(vm=vm, commands=cmd)[0].strip()
+        meminfo = run_ssh_command(vm=vm, commands=cmd)[0].strip()
         return f"{round(float(meminfo))}Gi"
 
 
@@ -236,7 +236,7 @@ def _collect_cpu_diagnostic_info(vm):
     else:
         cmd = shlex.split("bash -c 'dmesg | tail -n 30'")
 
-    output = run_ssh_commands(host=vm.ssh_exec, commands=cmd)[0]
+    output = run_ssh_command(host=vm.ssh_exec, commands=cmd)[0]
     write_to_file(base_directory=base_dir, file_name=f"{vm.name}_cpu_diagnostic.txt", content=output)
 
 
@@ -385,7 +385,7 @@ def validate_dedicated_emulatorthread(vm):
     nproc_output = int(
         re.match(
             r"(\d+)",
-            run_ssh_commands(
+            run_ssh_command(
                 vm=vm,
                 commands=["nproc"],
             )[0],
@@ -514,7 +514,7 @@ def generate_rhsm_cloud_init_data():
 def register_vm_to_rhsm(vm):
     LOGGER.info("Register the VM with RedHat Subscription Manager")
 
-    run_ssh_commands(
+    run_ssh_command(
         vm=vm,
         commands=shlex.split(
             "sudo subscription-manager register "
@@ -583,7 +583,7 @@ def start_stress_on_vm(vm: VirtualMachineForTests, stress_command: str) -> None:
     else:
         command = f"sudo dnf install stress-ng -y; {stress_command}"
 
-    run_ssh_commands(
+    run_ssh_command(
         vm=vm,
         commands=shlex.split(command),
         timeout=TCP_TIMEOUT_30SEC,
@@ -592,7 +592,7 @@ def start_stress_on_vm(vm: VirtualMachineForTests, stress_command: str) -> None:
 
 def verify_wsl2_guest_running(vm: VirtualMachineForTests, timeout: int = TIMEOUT_3MIN) -> bool:
     def _get_wsl2_running_status():
-        guests_status = run_ssh_commands(
+        guests_status = run_ssh_command(
             vm=vm,
             commands=shlex.split("powershell.exe -command wsl -l -v"),
             timeout=TCP_TIMEOUT_30SEC,
@@ -625,7 +625,7 @@ def verify_wsl2_guest_works(vm: VirtualMachineForTests) -> None:
     samples = TimeoutSampler(
         wait_timeout=TIMEOUT_1MIN,
         sleep=TIMEOUT_15SEC,
-        func=run_ssh_commands,
+        func=run_ssh_command,
         vm=vm,
         commands=shlex.split(f"wsl echo {test_str}"),
     )

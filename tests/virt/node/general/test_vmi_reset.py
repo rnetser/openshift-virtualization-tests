@@ -2,14 +2,14 @@ import logging
 
 import pytest
 
-from utilities.ssh import run_ssh_commands
+from utilities.ssh import run_ssh_command
 from utilities.virt import wait_for_running_vm
 
 LOGGER = logging.getLogger(__name__)
 
 
 def get_vm_boot_count(vm):
-    reboot_count = run_ssh_commands(
+    reboot_count = run_ssh_command(
         vm=vm,
         commands=["journalctl --list-boots | wc -l"],
     )[0].strip()

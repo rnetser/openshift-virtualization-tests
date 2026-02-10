@@ -15,7 +15,7 @@ from ocp_resources.template import Template
 from tests.os_params import FEDORA_LATEST, RHEL_LATEST, RHEL_LATEST_LABELS
 from tests.virt.cluster.common_templates.utils import check_vm_xml_tablet_device, set_vm_tablet_device_dict
 from utilities.constants import VIRTIO
-from utilities.ssh import run_ssh_commands
+from utilities.ssh import run_ssh_command
 from utilities.virt import VirtualMachineForTestsFromTemplate, migrate_vm_and_verify
 
 LOGGER = logging.getLogger(__name__)
@@ -23,7 +23,7 @@ LOGGER = logging.getLogger(__name__)
 
 def check_vm_system_tablet_device(vm, expected_device):
     """Verify tablet device parameters in VMI /sys/devices file"""
-    output = run_ssh_commands(
+    output = run_ssh_command(
         vm=vm,
         commands=shlex.split(r"grep -rs '^QEMU *.* Tablet' /sys/devices ||true"),
     )[0]

@@ -6,7 +6,7 @@ from utilities.constants import (
     NamespacesNames,
 )
 from utilities.infra import get_daemonsets
-from utilities.ssh import run_ssh_commands
+from utilities.ssh import run_ssh_command
 from utilities.virt import restart_vm_wait_for_running_vm, running_vm
 
 
@@ -37,7 +37,7 @@ def install_nvidia_drivers_on_windows_vm(vm, supported_gpu_device):
     # vGPU uses NVIDIA GRID Drivers and GPU Passthrough uses normal NVIDIA Drivers.
     vgpu_device_name = supported_gpu_device[VGPU_DEVICE_NAME_STR]
     gpu_mode = "vgpu" if fetch_gpu_device_name_from_vm_instance(vm) == vgpu_device_name else "gpu"
-    run_ssh_commands(
+    run_ssh_command(
         vm=vm,
         commands=[f"C:\\NVIDIA\\{gpu_mode}\\International\\setup.exe -s & exit /b 0"],
         timeout=TCP_TIMEOUT_30SEC,

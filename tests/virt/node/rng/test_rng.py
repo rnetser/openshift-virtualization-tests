@@ -6,7 +6,7 @@ import shlex
 
 import pytest
 
-from utilities.ssh import run_ssh_commands
+from utilities.ssh import run_ssh_command
 from utilities.virt import VirtualMachineForTests, fedora_vm_body, running_vm
 
 
@@ -35,7 +35,7 @@ def test_vm_with_rng(rng_vm):
         shlex.split(f"sudo dd count=10 bs=1024 if=/dev/{device} of=/tmp/{device}.txt && ls /tmp/{device}.txt | wc -l")
         for device in ["random", "hwrng"]
     ] + [rng_current_cmd]
-    rng_output = run_ssh_commands(
+    rng_output = run_ssh_command(
         vm=rng_vm,
         commands=rng_commnds,
     )

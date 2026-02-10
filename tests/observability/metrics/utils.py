@@ -50,7 +50,7 @@ from utilities.constants import (
     Images,
 )
 from utilities.monitoring import get_metrics_value
-from utilities.ssh import run_command, run_ssh_commands
+from utilities.ssh import run_command, run_ssh_command
 from utilities.virt import VirtualMachineForTests, running_vm
 
 LOGGER = logging.getLogger(__name__)
@@ -191,7 +191,7 @@ def assert_validate_vm_metric(vm: VirtualMachineForTests, metrics_list: list[dic
 
 
 def is_swap_enabled(vm: VirtualMachineForTests, swap_name: str = r"\/dev\/zram0") -> bool:
-    out = run_ssh_commands(vm=vm, commands=shlex.split("swapon --raw"))
+    out = run_ssh_command(vm=vm, commands=shlex.split("swapon --raw"))
     LOGGER.info(f"Swap: {out}")
     if not out:
         return False
@@ -327,7 +327,7 @@ def validate_metric_value_within_range(
 def network_packets_received(
     vm: VirtualMachineForTests, interface_name: str, windows_wsl: bool = False
 ) -> dict[str, str]:
-    ip_link_show_content = run_ssh_commands(
+    ip_link_show_content = run_ssh_command(
         vm=vm, commands=shlex.split(f"{'wsl' if windows_wsl else ''} ip -s link show")
     )[0]
 
@@ -727,7 +727,7 @@ def get_vm_comparison_info_dict(vm: VirtualMachineForTests) -> dict[str, str]:
 def get_vmi_guest_os_kernel_release_info_metric_from_vm(
     vm: VirtualMachineForTests, windows: bool = False
 ) -> dict[str, str]:
-    guest_os_kernel_release = run_ssh_commands(vm=vm, commands=shlex.split("ver" if windows else "uname -r"))[0].strip()
+    guest_os_kernel_release = run_ssh_command(vm=vm, commands=shlex.split("ver" if windows else "uname -r"))[0].strip()
     if windows:
         kernel_release_match = re.search(r"\[Version\s(\d+\.\d+\.(\d+))", guest_os_kernel_release)
         if kernel_release_match is None:

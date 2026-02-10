@@ -395,7 +395,7 @@ class TestGuestAgentVersionParser:
 class TestGetWindowsTimezone:
     """Test cases for get_windows_timezone function"""
 
-    @patch("utilities.ssp.run_ssh_commands")
+    @patch("utilities.ssp.run_ssh_command")
     def test_get_windows_timezone_success(self, mock_run_ssh):
         """Test successful extraction of Windows timezone"""
         mock_vm = MagicMock()
@@ -406,7 +406,7 @@ class TestGetWindowsTimezone:
         assert result == "UTC"
         mock_run_ssh.assert_called_once()
 
-    @patch("utilities.ssp.run_ssh_commands")
+    @patch("utilities.ssp.run_ssh_command")
     def test_get_windows_timezone_with_standard_name(self, mock_run_ssh):
         """Test timezone extraction with standard name only"""
         mock_vm = MagicMock()
@@ -421,7 +421,7 @@ class TestGetWindowsTimezone:
 class TestGetGaVersion:
     """Test cases for get_ga_version function"""
 
-    @patch("utilities.ssp.run_ssh_commands")
+    @patch("utilities.ssp.run_ssh_command")
     def test_get_ga_version_success(self, mock_run_ssh):
         """Test successful extraction of GA version"""
         mock_vm = MagicMock()
@@ -436,7 +436,7 @@ class TestGetGaVersion:
 class TestGetCimInstanceJson:
     """Test cases for get_cim_instance_json function"""
 
-    @patch("utilities.ssp.run_ssh_commands")
+    @patch("utilities.ssp.run_ssh_command")
     def test_get_cim_instance_json_success(self, mock_run_ssh):
         """Test successful extraction of CIM instance JSON"""
         mock_vm = MagicMock()
@@ -453,7 +453,7 @@ class TestGetCimInstanceJson:
 class TestGetRegProductName:
     """Test cases for get_reg_product_name function"""
 
-    @patch("utilities.ssp.run_ssh_commands")
+    @patch("utilities.ssp.run_ssh_command")
     def test_get_reg_product_name_success(self, mock_run_ssh):
         """Test successful extraction of registry product name"""
         mock_vm = MagicMock()

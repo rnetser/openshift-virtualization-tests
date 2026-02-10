@@ -13,9 +13,9 @@ from utilities.ssh import (
     CommandResult,
     FileSystem,
     KernelInfo,
+    LinuxOSInfo,
+    LinuxPackageManager,
     NetworkInfo,
-    OSInfo,
-    PackageManager,
     SSHClient,
     SSHCommandError,
     SSHConnectionError,
@@ -27,7 +27,7 @@ from utilities.ssh import (
     _should_use_ssh_key,
     is_connective,
     run_command,
-    run_ssh_commands,
+    run_ssh_command,
     wait_for_ssh_connectivity,
 )
 
@@ -66,7 +66,7 @@ class TestSSHConnectionError:
 
 
 class TestTimezoneInfo:
-    """Test cases for TimezoneInfo namedtuple"""
+    """Test cases for TimezoneInfo dataclass"""
 
     def test_timezone_info_creation(self):
         """Test TimezoneInfo creation"""
@@ -76,7 +76,7 @@ class TestTimezoneInfo:
 
 
 class TestKernelInfo:
-    """Test cases for KernelInfo namedtuple"""
+    """Test cases for KernelInfo dataclass"""
 
     def test_kernel_info_creation(self):
         """Test KernelInfo creation"""
@@ -374,12 +374,12 @@ class TestRunCommand:
             run_command(vm=mock_vm, command="ls")
 
 
-class TestRunSshCommands:
-    """Test cases for run_ssh_commands function"""
+class TestRunSshCommand:
+    """Test cases for run_ssh_command function"""
 
     @patch("utilities.ssh.run_command")
-    def test_run_ssh_commands_success(self, mock_run_command):
-        """Test successful SSH commands execution"""
+    def test_run_ssh_command_success(self, mock_run_command):
+        """Test successful SSH command execution"""
         mock_vm = MagicMock()
         mock_run_command.return_value = CommandResult(
             returncode=0,
@@ -387,14 +387,14 @@ class TestRunSshCommands:
             stderr="",
         )
 
-        result = run_ssh_commands(vm=mock_vm, commands=["ls", "-la"])
+        result = run_ssh_command(vm=mock_vm, commands=["ls", "-la"])
 
         assert result == ["output"]
         mock_run_command.assert_called_once()
 
     @patch("utilities.ssh.run_command")
-    def test_run_ssh_commands_returns_list(self, mock_run_command):
-        """Test run_ssh_commands returns list"""
+    def test_run_ssh_command_returns_list(self, mock_run_command):
+        """Test run_ssh_command returns list"""
         mock_vm = MagicMock()
         mock_run_command.return_value = CommandResult(
             returncode=0,
@@ -402,15 +402,15 @@ class TestRunSshCommands:
             stderr="",
         )
 
-        result = run_ssh_commands(vm=mock_vm, commands=["echo", "hello"])
+        result = run_ssh_command(vm=mock_vm, commands=["echo", "hello"])
 
         assert isinstance(result, list)
         assert len(result) == 1
         assert result[0] == "test output"
 
     @patch("utilities.ssh.run_command")
-    def test_run_ssh_commands_list_of_lists(self, mock_run_command):
-        """Test run_ssh_commands with list of lists format joins commands with semicolon"""
+    def test_run_ssh_command_list_of_lists(self, mock_run_command):
+        """Test run_ssh_command with list of lists format joins commands with semicolon"""
         mock_vm = MagicMock()
         mock_run_command.return_value = CommandResult(
             returncode=0,
@@ -418,7 +418,7 @@ class TestRunSshCommands:
             stderr="",
         )
 
-        result = run_ssh_commands(
+        result = run_ssh_command(
             vm=mock_vm,
             commands=[["echo", "hello"], ["echo", "world"]],
         )
@@ -498,12 +498,12 @@ class TestIsConnective:
         assert result is False
 
 
-class TestOSInfo:
-    """Test cases for OSInfo class"""
+class TestLinuxOSInfo:
+    """Test cases for LinuxOSInfo class"""
 
     @patch("utilities.ssh.run_command")
     def test_os_info_release_str(self, mock_run_command):
-        """Test OSInfo.release_str property"""
+        """Test LinuxOSInfo.release_str property"""
         mock_vm = MagicMock()
         mock_run_command.return_value = CommandResult(
             returncode=0,
@@ -511,14 +511,14 @@ class TestOSInfo:
             stderr="",
         )
 
-        os_info = OSInfo(vm=mock_vm)
+        os_info = LinuxOSInfo(vm=mock_vm)
         result = os_info.release_str
 
         assert result == "RHEL 9.2"
 
     @patch("utilities.ssh.run_command")
     def test_os_info_release_info(self, mock_run_command):
-        """Test OSInfo.release_info property"""
+        """Test LinuxOSInfo.release_info property"""
         mock_vm = MagicMock()
         mock_run_command.return_value = CommandResult(
             returncode=0,
@@ -526,7 +526,7 @@ class TestOSInfo:
             stderr="",
         )
 
-        os_info = OSInfo(vm=mock_vm)
+        os_info = LinuxOSInfo(vm=mock_vm)
         result = os_info.release_info
 
         assert "NAME" in result
@@ -534,7 +534,7 @@ class TestOSInfo:
 
     @patch("utilities.ssh.run_command")
     def test_os_info_kernel_info(self, mock_run_command):
-        """Test OSInfo.kernel_info property"""
+        """Test LinuxOSInfo.kernel_info property"""
         mock_vm = MagicMock()
         mock_run_command.return_value = CommandResult(
             returncode=0,
@@ -542,7 +542,7 @@ class TestOSInfo:
             stderr="",
         )
 
-        os_info = OSInfo(vm=mock_vm)
+        os_info = LinuxOSInfo(vm=mock_vm)
         result = os_info.kernel_info
 
         assert isinstance(result, KernelInfo)
@@ -552,7 +552,7 @@ class TestOSInfo:
 
     @patch("utilities.ssh.run_command")
     def test_os_info_kernel_info_partial_raises_index_error(self, mock_run_command):
-        """Test OSInfo.kernel_info raises IndexError with partial output"""
+        """Test LinuxOSInfo.kernel_info raises IndexError with partial output"""
         mock_vm = MagicMock()
         mock_run_command.return_value = CommandResult(
             returncode=0,
@@ -560,21 +560,21 @@ class TestOSInfo:
             stderr="",
         )
 
-        os_info = OSInfo(vm=mock_vm)
+        os_info = LinuxOSInfo(vm=mock_vm)
 
         with pytest.raises(IndexError):
             _ = os_info.kernel_info
 
     @patch("utilities.ssh.run_command")
     def test_os_info_timezone(self, mock_run_command):
-        """Test OSInfo.timezone property"""
+        """Test LinuxOSInfo.timezone property"""
         mock_vm = MagicMock()
         mock_run_command.side_effect = [
             CommandResult(returncode=0, stdout="EST", stderr=""),
             CommandResult(returncode=0, stdout="-0500", stderr=""),
         ]
 
-        os_info = OSInfo(vm=mock_vm)
+        os_info = LinuxOSInfo(vm=mock_vm)
         result = os_info.timezone
 
         assert isinstance(result, TimezoneInfo)
@@ -582,7 +582,7 @@ class TestOSInfo:
 
     @patch("utilities.ssh.run_command")
     def test_os_info_caches_release(self, mock_run_command):
-        """Test OSInfo caches os-release data"""
+        """Test LinuxOSInfo caches os-release data"""
         mock_vm = MagicMock()
         mock_run_command.return_value = CommandResult(
             returncode=0,
@@ -590,7 +590,7 @@ class TestOSInfo:
             stderr="",
         )
 
-        os_info = OSInfo(vm=mock_vm)
+        os_info = LinuxOSInfo(vm=mock_vm)
         _ = os_info.release_str
         _ = os_info.release_info
 
@@ -598,8 +598,8 @@ class TestOSInfo:
         assert mock_run_command.call_count == 1
 
 
-class TestPackageManager:
-    """Test cases for PackageManager class"""
+class TestLinuxPackageManager:
+    """Test cases for LinuxPackageManager class"""
 
     @patch("utilities.ssh.run_command")
     def test_package_manager_exist_rpm_success(self, mock_run_command):
@@ -611,7 +611,7 @@ class TestPackageManager:
             stderr="",
         )
 
-        pkg_manager = PackageManager(vm=mock_vm)
+        pkg_manager = LinuxPackageManager(vm=mock_vm)
         result = pkg_manager.exist(package="qemu-guest-agent")
 
         assert result is True
@@ -625,7 +625,7 @@ class TestPackageManager:
             CommandResult(returncode=0, stdout="qemu-guest-agent installed", stderr=""),
         ]
 
-        pkg_manager = PackageManager(vm=mock_vm)
+        pkg_manager = LinuxPackageManager(vm=mock_vm)
         result = pkg_manager.exist(package="qemu-guest-agent")
 
         assert result is True
@@ -640,7 +640,7 @@ class TestPackageManager:
             CommandResult(returncode=1, stdout="", stderr="not found"),
         ]
 
-        pkg_manager = PackageManager(vm=mock_vm)
+        pkg_manager = LinuxPackageManager(vm=mock_vm)
         result = pkg_manager.exist(package="nonexistent-package")
 
         assert result is False
@@ -655,7 +655,7 @@ class TestPackageManager:
             stderr="",
         )
 
-        pkg_manager = PackageManager(vm=mock_vm)
+        pkg_manager = LinuxPackageManager(vm=mock_vm)
         result = pkg_manager.info(package="qemu-guest-agent")
 
         assert "qemu-guest-agent" in result
@@ -669,7 +669,7 @@ class TestPackageManager:
             CommandResult(returncode=0, stdout="Package: test\nVersion: 1.0", stderr=""),
         ]
 
-        pkg_manager = PackageManager(vm=mock_vm)
+        pkg_manager = LinuxPackageManager(vm=mock_vm)
         result = pkg_manager.info(package="test")
 
         assert "Package:" in result
@@ -823,9 +823,9 @@ class TestSSHClient:
 
         client = SSHClient(vm=mock_vm)
 
-        assert isinstance(client.os, OSInfo)
+        assert isinstance(client.os, LinuxOSInfo)
         assert isinstance(client.network, NetworkInfo)
-        assert isinstance(client.package_manager, PackageManager)
+        assert isinstance(client.package_manager, LinuxPackageManager)
         assert isinstance(client.fs, FileSystem)
         assert client.sudo is False
 

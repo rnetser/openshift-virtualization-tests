@@ -10,7 +10,7 @@ from tests.network.l2_bridge.libl2bridge import wait_for_no_packet_loss_after_co
 from tests.network.libs.dhcpd import DHCP_IP_RANGE_START
 from utilities.constants import TIMEOUT_2MIN
 from utilities.network import assert_ping_successful
-from utilities.ssh import run_ssh_commands
+from utilities.ssh import run_ssh_command
 
 LOGGER = logging.getLogger(__name__)
 CUSTOM_ETH_PROTOCOL = "0x88B6"  # rfc5342 Local Experimental Ethertype. Used to test custom eth type and linux bridge
@@ -84,7 +84,7 @@ class TestL2Bridge:
         dst_ip = lookup_iface_status_ip(
             vm=l2_bridge_running_vm_b, iface_name=custom_eth_type_llpd_nad.name, ip_family=4
         )
-        out = run_ssh_commands(
+        out = run_ssh_command(
             vm=configured_l2_bridge_vm_a,
             commands=shlex.split(f"nping -e eth2 --ether-type {CUSTOM_ETH_PROTOCOL} {dst_ip} -c {num_of_packets} &"),
         )[0]

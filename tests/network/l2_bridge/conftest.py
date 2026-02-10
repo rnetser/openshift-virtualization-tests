@@ -20,7 +20,7 @@ from utilities.network import (
     network_device,
     network_nad,
 )
-from utilities.ssh import run_ssh_commands
+from utilities.ssh import run_ssh_command
 
 #: Test setup example (third octet is random)
 #       .........                                                                                    ..........
@@ -245,14 +245,14 @@ def eth3_nmcli_connection_uuid(l2_bridge_running_vm_b):
 
 @pytest.fixture(scope="class")
 def configured_l2_bridge_vm_a(l2_bridge_running_vm_a):
-    run_ssh_commands(
+    run_ssh_command(
         vm=l2_bridge_running_vm_a,
         commands=shlex.split(
             "sudo bash -c "
             + shlex.quote(f"cat > /etc/sysconfig/dhcpd <<'EOF'\nDHCPDARGS=\"{DHCP_INTERFACE_NAME}\"\nEOF")
         ),
     )
-    run_ssh_commands(
+    run_ssh_command(
         vm=l2_bridge_running_vm_a,
         commands=shlex.split(DHCP_SERVICE_RESTART),
     )
@@ -266,21 +266,21 @@ def started_vmb_dhcp_client(l2_bridge_running_vm_b, eth3_nmcli_connection_uuid):
     # Use a unique DHCP client identifier to ensure only our test server responds
 
     # Start dhcp client with unique client identifier
-    run_ssh_commands(
+    run_ssh_command(
         vm=l2_bridge_running_vm_b,
         commands=shlex.split(f"{nmcli_cmd} modify '{eth3_nmcli_connection_uuid}' ipv4.method auto"),
     )
-    run_ssh_commands(
+    run_ssh_command(
         vm=l2_bridge_running_vm_b,
         commands=shlex.split(
             f"{nmcli_cmd} modify '{eth3_nmcli_connection_uuid}' ipv4.dhcp-client-id '{UNIQUE_CLIENT_ID}'"
         ),
     )
-    run_ssh_commands(
+    run_ssh_command(
         vm=l2_bridge_running_vm_b,
         commands=shlex.split(f"{nmcli_cmd} up '{eth3_nmcli_connection_uuid}'"),
     )
-    run_ssh_commands(
+    run_ssh_command(
         vm=l2_bridge_running_vm_b,
         commands=shlex.split("sudo systemctl restart qemu-guest-agent.service"),
     )

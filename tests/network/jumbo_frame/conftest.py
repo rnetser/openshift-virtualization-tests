@@ -10,7 +10,7 @@ from tests.network.jumbo_frame.utils import (
 from utilities.constants import LINUX_BRIDGE, WORKER_NODE_LABEL_KEY
 from utilities.infra import get_node_selector_dict
 from utilities.network import network_device, network_nad
-from utilities.ssh import run_ssh_commands
+from utilities.ssh import run_ssh_command
 
 
 @pytest.fixture(scope="class")
@@ -146,7 +146,7 @@ def ping_over_secondary(
         ip_family=4,
     )
 
-    run_ssh_commands(
+    run_ssh_command(
         vm=running_vme_jumbo_primary_interface_and_secondary_interface,
         commands=shlex.split(f"ping {dst_ip}  >& /dev/null &"),
     )

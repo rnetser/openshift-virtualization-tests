@@ -32,7 +32,7 @@ from utilities.network import (
     network_device,
     network_nad,
 )
-from utilities.ssh import run_ssh_commands
+from utilities.ssh import run_ssh_command
 from utilities.virt import (
     VirtualMachineForTests,
     fedora_vm_body,
@@ -52,7 +52,7 @@ def http_port_accessible(vm, server_ip, server_port):
     sampler = TimeoutSampler(
         wait_timeout=TIMEOUT_2MIN,
         sleep=5,
-        func=run_ssh_commands,
+        func=run_ssh_command,
         vm=vm,
         commands=shlex.split(f"curl --head {server_ip}:{server_port}"),
     )
@@ -217,7 +217,7 @@ def ping_in_background(br1test_nad, running_vma, running_vmb):
     dst_ip = lookup_iface_status_ip(vm=running_vmb, iface_name=br1test_nad.name, ip_family=4)
     assert_ping_successful(src_vm=running_vma, dst_ip=dst_ip)
     LOGGER.info(f"Ping {dst_ip} from {running_vma.name} to {running_vmb.name}")
-    run_ssh_commands(
+    run_ssh_command(
         vm=running_vma,
         commands=shlex.split(f"sudo ping -i 0.1 {dst_ip} >& {PING_LOG} &"),
     )
@@ -229,11 +229,11 @@ class HighPacketLossError(Exception):
 
 
 def assert_low_packet_loss(vm):
-    run_ssh_commands(
+    run_ssh_command(
         vm=vm,
         commands=shlex.split("sudo kill -SIGINT `pgrep ping`"),
     )
-    output = run_ssh_commands(
+    output = run_ssh_command(
         vm=vm,
         commands=shlex.split(f"cat {PING_LOG}"),
     )

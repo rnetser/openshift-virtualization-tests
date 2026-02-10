@@ -6,7 +6,7 @@ import shlex
 
 import pytest
 
-from utilities.ssh import run_ssh_commands
+from utilities.ssh import run_ssh_command
 from utilities.virt import VirtualMachineForTests, fedora_vm_body, running_vm
 
 
@@ -61,7 +61,7 @@ def test_vm_with_sidecar_hook(enabled_featuregate_scope_function, sidecar_vm):
     smbios.vm.kubevirt.io/baseBoardManufacturer: "Radical Edward"
     And check that package includes manufacturer: "Radical Edward"
     """
-    run_ssh_commands(
+    run_ssh_command(
         vm=sidecar_vm,
         commands=shlex.split("sudo dmidecode -s baseboard-manufacturer | grep 'Radical Edward'\n"),
     )

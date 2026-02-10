@@ -22,7 +22,7 @@ from tests.storage.vm_export.constants import VM_EXPORT_TEST_FILE_CONTENT, VM_EX
 from tests.storage.vm_export.utils import create_blank_dv_by_specific_user, get_manifest_from_vmexport, get_manifest_url
 from utilities.constants import OS_FLAVOR_RHEL, U1_SMALL, UNPRIVILEGED_PASSWORD, UNPRIVILEGED_USER
 from utilities.infra import create_ns, login_with_user_password
-from utilities.ssh import run_ssh_commands
+from utilities.ssh import run_ssh_command
 from utilities.storage import data_volume_template_with_source_ref_dict
 from utilities.virt import VirtualMachineForTests, running_vm
 
@@ -219,7 +219,7 @@ def rhel_vm_for_snapshot_with_content(
         running_vm(vm=vm)
 
         cmd = f"echo '{VM_EXPORT_TEST_FILE_CONTENT}' > {VM_EXPORT_TEST_FILE_NAME} && sync"
-        run_ssh_commands(vm=vm, commands=[cmd])
+        run_ssh_command(vm=vm, commands=[cmd])
 
         yield vm
 

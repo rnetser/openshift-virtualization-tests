@@ -13,7 +13,7 @@ import pytest
 from tests.os_params import WINDOWS_10, WINDOWS_LATEST, WINDOWS_LATEST_LABELS
 from tests.virt.cluster.common_templates.utils import check_vm_xml_tablet_device, set_vm_tablet_device_dict
 from utilities.constants import TCP_TIMEOUT_30SEC, VIRTIO
-from utilities.ssh import run_ssh_commands
+from utilities.ssh import run_ssh_command
 
 pytestmark = [
     pytest.mark.special_infra,
@@ -28,7 +28,7 @@ LOGGER = logging.getLogger(__name__)
 def check_windows_vm_tablet_device(vm, driver_state):
     """Verify tablet device values in Windows VMI using driverquery"""
 
-    windows_driver_query = run_ssh_commands(
+    windows_driver_query = run_ssh_command(
         vm=vm,
         commands=shlex.split("%systemroot%\\\\system32\\\\driverquery /fo list /v"),
         timeout=TCP_TIMEOUT_30SEC,

@@ -41,7 +41,7 @@ from utilities.hco import (
     update_hco_annotations,
     wait_for_hco_conditions,
 )
-from utilities.ssh import run_ssh_commands
+from utilities.ssh import run_ssh_command
 from utilities.storage import (
     create_dv,
     create_or_update_data_source,
@@ -110,7 +110,7 @@ def get_stress_ng_pid(vm, windows=False):
     LOGGER.info(f"Get pid of {stress}")
     command_prefix = "wsl" if windows else ""
 
-    return run_ssh_commands(
+    return run_ssh_command(
         vm=vm,
         commands=shlex.split(f"{command_prefix} bash -c 'pgrep {stress}'"),
         timeout=TCP_TIMEOUT_30SEC,
@@ -214,7 +214,7 @@ def flatten_dict(dictionary, parent_key=""):
 
 def kill_processes_by_name_windows(vm, process_name):
     cmd = shlex.split(f"taskkill /F /IM {process_name}")
-    run_ssh_commands(vm=vm, commands=cmd, timeout=TCP_TIMEOUT_30SEC)
+    run_ssh_command(vm=vm, commands=cmd, timeout=TCP_TIMEOUT_30SEC)
 
 
 def validate_pause_unpause_windows_vm(vm: VirtualMachineForTests, pre_pause_pid: int | None = None) -> None:
@@ -293,7 +293,7 @@ def fetch_gpu_device_name_from_vm_instance(vm):
 
 def get_num_gpu_devices_in_rhel_vm(vm):
     return int(
-        run_ssh_commands(
+        run_ssh_command(
             vm=vm,
             commands=[
                 "bash",
@@ -305,7 +305,7 @@ def get_num_gpu_devices_in_rhel_vm(vm):
 
 
 def get_gpu_device_name_from_windows_vm(vm):
-    return run_ssh_commands(
+    return run_ssh_command(
         vm=vm,
         commands=[shlex.split("wmic path win32_VideoController get name")],
         timeout=TCP_TIMEOUT_30SEC,

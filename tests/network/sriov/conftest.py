@@ -26,7 +26,7 @@ from utilities.network import (
     network_nad,
     sriov_network_dict,
 )
-from utilities.ssh import run_ssh_commands
+from utilities.ssh import run_ssh_command
 from utilities.ssp import create_custom_template_from_url
 from utilities.virt import (
     VirtualMachineForTests,
@@ -205,7 +205,7 @@ def restarted_sriov_vm4(request, sriov_vm4):
 
 def get_vm_sriov_network_mtu(vm):
     return int(
-        run_ssh_commands(
+        run_ssh_command(
             vm=vm,
             commands=shlex.split(f"cat /sys/class/net/{VM_SRIOV_IFACE_NAME}/mtu"),
         )[0]
@@ -213,7 +213,7 @@ def get_vm_sriov_network_mtu(vm):
 
 
 def set_vm_sriov_network_mtu(vm, mtu):
-    run_ssh_commands(
+    run_ssh_command(
         vm=vm,
         commands=shlex.split(f"sudo ip link set {VM_SRIOV_IFACE_NAME} mtu {mtu}"),
     )
@@ -300,7 +300,7 @@ def vm_dpdk_pci_slot(sriov_dpdk_vm1):
     for sample in TimeoutSampler(
         wait_timeout=TIMEOUT_10MIN,
         sleep=TIMEOUT_20SEC,
-        func=run_ssh_commands,
+        func=run_ssh_command,
         vm=sriov_dpdk_vm1,
         commands=shlex.split("dpdk-devbind.py --status"),
     ):
@@ -316,7 +316,7 @@ def vm_dpdk_pci_slot(sriov_dpdk_vm1):
 @pytest.fixture()
 def vm_dpdk_numa_cpu(sriov_dpdk_vm1):
     # Get the CPU list to send to testpmd.
-    lscpu_output = run_ssh_commands(
+    lscpu_output = run_ssh_command(
         vm=sriov_dpdk_vm1,
         commands=["lscpu"],
     )[0]
@@ -328,7 +328,7 @@ def vm_dpdk_numa_cpu(sriov_dpdk_vm1):
 def testpmd_output(vm_dpdk_pci_slot, vm_dpdk_numa_cpu, sriov_dpdk_vm1):
     # testpmd starts tracing traffic and waits for <Enter> to exit and output the statistics.
     # A timeout is provided to have enough runtime for traffic to be collected before sending <Enter>
-    test_output = run_ssh_commands(
+    test_output = run_ssh_command(
         vm=sriov_dpdk_vm1,
         commands=shlex.split(
             f"(sleep 30; echo -ne '\n') | sudo dpdk-testpmd  -l {vm_dpdk_numa_cpu} -w {vm_dpdk_pci_slot}"

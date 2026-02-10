@@ -15,7 +15,7 @@ from timeout_sampler import TimeoutSampler
 from tests.os_params import WINDOWS_2019
 from utilities.bitwarden import get_cnv_tests_secret_by_name
 from utilities.constants import BASE_IMAGES_DIR, OS_FLAVOR_WINDOWS, TCP_TIMEOUT_30SEC, TIMEOUT_5MIN
-from utilities.ssh import run_ssh_commands
+from utilities.ssh import run_ssh_command
 from utilities.ssp import get_windows_timezone
 from utilities.storage import get_downloaded_artifact
 from utilities.virt import VirtualMachineForTests, migrate_vm_and_verify, running_vm
@@ -42,7 +42,7 @@ def verify_changes_from_autounattend(vm, timezone, hostname):
 
     # hostname
     LOGGER.info(f"Verifying hostname change from answer file in vm {vm.name}")
-    actual_hostname = run_ssh_commands(vm=vm, commands=["hostname"], timeout=TCP_TIMEOUT_30SEC)[0].strip()
+    actual_hostname = run_ssh_command(vm=vm, commands=["hostname"], timeout=TCP_TIMEOUT_30SEC)[0].strip()
     assert actual_hostname == hostname, f"Incorrect hostname, expected {hostname}, found {actual_hostname}"
 
 
@@ -147,7 +147,7 @@ def sealed_vm(sysprep_vm):
     the provided answer file on next boot"""
 
     LOGGER.info(f"Sealing VM {sysprep_vm.name}")
-    run_ssh_commands(
+    run_ssh_command(
         vm=sysprep_vm,
         commands=shlex.split(
             "%WINDIR%\\system32\\sysprep\\sysprep.exe /generalize /quit /oobe /mode:vm",

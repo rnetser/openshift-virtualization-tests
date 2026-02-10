@@ -13,7 +13,7 @@ from utilities.constants import (
     OS_FLAVOR_WINDOWS,
     TIMEOUT_5MIN,
 )
-from utilities.ssh import run_ssh_commands
+from utilities.ssh import run_ssh_command
 from utilities.virt import VirtualMachineForTests, vm_instance_from_template, wait_for_windows_vm
 
 LOGGER = logging.getLogger(__name__)
@@ -80,7 +80,7 @@ def configure_rdp_on_server_windows_vm(vm: VirtualMachineForTests) -> None:
         "Restart-Service TermService -Force",
     ]
     for cmd in enable_rdp_cmds:
-        run_ssh_commands(
+        run_ssh_command(
             vm=vm,
             commands=["powershell", "-Command", cmd],
             timeout=TCP_TIMEOUT_SEC,

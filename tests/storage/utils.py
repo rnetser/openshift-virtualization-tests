@@ -40,7 +40,7 @@ from utilities.hco import ResourceEditorValidateHCOReconcile
 from utilities.infra import (
     get_pod_by_name_prefix,
 )
-from utilities.ssh import run_ssh_commands
+from utilities.ssh import run_ssh_command
 from utilities.ssp import validate_os_info_vmi_vs_windows_os
 from utilities.storage import (
     PodWithPVC,
@@ -493,7 +493,7 @@ def assert_windows_directory_existence(
     expected_result: bool, windows_vm: VirtualMachineForTests, directory_path: str
 ) -> None:
     cmd = shlex.split(f'powershell -command "Test-Path -Path {directory_path}"')
-    out = run_ssh_commands(vm=windows_vm, commands=cmd)[0].strip()
+    out = run_ssh_command(vm=windows_vm, commands=cmd)[0].strip()
     assert expected_result == ast.literal_eval(out), f"Directory exist: {out}, expected result: {expected_result}"
 
 
@@ -501,7 +501,7 @@ def create_windows_directory(windows_vm: VirtualMachineForTests, directory_path:
     cmd = shlex.split(
         f'powershell -command "New-Item -Path {directory_path} -ItemType Directory"',
     )
-    run_ssh_commands(vm=windows_vm, commands=cmd)
+    run_ssh_command(vm=windows_vm, commands=cmd)
     assert_windows_directory_existence(
         expected_result=True,
         windows_vm=windows_vm,

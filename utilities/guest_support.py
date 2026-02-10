@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING
 from timeout_sampler import TimeoutSampler
 
 from utilities.constants import HYPERV_FEATURES_LABELS_DOM_XML, TCP_TIMEOUT_30SEC, TIMEOUT_15SEC, TIMEOUT_90SEC
-from utilities.ssh import run_ssh_commands
+from utilities.ssh import run_ssh_command
 
 if TYPE_CHECKING:
     from utilities.virt import VirtualMachineForTests
@@ -21,7 +21,7 @@ def assert_windows_efi(vm: "VirtualMachineForTests") -> None:
     Raises:
         AssertionError: If EFI boot path is not found in the bcdedit output.
     """
-    out = run_ssh_commands(
+    out = run_ssh_command(
         vm=vm,
         commands=shlex.split("bcdedit | findstr EFI"),
         timeout=TCP_TIMEOUT_30SEC,
@@ -121,7 +121,7 @@ def check_windows_vm_hvinfo(vm: "VirtualMachineForTests") -> None:
     sampler = TimeoutSampler(
         wait_timeout=TIMEOUT_90SEC,
         sleep=TIMEOUT_15SEC,
-        func=run_ssh_commands,
+        func=run_ssh_command,
         vm=vm,
         commands=["C:\\\\hvinfo\\\\hvinfo.exe"],
         timeout=TCP_TIMEOUT_30SEC,

@@ -10,7 +10,7 @@ from tests.virt.cluster.vm_cloning.constants import (
     SECOND_DISK_TEST_FILE_STR,
 )
 from utilities.constants import TIMEOUT_1SEC, TIMEOUT_10SEC
-from utilities.ssh import run_ssh_commands
+from utilities.ssh import run_ssh_command
 
 LOGGER = logging.getLogger(__name__)
 
@@ -21,7 +21,7 @@ class VirtualMachineCloneConditionRunningError(Exception):
 
 def check_if_files_present_after_cloning(vm):
     LOGGER.info("Check if files present on the disks after cloning")
-    run_ssh_commands(
+    run_ssh_command(
         vm=vm,
         commands=[
             # check file on a root

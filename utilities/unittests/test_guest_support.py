@@ -27,7 +27,7 @@ from utilities.guest_support import (  # noqa: E402
 class TestAssertWindowsEfi:
     """Test cases for assert_windows_efi function"""
 
-    @patch("utilities.guest_support.run_ssh_commands")
+    @patch("utilities.guest_support.run_ssh_command")
     def test_assert_windows_efi_success(self, mock_run_ssh):
         """Test successful EFI verification when EFI path is found in output"""
         mock_vm = MagicMock()
@@ -43,7 +43,7 @@ class TestAssertWindowsEfi:
 
         mock_run_ssh.assert_called_once()
 
-    @patch("utilities.guest_support.run_ssh_commands")
+    @patch("utilities.guest_support.run_ssh_command")
     def test_assert_windows_efi_failure(self, mock_run_ssh):
         """Test assertion failure when EFI path is not found in output"""
         mock_vm = MagicMock()
@@ -57,7 +57,7 @@ class TestAssertWindowsEfi:
         with pytest.raises(AssertionError, match="EFI boot not found in path"):
             assert_windows_efi(mock_vm)
 
-    @patch("utilities.guest_support.run_ssh_commands")
+    @patch("utilities.guest_support.run_ssh_command")
     def test_assert_windows_efi_partial_path(self, mock_run_ssh):
         """Test assertion failure when only partial EFI path is present"""
         mock_vm = MagicMock()

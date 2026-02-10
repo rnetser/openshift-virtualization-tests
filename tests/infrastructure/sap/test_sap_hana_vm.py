@@ -34,7 +34,7 @@ from utilities.constants import (
 )
 from utilities.infra import ExecCommandOnPod
 from utilities.network import is_destination_pingable_from_vm, network_nad
-from utilities.ssh import run_ssh_commands
+from utilities.ssh import run_ssh_command
 from utilities.ssp import create_custom_template_from_url
 from utilities.virt import (
     VirtualMachineForTestsFromTemplate,
@@ -495,7 +495,7 @@ def vmi_domxml(sap_hana_vm):
 
 @pytest.fixture(scope="class")
 def guest_lscpu_configuration(sap_hana_vm):
-    guest_lscpu_output = run_ssh_commands(vm=sap_hana_vm, commands=[LSCPU_CMD])[0]
+    guest_lscpu_output = run_ssh_command(vm=sap_hana_vm, commands=[LSCPU_CMD])[0]
     return extract_lscpu_info(lscpu_output=guest_lscpu_output)
 
 
@@ -506,7 +506,7 @@ def registered_hana_vm_rhsm(sap_hana_vm):
 
 @pytest.fixture()
 def installed_vm_dump_metrics(registered_hana_vm_rhsm, sap_hana_vm):
-    run_ssh_commands(
+    run_ssh_command(
         vm=sap_hana_vm,
         commands=shlex.split("sudo dnf install -y vm-dump-metrics"),
     )
@@ -514,7 +514,7 @@ def installed_vm_dump_metrics(registered_hana_vm_rhsm, sap_hana_vm):
 
 @pytest.fixture()
 def vm_dump_metrics(sap_hana_vm):
-    metrics = run_ssh_commands(vm=sap_hana_vm, commands=["sudo", "vm-dump-metrics"])
+    metrics = run_ssh_command(vm=sap_hana_vm, commands=["sudo", "vm-dump-metrics"])
     assert metrics, "No metrics are extracted using vm_dump_metrics"
     return metrics
 

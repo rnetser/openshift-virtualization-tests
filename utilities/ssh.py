@@ -10,7 +10,7 @@ from os import environ
 from shlex import join as shlex_join
 from shlex import quote as shlex_quote
 from subprocess import TimeoutExpired
-from typing import TYPE_CHECKING, Iterator, NamedTuple
+from typing import TYPE_CHECKING, Iterator
 
 from pyhelper_utils.shell import run_command as shell_run_command
 from timeout_sampler import TimeoutSampler
@@ -57,14 +57,16 @@ class SSHConnectionError(Exception):
     """Exception raised when SSH connection fails."""
 
 
-class TimezoneInfo(NamedTuple):
+@dataclass(frozen=True)
+class TimezoneInfo:
     """Timezone information structure."""
 
     name: str
     offset: str
 
 
-class KernelInfo(NamedTuple):
+@dataclass(frozen=True)
+class KernelInfo:
     """Kernel information structure."""
 
     release: str
@@ -287,15 +289,15 @@ def run_command(
         raise SSHConnectionError(f"Failed to execute virtctl ssh: {exc}") from exc
 
 
-def run_ssh_commands(
+def run_ssh_command(
     vm: VirtualMachineForTests,
     commands: list[str] | list[list[str]],
     timeout: int | float = TIMEOUT_1MIN,
     check: bool = True,
 ) -> list[str]:
-    """Execute commands on the VM, compatible with pyhelper_utils.run_ssh_commands.
+    """Execute commands on the VM, compatible with pyhelper_utils.run_ssh_command.
 
-    This is a drop-in replacement for pyhelper_utils.run_ssh_commands.
+    This is a drop-in replacement for pyhelper_utils.run_ssh_command.
     It executes commands joined with semicolons.
 
     Args:
@@ -396,11 +398,11 @@ def is_connective(vm: VirtualMachineForTests, timeout: int | float = 30) -> bool
         return False
 
 
-class OSInfo:
+class LinuxOSInfo:
     """OS information accessor for a VM."""
 
     def __init__(self, vm: VirtualMachineForTests) -> None:
-        """Initialize OSInfo.
+        """Initialize LinuxOSInfo.
 
         Args:
             vm: VirtualMachine object.
@@ -447,7 +449,7 @@ class OSInfo:
         """Get kernel information.
 
         Returns:
-            KernelInfo namedtuple with release, version, and type (machine architecture).
+            KernelInfo dataclass with release, version, and type (machine architecture).
         """
         result = run_command(vm=self._vm, command="uname -r; uname -v; uname -m", check=True)
         lines = result.stdout.strip().split("\n")
@@ -462,7 +464,7 @@ class OSInfo:
         """Get timezone information.
 
         Returns:
-            TimezoneInfo namedtuple with name (abbreviation like EST, PST) and offset.
+            TimezoneInfo dataclass with name (abbreviation like EST, PST) and offset.
             The offset is in QEMU guest agent format (seconds / 36).
         """
         result = run_command(vm=self._vm, command="date +%Z", check=True)
@@ -479,11 +481,11 @@ class OSInfo:
         return TimezoneInfo(name=tz_name, offset=offset_value)
 
 
-class PackageManager:
+class LinuxPackageManager:
     """Package manager accessor for a VM, mimicking rrmngmnt Host.package_manager interface."""
 
     def __init__(self, vm: VirtualMachineForTests) -> None:
-        """Initialize PackageManager.
+        """Initialize LinuxPackageManager.
 
         Args:
             vm: VirtualMachine object.
@@ -591,7 +593,6 @@ class FileSystem:
             "scp",
             "--local-ssh-opts=-o StrictHostKeyChecking=no",
             "--local-ssh-opts=-o UserKnownHostsFile=/dev/null",
-            "--local-ssh-opts=-o LogLevel=ERROR",
         ]
 
         if ssh_key_path:
@@ -643,9 +644,9 @@ class SSHClient:
     returned by VirtualMachineForTests.ssh_exec property.
 
     Attributes:
-        os: OSInfo accessor for OS-related queries.
+        os: LinuxOSInfo accessor for OS-related queries.
         network: NetworkInfo accessor for network-related queries.
-        package_manager: PackageManager accessor for package operations.
+        package_manager: LinuxPackageManager accessor for package operations.
         fs: FileSystem accessor for file operations.
     """
 
@@ -656,9 +657,9 @@ class SSHClient:
             vm: VirtualMachine object.
         """
         self._vm = vm
-        self.os = OSInfo(vm=vm)
+        self.os = LinuxOSInfo(vm=vm)
         self.network = NetworkInfo(vm=vm)
-        self.package_manager = PackageManager(vm=vm)
+        self.package_manager = LinuxPackageManager(vm=vm)
         self.fs = FileSystem(vm=vm)
         self.sudo = False
 

@@ -13,7 +13,7 @@ from ocp_resources.template import Template
 from tests.utils import verify_wsl2_guest_works
 from tests.virt.constants import WINDOWS_10_WSL, WINDOWS_11_WSL
 from utilities.constants import TCP_TIMEOUT_30SEC, Images
-from utilities.ssh import run_ssh_commands
+from utilities.ssh import run_ssh_command
 from utilities.virt import (
     VirtualMachineForTestsFromTemplate,
     get_windows_os_dict,
@@ -35,7 +35,7 @@ def get_windows_vm_resource_usage(vm):
     'Windows VM CPU and Memory usage: The CPU usage: 0.9, Memory used(RAM):20.5
     (20.5, 0.9)'
     """
-    usage = run_ssh_commands(
+    usage = run_ssh_command(
         vm=vm,
         commands=shlex.split("python C:\\\\tools\\\\cpu_mem_usage.py"),
         timeout=TCP_TIMEOUT_30SEC,

@@ -19,7 +19,7 @@ from ocp_resources.virtual_machine_cluster_instancetype import VirtualMachineClu
 from pytest_testconfig import config as py_config
 from timeout_sampler import TimeoutExpiredError, TimeoutSampler
 
-from utilities.ssh import run_ssh_commands
+from utilities.ssh import run_ssh_command
 
 if TYPE_CHECKING:
     from ocp_resources.resource import Resource
@@ -190,7 +190,7 @@ def get_windows_timezone(vm: "VirtualMachineForTests", get_standard_name: bool =
     """
     standard_name_cmd = '| findstr "StandardName"' if get_standard_name else ""
     timezone_cmd = shlex.split(f'powershell -command "Get-TimeZone {standard_name_cmd}"')
-    return run_ssh_commands(vm=vm, commands=timezone_cmd, timeout=TCP_TIMEOUT_30SEC)[0]
+    return run_ssh_command(vm=vm, commands=timezone_cmd, timeout=TCP_TIMEOUT_30SEC)[0]
 
 
 def get_ga_version(vm: "VirtualMachineForTests") -> str:
@@ -202,7 +202,7 @@ def get_ga_version(vm: "VirtualMachineForTests") -> str:
     Returns:
         Guest agent version string.
     """
-    return run_ssh_commands(
+    return run_ssh_command(
         vm=vm,
         commands=[
             "powershell",
@@ -224,7 +224,7 @@ def get_cim_instance_json(vm: "VirtualMachineForTests") -> dict:
         Dictionary containing Win32_OperatingSystem CIM instance data.
     """
     return json.loads(
-        run_ssh_commands(
+        run_ssh_command(
             vm=vm,
             commands=shlex.split('powershell -c "Get-CimInstance -Class Win32_OperatingSystem | ConvertTo-Json"'),
         )[0]
@@ -240,7 +240,7 @@ def get_reg_product_name(vm: "VirtualMachineForTests") -> str:
     Returns:
         Registry product name string.
     """
-    return run_ssh_commands(
+    return run_ssh_command(
         vm=vm,
         commands=shlex.split(
             'REG QUERY "HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion" /v "ProductName"'

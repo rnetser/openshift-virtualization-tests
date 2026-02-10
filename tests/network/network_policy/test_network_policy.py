@@ -3,7 +3,7 @@ import shlex
 import pytest
 
 from tests.network.network_policy.libnetpolicy import TEST_PORTS, format_curl_command
-from utilities.ssh import SSHCommandError, run_ssh_commands
+from utilities.ssh import SSHCommandError, run_ssh_command
 
 pytestmark = pytest.mark.sno
 
@@ -24,7 +24,7 @@ def test_network_policy_deny_all_http(
         for port in TEST_PORTS:
             with subtests.test(msg=f"Testing {dst_ip} port {port}"):
                 with pytest.raises(SSHCommandError):
-                    run_ssh_commands(
+                    run_ssh_command(
                         vm=network_policy_vmb, commands=[shlex.split(format_curl_command(ip_address=dst_ip, port=port))]
                     )
 
@@ -43,13 +43,13 @@ def test_network_policy_allow_single_http_port(
     for pod_ip_entry in pod_ips:
         dst_ip = pod_ip_entry["ip"]
         with subtests.test(msg=f"Testing {dst_ip}"):
-            run_ssh_commands(
+            run_ssh_command(
                 vm=network_policy_vmb,
                 commands=[shlex.split(format_curl_command(ip_address=dst_ip, port=TEST_PORTS[0], head=True))],
             )
 
             with pytest.raises(SSHCommandError):
-                run_ssh_commands(
+                run_ssh_command(
                     vm=network_policy_vmb,
                     commands=[shlex.split(format_curl_command(ip_address=dst_ip, port=TEST_PORTS[1], head=True))],
                 )
@@ -68,7 +68,7 @@ def test_network_policy_allow_all_http(
     for pod_ip_entry in pod_ips:
         dst_ip = pod_ip_entry["ip"]
         with subtests.test(msg=f"Testing {dst_ip}"):
-            run_ssh_commands(
+            run_ssh_command(
                 vm=network_policy_vmb,
                 commands=[
                     shlex.split(format_curl_command(ip_address=dst_ip, port=port, head=True)) for port in TEST_PORTS

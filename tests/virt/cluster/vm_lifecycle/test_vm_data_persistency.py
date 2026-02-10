@@ -20,7 +20,7 @@ from utilities.constants import (
     TIMEOUT_5MIN,
     TIMEOUT_30MIN,
 )
-from utilities.ssh import is_connective, run_ssh_commands
+from utilities.ssh import is_connective, run_ssh_command
 from utilities.ssp import get_windows_timezone
 from utilities.virt import (
     guest_reboot,
@@ -97,7 +97,7 @@ def restarted_persistence_vm(request, persistence_vm):
 
 
 def get_linux_timezone(vm):
-    return run_ssh_commands(vm=vm, commands=shlex.split("timedatectl show | grep -i timezone"))[0]
+    return run_ssh_command(vm=vm, commands=shlex.split("timedatectl show | grep -i timezone"))[0]
 
 
 def get_timezone(vm, os):

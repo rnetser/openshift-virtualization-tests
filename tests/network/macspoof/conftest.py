@@ -18,7 +18,7 @@ from utilities.network import (
     network_device,
     network_nad,
 )
-from utilities.ssh import run_ssh_commands
+from utilities.ssh import run_ssh_command
 from utilities.virt import VirtualMachineForTests, fedora_vm_body
 
 ETH1_INTERFACE_NAME = "eth1"
@@ -40,14 +40,14 @@ def _networks_data(nad, ip):
 
 
 def get_vm_bridge_network_mac(vm):
-    return run_ssh_commands(
+    return run_ssh_command(
         vm=vm,
         commands=shlex.split(f"cat /sys/class/net/{ETH1_INTERFACE_NAME}/address"),
     )[0].strip()
 
 
 def set_vm_interface_network_mac(vm, mac):
-    run_ssh_commands(
+    run_ssh_command(
         vm=vm,
         commands=shlex.split(f"sudo ip link set dev {ETH1_INTERFACE_NAME} address {mac}"),
     )

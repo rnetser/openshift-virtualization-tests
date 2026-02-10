@@ -22,7 +22,7 @@ from utilities.artifactory import (
     get_artifactory_secret,
 )
 from utilities.constants import TCP_TIMEOUT_30SEC, TIMEOUT_5MIN, TIMEOUT_30MIN, TIMEOUT_40MIN, TIMEOUT_60MIN, WIN_10
-from utilities.ssh import run_ssh_commands
+from utilities.ssh import run_ssh_command
 from utilities.storage import get_test_artifact_server_url
 from utilities.virt import (
     VirtualMachineForTests,
@@ -80,7 +80,7 @@ def start_process_in_guest(vm, os_type):
 
 def reboot_vm(vm):
     try:
-        run_ssh_commands(
+        run_ssh_command(
             vm=vm,
             commands=shlex.split("powershell restart-computer -force"),
             timeout=TCP_TIMEOUT_30SEC,
@@ -95,7 +95,7 @@ def reboot_vm(vm):
 def start_win_upgrade_multi_vms(vm_list):
     def _set_interface_mtu(vm):
         interface_name = "Ethernet 2" if WIN_10 in vm.name else "Ethernet Instance 0"
-        run_ssh_commands(
+        run_ssh_command(
             vm=vm,
             commands=shlex.split(f'netsh interface ipv4 set subinterface "{interface_name}" mtu=1400 store=persistent'),
         )
@@ -116,7 +116,7 @@ def start_win_upgrade_multi_vms(vm_list):
                 rf'-DestinationPath {ADMIN_DOWNLOADS_FOLDER_PATH}\PSExec"'
             ),
         ]
-        run_ssh_commands(vm=vm, commands=win_upgrade_prepare_cmds)
+        run_ssh_command(vm=vm, commands=win_upgrade_prepare_cmds)
 
     def _start_win_upgrade(vm):
         LOGGER.info(f"VM {vm.name}: Starting upgrade process")
@@ -132,7 +132,7 @@ def start_win_upgrade_multi_vms(vm_list):
         # Here stage #1 occures
 
         try:
-            run_ssh_commands(
+            run_ssh_command(
                 vm=vm,
                 commands=win_upgrade_psexec_trigger_cmd,
                 timeout=TIMEOUT_40MIN,
@@ -202,7 +202,7 @@ def verify_windows_upgraded_recently_multi_vms(vm_list):
 
     failed_vms_list = []
     for vm in vm_list:
-        if not run_ssh_commands(vm=vm, commands=get_upgrade_history_cmd)[0]:
+        if not run_ssh_command(vm=vm, commands=get_upgrade_history_cmd)[0]:
             failed_vms_list.append(vm.name)
 
     assert not failed_vms_list, f"Some VMs failed to upgrade! Falied VMs: {failed_vms_list}"

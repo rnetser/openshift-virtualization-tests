@@ -6,7 +6,7 @@ from ocp_resources.virtual_machine_snapshot import VirtualMachineSnapshot
 
 from tests.storage.snapshots.constants import ERROR_MSG_USER_CANNOT_CREATE_VM_SNAPSHOTS
 from utilities.constants import TIMEOUT_10MIN
-from utilities.ssh import run_ssh_commands
+from utilities.ssh import run_ssh_command
 from utilities.virt import running_vm
 
 
@@ -60,7 +60,7 @@ def run_command_on_vm_and_check_output(vm, command, expected_result):
     Raises:
         AssertionError: If expected result is not in output.
     """
-    cmd_output = run_ssh_commands(
+    cmd_output = run_ssh_command(
         vm=vm,
         commands=shlex.split(f"bash -c {shlex.quote(command)}"),
     )[0].strip()

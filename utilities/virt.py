@@ -8,6 +8,7 @@ import os
 import re
 import secrets
 import shlex
+import warnings
 from collections import defaultdict
 from contextlib import contextmanager
 from functools import cache
@@ -88,7 +89,7 @@ from utilities.hco import get_hco_namespace, wait_for_hco_conditions
 from utilities.ssh import (
     SSHClient,
     SSHCommandError,
-    run_ssh_commands,
+    run_ssh_command,
 )
 from utilities.ssh import (
     wait_for_ssh_connectivity as ssh_wait_for_connectivity,
@@ -1539,8 +1540,6 @@ def wait_for_ssh_connectivity(
         tcp_timeout: Individual connection timeout (unused, kept for API compatibility).
     """
     if tcp_timeout != TIMEOUT_1MIN:
-        import warnings
-
         warnings.warn(
             message="tcp_timeout parameter is deprecated and ignored",
             category=DeprecationWarning,
@@ -2332,7 +2331,7 @@ def add_validation_rule_to_annotation(vm_annotation, vm_validation_rule):
 def start_and_fetch_processid_on_linux_vm(vm, process_name, args="", use_nohup=False):
     utilities.virt.wait_for_ssh_connectivity(vm=vm)
     nohup_cmd = "nohup" if use_nohup else ""
-    run_ssh_commands(
+    run_ssh_command(
         vm=vm,
         commands=shlex.split(f"killall -9 {process_name}; {nohup_cmd} {process_name} {args} </dev/null &>/dev/null &"),
     )
@@ -2340,7 +2339,7 @@ def start_and_fetch_processid_on_linux_vm(vm, process_name, args="", use_nohup=F
 
 
 def fetch_pid_from_linux_vm(vm, process_name):
-    cmd_res = run_ssh_commands(
+    cmd_res = run_ssh_command(
         vm=vm,
         commands=shlex.split(f"pgrep {process_name} -x || true"),
     )[0].strip()
@@ -2350,7 +2349,7 @@ def fetch_pid_from_linux_vm(vm, process_name):
 
 def start_and_fetch_processid_on_windows_vm(vm, process_name):
     wait_for_ssh_connectivity(vm=vm)
-    run_ssh_commands(
+    run_ssh_command(
         vm=vm,
         commands=shlex.split(
             f"powershell Invoke-WmiMethod -Class Win32_Process -Name Create -ArgumentList {process_name}"
@@ -2360,7 +2359,7 @@ def start_and_fetch_processid_on_windows_vm(vm, process_name):
 
 
 def fetch_pid_from_windows_vm(vm, process_name):
-    cmd_res = run_ssh_commands(
+    cmd_res = run_ssh_command(
         vm=vm,
         commands=shlex.split(f"powershell -Command (Get-Process -Name {process_name.removesuffix('.exe')}).Id"),
     )[0].strip()
@@ -2370,7 +2369,7 @@ def fetch_pid_from_windows_vm(vm, process_name):
 
 def kill_processes_by_name_linux(vm, process_name, check_rc=True):
     cmd = shlex.split(f"pkill {process_name}")
-    run_ssh_commands(vm=vm, commands=cmd, check=check_rc)
+    run_ssh_command(vm=vm, commands=cmd, check=check_rc)
 
 
 class VirtualMachineForCloning(VirtualMachineForTests):
@@ -2462,7 +2461,7 @@ def assert_linux_efi(vm: VirtualMachineForTests) -> None:
     """
     Verify guest OS is using EFI.
     """
-    run_ssh_commands(vm=vm, commands=shlex.split("ls -ld /sys/firmware/efi"))
+    run_ssh_command(vm=vm, commands=shlex.split("ls -ld /sys/firmware/efi"))
 
 
 def pause_unpause_vm_and_check_connectivity(vm: VirtualMachineForTests) -> None:
@@ -2608,7 +2607,7 @@ def get_vm_boot_time(vm: VirtualMachineForTests) -> str:
         if "windows" in vm.name  # type: ignore[operator]
         else "who -b"
     )
-    return run_ssh_commands(vm=vm, commands=shlex.split(boot_command))[0]
+    return run_ssh_command(vm=vm, commands=shlex.split(boot_command))[0]
 
 
 def username_password_from_cloud_init(vm_volumes: list[dict[str, Any]]) -> tuple[str, str]:
@@ -2660,7 +2659,7 @@ def guest_reboot(vm: VirtualMachineForTests, os_type: str) -> None:
 
 def run_os_command(vm: VirtualMachineForTests, command: str) -> Optional[str]:
     try:
-        return run_ssh_commands(
+        return run_ssh_command(
             vm=vm,
             commands=shlex.split(command),
             timeout=5,

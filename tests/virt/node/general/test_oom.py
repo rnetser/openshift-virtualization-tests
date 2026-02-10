@@ -15,7 +15,7 @@ from tests.os_params import WINDOWS_10_TEMPLATE_LABELS
 from tests.utils import start_stress_on_vm
 from tests.virt.constants import WINDOWS_10_WSL
 from utilities.constants import STRESS_CPU_MEM_IO_COMMAND, TCP_TIMEOUT_30SEC, TIMEOUT_15MIN, Images
-from utilities.ssh import run_ssh_commands
+from utilities.ssh import run_ssh_command
 from utilities.virt import VirtualMachineForTests, fedora_vm_body, running_vm
 
 pytestmark = pytest.mark.tier3
@@ -66,7 +66,7 @@ def start_file_transfer(vm):
         while not stop_event.is_set():
             vm.ssh_exec.fs.transfer(path_src=file_name, target_host=vm.ssh_exec.fs, path_dst="new_file")
 
-    run_ssh_commands(
+    run_ssh_command(
         vm=vm,
         commands=shlex.split(f"{'wsl' if 'windows' in vm.name else ''} dd if=/dev/zero of={file_name} bs=100M count=1"),
         timeout=TCP_TIMEOUT_30SEC,

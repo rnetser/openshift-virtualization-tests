@@ -34,7 +34,7 @@ from utilities.constants import (
     Images,
 )
 from utilities.infra import create_ns
-from utilities.ssh import run_ssh_commands
+from utilities.ssh import run_ssh_command
 from utilities.storage import (
     create_dv,
     data_volume_template_with_source_ref_dict,
@@ -329,7 +329,7 @@ def vm_for_storage_class_migration_with_hotplugged_volume(
 @pytest.fixture(scope="class")
 def vm_with_mounted_hotplugged_disk(vm_for_storage_class_migration_with_hotplugged_volume):
     # Mount the disk to the VM
-    run_ssh_commands(
+    run_ssh_command(
         vm=vm_for_storage_class_migration_with_hotplugged_volume,
         commands=[
             shlex.split(cmd)
@@ -345,7 +345,7 @@ def vm_with_mounted_hotplugged_disk(vm_for_storage_class_migration_with_hotplugg
 
 @pytest.fixture(scope="class")
 def written_file_to_the_mounted_hotplugged_disk(vm_with_mounted_hotplugged_disk):
-    run_ssh_commands(
+    run_ssh_command(
         vm=vm_with_mounted_hotplugged_disk,
         commands=shlex.split(
             f"echo '{CONTENT}' | sudo tee {MOUNT_HOTPLUGGED_DEVICE_PATH}/{FILE_BEFORE_STORAGE_MIGRATION}"
@@ -403,7 +403,7 @@ def written_file_to_windows_vms_before_migration(booted_vms_for_storage_class_mi
         cmd = shlex.split(
             f'powershell -command "\\"{CONTENT}\\" | Out-File -FilePath {WINDOWS_FILE_WITH_PATH} -Append"'
         )
-        run_ssh_commands(vm=vm, commands=cmd)
+        run_ssh_command(vm=vm, commands=cmd)
     yield booted_vms_for_storage_class_migration
 
 

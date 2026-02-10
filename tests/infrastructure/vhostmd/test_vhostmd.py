@@ -15,7 +15,7 @@ from utilities.artifactory import get_artifactory_header
 from utilities.constants import S390X, TIMEOUT_3MIN, TIMEOUT_30SEC
 from utilities.hco import ResourceEditorValidateHCOReconcile
 from utilities.infra import get_node_selector_dict, get_node_selector_name
-from utilities.ssh import run_ssh_commands
+from utilities.ssh import run_ssh_command
 from utilities.virt import (
     running_vm,
     vm_instance_from_template,
@@ -34,7 +34,7 @@ RPMS_REPO_URL = f"{py_config['servers']['https_server']}cnv-tests/rpms/"
 
 def download_and_install_vm_dump_metrics(vm, rpm_file_name):
     LOGGER.info(f"Download and install vm-dump-metrics tool to VM: {vm.name}")
-    run_ssh_commands(
+    run_ssh_command(
         vm=vm,
         commands=[
             *shlex.split(
@@ -120,7 +120,7 @@ def running_vhostmd_vm2(vhostmd_vm2, rpm_file_name):
 
 
 def run_vm_dump_metrics(vm):
-    return run_ssh_commands(
+    return run_ssh_command(
         vm=vm,
         commands=["sudo", "vm-dump-metrics"],
     )[0]
