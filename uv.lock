@@ -2,6 +2,9 @@ version = 1
 revision = 3
 requires-python = ">=3.14"
 
+[manifest]
+overrides = [{ name = "python-rrmngmnt", git = "https://github.com/rnetser/python-rrmngmnt.git?branch=update-paramiko" }]
+
 [[package]]
 name = "annotated-types"
 version = "0.7.0"
@@ -1352,7 +1355,7 @@ requires-dist = [
     { name = "pytest-watch", marker = "extra == 'utilities-test'", specifier = ">=4.2.0" },
     { name = "pytest-xdist", marker = "extra == 'utilities-test'", specifier = ">=3.5.0" },
     { name = "python-benedict", specifier = ">=0.34.0" },
-    { name = "python-rrmngmnt", specifier = ">=0.1.32" },
+    { name = "python-rrmngmnt", git = "https://github.com/rnetser/python-rrmngmnt.git?branch=update-paramiko" },
     { name = "python-simple-logger", specifier = ">=2.0.13" },
     { name = "python-utility-scripts", specifier = ">=1.0.1" },
     { name = "pyvmomi", specifier = ">=8.0.3.0.1" },
@@ -2183,16 +2186,12 @@ wheels = [
 
 [[package]]
 name = "python-rrmngmnt"
-version = "0.2.1"
-source = { registry = "https://pypi.org/simple" }
+version = "0.0.0.post173.dev0+1a6f625"
+source = { git = "https://github.com/rnetser/python-rrmngmnt.git?branch=update-paramiko#1a6f62520cb99d93748805333a44d42cd569d5ba" }
 dependencies = [
     { name = "netaddr" },
     { name = "paramiko" },
     { name = "six" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/7a/80/81321015909e9f7a1c56f67b0e5c84350cdd96c829a6bab49725a23f5956/python_rrmngmnt-0.2.1.tar.gz", hash = "sha256:f03c2332db56d78f72db4f6ad9cab374c5afd42d964c4453a4e989b7ebc0cec0", size = 150909, upload-time = "2025-12-05T08:28:26.195Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/07/07/ad9fc7c3c25f3e02aad0cff8e59d7643ebebe8368229da0a5f8a214f0b2c/python_rrmngmnt-0.2.1-py3-none-any.whl", hash = "sha256:317679b72dcf24b11274fd6a6207f4b2f74f0d550f8bdab28a4bca15ddfe0556", size = 49920, upload-time = "2025-12-05T08:28:25.136Z" },
 ]
 
 [[package]]
