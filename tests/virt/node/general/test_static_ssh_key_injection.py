@@ -74,4 +74,6 @@ class TestVMWithStaticKeyInjection:
                 ssh_secret: {"data": {"id_rsa.pub": base64_encode_str(text="ssh-rsa junk-pub-key root@exec1.rdocloud")}}
             }
         ):
-            assert is_connective(vm=vm_with_ssh_secret)
+            assert is_connective(vm=vm_with_ssh_secret), (
+                "VM should remain accessible via SSH after secret update, proving static key injection"
+            )

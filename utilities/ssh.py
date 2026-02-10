@@ -332,19 +332,51 @@ def wait_for_ssh_connectivity(
 
     Raises:
         TimeoutExpiredError: If SSH is not available within timeout.
+            The original exception is preserved in TimeoutExpiredError.last_exp
+            for debugging purposes.
     """
     LOGGER.info("Waiting for SSH connectivity", extra={"vm": vm.name, "timeout": timeout})
 
     for sample in TimeoutSampler(
         wait_timeout=timeout,
         sleep=5,
-        func=is_connective,
+        func=_check_ssh_connectivity,
+        exceptions_dict={SSHCommandError: [], SSHConnectionError: []},
         vm=vm,
         timeout=30,
     ):
         if sample:
             LOGGER.info("SSH connectivity established", extra={"vm": vm.name})
             return
+
+
+def _check_ssh_connectivity(vm: VirtualMachineForTests, timeout: int | float = 30) -> bool:
+    """Check if SSH connection to VM is available.
+
+    This function is intended for use with TimeoutSampler. Exceptions are NOT
+    caught here - they propagate to TimeoutSampler which includes them in
+    TimeoutExpiredError.last_exp for debugging.
+
+    Args:
+        vm: VirtualMachine object.
+        timeout: Connection timeout in seconds.
+
+    Returns:
+        True if SSH connection works, False otherwise.
+
+    Raises:
+        SSHCommandError: If the SSH command fails.
+        SSHConnectionError: If the SSH connection cannot be established.
+    """
+    result = run_command(vm=vm, command="exit", timeout=timeout, check=False)
+    if result.returncode != 0:
+        raise SSHCommandError(
+            message=f"SSH connectivity check failed with exit code {result.returncode}",
+            returncode=result.returncode,
+            stdout=result.stdout,
+            stderr=result.stderr,
+        )
+    return True
 
 
 def is_connective(vm: VirtualMachineForTests, timeout: int | float = 30) -> bool:

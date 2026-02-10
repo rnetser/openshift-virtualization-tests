@@ -21,8 +21,8 @@ def test_network_policy_deny_all_http(
     pod_ips = network_policy_vma.vmi.virt_launcher_pod.instance.status.podIPs
     for pod_ip_entry in pod_ips:
         dst_ip = pod_ip_entry["ip"]
-        with subtests.test(msg=f"Testing {dst_ip}"):
-            for port in TEST_PORTS:
+        for port in TEST_PORTS:
+            with subtests.test(msg=f"Testing {dst_ip} port {port}"):
                 with pytest.raises(SSHCommandError):
                     run_ssh_commands(
                         vm=network_policy_vmb, commands=[shlex.split(format_curl_command(ip_address=dst_ip, port=port))]
