@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 """
-Online Resize Tests - PVC Expansion While VM Running
+Online resize (PVC expanded while VM running)
 """
 
 import logging
@@ -45,23 +45,7 @@ def test_sequential_disk_expand(
     rhel_vm_for_online_resize,
     running_rhel_vm,
 ):
-    """
-    Test that a running VM's disk can be expanded multiple times sequentially.
-
-    Markers:
-        - gating
-
-    Preconditions:
-        - DataVolume with RHEL image
-        - VM using the DataVolume as boot disk
-        - VM is running
-
-    Steps:
-        1. Expand PVC by the smallest possible increment and wait for resize (repeat 6 times)
-
-    Expected:
-        - All 6 resize operations complete successfully
-    """
+    # Expand PVC and wait for resize 6 times
     for _ in range(6):
         with wait_for_resize(vm=rhel_vm_for_online_resize):
             expand_pvc(dv=rhel_dv_for_online_resize, size_change=SMALLEST_POSSIBLE_EXPAND)
