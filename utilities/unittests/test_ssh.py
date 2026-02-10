@@ -209,7 +209,7 @@ class TestBuildVirtctlSshCommand:
         assert "-l" in result
         assert "--command" in result
         assert "--identity-file" not in result
-        assert "test-vm" in result
+        assert "vm/test-vm" in result
         assert "testuser" in result
 
     def test_build_command_with_ssh_key(self):

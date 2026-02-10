@@ -173,7 +173,7 @@ def _build_virtctl_ssh_command(
     if ssh_key_path:
         virtctl_cmd.extend(["--identity-file", ssh_key_path])
 
-    virtctl_cmd.extend(["--command", command, vm_name])
+    virtctl_cmd.extend(["--command", command, f"vm/{vm_name}"])
 
     if password:
         # Wrap with sshpass for password-based authentication
