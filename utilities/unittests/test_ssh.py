@@ -211,6 +211,8 @@ class TestBuildVirtctlSshCommand:
         assert "--identity-file" not in result
         assert "vm/test-vm" in result
         assert "testuser" in result
+        assert "--local-ssh-opts=-o StrictHostKeyChecking=no" in result
+        assert "--local-ssh-opts=-o UserKnownHostsFile=/dev/null" in result
 
     def test_build_command_with_ssh_key(self):
         """Test building virtctl ssh command with SSH key"""
@@ -223,6 +225,8 @@ class TestBuildVirtctlSshCommand:
         )
         assert "--identity-file" in result
         assert "/path/to/key" in result
+        assert "--local-ssh-opts=-o StrictHostKeyChecking=no" in result
+        assert "--local-ssh-opts=-o UserKnownHostsFile=/dev/null" in result
 
     def test_build_command_with_password(self):
         """Test building virtctl ssh command with password wraps with sshpass"""
@@ -237,6 +241,8 @@ class TestBuildVirtctlSshCommand:
         assert result[1] == "-p"
         assert result[2] == "testpass"
         assert "virtctl" in result[3] or result[3].endswith("virtctl")
+        assert "--local-ssh-opts=-o StrictHostKeyChecking=no" in result
+        assert "--local-ssh-opts=-o UserKnownHostsFile=/dev/null" in result
 
 
 class TestGetVmCredentials:

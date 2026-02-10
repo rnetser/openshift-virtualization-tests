@@ -168,6 +168,8 @@ def _build_virtctl_ssh_command(
         namespace,
         "-l",
         username,
+        "--local-ssh-opts=-o StrictHostKeyChecking=no",
+        "--local-ssh-opts=-o UserKnownHostsFile=/dev/null",
     ]
 
     if ssh_key_path:
