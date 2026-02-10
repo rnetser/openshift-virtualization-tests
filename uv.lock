@@ -2186,8 +2186,8 @@ wheels = [
 
 [[package]]
 name = "python-rrmngmnt"
-version = "0.0.0.post174.dev0+e1b40a2"
-source = { git = "https://github.com/rnetser/python-rrmngmnt.git?branch=update-paramiko#e1b40a20e3dd38d7c37b81cfcecb77a9e7af224d" }
+version = "0.0.0.post176.dev0+05f8e8f"
+source = { git = "https://github.com/rnetser/python-rrmngmnt.git?branch=update-paramiko#05f8e8fdf62e97d8d13581e1cd60a42bc35cb3fe" }
 dependencies = [
     { name = "netaddr" },
     { name = "paramiko" },
