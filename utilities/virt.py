@@ -1080,9 +1080,7 @@ class VirtualMachineForTests(VirtualMachine):
         else:
             host_user = user.UserWithPKey(name=self.username, private_key=os.environ[CNV_VM_SSH_KEY_PATH])
         host.executor_user = host_user
-        host.executor_factory = ssh.RemoteExecutorFactory(
-            sock=self.virtctl_port_forward_cmd,
-        )
+        host.executor_factory = ssh.RemoteExecutorFactory(sock=self.virtctl_port_forward_cmd, banner_timeout=60)
         return host
 
     def wait_for_specific_status(self, status, timeout=TIMEOUT_3MIN, sleep=TIMEOUT_5SEC):
