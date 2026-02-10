@@ -508,6 +508,74 @@ class TestGetWindowsOsInfo:
         }
         assert result == expected
 
+    @patch("utilities.ssp.get_reg_product_name")
+    @patch("utilities.ssp.get_cim_instance_json")
+    def test_get_windows_os_info_invalid_caption_version(self, mock_cim, mock_reg):
+        """Test ValueError when Caption doesn't contain version pattern"""
+        mock_vm = MagicMock()
+        mock_cim.return_value = {
+            "CSName": "test-host",
+            "BuildNumber": "19042",
+            "Caption": "No version here",  # No digits to match (.+\d+)
+            "Version": "10.0.19042",
+            "OSArchitecture": "64-bit",
+        }
+        mock_reg.return_value = "REG_SZ    Windows Server 2019\r\n"
+
+        with pytest.raises(ValueError, match="Failed to extract version from Caption"):
+            get_windows_os_info(vm=mock_vm)
+
+    @patch("utilities.ssp.get_reg_product_name")
+    @patch("utilities.ssp.get_cim_instance_json")
+    def test_get_windows_os_info_invalid_registry_format(self, mock_cim, mock_reg):
+        """Test ValueError when registry product name doesn't match expected format"""
+        mock_vm = MagicMock()
+        mock_cim.return_value = {
+            "CSName": "test-host",
+            "BuildNumber": "19042",
+            "Caption": "Microsoft Windows Server 2019",
+            "Version": "10.0.19042",
+            "OSArchitecture": "64-bit",
+        }
+        mock_reg.return_value = "Invalid format without REG_SZ"  # No REG_SZ\s+(.+)\r\n pattern
+
+        with pytest.raises(ValueError, match="Failed to extract pretty name from registry"):
+            get_windows_os_info(vm=mock_vm)
+
+    @patch("utilities.ssp.get_reg_product_name")
+    @patch("utilities.ssp.get_cim_instance_json")
+    def test_get_windows_os_info_invalid_caption_version_id(self, mock_cim, mock_reg):
+        """Test ValueError when Caption doesn't contain version ID pattern"""
+        mock_vm = MagicMock()
+        mock_cim.return_value = {
+            "CSName": "test-host",
+            "BuildNumber": "19042",
+            "Caption": "123",  # Has digits for first pattern but no \D+(\d+) pattern
+            "Version": "10.0.19042",
+            "OSArchitecture": "64-bit",
+        }
+        mock_reg.return_value = "REG_SZ    Windows Server 2019\r\n"
+
+        with pytest.raises(ValueError, match="Failed to extract version ID from Caption"):
+            get_windows_os_info(vm=mock_vm)
+
+    @patch("utilities.ssp.get_reg_product_name")
+    @patch("utilities.ssp.get_cim_instance_json")
+    def test_get_windows_os_info_invalid_kernel_version(self, mock_cim, mock_reg):
+        """Test ValueError when Version doesn't contain kernel version pattern"""
+        mock_vm = MagicMock()
+        mock_cim.return_value = {
+            "CSName": "test-host",
+            "BuildNumber": "19042",
+            "Caption": "Microsoft Windows Server 2019",
+            "Version": "invalid",  # No (\d+\.\d+)\. pattern
+            "OSArchitecture": "64-bit",
+        }
+        mock_reg.return_value = "REG_SZ    Windows Server 2019\r\n"
+
+        with pytest.raises(ValueError, match="Failed to extract kernel version from Version"):
+            get_windows_os_info(vm=mock_vm)
+
 
 class TestValidateOsInfoVmiVsWindowsOs:
     """Test cases for validate_os_info_vmi_vs_windows_os function"""
