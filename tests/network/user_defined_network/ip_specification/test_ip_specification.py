@@ -7,11 +7,29 @@ STP Reference:
 https://github.com/RedHatQE/openshift-virtualization-tests-design-docs/blob/main/stps/sig-network/ip-request.md
 """
 
-__test__ = False
+import ipaddress
+from typing import Final
 
 import pytest
 
+from libs.net.traffic_generator import TcpServer, client_server_active_connection, is_tcp_connection
+from libs.net.traffic_generator import VMTcpClient as TcpClient
+from libs.net.vmspec import lookup_iface_status_ip, lookup_primary_network
+from libs.vm.vm import BaseVirtualMachine
+from tests.network.libs import cloudinit
+from tests.network.user_defined_network.ip_specification.libipspec import (
+    ip_address_annotation,
+    read_guest_interface_ipv4,
+)
+from utilities.constants import PUBLIC_DNS_SERVER_IP
+from utilities.virt import migrate_vm_and_verify
 
+FIRST_GUEST_IFACE_NAME: Final[str] = "eth0"
+
+
+@pytest.mark.ipv4
+@pytest.mark.single_nic
+@pytest.mark.incremental
 class TestVMWithExplicitIPAddressSpecification:
     """
     Tests for VM with an IP address explicitly defined for the primary UDN.
@@ -29,7 +47,12 @@ class TestVMWithExplicitIPAddressSpecification:
     """
 
     @pytest.mark.polarion("CNV-13120")
-    def test_vm_is_started_with_successful_connectivity(self):
+    def test_vm_is_started_with_successful_connectivity(
+        self,
+        vm_under_test: BaseVirtualMachine,
+        vm_for_connectivity_ref: BaseVirtualMachine,
+        ip_to_request: ipaddress.IPv4Interface | ipaddress.IPv6Interface,
+    ) -> None:
         """
         Test that a VM with an explicit IP address specified is started successfully and is reachable.
 
@@ -47,9 +70,37 @@ class TestVMWithExplicitIPAddressSpecification:
             - IP address reported by VMI status and guest OS is the same as the one specified.
             - Verify that the VM is reachable from the ref VM.
         """
+        vm_logical_net_name = lookup_primary_network(vm=vm_under_test).name
+        vm_under_test.update_template_annotations(
+            template_annotations=ip_address_annotation(ip_address=ip_to_request, network_name=vm_logical_net_name)
+        )
+
+        netdata = cloudinit.NetworkData(
+            ethernets={
+                FIRST_GUEST_IFACE_NAME: cloudinit.EthernetDevice(
+                    addresses=[str(ip_to_request)],
+                    gateway4=str(next(ipaddress.ip_network(address=ip_to_request, strict=False).hosts())),
+                )
+            }
+        )
+        vm_under_test.add_cloud_init(netdata=netdata)
+
+        vm_under_test.start()
+        vm_under_test.wait_for_agent_connected()
+        assigned_ip = lookup_iface_status_ip(vm=vm_under_test, iface_name=vm_logical_net_name, ip_family=4)
+
+        assert assigned_ip == ip_to_request.ip
+        assert read_guest_interface_ipv4(vm=vm_under_test, interface_name=FIRST_GUEST_IFACE_NAME) == ip_to_request
+
+        with client_server_active_connection(
+            client_vm=vm_for_connectivity_ref,
+            server_vm=vm_under_test,
+            spec_logical_network=vm_logical_net_name,
+        ) as (client, server):
+            assert is_tcp_connection(server=server, client=client)
 
     @pytest.mark.polarion("CNV-12582")
-    def test_successful_external_connectivity(self):
+    def test_successful_external_connectivity(self, vm_under_test: BaseVirtualMachine) -> None:
         """
         Test that a VM with an explicit IP address specified is reaching an external IP address.
 
@@ -63,9 +114,13 @@ class TestVMWithExplicitIPAddressSpecification:
         Expected:
             - Verify that the ping command succeeds with 0% packet loss.
         """
+        assert vm_under_test.console(commands=[f"ping -c 3 {PUBLIC_DNS_SERVER_IP}"], timeout=30)
 
     @pytest.mark.polarion("CNV-12586")
-    def test_seamless_in_cluster_connectivity_is_preserved_over_live_migration(self):
+    def test_seamless_cluster_connectivity_is_preserved_over_live_migration(
+        self,
+        client_server_tcp_connectivity_between_vms: tuple[TcpClient, TcpServer],
+    ) -> None:
         """
         Test that a VM with an explicit IP address specified can preserve connectivity during live migration.
 
@@ -81,11 +136,20 @@ class TestVMWithExplicitIPAddressSpecification:
         Expected:
             - The initial TCP connection is preserved (no disconnection).
         """
+        client, server = client_server_tcp_connectivity_between_vms
+
+        migrate_vm_and_verify(vm=server.vm)
+
+        assert is_tcp_connection(server=server, client=client)
 
     @pytest.mark.polarion("CNV-12585")
-    def test_ip_address_is_preserved_over_power_lifecycle(self):
+    def test_ip_address_is_preserved_over_power_cycle(
+        self,
+        vm_under_test: BaseVirtualMachine,
+        ip_to_request: ipaddress.IPv4Interface | ipaddress.IPv6Interface,
+    ) -> None:
         """
-        Test that a VM with an explicit IP address specified can preserve its IP address over a power lifecycle
+        Test that a VM with an explicit IP address specified can preserve its IP address over a power cycle
         (VM is stopped and started again).
 
         Preconditions:
@@ -99,3 +163,11 @@ class TestVMWithExplicitIPAddressSpecification:
         Expected:
             - IP address reported by VMI status and guest OS is the same as the one specified.
         """
+        vm_under_test.restart(wait=True)
+        vm_under_test.wait_for_agent_connected()
+
+        vm_logical_net_name = lookup_primary_network(vm=vm_under_test).name
+        assigned_ip = lookup_iface_status_ip(vm=vm_under_test, iface_name=vm_logical_net_name, ip_family=4)
+
+        assert assigned_ip == ip_to_request.ip
+        assert read_guest_interface_ipv4(vm=vm_under_test, interface_name=FIRST_GUEST_IFACE_NAME) == ip_to_request
