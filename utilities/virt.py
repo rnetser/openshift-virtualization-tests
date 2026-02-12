@@ -22,7 +22,7 @@ import yaml
 from benedict import benedict
 from kubernetes.client import ApiException
 from kubernetes.dynamic import DynamicClient
-from kubernetes.dynamic.exceptions import NotFoundError
+from kubernetes.dynamic.exceptions import NotFoundError, ResourceNotFoundError
 from ocp_resources.daemonset import DaemonSet
 from ocp_resources.datavolume import DataVolume
 from ocp_resources.kubevirt import KubeVirt
@@ -1096,9 +1096,98 @@ class VirtualMachineForTests(VirtualMachine):
             LOGGER.error(f"Status of {self.kind} {self.name} is {status}")
             raise
 
-    @property
-    def privileged_vmi(self):
-        return VirtualMachineInstance(client=get_client(), name=self.name, namespace=self.namespace)
+    def get_xml_dict(self, admin_client: DynamicClient) -> dict:
+        """Get the libvirt domain XML as a parsed dictionary.
+
+        Args:
+            admin_client: Privileged cluster client.
+
+        Returns:
+            dict: Parsed XML domain dictionary.
+        """
+        return VirtualMachineInstance(client=admin_client, name=self.name, namespace=self.namespace).xml_dict
+
+    def get_virt_launcher_pod(self, admin_client: DynamicClient) -> Pod:
+        """Get the virt-launcher pod for this VM.
+
+        Args:
+            admin_client: Privileged cluster client.
+
+        Returns:
+            Pod: The virt-launcher pod.
+        """
+        vmi = self.vmi
+        pods = list(
+            Pod.get(
+                client=admin_client,
+                namespace=self.namespace,
+                label_selector=f"kubevirt.io=virt-launcher,kubevirt.io/created-by={vmi.instance.metadata.uid}",
+            )
+        )
+        if not pods:
+            raise ResourceNotFoundError(f"virt-launcher pod not found for {self.kind}:{self.name}")
+
+        migration_state = vmi.instance.status.migrationState
+        if migration_state:
+            for pod in pods:
+                if migration_state.targetPod == pod.name:
+                    return pod
+
+        return pods[0]
+
+    def get_vmi_node(self, admin_client: DynamicClient) -> Node:
+        """Get the node where this VM is running.
+
+        Args:
+            admin_client: Privileged cluster client.
+
+        Returns:
+            Node: The node hosting this VM.
+        """
+        return Node(
+            client=admin_client,
+            name=self.vmi.instance.status.nodeName,
+        )
+
+    def pause_vmi(self, admin_client: DynamicClient, wait: bool = True) -> None:
+        """Pause this VM's instance.
+
+        Args:
+            admin_client: Privileged cluster client.
+            wait: Wait for pause to complete.
+        """
+        VirtualMachineInstance(client=admin_client, name=self.name, namespace=self.namespace).pause(wait=wait)
+
+    def unpause_vmi(self, admin_client: DynamicClient, wait: bool = True) -> None:
+        """Unpause this VM's instance.
+
+        Args:
+            admin_client: Privileged cluster client.
+            wait: Wait for unpause to complete.
+        """
+        VirtualMachineInstance(client=admin_client, name=self.name, namespace=self.namespace).unpause(wait=wait)
+
+    def get_virt_handler_pod(self, admin_client: DynamicClient) -> Pod:
+        """Get the virt-handler pod for this VM's node.
+
+        Args:
+            admin_client: Privileged cluster client.
+
+        Returns:
+            Pod: The virt-handler pod.
+        """
+        node_name = self.vmi.instance.status.nodeName
+        pods = list(
+            Pod.get(
+                client=admin_client,
+                label_selector="kubevirt.io=virt-handler",
+            )
+        )
+        for pod in pods:
+            if pod.instance["spec"]["nodeName"] == node_name:
+                return pod
+
+        raise ResourceNotFoundError(f"virt-handler pod not found on node {node_name}")
 
     def wait_for_agent_connected(self, timeout: int = TIMEOUT_5MIN):
         self.vmi.wait_for_condition(
@@ -2206,12 +2295,12 @@ def get_created_migration_job(vm, timeout=TIMEOUT_1MIN, client=None):
         raise
 
 
-def check_migration_process_after_node_drain(client, vm):
+def check_migration_process_after_node_drain(client, vm, admin_client):
     """
     Wait for migration process to succeed and verify that VM indeed moved to new node.
     """
     vmi_old_uid = vm.vmi.instance.metadata.uid
-    source_node = vm.privileged_vmi.virt_launcher_pod.node
+    source_node = vm.get_virt_launcher_pod(admin_client=admin_client).node
     LOGGER.info(f"The VMI was running on {source_node.name}")
     wait_for_node_schedulable_status(node=source_node, status=False)
     vmim = get_created_migration_job(vm=vm, client=client, timeout=TIMEOUT_5MIN)
@@ -2219,7 +2308,7 @@ def check_migration_process_after_node_drain(client, vm):
         namespace=vm.namespace, migration=vmim, timeout=TIMEOUT_30MIN if "windows" in vm.name else TIMEOUT_10MIN
     )
 
-    target_pod = vm.privileged_vmi.virt_launcher_pod
+    target_pod = vm.get_virt_launcher_pod(admin_client=admin_client)
     target_pod.wait_for_status(status=Pod.Status.RUNNING, timeout=TIMEOUT_3MIN)
     target_node = target_pod.node
     LOGGER.info(f"The VMI is currently running on {target_node.name}")
@@ -2450,8 +2539,8 @@ def check_qemu_guest_agent_installed(ssh_exec: Host) -> bool:
     return ssh_exec.package_manager.exist(package="qemu-guest-agent")
 
 
-def validate_libvirt_persistent_domain(vm):
-    domain = vm.privileged_vmi.virt_launcher_pod.execute(
+def validate_libvirt_persistent_domain(vm, admin_client):
+    domain = vm.get_virt_launcher_pod(admin_client=admin_client).execute(
         command=shlex.split("virsh list --persistent"), container="compute"
     )
     assert vm.vmi.Status.RUNNING.lower() in domain
@@ -2488,14 +2577,14 @@ def validate_pause_unpause_linux_vm(vm: VirtualMachineForTests, pre_pause_pid: i
     )
 
 
-def check_vm_xml_smbios(vm: VirtualMachineForTests, cm_values: Dict[str, str]) -> None:
+def check_vm_xml_smbios(vm: VirtualMachineForTests, cm_values: Dict[str, str], admin_client: DynamicClient) -> None:
     """
     Verify SMBIOS on VM XML [sysinfo type=smbios][system] match kubevirt-config
     config map.
     """
 
     LOGGER.info("Verify VM XML - SMBIOS values.")
-    smbios_vm = vm.privileged_vmi.xml_dict["domain"]["sysinfo"]["system"]["entry"]
+    smbios_vm = vm.get_xml_dict(admin_client=admin_client)["domain"]["sysinfo"]["system"]["entry"]
     smbios_vm_dict = {entry["@name"]: entry["#text"] for entry in smbios_vm}
     assert smbios_vm, "VM XML missing SMBIOS values."
     results = {
@@ -2511,9 +2600,11 @@ def check_vm_xml_smbios(vm: VirtualMachineForTests, cm_values: Dict[str, str]) -
     assert all(results.values())
 
 
-def assert_vm_xml_efi(vm: VirtualMachineForTests, secure_boot_enabled: bool = True) -> None:
+def assert_vm_xml_efi(
+    vm: VirtualMachineForTests, admin_client: DynamicClient, secure_boot_enabled: bool = True
+) -> None:
     LOGGER.info("Verify VM XML - EFI secureBoot values.")
-    xml_dict_os = vm.privileged_vmi.xml_dict["domain"]["os"]
+    xml_dict_os = vm.get_xml_dict(admin_client=admin_client)["domain"]["os"]
     ovmf_path = "/usr/share/OVMF"
     efi_path = f"{ovmf_path}/OVMF_CODE.secboot.fd"
     # efi vars path when secure boot is enabled: /usr/share/OVMF/OVMF_VARS.secboot.fd

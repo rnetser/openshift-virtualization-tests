@@ -112,21 +112,27 @@ def updated_kubevirt_config_machine_type(
 
 
 @pytest.fixture()
-def restarted_vm(vm_for_machine_type_test, machine_type_from_kubevirt_config):
-    validate_machine_type(vm=vm_for_machine_type_test, expected_machine_type=machine_type_from_kubevirt_config)
+def restarted_vm(vm_for_machine_type_test, machine_type_from_kubevirt_config, admin_client):
+    validate_machine_type(
+        vm=vm_for_machine_type_test, expected_machine_type=machine_type_from_kubevirt_config, admin_client=admin_client
+    )
     restart_vm_wait_for_running_vm(vm=vm_for_machine_type_test, check_ssh_connectivity=False)
 
 
 @pytest.fixture()
-def migrated_vm(vm_for_machine_type_test, machine_type_from_kubevirt_config):
-    validate_machine_type(vm=vm_for_machine_type_test, expected_machine_type=machine_type_from_kubevirt_config)
+def migrated_vm(vm_for_machine_type_test, machine_type_from_kubevirt_config, admin_client):
+    validate_machine_type(
+        vm=vm_for_machine_type_test, expected_machine_type=machine_type_from_kubevirt_config, admin_client=admin_client
+    )
     migrate_vm_and_verify(vm=vm_for_machine_type_test)
 
 
 @pytest.mark.polarion("CNV-3311")
 @pytest.mark.s390x
-def test_vm_machine_type(explicit_machine_type, vm_with_explicit_machine_type):
-    validate_machine_type(vm=vm_with_explicit_machine_type, expected_machine_type=explicit_machine_type)
+def test_vm_machine_type(explicit_machine_type, vm_with_explicit_machine_type, admin_client):
+    validate_machine_type(
+        vm=vm_with_explicit_machine_type, expected_machine_type=explicit_machine_type, admin_client=admin_client
+    )
 
 
 @pytest.mark.parametrize(
@@ -145,8 +151,12 @@ class TestMachineType:
     @pytest.mark.s390x
     @pytest.mark.conformance
     @pytest.mark.polarion("CNV-3312")
-    def test_default_vm_machine_type(self, machine_type_from_kubevirt_config, vm_for_machine_type_test):
-        validate_machine_type(vm=vm_for_machine_type_test, expected_machine_type=machine_type_from_kubevirt_config)
+    def test_default_vm_machine_type(self, machine_type_from_kubevirt_config, vm_for_machine_type_test, admin_client):
+        validate_machine_type(
+            vm=vm_for_machine_type_test,
+            expected_machine_type=machine_type_from_kubevirt_config,
+            admin_client=admin_client,
+        )
 
     @pytest.mark.parametrize(
         "updated_kubevirt_config_machine_type",
@@ -165,9 +175,14 @@ class TestMachineType:
         vm_for_machine_type_test,
         updated_kubevirt_config_machine_type,
         migrated_vm,
+        admin_client,
     ):
         """Existing VM does not get new value after migration"""
-        validate_machine_type(vm=vm_for_machine_type_test, expected_machine_type=machine_type_from_kubevirt_config)
+        validate_machine_type(
+            vm=vm_for_machine_type_test,
+            expected_machine_type=machine_type_from_kubevirt_config,
+            admin_client=admin_client,
+        )
 
     @pytest.mark.parametrize(
         "updated_kubevirt_config_machine_type",
@@ -185,9 +200,14 @@ class TestMachineType:
         vm_for_machine_type_test,
         updated_kubevirt_config_machine_type,
         restarted_vm,
+        admin_client,
     ):
         """Existing VM does not get new value after restart"""
-        validate_machine_type(vm=vm_for_machine_type_test, expected_machine_type=machine_type_from_kubevirt_config)
+        validate_machine_type(
+            vm=vm_for_machine_type_test,
+            expected_machine_type=machine_type_from_kubevirt_config,
+            admin_client=admin_client,
+        )
 
 
 @pytest.mark.parametrize(
@@ -202,9 +222,13 @@ class TestMachineType:
     indirect=True,
 )
 @pytest.mark.gating
-def test_machine_type_kubevirt_config_update(updated_kubevirt_config_machine_type, vm_for_machine_type_test):
+def test_machine_type_kubevirt_config_update(
+    updated_kubevirt_config_machine_type, vm_for_machine_type_test, admin_client
+):
     """Test machine type change in kubevirt_config; new VM gets new value"""
-    validate_machine_type(vm=vm_for_machine_type_test, expected_machine_type=MachineTypesNames.pc_q35_rhel8_1)
+    validate_machine_type(
+        vm=vm_for_machine_type_test, expected_machine_type=MachineTypesNames.pc_q35_rhel8_1, admin_client=admin_client
+    )
 
 
 @pytest.mark.s390x
@@ -254,5 +278,9 @@ def test_machine_type_as_rhel_9_6(machine_type_from_kubevirt_config):
     ],
     indirect=True,
 )
-def test_legacy_machine_type(updated_kubevirt_config_machine_type, vm_for_legacy_machine_type_test):
-    validate_machine_type(vm=vm_for_legacy_machine_type_test, expected_machine_type=MachineTypesNames.pc_i440fx_rhel7_6)
+def test_legacy_machine_type(updated_kubevirt_config_machine_type, vm_for_legacy_machine_type_test, admin_client):
+    validate_machine_type(
+        vm=vm_for_legacy_machine_type_test,
+        expected_machine_type=MachineTypesNames.pc_i440fx_rhel7_6,
+        admin_client=admin_client,
+    )

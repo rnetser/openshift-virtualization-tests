@@ -172,10 +172,10 @@ def verify_vm_action(vm, vm_action, run_strategy):
     verify_vm_run_strategy(vm=vm, run_strategy=run_strategy_policy["run_strategy"])
 
 
-def pause_unpause_vmi_and_verify_status(vm):
-    vm.privileged_vmi.pause(wait=True)
+def pause_unpause_vmi_and_verify_status(vm, admin_client):
+    vm.pause_vmi(admin_client=admin_client)
     assert vm.printable_status == vm.Status.PAUSED, f"VM is not paused, status: {vm.printable_status}"
-    vm.privileged_vmi.unpause(wait=True)
+    vm.unpause_vmi(admin_client=admin_client)
     verify_vm_ready_status(vm=vm)
 
 
@@ -276,10 +276,10 @@ class TestRunStrategyAdvancedActions:
         indirect=True,
     )
     def test_run_strategy_pause_unpause_vmi(
-        self, lifecycle_vm, request_updated_vm_run_strategy, start_vm_if_not_running
+        self, admin_client, lifecycle_vm, request_updated_vm_run_strategy, start_vm_if_not_running
     ):
         LOGGER.info(f"Verify VMI pause/un-pause with runStrategy: {request_updated_vm_run_strategy}")
-        pause_unpause_vmi_and_verify_status(vm=lifecycle_vm)
+        pause_unpause_vmi_and_verify_status(vm=lifecycle_vm, admin_client=admin_client)
 
     @pytest.mark.parametrize(
         "request_updated_vm_run_strategy",

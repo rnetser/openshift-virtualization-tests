@@ -14,6 +14,7 @@ from ocp_resources.persistent_volume_claim import PersistentVolumeClaim
 from ocp_resources.resource import Resource
 from ocp_resources.virtual_machine_cluster_instancetype import VirtualMachineClusterInstancetype
 from ocp_resources.virtual_machine_cluster_preference import VirtualMachineClusterPreference
+from ocp_resources.virtual_machine_instance import VirtualMachineInstance
 from ocp_utilities.monitoring import Prometheus
 from pyhelper_utils.shell import run_ssh_commands
 from timeout_sampler import TimeoutExpiredError, TimeoutSampler
@@ -137,16 +138,17 @@ def parse_vm_metric_results(raw_output: str) -> dict[str, Any]:
     return metric_results
 
 
-def assert_vm_metric_virt_handler_pod(query: str, vm: VirtualMachineForTests):
+def assert_vm_metric_virt_handler_pod(query: str, vm: VirtualMachineForTests, admin_client: DynamicClient):
     """
     Get vm metric information from virt-handler pod
 
     Args:
         query (str): Prometheus query string
         vm (VirtualMachineForTests): A VirtualMachineForTests
+        admin_client (DynamicClient): Privileged cluster client.
 
     """
-    pod = vm.privileged_vmi.virt_handler_pod
+    pod = vm.get_virt_handler_pod(admin_client=admin_client)
     output = parse_vm_metric_results(raw_output=pod.execute(command=["bash", "-c", f"{CURL_QUERY}"]))
     assert output, f'No query output found from {VIRT_HANDLER} pod "{pod.name}" for query: "{CURL_QUERY}"'
     metrics_list = []
@@ -243,14 +245,17 @@ def get_vm_cpu_info_from_prometheus(prometheus: Prometheus, vm_name: str) -> Opt
     return None
 
 
-def validate_vmi_node_cpu_affinity_with_prometheus(prometheus: Prometheus, vm: VirtualMachineForTests) -> None:
+def validate_vmi_node_cpu_affinity_with_prometheus(
+    prometheus: Prometheus, vm: VirtualMachineForTests, admin_client: DynamicClient
+) -> None:
     vm_cpu = vm.vmi.instance.spec.domain.cpu
     cpu_count_from_vm = (vm_cpu.threads or 1) * (vm_cpu.cores or 1) * (vm_cpu.sockets or 1)
     LOGGER.info(f"Cpu count from vm {vm.name}: {cpu_count_from_vm}")
     cpu_info_from_prometheus = get_vm_cpu_info_from_prometheus(prometheus=prometheus, vm_name=vm.name)
     LOGGER.info(f"CPU information from prometheus: {cpu_info_from_prometheus}")
-    cpu_count_from_vm_node = int(vm.privileged_vmi.node.instance.status.capacity.cpu)
-    LOGGER.info(f"Cpu count from node {vm.privileged_vmi.node.name}: {cpu_count_from_vm_node}")
+    vmi_node = vm.get_vmi_node(admin_client=admin_client)
+    cpu_count_from_vm_node = int(vmi_node.instance.status.capacity.cpu)
+    LOGGER.info(f"Cpu count from node {vmi_node.name}: {cpu_count_from_vm_node}")
 
     if cpu_count_from_vm > 1:
         cpu_count_from_vm_node = cpu_count_from_vm_node * cpu_count_from_vm
@@ -522,10 +527,12 @@ def wait_for_non_empty_metrics_value(prometheus: Prometheus, metric_name: str) -
         raise
 
 
-def disk_file_system_info(vm: VirtualMachineForTests) -> dict[str, dict[str, str]]:
+def disk_file_system_info(vm: VirtualMachineForTests, admin_client: DynamicClient) -> dict[str, dict[str, str]]:
     lines = re.findall(
         r"fs\.(\d+)\.(mountpoint|total-bytes|used-bytes)\s*:\s*(.*)\s*",
-        vm.privileged_vmi.execute_virsh_command(command="guestinfo --filesystem"),
+        VirtualMachineInstance(client=admin_client, name=vm.name, namespace=vm.namespace).execute_virsh_command(
+            command="guestinfo --filesystem"
+        ),
         re.MULTILINE,
     )
     mount_points_and_values_dict: dict[str, dict[str, str]] = {}
@@ -545,12 +552,14 @@ def compare_metric_file_system_values_with_vm_file_system_values(
     vm_for_test: VirtualMachineForTests,
     mount_point: str,
     capacity_or_used: str,
+    admin_client: DynamicClient,
 ) -> None:
     samples = TimeoutSampler(
         wait_timeout=TIMEOUT_2MIN,
         sleep=TIMEOUT_15SEC,
         func=disk_file_system_info,
         vm=vm_for_test,
+        admin_client=admin_client,
     )
     sample = None
     metric_value = None
