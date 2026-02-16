@@ -112,7 +112,7 @@ def updated_kubevirt_config_machine_type(
 
 
 @pytest.fixture()
-def restarted_vm(vm_for_machine_type_test, machine_type_from_kubevirt_config, admin_client):
+def restarted_vm(admin_client, vm_for_machine_type_test, machine_type_from_kubevirt_config):
     validate_machine_type(
         vm=vm_for_machine_type_test, expected_machine_type=machine_type_from_kubevirt_config, admin_client=admin_client
     )
@@ -120,7 +120,7 @@ def restarted_vm(vm_for_machine_type_test, machine_type_from_kubevirt_config, ad
 
 
 @pytest.fixture()
-def migrated_vm(vm_for_machine_type_test, machine_type_from_kubevirt_config, admin_client):
+def migrated_vm(admin_client, vm_for_machine_type_test, machine_type_from_kubevirt_config):
     validate_machine_type(
         vm=vm_for_machine_type_test, expected_machine_type=machine_type_from_kubevirt_config, admin_client=admin_client
     )
@@ -129,7 +129,7 @@ def migrated_vm(vm_for_machine_type_test, machine_type_from_kubevirt_config, adm
 
 @pytest.mark.polarion("CNV-3311")
 @pytest.mark.s390x
-def test_vm_machine_type(explicit_machine_type, vm_with_explicit_machine_type, admin_client):
+def test_vm_machine_type(admin_client, explicit_machine_type, vm_with_explicit_machine_type):
     validate_machine_type(
         vm=vm_with_explicit_machine_type, expected_machine_type=explicit_machine_type, admin_client=admin_client
     )
@@ -151,7 +151,7 @@ class TestMachineType:
     @pytest.mark.s390x
     @pytest.mark.conformance
     @pytest.mark.polarion("CNV-3312")
-    def test_default_vm_machine_type(self, machine_type_from_kubevirt_config, vm_for_machine_type_test, admin_client):
+    def test_default_vm_machine_type(self, admin_client, machine_type_from_kubevirt_config, vm_for_machine_type_test):
         validate_machine_type(
             vm=vm_for_machine_type_test,
             expected_machine_type=machine_type_from_kubevirt_config,
@@ -278,7 +278,7 @@ def test_machine_type_as_rhel_9_6(machine_type_from_kubevirt_config):
     ],
     indirect=True,
 )
-def test_legacy_machine_type(updated_kubevirt_config_machine_type, vm_for_legacy_machine_type_test, admin_client):
+def test_legacy_machine_type(admin_client, updated_kubevirt_config_machine_type, vm_for_legacy_machine_type_test):
     validate_machine_type(
         vm=vm_for_legacy_machine_type_test,
         expected_machine_type=MachineTypesNames.pc_i440fx_rhel7_6,

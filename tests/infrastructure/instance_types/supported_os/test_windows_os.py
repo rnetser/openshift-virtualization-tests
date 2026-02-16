@@ -34,7 +34,7 @@ class TestCommonPreferenceWindows:
     @pytest.mark.sno
     @pytest.mark.dependency(depends=[f"{TESTS_CLASS_NAME}::start_vm"])
     @pytest.mark.polarion("CNV-12388")
-    def test_hyperv(self, golden_image_windows_vm, admin_client):
+    def test_hyperv(self, admin_client, golden_image_windows_vm):
         check_vm_xml_hyperv(vm=golden_image_windows_vm, admin_client=admin_client)
         check_windows_vm_hvinfo(vm=golden_image_windows_vm)
 

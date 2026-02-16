@@ -159,7 +159,7 @@ def virt_pod_info_from_prometheus(request, prometheus):
 
 
 @pytest.fixture()
-def virt_pod_names_by_label(request, admin_client, hco_namespace):
+def virt_pod_names_by_label(admin_client, request, hco_namespace):
     """Get pod names by a given label (request.param) in the list."""
     return [
         pod.name

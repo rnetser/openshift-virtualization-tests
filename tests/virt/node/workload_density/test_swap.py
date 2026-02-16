@@ -162,7 +162,7 @@ def vm_with_different_qos(request, namespace):
     ],
     indirect=True,
 )
-def test_swap_status_on_pod(vm_with_different_qos, admin_client):
+def test_swap_status_on_pod(admin_client, vm_with_different_qos):
     swap_max = vm_with_different_qos.vmi.get_virt_launcher_pod(privileged_client=admin_client).execute(
         command=shlex.split(f"bash -c 'cat {MEMORY_SWAP_MAX_PATH} | {REMOVE_NEWLINE}'")
     )

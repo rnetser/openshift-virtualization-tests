@@ -1,17 +1,15 @@
 import json
 import shlex
-from typing import TYPE_CHECKING, Any
 
+from kubernetes.dynamic import DynamicClient
 from pyhelper_utils.shell import run_ssh_commands
 from timeout_sampler import TimeoutSampler
 
 from utilities.constants import HYPERV_FEATURES_LABELS_DOM_XML, TCP_TIMEOUT_30SEC, TIMEOUT_15SEC, TIMEOUT_90SEC
-
-if TYPE_CHECKING:
-    from utilities.virt import VirtualMachineForTests
+from utilities.virt import VirtualMachineForTests
 
 
-def assert_windows_efi(vm: "VirtualMachineForTests") -> None:
+def assert_windows_efi(vm: VirtualMachineForTests) -> None:
     """
     Verify guest OS is using EFI.
 
@@ -29,7 +27,7 @@ def assert_windows_efi(vm: "VirtualMachineForTests") -> None:
     assert "\\EFI\\Microsoft\\Boot\\bootmgfw.efi" in out, f"EFI boot not found in path. bcdedit output:\n{out}"
 
 
-def check_vm_xml_hyperv(vm: "VirtualMachineForTests", admin_client: "Any") -> None:
+def check_vm_xml_hyperv(vm: VirtualMachineForTests, admin_client: DynamicClient) -> None:
     """
     Verify HyperV values in VMI XML configuration.
 
@@ -63,7 +61,7 @@ def check_vm_xml_hyperv(vm: "VirtualMachineForTests", admin_client: "Any") -> No
     )
 
 
-def check_windows_vm_hvinfo(vm: "VirtualMachineForTests") -> None:
+def check_windows_vm_hvinfo(vm: VirtualMachineForTests) -> None:
     """
     Verify HyperV values in Windows VM using hvinfo.exe tool.
 

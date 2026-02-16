@@ -167,7 +167,7 @@ class TestCommonTemplatesRhel:
     @pytest.mark.sno
     @pytest.mark.dependency(depends=[f"{TESTS_CLASS_NAME}::start_vm"])
     @pytest.mark.polarion("CNV-4201")
-    def test_vm_smbios_default(self, smbios_from_kubevirt_config, matrix_rhel_os_vm_from_template, admin_client):
+    def test_vm_smbios_default(self, admin_client, smbios_from_kubevirt_config, matrix_rhel_os_vm_from_template):
         check_vm_xml_smbios(
             vm=matrix_rhel_os_vm_from_template, cm_values=smbios_from_kubevirt_config, admin_client=admin_client
         )

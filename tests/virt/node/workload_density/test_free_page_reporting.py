@@ -94,7 +94,7 @@ class TestFreePageReporting:
     @pytest.mark.dependency()
     @pytest.mark.polarion("CNV-10540")
     def test_free_page_reporting_enabled_by_default(
-        self, free_page_reporting_vm, hyperconverged_resource_scope_function, admin_client
+        self, admin_client, free_page_reporting_vm, hyperconverged_resource_scope_function
     ):
         assert not hyperconverged_resource_scope_function.instance.to_dict()["spec"]["virtualMachineOptions"][
             "disableFreePageReporting"
@@ -109,9 +109,9 @@ class TestFreePageReporting:
     @pytest.mark.polarion("CNV-10544")
     def test_disable_free_page_reporting_on_vm_level(
         self,
+        admin_client,
         free_page_reporting_vm,
         disabled_free_page_reporting_in_vm,
-        admin_client,
     ):
         assert_vmi_free_page_reporting(
             vm=free_page_reporting_vm,
@@ -122,9 +122,9 @@ class TestFreePageReporting:
     @pytest.mark.polarion("CNV-10543")
     def test_disable_free_page_reporting_in_hco(
         self,
+        admin_client,
         disabled_free_page_reporting_in_hco_cr,
         free_page_reporting_vm,
-        admin_client,
     ):
         restart_vm_wait_for_running_vm(vm=free_page_reporting_vm)
         assert_vmi_free_page_reporting(
@@ -135,7 +135,7 @@ class TestFreePageReporting:
 
 
 @pytest.mark.polarion("CNV-10596")
-def test_free_page_reporting_in_vm_with_dedicated_cpu(vm_with_dedicated_cpu, admin_client):
+def test_free_page_reporting_in_vm_with_dedicated_cpu(admin_client, vm_with_dedicated_cpu):
     assert_vmi_free_page_reporting(
         vm=vm_with_dedicated_cpu,
         expected_free_page_reporting="off",
@@ -146,7 +146,7 @@ def test_free_page_reporting_in_vm_with_dedicated_cpu(vm_with_dedicated_cpu, adm
 @pytest.mark.polarion("CNV-10597")
 @pytest.mark.special_infra
 @pytest.mark.hugepages
-def test_free_page_reporting_in_vm_with_hugepages(vm_with_hugepages, admin_client):
+def test_free_page_reporting_in_vm_with_hugepages(admin_client, vm_with_hugepages):
     assert_vmi_free_page_reporting(
         vm=vm_with_hugepages,
         expected_free_page_reporting="off",

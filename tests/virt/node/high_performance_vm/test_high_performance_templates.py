@@ -61,7 +61,7 @@ def high_performance_vm(
 
 
 @pytest.fixture(scope="class")
-def cputune_is_in_dumpxml(high_performance_vm, admin_client):
+def cputune_is_in_dumpxml(admin_client, high_performance_vm):
     LOGGER.info(f"Verify that {CPUTUNE} is in virsh dumpxml")
     if CPUTUNE not in high_performance_vm.vmi.get_xml_dict(privileged_client=admin_client)["domain"]:
         pytest.fail(f"{CPUTUNE} key not found in virsh xml dump of {high_performance_vm.name}")
@@ -105,12 +105,12 @@ def increased_high_performance_vm_core_count_by_one(high_performance_vm):
 class TestHighPerformanceTemplatesRHEL:
     @pytest.mark.dependency(name=f"{RHEL_TESTS_CLASS_NAME}::rhel_cpu_request")
     @pytest.mark.polarion("CNV-6756")
-    def test_rhel_cpu_request(self, high_performance_vm, admin_client):
+    def test_rhel_cpu_request(self, admin_client, high_performance_vm):
         assert key_is_in_cputune(high_performance_vm, "vcpupin", admin_client=admin_client)
 
     @pytest.mark.dependency(name=f"{RHEL_TESTS_CLASS_NAME}::rhel_emulator_thread")
     @pytest.mark.polarion("CNV-6757")
-    def test_rhel_emulator_thread(self, high_performance_vm, admin_client):
+    def test_rhel_emulator_thread(self, admin_client, high_performance_vm):
         assert key_is_in_cputune(high_performance_vm, "emulatorpin", admin_client=admin_client)
 
     @pytest.mark.dependency(name=f"{RHEL_TESTS_CLASS_NAME}::rhel_iothread_policy")
@@ -120,7 +120,7 @@ class TestHighPerformanceTemplatesRHEL:
 
     @pytest.mark.dependency(name=f"{RHEL_TESTS_CLASS_NAME}::rhel_iothread_pin")
     @pytest.mark.polarion("CNV-6810")
-    def test_rhel_iothread_pin(self, high_performance_vm, admin_client):
+    def test_rhel_iothread_pin(self, admin_client, high_performance_vm):
         assert key_is_in_cputune(high_performance_vm, "iothreadpin", admin_client=admin_client)
 
     @pytest.mark.dependency(
@@ -133,7 +133,7 @@ class TestHighPerformanceTemplatesRHEL:
     )
     @pytest.mark.polarion("CNV-6758")
     def test_rhel_change_cpu_core_count(
-        self, high_performance_vm, increased_high_performance_vm_core_count_by_one, admin_client
+        self, admin_client, high_performance_vm, increased_high_performance_vm_core_count_by_one
     ):
         assert check_vcpupin_count(high_performance_vm, admin_client=admin_client)
 
@@ -160,12 +160,12 @@ class TestHighPerformanceTemplatesRHEL:
 class TestHighPerformanceTemplatesWindows:
     @pytest.mark.dependency(name=f"{WINDOWS_TESTS_CLASS_NAME}::win_cpu_request")
     @pytest.mark.polarion("CNV-6771")
-    def test_win_cpu_request(self, high_performance_vm, admin_client):
+    def test_win_cpu_request(self, admin_client, high_performance_vm):
         assert key_is_in_cputune(high_performance_vm, "vcpupin", admin_client=admin_client)
 
     @pytest.mark.dependency(name=f"{WINDOWS_TESTS_CLASS_NAME}::win_emulator_thread")
     @pytest.mark.polarion("CNV-6772")
-    def test_win_emulator_thread(self, high_performance_vm, admin_client):
+    def test_win_emulator_thread(self, admin_client, high_performance_vm):
         assert key_is_in_cputune(high_performance_vm, "emulatorpin", admin_client=admin_client)
 
     @pytest.mark.dependency(

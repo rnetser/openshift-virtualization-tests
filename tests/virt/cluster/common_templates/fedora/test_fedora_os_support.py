@@ -103,7 +103,7 @@ class TestCommonTemplatesFedora:
     @pytest.mark.sno
     @pytest.mark.dependency(depends=[f"{TESTS_CLASS_NAME}::start_vm"])
     @pytest.mark.polarion("CNV-2651")
-    def test_vm_hyperv(self, matrix_fedora_os_vm_from_template, admin_client):
+    def test_vm_hyperv(self, admin_client, matrix_fedora_os_vm_from_template):
         LOGGER.info("Verify VMI HyperV values.")
         check_vm_xml_hyperv(vm=matrix_fedora_os_vm_from_template, admin_client=admin_client)
         check_vm_xml_clock(vm=matrix_fedora_os_vm_from_template, admin_client=admin_client)
@@ -130,7 +130,7 @@ class TestCommonTemplatesFedora:
     @pytest.mark.sno
     @pytest.mark.dependency(depends=[f"{TESTS_CLASS_NAME}::start_vm"])
     @pytest.mark.polarion("CNV-9666")
-    def test_efi_secureboot_enabled_by_default(self, matrix_fedora_os_vm_from_template, admin_client):
+    def test_efi_secureboot_enabled_by_default(self, admin_client, matrix_fedora_os_vm_from_template):
         assert_vm_xml_efi(vm=matrix_fedora_os_vm_from_template, admin_client=admin_client)
         assert_linux_efi(vm=matrix_fedora_os_vm_from_template)
 

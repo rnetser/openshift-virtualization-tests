@@ -67,7 +67,7 @@ def vm_with_cpu_support(request, is_s390x_cluster, namespace, unprivileged_clien
     indirect=True,
 )
 @pytest.mark.s390x
-def test_vm_with_cpu_support(vm_with_cpu_support, admin_client):
+def test_vm_with_cpu_support(admin_client, vm_with_cpu_support):
     """
     Test VM with cpu support
     """
@@ -101,7 +101,7 @@ def no_cpu_settings_vm(namespace, unprivileged_client):
 @pytest.mark.conformance
 @pytest.mark.s390x
 @pytest.mark.polarion("CNV-1485")
-def test_vm_with_no_cpu_settings(no_cpu_settings_vm, admin_client):
+def test_vm_with_no_cpu_settings(admin_client, no_cpu_settings_vm):
     """
     Test VM without cpu setting, check XML:
     <topology sockets='X' cores='1' threads='1'/>
@@ -113,7 +113,7 @@ def test_vm_with_no_cpu_settings(no_cpu_settings_vm, admin_client):
 @pytest.mark.gating
 @pytest.mark.s390x
 @pytest.mark.polarion("CNV-2818")
-def test_vm_with_cpu_limitation(namespace, unprivileged_client, admin_client):
+def test_vm_with_cpu_limitation(admin_client, namespace, unprivileged_client):
     """
     Test VM with cpu limitation, CPU requests and limits are equals
     """

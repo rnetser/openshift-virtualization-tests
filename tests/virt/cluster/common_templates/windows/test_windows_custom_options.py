@@ -196,7 +196,7 @@ class TestCustomWindowsOptions:
 
     @pytest.mark.polarion("CNV-7960")
     @pytest.mark.dependency(name=f"{TESTS_CLASS_NAME}::domxml", depends=[f"{TESTS_CLASS_NAME}::boot"])
-    def test_windows_custom_options_fw_uuid_in_domxml(self, custom_windows_vm, admin_client):
+    def test_windows_custom_options_fw_uuid_in_domxml(self, admin_client, custom_windows_vm):
         assert_firmware_uuid_in_domxml(vm=custom_windows_vm, uuid=FIRMWARE_UUID, admin_client=admin_client)
 
     @pytest.mark.polarion("CNV-7956")

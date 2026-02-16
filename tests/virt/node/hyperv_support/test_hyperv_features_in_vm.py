@@ -146,7 +146,7 @@ class TestWindowsHyperVFlags:
         ],
         indirect=True,
     )
-    def test_windows_vm_with_evmcs_feature(self, hyperv_vm, admin_client):
+    def test_windows_vm_with_evmcs_feature(self, admin_client, hyperv_vm):
         verify_evmcs_related_attributes(vmi_xml_dict=hyperv_vm.vmi.get_xml_dict(privileged_client=admin_client))
 
 
@@ -170,7 +170,7 @@ class TestFedoraHyperVFlags:
         ],
         indirect=True,
     )
-    def test_fedora_vm_with_evmcs_feature(self, hyperv_vm, admin_client):
+    def test_fedora_vm_with_evmcs_feature(self, admin_client, hyperv_vm):
         LOGGER.info("Verify added hyperv feature evmcs is added to libvirt")
         hyperv_vm_xml = hyperv_vm.vmi.get_xml_dict(privileged_client=admin_client)
         evmcs_feature = hyperv_vm_xml["domain"]["features"]["hyperv"]["evmcs"]
