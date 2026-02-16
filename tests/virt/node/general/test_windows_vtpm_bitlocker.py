@@ -149,8 +149,8 @@ def migrated_encrypted_vm(bitlocker_encrypted_vm):
 class TestBitLockerVTPM:
     @pytest.mark.dependency(name=f"{TESTS_CLASS_NAME}::persistent_tpm")
     @pytest.mark.polarion("CNV-10318")
-    def test_persistent_tpm(self, windows_vtpm_vm):
-        xml_dict_tpm = windows_vtpm_vm.privileged_vmi.xml_dict["domain"]["devices"]["tpm"]
+    def test_persistent_tpm(self, windows_vtpm_vm, admin_client):
+        xml_dict_tpm = windows_vtpm_vm.vmi.get_xml_dict(privileged_client=admin_client)["domain"]["devices"]["tpm"]
         assert xml_dict_tpm["@model"] == "tpm-crb", "TPM model should be tpm-crb!"
         assert xml_dict_tpm["backend"].get("@persistent_state") == "yes", "TPM is not peristent state in dumpxml!"
 

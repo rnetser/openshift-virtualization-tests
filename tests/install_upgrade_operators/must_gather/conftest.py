@@ -270,10 +270,11 @@ def nad_mac_address(must_gather_nad, must_gather_vm):
 
 
 @pytest.fixture(scope="package")
-def vm_interface_name(nad_mac_address, must_gather_vm):
+def vm_interface_name(nad_mac_address, must_gather_vm, admin_client):
     bridge_command = f"bridge fdb show | grep {nad_mac_address}"
     output = (
-        must_gather_vm.privileged_vmi.virt_launcher_pod
+        must_gather_vm.vmi
+        .get_virt_launcher_pod(privileged_client=admin_client)
         .execute(
             command=shlex.split(f"bash -c {shlex.quote(bridge_command)}"),
             container="compute",
@@ -338,9 +339,10 @@ def extracted_data_from_must_gather_file(
 
 
 @pytest.fixture(scope="class")
-def executed_bridge_link_show_command(must_gather_vm):
+def executed_bridge_link_show_command(must_gather_vm, admin_client):
     output = (
-        must_gather_vm.privileged_vmi.virt_launcher_pod
+        must_gather_vm.vmi
+        .get_virt_launcher_pod(privileged_client=admin_client)
         .execute(
             command=shlex.split(f"bash -c {shlex.quote(BRIDGE_COMMAND)}"),
             container="compute",
