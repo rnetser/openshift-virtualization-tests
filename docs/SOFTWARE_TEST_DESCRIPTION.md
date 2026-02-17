@@ -32,7 +32,7 @@ This project follows a **two-phase development workflow** that separates test de
    - Add the complete STD docstring (Preconditions/Steps/Expected)
    - Include a link to the approved STP (Software Test Plan) in the **module docstring** (top of the test file)
    - Add applicable pytest markers (architecture markers, etc.)
-   - Leave the test body empty or with a `pass` statement
+   - Add `__test__ = True` on implemented test(s).  For a single test, add `<test_name>.__test__ = True`
 
 2. **Submit PR for review**:
    - The PR contains only the test descriptions (no automation code)
@@ -50,13 +50,13 @@ This project follows a **two-phase development workflow** that separates test de
    - Create any required fixtures
    - Implement helper functions as needed
    - Remove `__test__ = False` from implemented tests
-   - If needed, update the test description. This change must be approved by the team's tech lead.
+   - If needed, update the test description. This change must be approved by the team's qe tech lead.
 
 2. **Submit PR for review**:
    - Reviewers verify the implementation matches the approved design
    - Focus is on code quality, correctness, and adherence to the STD
 
-3. **Approval and merge**:
+3. **Approval, verification and merge**:
    - Once implementation is verified, merge the automation
 
 ### Benefits of This Workflow
@@ -139,7 +139,7 @@ def test_isolated_vms_cannot_communicate():
     """
     [NEGATIVE] Test that VMs on separate networks cannot ping each other.
     """
-    pass
+
 test_isolated_vms_cannot_communicate.__test__ = False
 ```
 
@@ -159,8 +159,9 @@ When specific pytest markers are required, list them explicitly.
 **Key Principles:**
 - Each test should verify **ONE thing**
 - **Tests must be independent** - no test should depend on another test's outcome
-- If a test needs a precondition that could be another test's outcome, use a **fixture** to set it up
 - Related tests are grouped in a **test class**
+  - If a test needs a precondition that could be another test's outcome, place the tests under the class in the required order
+  - Mention handling of early failures (i.e "fail fast")
 - **Shared preconditions** go in the class docstring
 - **Test-specific preconditions** (if any) go in the test docstring
 
@@ -196,7 +197,6 @@ class Test<FeatureName>:
         Expected:
             - <Natural language assertion, e.g., "VM is Running", "File exists">
         """
-        pass
 ```
 
 ### Test-Level Template
@@ -224,7 +224,7 @@ def test_<specific_behavior>():
     Expected:
         - <Natural language assertion, e.g., "VM is Running", "File exists">
     """
-    pass
+
 test_<specific_behavior>.__test__ = False
 ```
 
@@ -262,14 +262,39 @@ test_<specific_behavior>.__test__ = False
    - Good: `- Running Fedora virtual machine`
    - Bad: `- Running Fedora VM (vm_to_restart fixture)`
 
-5. **Single Expected per Test**: One assertion = clear pass/fail.
+5. **Single Expected Behavior per Test**: One assertion: clear pass/fail.
    - Good: `Expected: - Ping succeeds with 0% packet loss`
    - Bad: `Expected: - Ping succeeds - VM remains running - No errors logged`
+   - The may be **exceptions**, where multiple assertions are required to verify a **single** behavior.
+     - Example: `Expected: - VM reports valid IP addres. Expected - User can access VM via SSH`
 
 6. **Tests Must Be Independent**: Tests should not depend on other tests.
-   - If a test needs a precondition that is another test's outcome, use a fixture
+   - Dependencies between tests mean that one test depends on the result of a previous test.
+   - If testing of a feature requires dependencies between tests, make sure that:
+     - They are grouped under a class with shared preconditions
+     - Use `@pytest.mark.incremental` marker to ensure tests dependency on previous test results
    - Good: Fixture `migrated_vm` sets up a VM that has been migrated
    - Bad: `test_migrate_vm` must run before `test_ssh_after_migration`
+
+    Example:
+
+    ```python
+   import pytest
+
+    @pytest.mark.incremental
+    class TestVMSomeFeature:
+
+        def test_vm_is_created(self):
+            """
+            Test that a VM with feature 1 can be created
+            """
+
+        def test_vm_migration(self):  # will be marked as xfailed if test_vm_is_created failed
+            """
+            Test that a VM with feature 1 can be migrated
+            """
+
+    ```
 
 ### Common Patterns in This Project
 
@@ -289,7 +314,7 @@ test_<specific_behavior>.__test__ = False
 - [ ] Each test has: description, Preconditions, Steps, Expected
 - [ ] Each test verifies ONE thing with ONE Expected
 - [ ] Negative tests marked with `[NEGATIVE]`
-- [ ] Test methods contain only `pass`
+- [ ] Test methods/classes/tests contain only `__test__ = False`
 
 #### Phase 2: Test Automation PR
 
@@ -335,7 +360,6 @@ class TestSnapshotRestore:
         Expected:
             - File content equals "data-before-snapshot"
         """
-        pass
 
     def test_removes_post_snapshot_file(self):
         """
@@ -347,7 +371,6 @@ class TestSnapshotRestore:
         Expected:
             - File /data/after.txt does NOT exist
         """
-        pass
 ```
 
 
@@ -374,7 +397,6 @@ class TestVMLifecycle:
         Expected:
             - VM is "Running"
         """
-        pass
 
     def test_vm_stop_completes_successfully(self):
         """
@@ -386,7 +408,6 @@ class TestVMLifecycle:
         Expected:
             - VM is "Stopped"
         """
-        pass
 
     def test_vm_start_after_stop(self):
         """
@@ -401,7 +422,6 @@ class TestVMLifecycle:
         Expected:
             - VM is "Running" and SSH accessible
         """
-        pass
 ```
 
 ---
@@ -431,7 +451,7 @@ def test_flat_overlay_ping_between_vms():
     Expected:
         - Ping succeeds with 0% packet loss
     """
-    pass
+
 test_flat_overlay_ping_between_vms.__test__ = False
 ```
 
@@ -462,7 +482,7 @@ def test_isolated_vms_cannot_communicate():
     Expected:
         - Ping fails with 100% packet loss
     """
-    pass
+
 test_isolated_vms_cannot_communicate.__test__ = False
 ```
 
@@ -495,7 +515,7 @@ def test_online_disk_resize():
     Expected:
         - Disk size inside VM is greater than original size
     """
-    pass
+
 test_online_disk_resize.__test__ = False
 ```
 
