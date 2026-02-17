@@ -289,20 +289,20 @@ class TestMethodHasTestFalse:
 class TestGetTestMethodsFromClass:
     """Tests for the get_test_methods_from_class() function."""
 
-    def test_returns_test_methods_with_prefix(self) -> None:
-        """get_test_methods_from_class() returns test methods prefixed with '  - '."""
+    def test_returns_raw_test_method_names(self) -> None:
+        """get_test_methods_from_class() returns raw test method names."""
         class_node = _get_first_class_node(source=SOURCE_CLASS_TEST_FALSE)
         result = get_test_methods_from_class(class_node=class_node)
-        assert result == ["  - test_bar", "  - test_baz"]
+        assert result == ["test_bar", "test_baz"]
 
     def test_excludes_non_test_methods(self) -> None:
         """get_test_methods_from_class() excludes helper methods, __init__, etc."""
         class_node = _get_first_class_node(source=SOURCE_CLASS_WITH_MIXED_METHODS)
         result = get_test_methods_from_class(class_node=class_node)
-        assert result == ["  - test_one", "  - test_two"]
-        assert "  - __init__" not in result
-        assert "  - helper_method" not in result
-        assert "  - setup_method" not in result
+        assert result == ["test_one", "test_two"]
+        assert "__init__" not in result
+        assert "helper_method" not in result
+        assert "setup_method" not in result
 
     def test_returns_empty_list_for_no_test_methods(self) -> None:
         """get_test_methods_from_class() returns empty list when no test_ methods."""

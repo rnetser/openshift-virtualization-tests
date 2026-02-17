@@ -139,16 +139,16 @@ def method_has_test_false(class_node: ast.ClassDef, method_name: str) -> bool:
 
 
 def get_test_methods_from_class(class_node: ast.ClassDef) -> list[str]:
-    """Extract formatted test method names from a class definition.
+    """Extract test method names from a class definition.
 
     Args:
         class_node: AST class definition node
 
     Returns:
-        List of formatted test method names (prefixed with "  - ")
+        List of test method names.
     """
     return [
-        f"  - {method.name}"
+        method.name
         for method in class_node.body
         if isinstance(method, ast.FunctionDef) and method.name.startswith("test_")
     ]
@@ -188,7 +188,7 @@ def scan_placeholder_tests(tests_dir: Path) -> dict[str, list[str]]:
                     placeholder_files.setdefault(relative_path, []).append(f"{relative_path}::{node.name}")
                     test_methods = get_test_methods_from_class(class_node=node)
                     if test_methods:
-                        placeholder_files[relative_path].extend(test_methods)
+                        placeholder_files[relative_path].extend(f"  - {method}" for method in test_methods)
 
                 elif isinstance(node, ast.FunctionDef) and node.name.startswith("test_"):
                     # For standalone functions, add module path first if not already added
@@ -205,7 +205,7 @@ def scan_placeholder_tests(tests_dir: Path) -> dict[str, list[str]]:
                         placeholder_files.setdefault(relative_path, []).append(f"{relative_path}::{node.name}")
                         test_methods = get_test_methods_from_class(class_node=node)
                         if test_methods:
-                            placeholder_files[relative_path].extend(test_methods)
+                            placeholder_files[relative_path].extend(f"  - {method}" for method in test_methods)
                     else:
                         # Check each method for method.__test__ = False in class body
                         method_placeholders: list[str] = []
@@ -276,7 +276,7 @@ def output_json(placeholder_files: dict[str, list[str]]) -> None:
         tests: list[str] = []
         for entry in entries:
             if entry.startswith("  - "):
-                tests.append(entry.strip().lstrip("- "))
+                tests.append(entry.strip().removeprefix("- "))
                 total_tests += 1
         if tests:
             tests_by_file[file_path] = tests
