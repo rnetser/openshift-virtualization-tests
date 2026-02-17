@@ -13,6 +13,7 @@ exclude =
     docs/*,
     .cache/*
     utilities/unittests/*
+    scripts/*/tests/*
 
 fcn_exclude_functions =
     Path,
