@@ -176,6 +176,6 @@ class TestHighPerformanceTemplatesWindows:
     )
     @pytest.mark.polarion("CNV-6773")
     def test_win_change_cpu_core_count(
-        self, high_performance_vm, increased_high_performance_vm_core_count_by_one, admin_client
+        self, admin_client, high_performance_vm, increased_high_performance_vm_core_count_by_one
     ):
         assert check_vcpupin_count(high_performance_vm, admin_client=admin_client)

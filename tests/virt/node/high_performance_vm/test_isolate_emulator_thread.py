@@ -63,8 +63,8 @@ class TestIsolateEmulatorThread:
     @pytest.mark.polarion("CNV-6744")
     def test_isolate_emulator_thread(
         self,
-        isolated_emulatorthread_vm,
         admin_client,
+        isolated_emulatorthread_vm,
     ):
         """
         Test if a dedicated cpu is allocated for QEMU Emulator,

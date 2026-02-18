@@ -83,9 +83,8 @@ class TestCommonTemplatesRhel:
     @pytest.mark.sno
     @pytest.mark.dependency(depends=[f"{TESTS_CLASS_NAME}::start_vm"])
     @pytest.mark.polarion("CNV-8712")
-    def test_efi_secureboot_enabled_by_default(
-        self, xfail_on_rhel_version_below_rhel9, matrix_rhel_os_vm_from_template, admin_client
-    ):
+    @pytest.mark.usefixtures("xfail_on_rhel_version_below_rhel9")
+    def test_efi_secureboot_enabled_by_default(self, admin_client, matrix_rhel_os_vm_from_template):
         """Test CNV common templates EFI secureboot status"""
 
         assert_vm_xml_efi(vm=matrix_rhel_os_vm_from_template, admin_client=admin_client)
@@ -151,9 +150,8 @@ class TestCommonTemplatesRhel:
     @pytest.mark.sno
     @pytest.mark.dependency(depends=[f"{TESTS_CLASS_NAME}::vmi_guest_agent"])
     @pytest.mark.polarion("CNV-6531")
-    def test_virtctl_guest_agent_fs_info(
-        self, admin_client, xfail_rhel_with_old_guest_agent, matrix_rhel_os_vm_from_template
-    ):
+    @pytest.mark.usefixtures("xfail_rhel_with_old_guest_agent")
+    def test_virtctl_guest_agent_fs_info(self, admin_client, matrix_rhel_os_vm_from_template):
         validate_fs_info_virtctl_vs_linux_os(vm=matrix_rhel_os_vm_from_template, admin_client=admin_client)
 
     @pytest.mark.arm64
@@ -218,9 +216,8 @@ class TestCommonTemplatesRhel:
 
     @pytest.mark.polarion("CNV-6951")
     @pytest.mark.dependency(depends=[f"{TESTS_CLASS_NAME}::start_vm"])
-    def test_efi_secureboot_disabled(
-        self, xfail_on_rhel_version_below_rhel9, matrix_rhel_os_vm_from_template, admin_client
-    ):
+    @pytest.mark.usefixtures("xfail_on_rhel_version_below_rhel9")
+    def test_efi_secureboot_disabled(self, admin_client, matrix_rhel_os_vm_from_template):
         vm = matrix_rhel_os_vm_from_template
         update_vm_efi_spec_and_restart(vm=vm, spec={"secureBoot": False})
         assert_vm_xml_efi(vm=vm, admin_client=admin_client, secure_boot_enabled=False)

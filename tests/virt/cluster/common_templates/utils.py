@@ -445,8 +445,8 @@ def check_vm_xml_clock(vm, admin_client):
     """Verify clock values in VMI"""
 
     clock_timer_list = vm.vmi.get_xml_dict(privileged_client=admin_client)["domain"]["clock"]["timer"]
-    assert [i for i in clock_timer_list if i["@name"] == "hpet"][0]["@present"] == "no"
-    assert [i for i in clock_timer_list if i["@name"] == "hypervclock"][0]["@present"] == "yes"
+    assert [timer for timer in clock_timer_list if timer["@name"] == "hpet"][0]["@present"] == "no"
+    assert [timer for timer in clock_timer_list if timer["@name"] == "hypervclock"][0]["@present"] == "yes"
 
 
 def set_vm_tablet_device_dict(tablet_params):
@@ -465,9 +465,9 @@ def check_vm_xml_tablet_device(vm, admin_client):
     vm_instance_tablet_device_dict = vm.instance["spec"]["template"]["spec"]["domain"]["devices"]["inputs"][0]
 
     tablet_dict_from_xml = [
-        i
-        for i in vm.vmi.get_xml_dict(privileged_client=admin_client)["domain"]["devices"]["input"]
-        if i["@type"] == "tablet"
+        input_device
+        for input_device in vm.vmi.get_xml_dict(privileged_client=admin_client)["domain"]["devices"]["input"]
+        if input_device["@type"] == "tablet"
     ][0]
 
     assert tablet_dict_from_xml["@type"] == vm_instance_tablet_device_dict["type"], "Wrong device type"

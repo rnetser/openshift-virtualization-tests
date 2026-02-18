@@ -105,8 +105,8 @@ def test_numa(admin_client, vm_numa):
 @pytest.mark.sriov
 @pytest.mark.polarion("CNV-4309")
 def test_numa_with_sriov(
+    admin_client,
     vm_numa_sriov,
     workers_utility_pods,
-    admin_client,
 ):
     assert_cpus_and_sriov_on_same_node(vm=vm_numa_sriov, utility_pods=workers_utility_pods, admin_client=admin_client)

@@ -71,8 +71,8 @@ class TestIsolateEmulatorThreadAndIOThreadsPolicy:
     )
     def test_iothreads_policy(
         self,
-        iothreads_policy_vm,
         admin_client,
+        iothreads_policy_vm,
     ):
         """
         Test when ioThreadsPolicy is "auto"

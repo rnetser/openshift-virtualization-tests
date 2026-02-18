@@ -2508,7 +2508,7 @@ def check_vm_xml_smbios(vm: VirtualMachineForTests, cm_values: Dict[str, str], a
 
 
 def assert_vm_xml_efi(
-    vm: VirtualMachineForTests, admin_client: DynamicClient, secure_boot_enabled: bool = True
+    vm: VirtualMachineForTests, admin_client: DynamicClient, *, secure_boot_enabled: bool = True
 ) -> None:
     LOGGER.info("Verify VM XML - EFI secureBoot values.")
     xml_dict_os = vm.vmi.get_xml_dict(privileged_client=admin_client)["domain"]["os"]

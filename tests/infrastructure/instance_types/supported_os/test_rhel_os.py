@@ -101,8 +101,8 @@ class TestVMFeatures:
     @pytest.mark.polarion("CNV-11834")
     def test_efi_secureboot_disabled_and_enabled(
         self,
-        golden_image_rhel_vm_with_instance_type,
         admin_client,
+        golden_image_rhel_vm_with_instance_type,
     ):
         vm = golden_image_rhel_vm_with_instance_type
 
@@ -120,7 +120,7 @@ class TestVMFeatures:
     @pytest.mark.dependency(depends=[f"{TESTS_MODULE_IDENTIFIER}::{TEST_START_VM_TEST_NAME}"])
     @pytest.mark.polarion("CNV-11835")
     def test_vm_smbios_default(
-        self, smbios_from_kubevirt_config, golden_image_rhel_vm_with_instance_type, admin_client
+        self, admin_client, smbios_from_kubevirt_config, golden_image_rhel_vm_with_instance_type
     ):
         check_vm_xml_smbios(
             vm=golden_image_rhel_vm_with_instance_type, cm_values=smbios_from_kubevirt_config, admin_client=admin_client

@@ -123,8 +123,8 @@ class TestWindowsHyperVFlags:
     )
     def test_vm_added_hyperv_features(
         self,
-        hyperv_vm,
         admin_client,
+        hyperv_vm,
     ):
         LOGGER.info("Verify added hyperv feature is added to libvirt")
         vendor_id = hyperv_vm.vmi.get_xml_dict(privileged_client=admin_client)["domain"]["features"]["hyperv"][

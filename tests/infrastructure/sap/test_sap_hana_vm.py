@@ -793,12 +793,12 @@ class TestSAPHANAVirtualMachine:
     @pytest.mark.polarion("CNV-7764")
     def test_sap_hana_vm_numa_topology(
         self,
+        admin_client,
         sap_hana_vm,
         vm_virt_launcher_pod_instance,
         workers_utility_pods,
         vm_cpu_list,
         numa_node_dict,
-        admin_client,
     ):
         LOGGER.info(f"Verify {sap_hana_vm.name} NUMA configuration")
         assert_virt_launcher_pod_cpu_manager_node_selector(virt_launcher_pod=vm_virt_launcher_pod_instance)

@@ -83,9 +83,9 @@ class TestRHELIOOptions:
     )
     def test_vm_with_disk_io_option_rhel(
         self,
+        admin_client,
         disk_options_vm,
         expected_disk_io_option,
-        admin_client,
     ):
         check_disk_io_option_on_domain_xml(
             vm=disk_options_vm,
@@ -120,9 +120,9 @@ class TestWindowsIOOptions:
     )
     def test_vm_with_disk_io_option_windows(
         self,
+        admin_client,
         disk_options_vm,
         expected_disk_io_option,
-        admin_client,
     ):
         check_disk_io_option_on_domain_xml(
             vm=disk_options_vm,
