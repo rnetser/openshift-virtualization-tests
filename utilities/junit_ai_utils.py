@@ -148,9 +148,7 @@ def _fetch_analysis_from_server(server_url: str, payload: dict[str, Any]) -> dic
         timeout_value = 600
 
     try:
-        response = requests.post(
-            f"{server_url.rstrip('/')}/analyze-failures", json=payload, timeout=timeout_value, verify=False
-        )
+        response = requests.post(f"{server_url.rstrip('/')}/analyze-failures", json=payload, timeout=timeout_value)
         response.raise_for_status()
         result = response.json()
     except (requests.RequestException, ValueError) as exc:

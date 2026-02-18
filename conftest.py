@@ -359,7 +359,8 @@ def pytest_addoption(parser):
         "--analyze-with-ai",
         action="store_true",
         default=False,
-        help="Enrich JUnit XML with AI-powered failure analysis from jenkins-job-insight",
+        help="Enrich JUnit XML with AI-powered failure analysis from jenkins-job-insight."
+        "`JJI_SERVER_URL` env var is required",
     )
 
 
