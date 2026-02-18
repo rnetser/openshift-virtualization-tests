@@ -840,6 +840,7 @@ def pytest_sessionstart(session):
         deploy_run_in_progress_config_map(client=admin_client, session=session)
 
     # Set up AI analysis if --analyze-with-ai is passed.
+    # Source: https://github.com/myk-org/jenkins-job-insight/blob/main/examples/pytest-junitxml/conftest_junit_ai.py
     if session.config.option.analyze_with_ai:
         setup_ai_analysis(session=session)
 
@@ -874,6 +875,7 @@ def pytest_sessionfinish(session, exitstatus):
                     shutil.rmtree(dir_path, ignore_errors=True)
 
     # Enrich JUnit XML with AI analysis after all tests complete.
+    # Source: https://github.com/myk-org/jenkins-job-insight/blob/main/examples/pytest-junitxml/conftest_junit_ai.py
     if not session.config.option.analyze_with_ai:
         return
     try:
