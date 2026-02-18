@@ -82,7 +82,6 @@ fcn_exclude_functions =
     as_completed,
     mkdtemp,
     tempfile,
-    ElementTree,
     urllib3,
 
 nit_exclude_imports =
