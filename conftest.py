@@ -120,7 +120,7 @@ def pytest_addoption(parser):
     csv_group = parser.getgroup(name="CSV")
     ci_group = parser.getgroup(name="CI")
     component_sanity_group = parser.getgroup(name="ComponentSanity")
-    ai_insights_group = parser.getgroup("ai-job-insight", "AI-powered failure analysis")
+    ai_insights_group = parser.getgroup(name="ai-job-insight")
 
     csv_group.addoption("--update-csv", action="store_true")
 
@@ -359,8 +359,7 @@ def pytest_addoption(parser):
         "--analyze-with-ai",
         action="store_true",
         default=False,
-        help="Enrich JUnit XML with AI-powered failure analysis from jenkins-job-insight."
-        "`JJI_SERVER_URL` env var is required",
+        help="Enrich JUnit XML with AI-powered analysis from jenkins-job-insight. `JJI_SERVER_URL` env var is required",
     )
 
 
