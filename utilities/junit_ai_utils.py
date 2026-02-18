@@ -12,7 +12,10 @@ from xml.etree import ElementTree
 from xml.etree.ElementTree import Element
 
 import requests
+import urllib3
 from dotenv import load_dotenv
+
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 LOGGER = logging.getLogger("jenkins-job-insight")
 
@@ -105,7 +108,7 @@ def _extract_failures_from_xml(xml_path: Path) -> list[dict[str, str]]:
     Returns:
         List of failure dicts with test_name, error_message, stack_trace, and status.
     """
-    tree = ElementTree.parse(source=xml_path)
+    tree = ElementTree.parse(xml_path)
     failures: list[dict[str, str]] = []
 
     for testcase in tree.iter("testcase"):
@@ -190,7 +193,7 @@ def _apply_analysis_to_xml(xml_path: Path, analysis_map: dict[tuple[str, str], d
     shutil.copy2(src=xml_path, dst=backup_path)
 
     try:
-        tree = ElementTree.parse(source=xml_path)
+        tree = ElementTree.parse(xml_path)
         matched_keys: set[tuple[str, str]] = set()
         for testcase in tree.iter("testcase"):
             key = (testcase.get("classname", ""), testcase.get("name", ""))
@@ -229,7 +232,7 @@ def _inject_analysis(testcase: Element, analysis: dict[str, Any]) -> None:
     # Add structured properties
     properties = testcase.find("properties")
     if properties is None:
-        properties = ElementTree.SubElement(parent=testcase, tag="properties")
+        properties = ElementTree.SubElement(testcase, "properties")
 
     _add_property(properties_elem=properties, name="ai_classification", value=analysis.get("classification", ""))
     _add_property(properties_elem=properties, name="ai_details", value=analysis.get("details", ""))
@@ -279,7 +282,7 @@ def _inject_analysis(testcase: Element, analysis: dict[str, Any]) -> None:
     if text:
         system_out = testcase.find("system-out")
         if system_out is None:
-            system_out = ElementTree.SubElement(parent=testcase, tag="system-out")
+            system_out = ElementTree.SubElement(testcase, "system-out")
             system_out.text = text
         else:
             # Append to existing system-out
@@ -290,7 +293,7 @@ def _inject_analysis(testcase: Element, analysis: dict[str, Any]) -> None:
 def _add_property(properties_elem: Element, name: str, value: str) -> None:
     """Add a property sub-element if value is non-empty."""
     if value:
-        prop = ElementTree.SubElement(parent=properties_elem, tag="property")
+        prop = ElementTree.SubElement(properties_elem, "property")
         prop.set("name", name)
         prop.set("value", value)
 
