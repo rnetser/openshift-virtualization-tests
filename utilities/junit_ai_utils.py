@@ -1,4 +1,7 @@
-"""Utility functions for JUnit XML AI analysis enrichment."""
+"""Utility functions for JUnit XML AI analysis enrichment.
+
+Source: https://github.com/myk-org/jenkins-job-insight/blob/main/examples/pytest-junitxml/conftest_junit_ai_utils.py
+"""
 
 import logging
 import os
