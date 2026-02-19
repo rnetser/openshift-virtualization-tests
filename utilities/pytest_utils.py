@@ -312,7 +312,7 @@ def get_tests_cluster_markers(items: list[pytest.Item], filepath: str | None = N
                         markers_by_section[current_section].append(marker_name)
 
     if not any(markers_by_section.values()):
-        LOGGER.warning("No markers found in any section; verify pytest.ini section headers")
+        LOGGER.warning("No markers found in any section")
 
     # Remove empty sections
     result = {section: markers for section, markers in markers_by_section.items() if markers}
