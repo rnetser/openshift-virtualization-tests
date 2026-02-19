@@ -138,7 +138,9 @@ def _fetch_analysis_from_server(
     Returns:
         Tuple of (analysis_map, html_report_url).
         analysis_map: Mapping of (classname, test_name) to analysis results.
-        html_report_url: The HTML report URL from the server response, empty string if unavailable.
+        html_report_url: The HTML report URL, extracted from the server response
+            or constructed from job_id and server_url when the response omits it.
+            Empty string if neither is available.
         Returns ({}, "") on request failure.
     """
     try:
@@ -163,7 +165,10 @@ def _fetch_analysis_from_server(
         logger.error("Server request failed: %s%s", exc, error_detail)
         return {}, ""
 
-    html_report_url = result.get("html_report_url", "")
+    job_id = result.get("job_id", "")
+    html_report_url = result.get("html_report_url") or (
+        f"{server_url.rstrip('/')}/results/{job_id}.html" if job_id else ""
+    )
 
     analysis_map: dict[tuple[str, str], dict[str, Any]] = {}
     for failure in result.get("failures", []):
@@ -222,9 +227,7 @@ def _apply_analysis_to_xml(
             for testsuite in tree.iter("testsuite"):
                 ts_props = testsuite.find("properties")
                 if ts_props is None:
-                    ts_props = ET.SubElement(testsuite, "properties")
-                    # Move it to be the first child of testsuite
-                    testsuite.remove(ts_props)
+                    ts_props = ET.Element("properties")
                     testsuite.insert(0, ts_props)
                 _add_property(ts_props, "html_report_url", html_report_url)
 
