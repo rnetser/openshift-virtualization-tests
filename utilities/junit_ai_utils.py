@@ -1,23 +1,17 @@
-"""Utility functions for JUnit XML AI analysis enrichment.
-
-Source: https://github.com/myk-org/jenkins-job-insight/blob/main/examples/pytest-junitxml/conftest_junit_ai_utils.py
-"""
+"""Utility functions for JUnit XML AI analysis enrichment."""
 
 import logging
 import os
 import shutil
 from pathlib import Path
 from typing import Any
-from xml.etree import ElementTree
+from xml.etree import ElementTree as ET
 from xml.etree.ElementTree import Element
 
 import requests
-import urllib3
 from dotenv import load_dotenv
 
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-
-LOGGER = logging.getLogger("jenkins-job-insight")
+logger = logging.getLogger("jenkins-job-insight")
 
 
 def is_dry_run(config) -> bool:
@@ -41,10 +35,10 @@ def setup_ai_analysis(session) -> None:
 
     load_dotenv()
 
-    LOGGER.info("Setting up AI-powered test failure analysis")
+    logger.info("Setting up AI-powered test failure analysis")
 
     if not os.environ.get("JJI_SERVER_URL"):
-        LOGGER.warning("JJI_SERVER_URL is not set. Analyze with AI features will be disabled.")
+        logger.warning("JJI_SERVER_URL is not set. Analyze with AI features will be disabled.")
         session.config.option.analyze_with_ai = False
     else:
         if not os.environ.get("JJI_AI_PROVIDER"):
@@ -64,7 +58,6 @@ def enrich_junit_xml(session) -> None:
     Args:
         session: The pytest session containing config options.
     """
-    LOGGER.info("Enriching JUnit XML with AI analysis")
     xml_path_raw = getattr(session.config.option, "xmlpath", None)
     if not xml_path_raw or not Path(xml_path_raw).exists():
         return
@@ -74,12 +67,12 @@ def enrich_junit_xml(session) -> None:
     ai_provider = os.environ.get("JJI_AI_PROVIDER")
     ai_model = os.environ.get("JJI_AI_MODEL")
     if not ai_provider or not ai_model:
-        LOGGER.warning("JJI_AI_PROVIDER and JJI_AI_MODEL must be set, skipping AI analysis enrichment")
+        logger.warning("JJI_AI_PROVIDER and JJI_AI_MODEL must be set, skipping AI analysis enrichment")
         return
 
     failures = _extract_failures_from_xml(xml_path=xml_path)
     if not failures:
-        LOGGER.info("jenkins-job-insight: No failures found in JUnit XML, skipping AI analysis")
+        logger.info("jenkins-job-insight: No failures found in JUnit XML, skipping AI analysis")
         return
 
     server_url = os.environ["JJI_SERVER_URL"]
@@ -89,11 +82,11 @@ def enrich_junit_xml(session) -> None:
         "ai_model": ai_model,
     }
 
-    analysis_map = _fetch_analysis_from_server(server_url=server_url, payload=payload)
+    analysis_map, html_report_url = _fetch_analysis_from_server(server_url=server_url, payload=payload)
     if not analysis_map:
         return
 
-    _apply_analysis_to_xml(xml_path=xml_path, analysis_map=analysis_map)
+    _apply_analysis_to_xml(xml_path=xml_path, analysis_map=analysis_map, html_report_url=html_report_url)
 
 
 def _extract_failures_from_xml(xml_path: Path) -> list[dict[str, str]]:
@@ -108,7 +101,7 @@ def _extract_failures_from_xml(xml_path: Path) -> list[dict[str, str]]:
     Returns:
         List of failure dicts with test_name, error_message, stack_trace, and status.
     """
-    tree = ElementTree.parse(xml_path)
+    tree = ET.parse(xml_path)
     failures: list[dict[str, str]] = []
 
     for testcase in tree.iter("testcase"):
@@ -133,7 +126,9 @@ def _extract_failures_from_xml(xml_path: Path) -> list[dict[str, str]]:
     return failures
 
 
-def _fetch_analysis_from_server(server_url: str, payload: dict[str, Any]) -> dict[tuple[str, str], dict[str, Any]]:
+def _fetch_analysis_from_server(
+    server_url: str, payload: dict[str, Any]
+) -> tuple[dict[tuple[str, str], dict[str, Any]], str]:
     """Send collected failures to the JJI server and return the analysis map.
 
     Args:
@@ -141,13 +136,15 @@ def _fetch_analysis_from_server(server_url: str, payload: dict[str, Any]) -> dic
         payload: Request payload containing failures and AI config.
 
     Returns:
-        Mapping of (classname, test_name) to analysis results.
-        Returns empty dict on request failure.
+        Tuple of (analysis_map, html_report_url).
+        analysis_map: Mapping of (classname, test_name) to analysis results.
+        html_report_url: The HTML report URL from the server response, empty string if unavailable.
+        Returns ({}, "") on request failure.
     """
     try:
         timeout_value = int(os.environ.get("JJI_TIMEOUT", "600"))
     except ValueError:
-        LOGGER.warning("Invalid JJI_TIMEOUT value, using default 600 seconds")
+        logger.warning("Invalid JJI_TIMEOUT value, using default 600 seconds")
         timeout_value = 600
 
     try:
@@ -162,9 +159,11 @@ def _fetch_analysis_from_server(server_url: str, payload: dict[str, Any]) -> dic
             try:
                 error_detail = f" Response: {exc.response.text}"
             except Exception as detail_exc:
-                LOGGER.info("Could not extract response detail: %s", detail_exc)
-        LOGGER.error("Server request failed: %s%s", exc, error_detail)
-        return {}
+                logger.debug("Could not extract response detail: %s", detail_exc)
+        logger.error("Server request failed: %s%s", exc, error_detail)
+        return {}, ""
+
+    html_report_url = result.get("html_report_url", "")
 
     analysis_map: dict[tuple[str, str], dict[str, Any]] = {}
     for failure in result.get("failures", []):
@@ -172,13 +171,20 @@ def _fetch_analysis_from_server(server_url: str, payload: dict[str, Any]) -> dic
         analysis = failure.get("analysis", {})
         if test_name and analysis:
             # test_name is "classname.name" from XML extraction; split on last dot
-            classname, _, name = test_name.rpartition(".")
-            analysis_map[(classname, name)] = analysis
+            dot_idx = test_name.rfind(".")
+            if dot_idx > 0:
+                analysis_map[(test_name[:dot_idx], test_name[dot_idx + 1 :])] = analysis
+            else:
+                analysis_map[("", test_name)] = analysis
 
-    return analysis_map
+    return analysis_map, html_report_url
 
 
-def _apply_analysis_to_xml(xml_path: Path, analysis_map: dict[tuple[str, str], dict[str, Any]]) -> None:
+def _apply_analysis_to_xml(
+    xml_path: Path,
+    analysis_map: dict[tuple[str, str], dict[str, Any]],
+    html_report_url: str = "",
+) -> None:
     """Apply AI analysis results to JUnit XML testcase elements.
 
     Uses exact (classname, name) matching since failures are extracted from
@@ -188,27 +194,39 @@ def _apply_analysis_to_xml(xml_path: Path, analysis_map: dict[tuple[str, str], d
     Args:
         xml_path: Path to the JUnit XML report file.
         analysis_map: Mapping of (classname, test_name) to analysis results.
+        html_report_url: URL to the HTML report, added as a testsuite-level property.
     """
-    backup_path = xml_path.with_suffix(suffix=".xml.bak")
-    shutil.copy2(src=xml_path, dst=backup_path)
+    backup_path = xml_path.with_suffix(".xml.bak")
+    shutil.copy2(xml_path, backup_path)
 
     try:
-        tree = ElementTree.parse(xml_path)
+        tree = ET.parse(xml_path)
         matched_keys: set[tuple[str, str]] = set()
         for testcase in tree.iter("testcase"):
             key = (testcase.get("classname", ""), testcase.get("name", ""))
             analysis = analysis_map.get(key)
             if analysis:
-                _inject_analysis(testcase=testcase, analysis=analysis)
+                _inject_analysis(testcase, analysis)
                 matched_keys.add(key)
 
         unmatched = set(analysis_map.keys()) - matched_keys
         if unmatched:
-            LOGGER.warning(
+            logger.warning(
                 "jenkins-job-insight: %d analysis results did not match any testcase: %s",
                 len(unmatched),
                 unmatched,
             )
+
+        # Add html_report_url as a testsuite-level property
+        if html_report_url:
+            for testsuite in tree.iter("testsuite"):
+                ts_props = testsuite.find("properties")
+                if ts_props is None:
+                    ts_props = ET.SubElement(testsuite, "properties")
+                    # Move it to be the first child of testsuite
+                    testsuite.remove(ts_props)
+                    testsuite.insert(0, ts_props)
+                _add_property(ts_props, "html_report_url", html_report_url)
 
         tree.write(str(xml_path), encoding="unicode", xml_declaration=True)
         backup_path.unlink()  # Success - remove backup
@@ -232,57 +250,53 @@ def _inject_analysis(testcase: Element, analysis: dict[str, Any]) -> None:
     # Add structured properties
     properties = testcase.find("properties")
     if properties is None:
-        properties = ElementTree.SubElement(testcase, "properties")
+        properties = ET.SubElement(testcase, "properties")
 
-    _add_property(properties_elem=properties, name="ai_classification", value=analysis.get("classification", ""))
-    _add_property(properties_elem=properties, name="ai_details", value=analysis.get("details", ""))
+    _add_property(properties, "ai_classification", analysis.get("classification", ""))
+    _add_property(properties, "ai_details", analysis.get("details", ""))
 
     affected = analysis.get("affected_tests", [])
     if affected:
-        _add_property(properties_elem=properties, name="ai_affected_tests", value=", ".join(affected))
+        _add_property(properties, "ai_affected_tests", ", ".join(affected))
 
     # Code fix properties
     code_fix = analysis.get("code_fix")
     if code_fix and isinstance(code_fix, dict):
-        _add_property(properties_elem=properties, name="ai_code_fix_file", value=code_fix.get("file", ""))
-        _add_property(properties_elem=properties, name="ai_code_fix_line", value=str(code_fix.get("line", "")))
-        _add_property(properties_elem=properties, name="ai_code_fix_change", value=code_fix.get("change", ""))
+        _add_property(properties, "ai_code_fix_file", code_fix.get("file", ""))
+        _add_property(properties, "ai_code_fix_line", str(code_fix.get("line", "")))
+        _add_property(properties, "ai_code_fix_change", code_fix.get("change", ""))
 
     # Product bug properties
     bug_report = analysis.get("product_bug_report")
     if bug_report and isinstance(bug_report, dict):
-        _add_property(properties_elem=properties, name="ai_bug_title", value=bug_report.get("title", ""))
-        _add_property(properties_elem=properties, name="ai_bug_severity", value=bug_report.get("severity", ""))
-        _add_property(properties_elem=properties, name="ai_bug_component", value=bug_report.get("component", ""))
-        _add_property(properties_elem=properties, name="ai_bug_description", value=bug_report.get("description", ""))
+        _add_property(properties, "ai_bug_title", bug_report.get("title", ""))
+        _add_property(properties, "ai_bug_severity", bug_report.get("severity", ""))
+        _add_property(properties, "ai_bug_component", bug_report.get("component", ""))
+        _add_property(properties, "ai_bug_description", bug_report.get("description", ""))
 
         # Jira match properties
         jira_matches = bug_report.get("jira_matches", [])
         for idx, match in enumerate(jira_matches):
             if isinstance(match, dict):
-                _add_property(properties_elem=properties, name=f"ai_jira_match_{idx}_key", value=match.get("key", ""))
+                _add_property(properties, f"ai_jira_match_{idx}_key", match.get("key", ""))
+                _add_property(properties, f"ai_jira_match_{idx}_summary", match.get("summary", ""))
+                _add_property(properties, f"ai_jira_match_{idx}_status", match.get("status", ""))
+                _add_property(properties, f"ai_jira_match_{idx}_url", match.get("url", ""))
                 _add_property(
-                    properties_elem=properties, name=f"ai_jira_match_{idx}_summary", value=match.get("summary", "")
-                )
-                _add_property(
-                    properties_elem=properties, name=f"ai_jira_match_{idx}_status", value=match.get("status", "")
-                )
-                _add_property(properties_elem=properties, name=f"ai_jira_match_{idx}_url", value=match.get("url", ""))
-                _add_property(
-                    properties_elem=properties,
-                    name=f"ai_jira_match_{idx}_priority",
-                    value=match.get("priority", ""),
+                    properties,
+                    f"ai_jira_match_{idx}_priority",
+                    match.get("priority", ""),
                 )
                 score = match.get("score")
                 if score is not None:
-                    _add_property(properties_elem=properties, name=f"ai_jira_match_{idx}_score", value=str(score))
+                    _add_property(properties, f"ai_jira_match_{idx}_score", str(score))
 
     # Add human-readable system-out
-    text = _format_analysis_text(analysis=analysis)
+    text = _format_analysis_text(analysis)
     if text:
         system_out = testcase.find("system-out")
         if system_out is None:
-            system_out = ElementTree.SubElement(testcase, "system-out")
+            system_out = ET.SubElement(testcase, "system-out")
             system_out.text = text
         else:
             # Append to existing system-out
@@ -293,7 +307,7 @@ def _inject_analysis(testcase: Element, analysis: dict[str, Any]) -> None:
 def _add_property(properties_elem: Element, name: str, value: str) -> None:
     """Add a property sub-element if value is non-empty."""
     if value:
-        prop = ElementTree.SubElement(properties_elem, "property")
+        prop = ET.SubElement(properties_elem, "property")
         prop.set("name", name)
         prop.set("value", value)
 
