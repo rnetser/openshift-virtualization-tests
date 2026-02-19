@@ -3,6 +3,7 @@ import importlib
 import json
 import logging
 import os
+import pathlib
 import re
 import shutil
 import socket
@@ -263,7 +264,7 @@ def get_cnv_version_explorer_url(pytest_config):
         return version_explorer_url
 
 
-def get_tests_cluster_markers(items: list, filepath: str | None = None) -> dict[str, list[str]]:
+def get_tests_cluster_markers(items: list[pytest.Item], filepath: str | None = None) -> dict[str, list[str]]:
     """Extract cluster-related markers from collected tests, grouped by category.
 
     Parses pytest.ini to find markers under Architecture support, Hardware requirements,
@@ -288,8 +289,9 @@ def get_tests_cluster_markers(items: list, filepath: str | None = None) -> dict[
 
     markers_by_section: dict[str, list[str]] = {section_name: [] for section_name in section_headers.values()}
 
+    pytest_ini_path = pathlib.Path(__file__).resolve().parent.parent / "pytest.ini"
     current_section: str | None = None
-    with open("pytest.ini") as fd:
+    with open(pytest_ini_path) as fd:
         for line in fd:
             stripped = line.strip()
 
@@ -308,6 +310,9 @@ def get_tests_cluster_markers(items: list, filepath: str | None = None) -> dict[
                     marker_name = stripped.split(":")[0]
                     if marker_name in test_markers:
                         markers_by_section[current_section].append(marker_name)
+
+    if not any(markers_by_section.values()):
+        LOGGER.warning("No markers found in any section; verify pytest.ini section headers")
 
     # Remove empty sections
     result = {section: markers for section, markers in markers_by_section.items() if markers}
