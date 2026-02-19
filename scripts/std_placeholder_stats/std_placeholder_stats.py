@@ -154,6 +154,28 @@ def get_test_methods_from_class(class_node: ast.ClassDef) -> list[str]:
     ]
 
 
+def _append_class_entries(
+    placeholder_files: dict[str, list[str]],
+    relative_path: str,
+    class_node: ast.ClassDef,
+) -> None:
+    """Append a class and its test methods to the placeholder files mapping.
+
+    Adds the class entry in ``path::ClassName`` format and indented method
+    entries for every ``test_*`` method found in the class body.
+
+    Args:
+        placeholder_files: Mapping of file paths to placeholder test entries
+            (modified in place).
+        relative_path: File path relative to the project root.
+        class_node: AST class definition node to extract entries from.
+    """
+    placeholder_files.setdefault(relative_path, []).append(f"{relative_path}::{class_node.name}")
+    test_methods = get_test_methods_from_class(class_node=class_node)
+    if test_methods:
+        placeholder_files[relative_path].extend(f"  - {method}" for method in test_methods)
+
+
 def scan_placeholder_tests(tests_dir: Path) -> dict[str, list[str]]:
     """Scan tests directory for STD placeholder tests.
 
@@ -185,10 +207,11 @@ def scan_placeholder_tests(tests_dir: Path) -> dict[str, list[str]]:
 
             for node in tree.body:
                 if isinstance(node, ast.ClassDef):
-                    placeholder_files.setdefault(relative_path, []).append(f"{relative_path}::{node.name}")
-                    test_methods = get_test_methods_from_class(class_node=node)
-                    if test_methods:
-                        placeholder_files[relative_path].extend(f"  - {method}" for method in test_methods)
+                    _append_class_entries(
+                        placeholder_files=placeholder_files,
+                        relative_path=relative_path,
+                        class_node=node,
+                    )
 
                 elif isinstance(node, ast.FunctionDef) and node.name.startswith("test_"):
                     # For standalone functions, add module path first if not already added
@@ -202,10 +225,11 @@ def scan_placeholder_tests(tests_dir: Path) -> dict[str, list[str]]:
                 if isinstance(node, ast.ClassDef):
                     if class_has_test_false(class_node=node):
                         # Class-level __test__ = False: report class and all methods
-                        placeholder_files.setdefault(relative_path, []).append(f"{relative_path}::{node.name}")
-                        test_methods = get_test_methods_from_class(class_node=node)
-                        if test_methods:
-                            placeholder_files[relative_path].extend(f"  - {method}" for method in test_methods)
+                        _append_class_entries(
+                            placeholder_files=placeholder_files,
+                            relative_path=relative_path,
+                            class_node=node,
+                        )
                     else:
                         # Check each method for method.__test__ = False in class body
                         method_placeholders: list[str] = []
@@ -283,7 +307,7 @@ def output_json(placeholder_files: dict[str, list[str]]) -> None:
 
     output: dict[str, Any] = {
         "total_tests": total_tests,
-        "total_files": len(placeholder_files),
+        "total_files": len(tests_by_file),
         "files": tests_by_file,
     }
 

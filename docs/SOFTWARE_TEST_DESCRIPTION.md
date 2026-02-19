@@ -93,7 +93,7 @@ Use clear, natural language that maps directly to assertions, for example:
 | `Ping fails` / `Operation fails`                    | `assert` raises exception or returns failure |
 
 **Example:**
-```
+```text
 Expected:
     - VM is Running
     - File content equals "data-before-snapshot"
@@ -498,7 +498,7 @@ def test_online_disk_resize():
     Test that a running VM's disk can be expanded.
 
     Markers:
-    	- gating
+        - gating
 
     Parametrize:
         - storage_class: [ocs-storagecluster-ceph-rbd, hostpath-csi]

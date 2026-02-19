@@ -300,9 +300,6 @@ class TestGetTestMethodsFromClass:
         class_node = _get_first_class_node(source=SOURCE_CLASS_WITH_MIXED_METHODS)
         result = get_test_methods_from_class(class_node=class_node)
         assert result == ["test_one", "test_two"]
-        assert "__init__" not in result
-        assert "helper_method" not in result
-        assert "setup_method" not in result
 
     def test_returns_empty_list_for_no_test_methods(self) -> None:
         """get_test_methods_from_class() returns empty list when no test_ methods."""
