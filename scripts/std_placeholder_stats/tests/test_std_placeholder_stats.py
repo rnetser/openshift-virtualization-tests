@@ -9,6 +9,8 @@ Generated using Claude cli
 from __future__ import annotations
 
 import ast
+import json
+import logging
 from pathlib import Path
 
 import pytest
@@ -19,6 +21,8 @@ from scripts.std_placeholder_stats.std_placeholder_stats import (
     get_test_methods_from_class,
     method_has_test_false,
     module_has_test_false,
+    output_json,
+    output_text,
     scan_placeholder_tests,
 )
 
@@ -334,12 +338,18 @@ class TestScanPlaceholderTests:
 
         result = scan_placeholder_tests(tests_dir=tests_dir)
 
-        assert "tests/test_example.py" in result
+        assert "tests/test_example.py" in result, (
+            f"Expected key 'tests/test_example.py' in result, got keys: {list(result.keys())}"
+        )
         entries = result["tests/test_example.py"]
-        assert "tests/test_example.py::TestFoo" in entries
-        assert "  - test_bar" in entries
-        assert "tests/test_example.py::TestBaz" in entries
-        assert "  - test_qux" in entries
+        assert "tests/test_example.py::TestFoo" in entries, (
+            f"Expected 'tests/test_example.py::TestFoo' in entries, got: {entries}"
+        )
+        assert "  - test_bar" in entries, f"Expected '  - test_bar' in entries, got: {entries}"
+        assert "tests/test_example.py::TestBaz" in entries, (
+            f"Expected 'tests/test_example.py::TestBaz' in entries, got: {entries}"
+        )
+        assert "  - test_qux" in entries, f"Expected '  - test_qux' in entries, got: {entries}"
 
     def test_module_level_test_false_reports_standalone_functions(self, tests_dir: Path) -> None:
         """scan_placeholder_tests() reports standalone test functions under module-level __test__ = False."""
@@ -351,11 +361,13 @@ class TestScanPlaceholderTests:
 
         result = scan_placeholder_tests(tests_dir=tests_dir)
 
-        assert "tests/test_funcs.py" in result
+        assert "tests/test_funcs.py" in result, (
+            f"Expected key 'tests/test_funcs.py' in result, got keys: {list(result.keys())}"
+        )
         entries = result["tests/test_funcs.py"]
-        assert "tests/test_funcs.py" in entries
-        assert "  - test_alpha" in entries
-        assert "  - test_beta" in entries
+        assert "tests/test_funcs.py" in entries, f"Expected 'tests/test_funcs.py' in entries, got: {entries}"
+        assert "  - test_alpha" in entries, f"Expected '  - test_alpha' in entries, got: {entries}"
+        assert "  - test_beta" in entries, f"Expected '  - test_beta' in entries, got: {entries}"
 
     def test_class_level_test_false_reports_class_and_methods(self, tests_dir: Path) -> None:
         """scan_placeholder_tests() reports class and its methods when class has __test__ = False."""
@@ -374,11 +386,15 @@ class TestScanPlaceholderTests:
 
         result = scan_placeholder_tests(tests_dir=tests_dir)
 
-        assert "tests/test_cls.py" in result
+        assert "tests/test_cls.py" in result, (
+            f"Expected key 'tests/test_cls.py' in result, got keys: {list(result.keys())}"
+        )
         entries = result["tests/test_cls.py"]
-        assert "tests/test_cls.py::TestFoo" in entries
-        assert "  - test_bar" in entries
-        assert "  - test_baz" in entries
+        assert "tests/test_cls.py::TestFoo" in entries, (
+            f"Expected 'tests/test_cls.py::TestFoo' in entries, got: {entries}"
+        )
+        assert "  - test_bar" in entries, f"Expected '  - test_bar' in entries, got: {entries}"
+        assert "  - test_baz" in entries, f"Expected '  - test_baz' in entries, got: {entries}"
 
     def test_method_level_test_false_reports_only_that_method(self, tests_dir: Path) -> None:
         """scan_placeholder_tests() reports only the specific method with __test__ = False."""
@@ -397,11 +413,15 @@ class TestScanPlaceholderTests:
 
         result = scan_placeholder_tests(tests_dir=tests_dir)
 
-        assert "tests/test_meth.py" in result
+        assert "tests/test_meth.py" in result, (
+            f"Expected key 'tests/test_meth.py' in result, got keys: {list(result.keys())}"
+        )
         entries = result["tests/test_meth.py"]
-        assert "tests/test_meth.py::TestFoo" in entries
-        assert "  - test_alpha" in entries
-        assert "  - test_beta" not in entries
+        assert "tests/test_meth.py::TestFoo" in entries, (
+            f"Expected 'tests/test_meth.py::TestFoo' in entries, got: {entries}"
+        )
+        assert "  - test_alpha" in entries, f"Expected '  - test_alpha' in entries, got: {entries}"
+        assert "  - test_beta" not in entries, f"Unexpected '  - test_beta' found in entries: {entries}"
 
     def test_function_level_test_false_reports_only_that_function(self, tests_dir: Path) -> None:
         """scan_placeholder_tests() reports only the function with func.__test__ = False."""
@@ -413,10 +433,12 @@ class TestScanPlaceholderTests:
 
         result = scan_placeholder_tests(tests_dir=tests_dir)
 
-        assert "tests/test_func.py" in result
+        assert "tests/test_func.py" in result, (
+            f"Expected key 'tests/test_func.py' in result, got keys: {list(result.keys())}"
+        )
         entries = result["tests/test_func.py"]
-        assert "  - test_alpha" in entries
-        assert "  - test_beta" not in entries
+        assert "  - test_alpha" in entries, f"Expected '  - test_alpha' in entries, got: {entries}"
+        assert "  - test_beta" not in entries, f"Unexpected '  - test_beta' found in entries: {entries}"
 
     def test_skips_files_without_test_false(self, tests_dir: Path) -> None:
         """scan_placeholder_tests() skips files that do not contain __test__ = False."""
@@ -446,8 +468,12 @@ class TestScanPlaceholderTests:
         result = scan_placeholder_tests(tests_dir=tests_dir)
 
         # Broken file should be skipped, valid file should be included
-        assert "tests/test_broken.py" not in result
-        assert "tests/test_valid.py" in result
+        assert "tests/test_broken.py" not in result, (
+            f"Unexpected key 'tests/test_broken.py' in result: {list(result.keys())}"
+        )
+        assert "tests/test_valid.py" in result, (
+            f"Expected key 'tests/test_valid.py' in result, got keys: {list(result.keys())}"
+        )
 
     def test_returns_empty_dict_when_no_test_files(self, tests_dir: Path) -> None:
         """scan_placeholder_tests() returns empty dict when no test files exist."""
@@ -487,3 +513,79 @@ class TestScanPlaceholderTests:
         result = scan_placeholder_tests(tests_dir=tests_dir)
 
         assert result == {}
+
+
+# ===========================================================================
+# Tests for output_text() and output_json()
+# ===========================================================================
+
+
+class TestOutputFunctions:
+    """Tests for output_text() and output_json() functions."""
+
+    SAMPLE_PLACEHOLDER_FILES: dict[str, list[str]] = {
+        "tests/test_foo.py": [
+            "tests/test_foo.py::TestFoo",
+            "  - test_bar",
+            "  - test_baz",
+        ],
+        "tests/test_standalone.py": [
+            "tests/test_standalone.py",
+            "  - test_alpha",
+        ],
+    }
+
+    def test_output_json_structure(self, capsys: pytest.CaptureFixture[str]) -> None:
+        """output_json() produces valid JSON with correct totals and file entries."""
+        output_json(placeholder_files=self.SAMPLE_PLACEHOLDER_FILES)
+        captured = capsys.readouterr()
+        result = json.loads(captured.out)
+
+        assert result["total_tests"] == 3, f"Expected 3 total tests, got {result['total_tests']}"
+        assert result["total_files"] == 2, f"Expected 2 total files, got {result['total_files']}"
+        assert "tests/test_foo.py" in result["files"], (
+            f"Missing tests/test_foo.py in files, got keys: {list(result['files'].keys())}"
+        )
+        assert result["files"]["tests/test_foo.py"] == ["test_bar", "test_baz"], (
+            f"Expected ['test_bar', 'test_baz'], got {result['files']['tests/test_foo.py']}"
+        )
+        assert result["files"]["tests/test_standalone.py"] == ["test_alpha"], (
+            f"Expected ['test_alpha'], got {result['files']['tests/test_standalone.py']}"
+        )
+
+    def test_output_json_empty_input(self, capsys: pytest.CaptureFixture[str]) -> None:
+        """output_json() produces correct JSON for empty input."""
+        output_json(placeholder_files={})
+        captured = capsys.readouterr()
+        result = json.loads(captured.out)
+
+        assert result["total_tests"] == 0, f"Expected 0 total tests, got {result['total_tests']}"
+        assert result["total_files"] == 0, f"Expected 0 total files, got {result['total_files']}"
+        assert result["files"] == {}, f"Expected empty files dict, got: {result['files']}"
+
+    def test_output_text_counts_only_files_with_tests(self) -> None:
+        """output_text() counts only files that have test entries in the total."""
+        placeholder_files: dict[str, list[str]] = {
+            "tests/test_foo.py": [
+                "tests/test_foo.py::TestFoo",
+                "  - test_bar",
+            ],
+            "tests/test_empty.py": [
+                "tests/test_empty.py::TestEmpty",
+            ],
+        }
+        handler = logging.Handler()
+        messages: list[str] = []
+        handler.emit = lambda record: messages.append(record.getMessage())
+        logger = logging.getLogger(name="scripts.std_placeholder_stats.std_placeholder_stats")
+        logger.addHandler(hdlr=handler)
+        try:
+            output_text(placeholder_files=placeholder_files)
+        finally:
+            logger.removeHandler(hdlr=handler)
+
+        summary_line = [line for line in messages if "Total:" in line]
+        assert summary_line, f"Expected 'Total:' summary line in log output, got: {messages}"
+        assert "1 placeholder tests in 1 files" in summary_line[0], (
+            f"Expected '1 placeholder tests in 1 files', got: {summary_line[0]}"
+        )

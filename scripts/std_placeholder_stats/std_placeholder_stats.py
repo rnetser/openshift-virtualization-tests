@@ -264,7 +264,7 @@ def output_text(placeholder_files: dict[str, list[str]]) -> None:
         return
 
     total_tests = 0
-    total_files = len(placeholder_files)
+    total_files = 0
 
     output_lines: list[str] = []
     output_lines.append(separator(symbol_="="))
@@ -273,10 +273,14 @@ def output_text(placeholder_files: dict[str, list[str]]) -> None:
     output_lines.append("")
 
     for entries in placeholder_files.values():
+        has_tests = False
         for entry in entries:
             output_lines.append(entry)
             if entry.startswith("  - "):
                 total_tests += 1
+                has_tests = True
+        if has_tests:
+            total_files += 1
 
     output_lines.append("")
     output_lines.append(separator(symbol_="-"))
