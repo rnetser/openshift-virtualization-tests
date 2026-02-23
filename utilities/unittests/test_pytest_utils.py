@@ -934,7 +934,7 @@ class TestGetTestsClusterMarkers:
 
         # Should log empty dict
         call_args = str(mock_logger.info.call_args_list)
-        assert "{}" in call_args
+        assert "{}" in call_args, f"Expected empty dict in logged output, got: {call_args}"
 
     @patch("utilities.pytest_utils.json.dumps")
     @patch("utilities.pytest_utils.LOGGER")

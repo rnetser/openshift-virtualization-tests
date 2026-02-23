@@ -311,8 +311,12 @@ def get_tests_cluster_markers(items: list[pytest.Item], filepath: str | None = N
                     if marker_name in test_markers:
                         markers_by_section[current_section].append(marker_name)
 
-    if not any(markers_by_section.values()):
-        LOGGER.warning("No markers found in any section")
+    empty_sections = [section for section, markers in markers_by_section.items() if not markers]
+    if empty_sections:
+        LOGGER.warning(
+            f"No markers found in sections: {', '.join(empty_sections)}."
+            " Verify pytest.ini section headers match expected format."
+        )
 
     # Remove empty sections
     result = {section: markers for section, markers in markers_by_section.items() if markers}
@@ -321,7 +325,7 @@ def get_tests_cluster_markers(items: list[pytest.Item], filepath: str | None = N
 
     if filepath:
         LOGGER.info(f"Write cluster-related test markers in {filepath}")
-        with open(filepath, "w") as fd:
+        with open(filepath, mode="w") as fd:
             fd.write(json.dumps(result))
 
     return result
