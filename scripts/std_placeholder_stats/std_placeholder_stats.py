@@ -44,7 +44,7 @@ def separator(symbol_: str, val: str | None = None) -> str:
     if not val:
         return symbol_ * terminal_width
 
-    sepa = int((terminal_width - len(val) - 2) // 2)
+    sepa = (terminal_width - len(val) - 2) // 2
     return f"{symbol_ * sepa} {val} {symbol_ * sepa}"
 
 
@@ -195,6 +195,7 @@ def scan_placeholder_tests(tests_dir: Path) -> dict[str, list[str]]:
         try:
             tree = ast.parse(source=file_content)
         except SyntaxError as exc:
+            # Intentionally skip unparseable files; warn so the user can investigate
             LOGGER.warning(f"Failed to parse {test_file}: {exc}")
             continue
 
@@ -221,6 +222,7 @@ def scan_placeholder_tests(tests_dir: Path) -> dict[str, list[str]]:
                     placeholder_files[relative_path].append(f"  - {node.name}")
         else:
             # Check individual classes and functions for __test__ = False
+            has_standalone_header = False
             for node in tree.body:
                 if isinstance(node, ast.ClassDef):
                     if class_has_test_false(class_node=node):
@@ -243,11 +245,9 @@ def scan_placeholder_tests(tests_dir: Path) -> dict[str, list[str]]:
 
                 elif isinstance(node, ast.FunctionDef) and node.name.startswith("test_"):
                     if function_has_test_false(module_tree=tree, function_name=node.name):
-                        # For standalone functions, add module path first if not already added
-                        if relative_path not in placeholder_files:
-                            placeholder_files[relative_path] = [relative_path]
-                        elif relative_path not in placeholder_files[relative_path]:
-                            placeholder_files[relative_path].insert(0, relative_path)
+                        if not has_standalone_header:
+                            placeholder_files.setdefault(relative_path, []).insert(0, relative_path)
+                            has_standalone_header = True
                         placeholder_files[relative_path].append(f"  - {node.name}")
 
     return placeholder_files

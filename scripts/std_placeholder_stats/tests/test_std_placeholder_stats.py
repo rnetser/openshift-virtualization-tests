@@ -12,6 +12,7 @@ import ast
 import json
 import logging
 from pathlib import Path
+from typing import ClassVar
 
 import pytest
 
@@ -297,19 +298,19 @@ class TestGetTestMethodsFromClass:
         """get_test_methods_from_class() returns raw test method names."""
         class_node = _get_first_class_node(source=SOURCE_CLASS_TEST_FALSE)
         result = get_test_methods_from_class(class_node=class_node)
-        assert result == ["test_bar", "test_baz"]
+        assert result == ["test_bar", "test_baz"], f"Expected ['test_bar', 'test_baz'], got: {result}"
 
     def test_excludes_non_test_methods(self) -> None:
         """get_test_methods_from_class() excludes helper methods, __init__, etc."""
         class_node = _get_first_class_node(source=SOURCE_CLASS_WITH_MIXED_METHODS)
         result = get_test_methods_from_class(class_node=class_node)
-        assert result == ["test_one", "test_two"]
+        assert result == ["test_one", "test_two"], f"Expected ['test_one', 'test_two'], got: {result}"
 
     def test_returns_empty_list_for_no_test_methods(self) -> None:
         """get_test_methods_from_class() returns empty list when no test_ methods."""
         class_node = _get_first_class_node(source=SOURCE_CLASS_NO_TEST_METHODS)
         result = get_test_methods_from_class(class_node=class_node)
-        assert result == []
+        assert result == [], f"Expected empty list, got: {result}"
 
 
 # ===========================================================================
@@ -495,7 +496,9 @@ class TestScanPlaceholderTests:
 
         assert result, "Expected at least one entry from nested test file"
         found_keys = list(result.keys())
-        assert any("test_deep.py" in key for key in found_keys)
+        assert any("test_deep.py" in key for key in found_keys), (
+            f"Expected a key containing 'test_deep.py' in results, got keys: {found_keys}"
+        )
 
     def test_ignores_non_test_files(self, tests_dir: Path) -> None:
         """scan_placeholder_tests() only processes files matching test_*.py pattern."""
@@ -523,7 +526,7 @@ class TestScanPlaceholderTests:
 class TestOutputFunctions:
     """Tests for output_text() and output_json() functions."""
 
-    SAMPLE_PLACEHOLDER_FILES: dict[str, list[str]] = {
+    SAMPLE_PLACEHOLDER_FILES: ClassVar[dict[str, list[str]]] = {
         "tests/test_foo.py": [
             "tests/test_foo.py::TestFoo",
             "  - test_bar",
@@ -563,7 +566,7 @@ class TestOutputFunctions:
         assert result["total_files"] == 0, f"Expected 0 total files, got {result['total_files']}"
         assert result["files"] == {}, f"Expected empty files dict, got: {result['files']}"
 
-    def test_output_text_counts_only_files_with_tests(self) -> None:
+    def test_output_text_counts_only_files_with_tests(self, caplog: pytest.LogCaptureFixture) -> None:
         """output_text() counts only files that have test entries in the total."""
         placeholder_files: dict[str, list[str]] = {
             "tests/test_foo.py": [
@@ -574,18 +577,16 @@ class TestOutputFunctions:
                 "tests/test_empty.py::TestEmpty",
             ],
         }
-        handler = logging.Handler()
-        messages: list[str] = []
-        handler.emit = lambda record: messages.append(record.getMessage())
         logger = logging.getLogger(name="scripts.std_placeholder_stats.std_placeholder_stats")
-        logger.addHandler(hdlr=handler)
+        logger.propagate = True
         try:
-            output_text(placeholder_files=placeholder_files)
+            with caplog.at_level(logging.INFO, logger="scripts.std_placeholder_stats.std_placeholder_stats"):
+                output_text(placeholder_files=placeholder_files)
         finally:
-            logger.removeHandler(hdlr=handler)
+            logger.propagate = False
 
-        summary_line = [line for line in messages if "Total:" in line]
-        assert summary_line, f"Expected 'Total:' summary line in log output, got: {messages}"
+        summary_line = [line for line in caplog.messages if "Total:" in line]
+        assert summary_line, f"Expected 'Total:' summary line in log output, got: {caplog.messages}"
         assert "1 placeholder tests in 1 files" in summary_line[0], (
             f"Expected '1 placeholder tests in 1 files', got: {summary_line[0]}"
         )
