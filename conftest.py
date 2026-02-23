@@ -44,6 +44,7 @@ from utilities.data_collector import (
 )
 from utilities.database import Database
 from utilities.exceptions import MissingEnvironmentVariableError, StorageSanityError
+from utilities.junit_ai_utils import enrich_junit_xml, setup_ai_analysis
 from utilities.logger import setup_logging
 from utilities.pytest_utils import (
     config_default_storage_class,
@@ -54,6 +55,7 @@ from utilities.pytest_utils import (
     get_cnv_version_explorer_url,
     get_matrix_params,
     get_tests_cluster_markers,
+    mark_nmstate_dependent_tests,
     reorder_early_fixtures,
     run_in_progress_config_map,
     separator,
@@ -118,6 +120,8 @@ def pytest_addoption(parser):
     csv_group = parser.getgroup(name="CSV")
     ci_group = parser.getgroup(name="CI")
     component_sanity_group = parser.getgroup(name="ComponentSanity")
+    ai_insights_group = parser.getgroup(name="ai-job-insight")
+
     csv_group.addoption("--update-csv", action="store_true")
 
     # Upgrade addoption
@@ -350,6 +354,14 @@ def pytest_addoption(parser):
         help="Skip infrastructure prerequisite sanity checks",
     )
 
+    # AI
+    ai_insights_group.addoption(
+        "--analyze-with-ai",
+        action="store_true",
+        default=False,
+        help="Enrich JUnit XML with AI-powered analysis from jenkins-job-insight. `JJI_SERVER_URL` env var is required",
+    )
+
 
 def pytest_cmdline_main(config):
     # TODO: Reduce cognitive complexity
@@ -561,6 +573,7 @@ def pytest_collection_modifyitems(session, config, items):
     3. Adds the tier2 marker for tests without an exclusion marker.
     4. Marks tests by team.
     5. Filters upgrade tests based on the --upgrade option.
+    6. Dynamically mark NMState-dependent tests.
 
     Args:
         session (pytest.Session): The pytest session object.
@@ -599,6 +612,7 @@ def pytest_collection_modifyitems(session, config, items):
         config.hook.pytest_deselected(items=discard)
     items[:] = filter_deprecated_api_tests(items=items, config=config)
     items[:] = filter_sno_only_tests(items=items, config=config)
+    items[:] = mark_nmstate_dependent_tests(items=items)
 
 
 def pytest_report_teststatus(report, config):
@@ -824,6 +838,11 @@ def pytest_sessionstart(session):
         deploy_run_in_progress_namespace(client=admin_client)
         deploy_run_in_progress_config_map(client=admin_client, session=session)
 
+    # Set up AI analysis if --analyze-with-ai is passed.
+    # Source: https://github.com/myk-org/jenkins-job-insight/blob/main/examples/pytest-junitxml/conftest_junit_ai.py
+    if session.config.option.analyze_with_ai:
+        setup_ai_analysis(session=session)
+
 
 def pytest_collection_finish(session):
     if session.config.getoption("--collect-tests-markers"):
@@ -853,6 +872,16 @@ def pytest_sessionfinish(session, exitstatus):
                 dir_path = os.path.join(root, _dir)
                 if not os.listdir(dir_path):
                     shutil.rmtree(dir_path, ignore_errors=True)
+
+    # Enrich JUnit XML with AI analysis after all tests complete.
+    # Source: https://github.com/myk-org/jenkins-job-insight/blob/main/examples/pytest-junitxml/conftest_junit_ai.py
+    if session.config.option.analyze_with_ai:
+        try:
+            enrich_junit_xml(session=session)
+        # Do not fail on any AI analysis failures
+        except Exception:
+            LOGGER.exception("Failed to enrich JUnit XML, original preserved")
+
     session.config.option.log_listener.stop()
 
 
