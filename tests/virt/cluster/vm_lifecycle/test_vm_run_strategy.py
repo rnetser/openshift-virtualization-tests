@@ -236,12 +236,13 @@ class TestRunStrategyAdvancedActions:
     @pytest.mark.usefixtures("start_vm_if_not_running")
     def test_run_strategy_shutdown(
         self,
+        admin_client,
         lifecycle_vm,
         xfail_vm_shutdown_run_strategy_halted,
         matrix_updated_vm_run_strategy,
     ):
         vmi = lifecycle_vm.vmi
-        launcher_pod = vmi.virt_launcher_pod
+        launcher_pod = vmi.get_virt_launcher_pod(privileged_client=admin_client)
         run_strategy = matrix_updated_vm_run_strategy
         status_dict = RUN_STRATEGY_SHUTDOWN_STATUS[run_strategy]
 
@@ -257,7 +258,9 @@ class TestRunStrategyAdvancedActions:
         else:
             # wait for vmi and launcher pod status by matrix
             vmi.wait_for_status(status=status_dict["vmi"])
-            vmi.virt_launcher_pod.wait_for_status(status=status_dict["launcher_pod"])
+            vmi.get_virt_launcher_pod(privileged_client=admin_client).wait_for_status(
+                status=status_dict["launcher_pod"]
+            )
 
     @pytest.mark.parametrize(
         "request_updated_vm_run_strategy",

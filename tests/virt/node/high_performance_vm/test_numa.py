@@ -86,7 +86,7 @@ def vm_numa_sriov(namespace, unprivileged_client, sriov_net):
 
 @pytest.mark.polarion("CNV-4216")
 def test_numa(admin_client, vm_numa):
-    numa_pod = vm_numa.vmi.virt_launcher_pod.instance
+    numa_pod = vm_numa.vmi.get_virt_launcher_pod(privileged_client=admin_client).instance
     pod_limits = numa_pod.spec.containers[0].resources.limits
     pod_requests = numa_pod.spec.containers[0].resources.requests
     vm_cpu_list = get_vm_cpu_list(vm=vm_numa, admin_client=admin_client)

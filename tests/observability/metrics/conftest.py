@@ -444,8 +444,10 @@ def vnic_info_from_vmi_windows(windows_vm_for_test):
 
 
 @pytest.fixture()
-def vmi_guest_os_kernel_release_info_windows(windows_vm_for_test):
-    return get_vmi_guest_os_kernel_release_info_metric_from_vm(vm=windows_vm_for_test, windows=True)
+def vmi_guest_os_kernel_release_info_windows(windows_vm_for_test, admin_client):
+    return get_vmi_guest_os_kernel_release_info_metric_from_vm(
+        vm=windows_vm_for_test, admin_client=admin_client, windows=True
+    )
 
 
 @pytest.fixture()

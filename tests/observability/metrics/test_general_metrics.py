@@ -72,14 +72,16 @@ class TestVmiNodeCpuAffinityWindows:
 class TestVmNameInLabel:
     @pytest.mark.polarion("CNV-8582")
     @pytest.mark.s390x
-    def test_vm_name_in_virt_launcher_label(self, fedora_vm_without_name_in_label):
+    def test_vm_name_in_virt_launcher_label(self, fedora_vm_without_name_in_label, admin_client):
         """
         when VM created from vm.yaml,for the kind=VirtualMachine, doesn't have
         the VM name in label, then virt-launcher pod should have the
         VM name in the label populated automatically
         """
         # Get the label of virt-launcher pod
-        virt_launcher_pod_labels = fedora_vm_without_name_in_label.vmi.virt_launcher_pod.labels
+        virt_launcher_pod_labels = fedora_vm_without_name_in_label.vmi.get_virt_launcher_pod(
+            privileged_client=admin_client
+        ).labels
         vm_name = fedora_vm_without_name_in_label.name
         assert virt_launcher_pod_labels.get(f"{Resource.ApiGroup.VM_KUBEVIRT_IO}/name") == vm_name, (
             f"VM name {vm_name} is missing in the virt-launcher pod label"

@@ -229,8 +229,12 @@ def validate_pause_unpause_windows_vm(vm: VirtualMachineForTests, pre_pause_pid:
     )
 
 
-def wait_for_virt_launcher_pod(vmi):
-    samples = TimeoutSampler(wait_timeout=TIMEOUT_30SEC, sleep=TIMEOUT_1SEC, func=lambda: vmi.virt_launcher_pod)
+def wait_for_virt_launcher_pod(vmi, privileged_client: DynamicClient):
+    samples = TimeoutSampler(
+        wait_timeout=TIMEOUT_30SEC,
+        sleep=TIMEOUT_1SEC,
+        func=lambda: vmi.get_virt_launcher_pod(privileged_client=privileged_client),
+    )
     try:
         for sample in samples:
             if sample:

@@ -92,7 +92,9 @@ class TestWindowsHyperVFlags:
             "and they match the hosting node labels"
         )
         virt_launcher_hyperv_labels = get_hyperv_enabled_labels(
-            instance_labels=hyperv_vm.vmi.virt_launcher_pod.instance.spec.nodeSelector
+            instance_labels=hyperv_vm.vmi.get_virt_launcher_pod(
+                privileged_client=admin_client
+            ).instance.spec.nodeSelector
         )
         node_hyperv_labels = get_hyperv_enabled_labels(
             instance_labels=hyperv_vm.vmi.get_node(privileged_client=admin_client).instance.metadata.labels

@@ -489,8 +489,8 @@ def sap_hana_template(admin_client, tmpdir_factory):
 
 
 @pytest.fixture(scope="class")
-def vmi_domxml(sap_hana_vm):
-    return sap_hana_vm.vmi.xml_dict["domain"]
+def vmi_domxml(admin_client, sap_hana_vm):
+    return sap_hana_vm.vmi.get_xml_dict(privileged_client=admin_client)["domain"]
 
 
 @pytest.fixture(scope="class")
@@ -520,8 +520,8 @@ def vm_dump_metrics(sap_hana_vm):
 
 
 @pytest.fixture(scope="class")
-def vm_virt_launcher_pod_instance(sap_hana_vm):
-    return sap_hana_vm.vmi.virt_launcher_pod.instance
+def vm_virt_launcher_pod_instance(admin_client, sap_hana_vm):
+    return sap_hana_vm.vmi.get_virt_launcher_pod(privileged_client=admin_client).instance
 
 
 @pytest.fixture(scope="class")

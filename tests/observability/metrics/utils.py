@@ -688,7 +688,7 @@ def get_vm_comparison_info_dict(vm: VirtualMachineForTests) -> dict[str, str]:
 
 
 def get_vmi_guest_os_kernel_release_info_metric_from_vm(
-    vm: VirtualMachineForTests, windows: bool = False
+    vm: VirtualMachineForTests, admin_client: DynamicClient, windows: bool = False
 ) -> dict[str, str]:
     guest_os_kernel_release = run_ssh_commands(
         host=vm.ssh_exec, commands=shlex.split("ver" if windows else "uname -r")
@@ -697,11 +697,12 @@ def get_vmi_guest_os_kernel_release_info_metric_from_vm(
         guest_os_kernel_release = re.search(r"\[Version\s(\d+\.\d+\.(\d+))", guest_os_kernel_release)
         assert guest_os_kernel_release, "OS kernel release version not found."
         guest_os_kernel_release = guest_os_kernel_release.group(2)
+    virt_launcher_pod = vm.vmi.get_virt_launcher_pod(privileged_client=admin_client)
     return {
         "guest_os_kernel_release": guest_os_kernel_release,
         "namespace": vm.namespace,
-        NODE_STR: vm.vmi.virt_launcher_pod.node.name,
-        "vmi_pod": vm.vmi.virt_launcher_pod.name,
+        NODE_STR: virt_launcher_pod.node.name,
+        "vmi_pod": virt_launcher_pod.name,
     }
 
 
