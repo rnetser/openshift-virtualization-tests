@@ -619,12 +619,12 @@ class ImportVisitor(ast.NodeVisitor):
     def visit_Import(self, node: ast.Import) -> None:
         """Visit import statements (import x)."""
         for alias in node.names:
-            self.imports.add(alias.name.split(".")[0])
+            self.imports.add(alias.name)
 
     def visit_ImportFrom(self, node: ast.ImportFrom) -> None:
         """Visit from-import statements (from x import y)."""
         if node.module:
-            self.imports.add(node.module.split(".")[0])
+            self.imports.add(node.module)
 
 
 class FixtureVisitor(ast.NodeVisitor):
