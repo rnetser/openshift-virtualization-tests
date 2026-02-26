@@ -726,11 +726,12 @@ class ImportVisitor(ast.NodeVisitor):
         Star imports are treated as opaque since every symbol in the module
         could potentially be used.
 
-        Relative imports without an explicit module name (``from . import x``)
-        are skipped because they cannot be resolved to a file path without
+        Relative imports (``from . import x`` where ``node.module`` is None,
+        or ``from .submodule import func`` where ``node.level > 0``) are
+        skipped because they cannot be resolved to a file path without
         knowing the importing module's package context.
         """
-        if not node.module:
+        if not node.module or node.level > 0:
             return
 
         self.imports.add(node.module)
