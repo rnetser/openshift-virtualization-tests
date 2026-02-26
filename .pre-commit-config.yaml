@@ -46,7 +46,6 @@ repos:
       - id: flake8
         language_version: python3.14
         args: [--config=.flake8]
-        exclude: "(utilities/unittests/|utilities/junit_ai_utils\\.py|scripts/.*/tests/)"
         additional_dependencies:
           [
             "git+https://github.com/RedHatQE/flake8-plugins.git@v1.0.0",

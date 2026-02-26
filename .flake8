@@ -14,7 +14,6 @@ exclude =
     .cache/*,
     utilities/unittests/*,
     utilities/junit_ai_utils.py,
-    scripts/*/tests/*
 
 fcn_exclude_functions =
     Path,
