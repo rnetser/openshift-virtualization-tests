@@ -97,11 +97,12 @@ def enrich_junit_xml(session) -> None:
                 "ai_model": ai_model,
             },
             timeout=timeout_value,
+            verify=False,
         )
         response.raise_for_status()
         result = response.json()
-    except Exception:
-        logger.exception("Failed to enrich JUnit XML, original preserved")
+    except Exception as ex:
+        logger.exception(f"Failed to enrich JUnit XML, original preserved. {ex}")
         return
 
     if enriched_xml := result.get("enriched_xml"):
