@@ -303,6 +303,72 @@ def get_pr_file_diff(repo: str, pr_number: int, file_path: str, token: str | Non
     return ""
 
 
+def _prefetch_pr_diffs(repo: str, pr_number: int, token: str | None = None) -> dict[str, str]:
+    """Pre-fetch all file diffs from a PR in a single paginated API call.
+
+    Avoids N separate API calls when analyzing N changed files by fetching
+    all file patches in one pass.
+
+    Args:
+        repo: Repository in owner/repo format.
+        pr_number: PR number.
+        token: Optional GitHub token for authentication.
+
+    Returns:
+        Mapping of file path to unified diff content (patch field).
+    """
+    validate_repo_name(repo=repo)
+    if pr_number <= 0:
+        raise ValueError(f"Invalid PR number: {pr_number}. Must be positive integer")
+
+    diffs: dict[str, str] = {}
+    page = 1
+    per_page = GITHUB_API_MAX_PER_PAGE
+
+    headers = {
+        "Accept": "application/vnd.github.v3+json",
+        "User-Agent": "pytest-marker-analyzer",
+    }
+    if token:
+        headers["Authorization"] = f"token {token}"
+
+    while True:
+        url = f"https://api.github.com/repos/{repo}/pulls/{pr_number}/files?per_page={per_page}&page={page}"
+        request = urllib.request.Request(url, headers=headers)
+
+        try:
+            with urllib.request.urlopen(request, timeout=GITHUB_API_TIMEOUT_SECONDS) as response:
+                content_length = response.headers.get("Content-Length")
+                if content_length and int(content_length) > MAX_RESPONSE_SIZE:
+                    raise RuntimeError(f"Response too large: {content_length} bytes")
+
+                files = json.loads(response.read().decode())
+                for file_data in files:
+                    patch = file_data.get("patch", "")
+                    if patch:
+                        diffs[file_data["filename"]] = patch
+
+                if len(files) < per_page:
+                    break
+                page += 1
+
+        except urllib.error.HTTPError as exc:
+            logger.warning(
+                msg="Failed to prefetch PR diffs",
+                extra={"pr_number": pr_number, "http_code": exc.code},
+            )
+            break
+        except (urllib.error.URLError, json.JSONDecodeError, OSError) as exc:
+            logger.warning(
+                msg="Failed to prefetch PR diffs",
+                extra={"pr_number": pr_number, "error": str(exc)},
+            )
+            break
+
+    logger.info(msg="Pre-fetched PR file diffs", extra={"file_count": len(diffs)})
+    return diffs
+
+
 def checkout_pr(repo: str, pr_number: int, workdir: Path, token: str | None = None) -> bool:
     """Clone repository and checkout PR head.
 
@@ -659,16 +725,25 @@ class ImportVisitor(ast.NodeVisitor):
 
         Star imports are treated as opaque since every symbol in the module
         could potentially be used.
+
+        Relative imports without an explicit module name (``from . import x``)
+        are skipped because they cannot be resolved to a file path without
+        knowing the importing module's package context.
         """
-        if node.module:
-            self.imports.add(node.module)
-            if any(alias.name == "*" for alias in node.names):
-                self.opaque_imports.add(node.module)
-            else:
-                if node.module not in self.symbol_imports:
-                    self.symbol_imports[node.module] = set()
-                for alias in node.names:
-                    self.symbol_imports[node.module].add(alias.name)
+        if not node.module:
+            return
+
+        self.imports.add(node.module)
+        if any(alias.name == "*" for alias in node.names):
+            self.opaque_imports.add(node.module)
+        else:
+            if node.module not in self.symbol_imports:
+                self.symbol_imports[node.module] = set()
+            for alias in node.names:
+                self.symbol_imports[node.module].add(alias.name)
+                # Track potential submodule imports:
+                # "from pkg import submod" may refer to pkg/submod.py
+                self.imports.add(f"{node.module}.{alias.name}")
 
 
 class FixtureVisitor(ast.NodeVisitor):
@@ -1142,6 +1217,9 @@ def _parse_diff_for_changed_lines(diff_content: str) -> set[int]:
         elif line.startswith("-"):
             # Removed lines do not advance the new-file line counter
             pass
+        elif line.startswith("\\"):
+            # "\ No newline at end of file" marker — not a real line
+            pass
         else:
             # Context line — advances new-file counter without marking
             current_line += 1
@@ -1154,11 +1232,12 @@ def _get_diff_content(
     base_branch: str,
     repo_root: Path,
     github_pr_info: dict[str, Any] | None,
+    pr_diffs_cache: dict[str, str] | None = None,
 ) -> str | None:
     """Retrieve unified diff content for a file.
 
-    Uses the GitHub API when ``github_pr_info`` is provided, otherwise
-    falls back to local ``git diff``.
+    Uses a pre-fetched cache when available, falls back to the GitHub API
+    when ``github_pr_info`` is provided, or local ``git diff`` otherwise.
 
     Args:
         file_path: Absolute path to the file.
@@ -1166,10 +1245,24 @@ def _get_diff_content(
         repo_root: Repository root path.
         github_pr_info: Optional dict with ``repo``, ``pr_number``, and
             ``token`` keys for GitHub API access.
+        pr_diffs_cache: Optional pre-fetched mapping of relative file paths
+            to their unified diff content.
 
     Returns:
         Diff content string, or ``None`` if retrieval fails.
     """
+    # Try cache first
+    if pr_diffs_cache is not None:
+        try:
+            relative_path = str(file_path.relative_to(other=repo_root))
+        except ValueError:
+            relative_path = str(file_path)
+        cached = pr_diffs_cache.get(relative_path)
+        if cached is not None:
+            return cached
+        # File not in cache — may not have changed or cache incomplete
+        # Fall through to other methods
+
     if github_pr_info:
         repo = github_pr_info["repo"]
         pr_number = github_pr_info["pr_number"]
@@ -1210,6 +1303,7 @@ def _extract_modified_symbols(
     base_branch: str,
     repo_root: Path,
     github_pr_info: dict[str, Any] | None,
+    pr_diffs_cache: dict[str, str] | None = None,
 ) -> set[str] | None:
     """Determine which top-level symbols were modified in a file.
 
@@ -1221,6 +1315,8 @@ def _extract_modified_symbols(
         base_branch: Base branch for the diff.
         repo_root: Repository root path.
         github_pr_info: Optional GitHub PR info for API-based diffs.
+        pr_diffs_cache: Optional pre-fetched mapping of relative file paths
+            to their unified diff content.
 
     Returns:
         Set of modified symbol names, or ``None`` when symbol-level
@@ -1233,6 +1329,7 @@ def _extract_modified_symbols(
         base_branch=base_branch,
         repo_root=repo_root,
         github_pr_info=github_pr_info,
+        pr_diffs_cache=pr_diffs_cache,
     )
     if diff_content is None:
         return None
@@ -1382,6 +1479,110 @@ def _analyze_single_test_dependencies(
     return dependencies, fixtures, symbol_imports
 
 
+def _check_conftest_pathway(
+    changed_file: Path,
+    marked_test: MarkedTest,
+    conftest_symbol_imports: dict[Path, dict[Path, set[str]]],
+    conftest_opaque_deps: dict[Path, set[Path]],
+    modified_symbols_cache: dict[Path, set[str] | None],
+    fixtures_dict: dict[str, Fixture],
+    repo_root: Path,
+) -> tuple[bool, list[str]]:
+    """Check if a changed file affects a test via conftest transitive imports.
+
+    When a changed file is in a test's dependency set but not directly in
+    the test's ``symbol_imports``, checks whether any conftest file in the
+    test's hierarchy provides a pathway to the changed file via its own
+    imports.
+
+    Args:
+        changed_file: The changed file to check.
+        marked_test: The test being checked for impact.
+        conftest_symbol_imports: Mapping of conftest paths to their resolved
+            symbol imports.
+        conftest_opaque_deps: Mapping of conftest paths to file paths they
+            import opaquely.
+        modified_symbols_cache: Pre-computed mapping of changed file paths
+            to their modified symbol names.
+        fixtures_dict: Dictionary of all fixtures.
+        repo_root: Repository root path.
+
+    Returns:
+        Tuple of (is_affected, matching_deps) where is_affected is True if
+        the test is affected via a conftest pathway, and matching_deps is
+        the list of dependency description strings.
+    """
+    matching_deps: list[str] = []
+    conftest_resolved = False
+
+    for conftest_path in marked_test.dependencies:
+        if conftest_path.name != "conftest.py":
+            continue
+
+        # Check if conftest opaquely imports the changed file
+        opaque_set = conftest_opaque_deps.get(conftest_path, set())
+        if changed_file in opaque_set:
+            # Can't determine which symbols — conservative: flag test
+            matching_deps.append(
+                f"{changed_file.relative_to(repo_root)} (opaque import via {conftest_path.relative_to(repo_root)})"
+            )
+            return True, matching_deps
+
+        # Check if conftest imports specific symbols from the changed file
+        conftest_syms = conftest_symbol_imports.get(conftest_path, {})
+        if changed_file not in conftest_syms:
+            continue
+
+        # Conftest imports specific symbols from the changed file
+        conftest_imported = conftest_syms[changed_file]
+        modified_symbols = modified_symbols_cache.get(changed_file)
+        if modified_symbols is None:
+            # Can't determine what changed — conservative: flag test
+            matching_deps.append(
+                f"{changed_file.relative_to(repo_root)} (via {conftest_path.relative_to(repo_root)}, diff unavailable)"
+            )
+            return True, matching_deps
+
+        overlapping = conftest_imported & modified_symbols
+        if not overlapping:
+            # Conftest doesn't import any modified symbol — not affected via this conftest
+            continue
+
+        # Overlap found — check if any fixture from this conftest calls the overlapping symbols
+        # AND the test uses that fixture
+        fixture_match = False
+        for fixture_name, fixture in fixtures_dict.items():
+            if (
+                fixture.file_path == conftest_path
+                and fixture_name in marked_test.fixtures
+                and fixture.function_calls & overlapping
+            ):
+                symbols_str = ", ".join(sorted(fixture.function_calls & overlapping))
+                matching_deps.append(
+                    f"{changed_file.relative_to(repo_root)} (via fixture {fixture_name}: {symbols_str})"
+                )
+                fixture_match = True
+                break
+
+        if not fixture_match:
+            # Overlap exists but no fixture calls them — could be module-level usage
+            # Conservative: flag test
+            symbols_str = ", ".join(sorted(overlapping))
+            matching_deps.append(
+                f"{changed_file.relative_to(repo_root)} (via {conftest_path.relative_to(repo_root)}, symbols: {symbols_str})"
+            )
+
+        conftest_resolved = True
+        break
+
+    if not conftest_resolved:
+        # No conftest pathway found — file-level fallback (conservative)
+        matching_deps.append(str(changed_file.relative_to(repo_root)))
+        return True, matching_deps
+
+    return bool(matching_deps), matching_deps
+
+
 def _check_test_impact(
     node_id: str,
     marked_test: MarkedTest,
@@ -1483,80 +1684,18 @@ def _check_test_impact(
                                 )
                                 break
             else:
-                # changed_file is in dependencies but NOT in test's symbol_imports.
-                # Check if any conftest provides a pathway to this file.
-                conftest_resolved = False
-                for conftest_path in marked_test.dependencies:
-                    if conftest_path.name != "conftest.py":
-                        continue
-
-                    # Check if conftest opaquely imports the changed file
-                    opaque_set = conftest_opaque_deps.get(conftest_path, set())
-                    if changed_file in opaque_set:
-                        # Can't determine which symbols — conservative: flag test
-                        test_affected = True
-                        matching_deps.append(
-                            f"{changed_file.relative_to(repo_root)} (opaque import via {conftest_path.relative_to(repo_root)})"
-                        )
-                        conftest_resolved = True
-                        break
-
-                    # Check if conftest imports specific symbols from the changed file
-                    conftest_syms = conftest_symbol_imports.get(conftest_path, {})
-                    if changed_file not in conftest_syms:
-                        continue
-
-                    # Conftest imports specific symbols from the changed file
-                    conftest_imported = conftest_syms[changed_file]
-                    modified_symbols = modified_symbols_cache.get(changed_file)
-                    if modified_symbols is None:
-                        # Can't determine what changed — conservative: flag test
-                        test_affected = True
-                        matching_deps.append(
-                            f"{changed_file.relative_to(repo_root)} (via {conftest_path.relative_to(repo_root)}, diff unavailable)"
-                        )
-                        conftest_resolved = True
-                        break
-
-                    overlapping = conftest_imported & modified_symbols
-                    if not overlapping:
-                        # Conftest doesn't import any modified symbol — not affected via this conftest
-                        conftest_resolved = True
-                        continue
-
-                    # Overlap found — check if any fixture from this conftest calls the overlapping symbols
-                    # AND the test uses that fixture
-                    fixture_match = False
-                    for fixture_name, fixture in fixtures_dict.items():
-                        if (
-                            fixture.file_path == conftest_path
-                            and fixture_name in marked_test.fixtures
-                            and fixture.function_calls & overlapping
-                        ):
-                            test_affected = True
-                            symbols_str = ", ".join(sorted(fixture.function_calls & overlapping))
-                            matching_deps.append(
-                                f"{changed_file.relative_to(repo_root)} (via fixture {fixture_name}: {symbols_str})"
-                            )
-                            fixture_match = True
-                            break
-
-                    if not fixture_match:
-                        # Overlap exists but no fixture calls them — could be module-level usage
-                        # Conservative: flag test
-                        test_affected = True
-                        symbols_str = ", ".join(sorted(overlapping))
-                        matching_deps.append(
-                            f"{changed_file.relative_to(repo_root)} (via {conftest_path.relative_to(repo_root)}, symbols: {symbols_str})"
-                        )
-
-                    conftest_resolved = True
-                    break
-
-                if not conftest_resolved:
-                    # No conftest pathway found — file-level fallback (conservative)
+                is_affected, deps = _check_conftest_pathway(
+                    changed_file=changed_file,
+                    marked_test=marked_test,
+                    conftest_symbol_imports=conftest_symbol_imports,
+                    conftest_opaque_deps=conftest_opaque_deps,
+                    modified_symbols_cache=modified_symbols_cache,
+                    fixtures_dict=fixtures_dict,
+                    repo_root=repo_root,
+                )
+                if is_affected:
                     test_affected = True
-                    matching_deps.append(str(changed_file.relative_to(repo_root)))
+                    matching_deps.extend(deps)
 
     if test_affected:
         return {
@@ -2527,6 +2666,16 @@ class MarkerTestAnalyzer:
         # Convert changed files to set for faster lookup
         changed_set = {f.resolve() for f in changed_files}
 
+        # Pre-fetch all PR file diffs in a single API pass to avoid
+        # N separate paginated API calls (O(N²) → O(N)).
+        pr_diffs_cache: dict[str, str] | None = None
+        if self.github_pr_info:
+            pr_diffs_cache = _prefetch_pr_diffs(
+                repo=self.github_pr_info["repo"],
+                pr_number=self.github_pr_info["pr_number"],
+                token=self.github_pr_info.get("token"),
+            )
+
         # Pre-compute modified symbols for each changed non-conftest Python file.
         # This cache is shared across all test impact checks to avoid redundant
         # diff parsing and AST analysis.
@@ -2538,6 +2687,7 @@ class MarkerTestAnalyzer:
                     base_branch=self.base_branch,
                     repo_root=self.repo_root,
                     github_pr_info=self.github_pr_info,
+                    pr_diffs_cache=pr_diffs_cache,
                 )
 
         # Check each marked test for dependency matches in parallel using ThreadPoolExecutor
