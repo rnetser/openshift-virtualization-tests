@@ -1546,7 +1546,9 @@ def _check_conftest_pathway(
 
         overlapping = conftest_imported & modified_symbols
         if not overlapping:
-            # Conftest doesn't import any modified symbol — not affected via this conftest
+            # Conftest imports from this file but none of the modified symbols
+            # — this conftest pathway is resolved as safe
+            conftest_resolved = True
             continue
 
         # Overlap found — check if any fixture from this conftest calls the overlapping symbols
