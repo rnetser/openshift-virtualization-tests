@@ -1282,11 +1282,16 @@ def _get_old_file_symbols(
                 timeout=10,
             )
             if result.returncode != 0:
-                if result.returncode == 128 or "does not exist" in result.stderr or "not exist" in result.stderr:
-                    return set()  # File is new
+                stderr_lower = result.stderr.lower()
+                if (
+                    "does not exist" in stderr_lower
+                    or "not exist" in stderr_lower
+                    or "exists on disk, but not in" in stderr_lower
+                ):
+                    return set()  # File is new (path not found in base branch)
                 logger.warning(
                     msg="git show failed for base file",
-                    extra={"file": relative_path, "stderr": result.stderr.strip()},
+                    extra={"file": relative_path, "returncode": result.returncode, "stderr": result.stderr.strip()},
                 )
                 return None
             old_source = result.stdout
@@ -2035,8 +2040,18 @@ def _extract_modified_items_from_conftest(
 
         # Get modified function names
         modified_function_names = _get_modified_function_names_helper(
-            file_path=changed_file, base_branch=base_branch, repo_root=repo_root, github_pr_info=github_pr_info
+            file_path=changed_file,
+            base_branch=base_branch,
+            repo_root=repo_root,
+            github_pr_info=github_pr_info,
+            pr_diffs_cache=pr_diffs_cache,
         )
+
+        # Preserve the raw set before additive filtering for fallback logic:
+        # if diff parsing found functions but additive filtering emptied the
+        # set, the conftest only contains new additions and should NOT trigger
+        # the conservative all-fixtures fallback.
+        raw_modified_function_names = set(modified_function_names)
 
         # Filter out purely new functions/fixtures (additive-change detection)
         if modified_function_names and file_status != "added":
@@ -2056,8 +2071,9 @@ def _extract_modified_items_from_conftest(
             else:
                 modified_functions.add(func_name)
 
-        # Fallback
-        if not modified_function_names and changed_file.exists():
+        # Fallback: only trigger when diff parsing itself failed (raw set empty),
+        # NOT when additive filtering legitimately emptied the set.
+        if not raw_modified_function_names and changed_file.exists():
             return all_fixtures, set()
 
     except (SyntaxError, UnicodeDecodeError, OSError, subprocess.SubprocessError) as exc:  # fmt: skip
@@ -2080,10 +2096,24 @@ def _is_fixture_decorator_helper(decorator: ast.AST) -> bool:
 
 
 def _get_modified_function_names_helper(
-    file_path: Path, base_branch: str, repo_root: Path, github_pr_info: dict[str, Any] | None
+    file_path: Path,
+    base_branch: str,
+    repo_root: Path,
+    github_pr_info: dict[str, Any] | None,
+    pr_diffs_cache: dict[str, str] | None = None,
 ) -> set[str]:
     """Get modified function names - helper for parallelization."""
-    modified = set()
+    modified: set[str] = set()
+
+    # Try pre-fetched cache first
+    if pr_diffs_cache is not None:
+        try:
+            relative_path = str(file_path.relative_to(repo_root))
+        except ValueError:
+            relative_path = str(file_path)
+        cached = pr_diffs_cache.get(relative_path)
+        if cached is not None:
+            return _parse_diff_for_functions_helper(diff_content=cached)
 
     # Use GitHub API if available
     if github_pr_info:
