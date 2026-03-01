@@ -288,11 +288,12 @@ def vm_interface_name(admin_client, nad_mac_address, must_gather_vm):
 @pytest.fixture()
 def extracted_data_from_must_gather_file(
     request,
+    admin_client,
     collected_vm_details_must_gather,
     must_gather_vm,
     nftables_ruleset_from_utility_pods,
 ):
-    virt_launcher = must_gather_vm.vmi.virt_launcher_pod
+    virt_launcher = must_gather_vm.vmi.get_virt_launcher_pod(privileged_client=admin_client)
     namespace = virt_launcher.namespace
     vm_name = must_gather_vm.name
     file_suffix = request.param[FILE_SUFFIX]
@@ -569,11 +570,12 @@ def multiple_disks_vm(namespace, unprivileged_client, data_volume_scope_class):
 
 @pytest.fixture()
 def extracted_data_from_must_gather_file_multiple_disks(
+    admin_client,
     multiple_disks_vm,
     collected_vm_details_must_gather_function_scope,
     nftables_ruleset_from_utility_pods,
 ):
-    virt_launcher = multiple_disks_vm.vmi.virt_launcher_pod
+    virt_launcher = multiple_disks_vm.vmi.get_virt_launcher_pod(privileged_client=admin_client)
     file_suffix = "blockjob.txt"
     base_path = os.path.join(
         collected_vm_details_must_gather_function_scope,
