@@ -81,6 +81,7 @@ dependencies = [
   "openshift-python-wrapper~=4.20.0",
   "cachetools>=6.2.1",
   "dacite>=1.9.2",
+  "python-dotenv>=1.2.1",
   "pytest-subtests>=0.15.0",
 ]
 
@@ -141,6 +142,7 @@ omit = [
   "utilities/operator.py",
   "utilities/storage.py",
   "utilities/virt.py",
+  "utilities/junit_ai_utils.py",
 ]
 
 [tool.coverage.report]

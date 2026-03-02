@@ -11,8 +11,9 @@ exclude =
     Pipfile.*,
     ansible/*,
     docs/*,
-    .cache/*
-    utilities/unittests/*
+    .cache/*,
+    utilities/unittests/*,
+    utilities/junit_ai_utils.py,
 
 fcn_exclude_functions =
     re,
