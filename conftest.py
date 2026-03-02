@@ -602,10 +602,11 @@ def pytest_collection_modifyitems(session, config, items):
         add_test_id_markers(item=item, marker_name="polarion")
         add_test_id_markers(item=item, marker_name="jira")
 
+        # Must be called before add_tier2_marker; make sure team markers are added before tier2 tests collection
+        mark_tests_by_team(item=item)
+
         # Add tier2 marker for tests without an exclusion marker.
         add_tier2_marker(item=item)
-
-        mark_tests_by_team(item=item)
 
         # All tests are verified on amd64 platforms, adding `amd64` to all tests
         item.add_marker(marker=AMD_64)
