@@ -575,8 +575,8 @@ def pytest_collection_modifyitems(session, config, items):
     This function performs the following actions:
     1. Adds Polarion parameters to user properties.
     2. Adds test ID markers for Polarion and Jira.
-    3. Adds the tier2 marker for tests without an exclusion marker.
-    4. Marks tests by team.
+    3. Marks tests by team.
+    4. Adds the tier2 marker for tests without an exclusion marker.
     5. Filters upgrade tests based on the --upgrade option.
     6. Dynamically mark NMState-dependent tests.
 
@@ -603,7 +603,7 @@ def pytest_collection_modifyitems(session, config, items):
         add_test_id_markers(item=item, marker_name="polarion")
         add_test_id_markers(item=item, marker_name="jira")
 
-        # Must be exeucted before add_tier2_marker to allow excluding based on team markers
+        # Must be called before add_tier2_marker; make sure team markers are added before tier2 tests collection
         mark_tests_by_team(item=item)
 
         # Add tier2 marker for tests without an exclusion marker.
