@@ -32,7 +32,7 @@ This project follows a **two-phase development workflow** that separates test de
    - Add the complete STD docstring (Preconditions/Steps/Expected)
    - Include a link to the approved STP (Software Test Plan) in the **module docstring** (top of the test file)
    - Add applicable pytest markers (architecture markers, etc.)
-   - Add `__test__ = True` on implemented test(s).  For a single test, add `<test_name>.__test__ = True`
+   - Add `__test__ = False` on unimplemented test(s).  For a single test, add `<test_name>.__test__ = False`
 
 2. **Submit PR for review**:
    - The PR contains only the test descriptions (no automation code)
