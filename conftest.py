@@ -21,6 +21,7 @@ from _pytest.nodes import Collector, Node
 from _pytest.reports import CollectReport, TestReport
 from _pytest.runner import CallInfo
 from kubernetes.dynamic.exceptions import ConflictError
+from ocp_resources.network_config_openshift_io import Network
 from pyhelper_utils.shell import run_command
 from pytest import Item
 from pytest_testconfig import config as py_config
@@ -801,6 +802,9 @@ def pytest_sessionstart(session):
     if not skip_if_pytest_flags_exists(pytest_config=session.config):
         admin_client = utilities.cluster.cache_admin_client()
         py_config["version_explorer_url"] = get_cnv_version_explorer_url(pytest_config=session.config)
+        py_config["cluster_service_network"] = Network(
+            client=admin_client, name="cluster"
+        ).instance.status.serviceNetwork
         if not session.config.getoption("--skip-artifactory-check"):
             py_config["server_url"] = py_config["server_url"] or get_artifactory_server_url(
                 cluster_host_url=admin_client.configuration.host, session=session
@@ -853,11 +857,14 @@ def pytest_sessionfinish(session, exitstatus):
     # Enrich JUnit XML with AI analysis after all tests complete.
     # Source: https://github.com/myk-org/jenkins-job-insight/blob/main/examples/pytest-junitxml/conftest_junit_ai.py
     if session.config.option.analyze_with_ai:
-        try:
-            enrich_junit_xml(session=session)
-        # Do not fail on any AI analysis failures
-        except Exception:
-            LOGGER.exception("Failed to enrich JUnit XML, original preserved")
+        if exitstatus == 0:
+            LOGGER.info("No test failures (exit code %d), skipping AI analysis", exitstatus)
+
+        else:
+            try:
+                enrich_junit_xml(session)
+            except Exception:
+                LOGGER.exception("Failed to enrich JUnit XML, original preserved")
 
     session.config.option.log_listener.stop()
 
