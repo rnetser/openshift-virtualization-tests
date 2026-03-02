@@ -51,6 +51,8 @@ Common markers in this repository (check `pytest.ini` for the full list):
 - `-m sno` — Single-node OpenShift tests
 - `-m ipv4` — IPv4 networking tests
 - `-m single_stack` — Single-stack networking tests
+- `-m ibm_bare_metal` — IBM bare metal specific tests
+- `-m special_infra` — Special infrastructure tests
 
 If a change affects all tests with a specific marker, recommend `-m marker_name` instead of listing each test file individually.
 
@@ -78,51 +80,16 @@ RIGHT: "Smoke test X uses fixture Y, which depends on the changed fixture Z"
 
 ### For This Repository
 
-This is a **test suite repository** — the changed files ARE often the tests themselves, or test infrastructure (fixtures, utilities, conftest files). Adapt analysis accordingly.
+This is a **test suite repository** — the changed files ARE often the tests themselves, or test infrastructure (fixtures, utilities, conftest files). Adapt analysis accordingly:
 
-### Semantic Impact Analysis (CRITICAL)
-
-Do NOT recommend tests based solely on import relationships or file proximity. Analyze the **semantic impact** of each change:
-
-**Changes that DO require test execution:**
-- Modified test logic, assertions, or parametrization
-- Modified fixture behavior (return values, setup/teardown, scope changes)
-- Modified utility functions that are called during test execution
-- Changed function signatures that tests depend on
-- Bug fixes in shared code paths
-
-**Changes that do NOT require test execution:**
-- New opt-in features behind CLI flags (e.g., `--analyze-with-ai`) that are disabled by default
-- New imports in conftest.py that only activate under explicit opt-in conditions
-- Documentation files (`.md`, `README`)
-- Linter configuration (`.flake8`, `.ruff.toml`)
-- Dependency additions for opt-in features
-- Session lifecycle hooks (`pytest_sessionstart`, `pytest_sessionfinish`) that do not affect test collection, execution, or results under default settings
-- Coverage configuration changes
-
-**For conftest.py changes specifically:**
-1. Check if the change affects test COLLECTION (markers, parametrization, item modification)
-2. Check if the change affects test EXECUTION (fixtures used by tests, hooks that modify test behavior)
-3. Check if the change is INERT under default settings (opt-in flags, conditional imports)
-4. Only recommend tests if the change affects collection or execution under default settings
+- If changed files are test files: recommend running those changed tests, plus any other tests that share fixtures, utilities, or base classes with them.
+- If changed files are test utilities/fixtures/conftest: recommend running all tests that depend on or import from the changed utilities.
+- If changed files are under `utilities/` or `libs/`: trace which tests import from these modules and recommend those tests.
 
 ### Dependency Tracing
 
-When changes DO require test execution, trace dependencies precisely:
-
-1. Examine code changes semantically — understand WHAT changed, not just WHERE
-2. Identify affected code paths and whether they execute during normal test runs
-3. Analyze pytest-specific elements: fixtures (scope, dependencies), parametrization, markers
-4. Trace ONLY active dependency paths — imports that are actually called during test execution
-5. Distinguish between direct dependencies (test calls changed function) and inert dependencies (import exists but code path is gated behind a flag)
-6. Detect new tests introduced in the PR
-
-### Verification Before Recommending
-
-Before recommending any test, answer these questions:
-1. Does this test actually CALL or DEPEND ON the changed code during a normal test run?
-2. Is the changed code path active by default, or gated behind an opt-in flag?
-3. Would the test behave DIFFERENTLY after this change under default settings?
-4. Can I trace a concrete execution path from the test to the changed code?
-
-If the answer to questions 1, 3, or 4 is "no", do NOT recommend the test.
+1. Examine code changes in each modified file
+2. Identify affected code paths, functions, and classes
+3. Analyze pytest-specific elements: fixtures (scope, dependencies), parametrization, markers, conftest changes
+4. Trace test dependencies through imports, shared utilities, and fixture inheritance
+5. Detect new tests introduced in the PR
