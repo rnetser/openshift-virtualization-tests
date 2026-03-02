@@ -66,6 +66,7 @@ dependencies = [
   "python-rrmngmnt>=0.1.32",
   "python-utility-scripts>=1.0.1",
   "pyvmomi>=8.0.3.0.1",
+  "python-dotenv>=1.2.1",
   "pyyaml>=6.0.2",
   "requests>=2.32.3",
   "sh>=2.1.0",
