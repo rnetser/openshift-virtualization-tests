@@ -38,6 +38,7 @@ from utilities.data_collector import (
 )
 from utilities.database import Database
 from utilities.exceptions import MissingEnvironmentVariableError, StorageSanityError
+from utilities.junit_ai_utils import enrich_junit_xml, setup_ai_analysis
 from utilities.logger import setup_logging
 from utilities.pytest_utils import (
     config_default_storage_class,
@@ -306,6 +307,14 @@ def pytest_addoption(parser):
         "--disabled-bitwarden",
         action="store_true",
         help="Disable Bitwarden access for tests that don't require secrets",
+    )
+
+    ai_insights_group = parser.getgroup(name="ai-job-insight")
+    ai_insights_group.addoption(
+        "--analyze-with-ai",
+        action="store_true",
+        default=False,
+        help="Enrich JUnit XML with AI-powered analysis from jenkins-job-insight. `JJI_SERVER_URL` env var is required",
     )
 
 
@@ -772,6 +781,11 @@ def pytest_sessionstart(session):
         deploy_run_in_progress_namespace()
         deploy_run_in_progress_config_map(session=session)
 
+    # Set up AI analysis if --analyze-with-ai is passed.
+    # Source: https://github.com/myk-org/jenkins-job-insight/blob/main/examples/pytest-junitxml/conftest_junit_ai.py
+    if session.config.option.analyze_with_ai:
+        setup_ai_analysis(session=session)
+
 
 def pytest_sessionfinish(session, exitstatus):
     shutil.rmtree(path=session.config.option.basetemp, ignore_errors=True)
@@ -794,6 +808,17 @@ def pytest_sessionfinish(session, exitstatus):
                 dir_path = os.path.join(root, _dir)
                 if not os.listdir(dir_path):
                     shutil.rmtree(dir_path, ignore_errors=True)
+    # Enrich JUnit XML with AI analysis after all tests complete.
+    # Source: https://github.com/myk-org/jenkins-job-insight/blob/main/examples/pytest-junitxml/conftest_junit_ai.py
+    if session.config.option.analyze_with_ai:
+        if exitstatus == 0:
+            LOGGER.info("No test failures (exit code %d), skipping AI analysis", exitstatus)
+        else:
+            try:
+                enrich_junit_xml(session)
+            except Exception:
+                LOGGER.exception("Failed to enrich JUnit XML, original preserved")
+
     session.config.option.log_listener.stop()
 
 
