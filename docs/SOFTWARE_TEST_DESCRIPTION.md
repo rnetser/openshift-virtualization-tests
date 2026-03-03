@@ -50,7 +50,7 @@ This project follows a **two-phase development workflow** that separates test de
    - Create any required fixtures
    - Implement helper functions as needed
    - Remove `__test__ = False` from implemented tests
-   - If needed, update the test description. This change must be approved by the team's qe tech lead.
+   - If needed, update the test description. This change must be approved by the team's qe sig owner / lead.
 
 2. **Submit PR for review**:
    - Reviewers verify the implementation matches the approved design
@@ -265,7 +265,7 @@ test_<specific_behavior>.__test__ = False
 5. **Single Expected Behavior per Test**: One assertion: clear pass/fail.
    - Good: `Expected: - Ping succeeds with 0% packet loss`
    - Bad: `Expected: - Ping succeeds - VM remains running - No errors logged`
-   - The may be **exceptions**, where multiple assertions are required to verify a **single** behavior.
+   - There may be **exceptions**, where multiple assertions are required to verify a **single** behavior.
      - Example: `Expected: - VM reports valid IP addres. Expected - User can access VM via SSH`
 
 6. **Tests Must Be Independent**: Tests should not depend on other tests.
@@ -298,12 +298,13 @@ test_<specific_behavior>.__test__ = False
 
 ### Common Patterns in This Project
 
-| Pattern                  | Description                               | Example                                       |
-|--------------------------|-------------------------------------------|-----------------------------------------------|
-| **Fixture-based Setup**  | Use pytest fixtures for resource creation | `vm_to_restart`, `namespace`                  |
-| **Matrix Testing**       | Parameterize tests for multiple scenarios | `storage_class_matrix`, `run_strategy_matrix` |
-| **Architecture Markers** | Indicate architecture compatibility       | `@pytest.mark.arm64`, `@pytest.mark.s390x`    |
-| **Gating Tests**         | Critical tests for CI/CD pipelines        | `@pytest.mark.gating`                         |
+| Pattern                    | Description                                          | Example                                       |
+|----------------------------|------------------------------------------------------|-----------------------------------------------|
+| **Fixture-based Setup**    | Use pytest fixtures for resource creation            | `vm_to_restart`, `namespace`                  |
+| **Parameterize Testing**   | Parametrize tests or fixtures for multiple scenarios  | `@pytest.fixture(params=[...])`, `@pytest.mark.parametrize` |
+| **Matrix Testing**         | Dynamic parametrization for cluster-specific matrices (advanced) | `storage_class_matrix`, `run_strategy_matrix` |
+| **Architecture Markers**   | Indicate architecture compatibility                  | `@pytest.mark.arm64`, `@pytest.mark.s390x`    |
+| **Gating Tests**           | Critical tests for CI/CD pipelines                   | `@pytest.mark.gating`                         |
 
 ### STD Checklist
 
