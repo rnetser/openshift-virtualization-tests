@@ -1,9 +1,13 @@
 #!/usr/bin/env -S uv run python
 """STD Placeholder Tests Statistics Generator.
 
-Scans the tests directory for STD (Standard Test Design) placeholder tests that
-are not yet implemented. These are tests with `__test__ = False` that contain
-only docstrings describing expected behavior, without actual implementation code.
+Scans the tests directory for STD (Standard Test Design) placeholder tests and
+disabled tests. Reports two categories:
+
+    1. **Placeholder tests** — tests with ``__test__ = False`` that contain only
+       docstrings describing expected behavior (not yet implemented).
+    2. **Disabled tests** — tests with ``__test__ = False`` that contain actual
+       implementation code (may need attention).
 
 Output:
     - text: Human-readable summary to stdout (default)
@@ -35,36 +39,46 @@ TEST_ATTR = "__test__"
 
 @dataclass
 class PlaceholderClass:
-    """A test class containing placeholder test methods.
+    """A test class containing placeholder and disabled test methods.
 
     Attributes:
         name: Name of the test class.
-        test_methods: List of placeholder test method names.
+        test_methods: List of placeholder test method names (docstring-only).
+        disabled_methods: List of disabled test method names (implemented but __test__ = False).
     """
 
     name: str
     test_methods: list[str] = field(default_factory=list)
+    disabled_methods: list[str] = field(default_factory=list)
 
 
 @dataclass
 class PlaceholderFile:
-    """A test file containing placeholder tests.
+    """A test file containing placeholder and disabled tests.
 
     Attributes:
         file_path: Path to the test file relative to the project root.
-        classes: List of placeholder test classes in this file.
+        classes: List of test classes with placeholder or disabled methods.
         standalone_tests: List of standalone placeholder test function names.
+        disabled_standalone_tests: List of standalone disabled test function names.
     """
 
     file_path: str
     classes: list[PlaceholderClass] = field(default_factory=list)
     standalone_tests: list[str] = field(default_factory=list)
+    disabled_standalone_tests: list[str] = field(default_factory=list)
 
     @property
     def total_tests(self) -> int:
         """Return the total number of placeholder tests in this file."""
         class_tests = sum(len(cls.test_methods) for cls in self.classes)
         return class_tests + len(self.standalone_tests)
+
+    @property
+    def total_disabled(self) -> int:
+        """Return the total number of disabled tests in this file."""
+        class_disabled = sum(len(cls.disabled_methods) for cls in self.classes)
+        return class_disabled + len(self.disabled_standalone_tests)
 
 
 def separator(symbol: str, title: str | None = None) -> str:
@@ -157,13 +171,15 @@ def _is_placeholder_body(func_node: ast.FunctionDef) -> bool:
 
 
 def get_test_methods_from_class(class_node: ast.ClassDef) -> list[str]:
-    """Extract test method names from a class definition.
+    """Extract placeholder test method names from a class definition.
+
+    Returns only test methods whose body is docstring-only (placeholders).
 
     Args:
         class_node: AST class definition node.
 
     Returns:
-        List of test method names.
+        List of placeholder test method names.
     """
     return [
         method.name
@@ -172,6 +188,28 @@ def get_test_methods_from_class(class_node: ast.ClassDef) -> list[str]:
         if isinstance(method, ast.FunctionDef)
         and method.name.startswith("test_")
         and _is_placeholder_body(func_node=method)
+    ]
+
+
+def get_disabled_methods_from_class(class_node: ast.ClassDef) -> list[str]:
+    """Extract implemented test method names from a class definition.
+
+    These are test methods that have actual implementation (not docstring-only)
+    and are candidates for being disabled tests.
+
+    Args:
+        class_node: AST class definition node.
+
+    Returns:
+        List of implemented test method names.
+    """
+    return [
+        method.name
+        for method in class_node.body
+        # Collect test_* methods that have implementation (NOT docstring-only placeholders)
+        if isinstance(method, ast.FunctionDef)
+        and method.name.startswith("test_")
+        and not _is_placeholder_body(func_node=method)
     ]
 
 
@@ -200,32 +238,46 @@ def _collect_placeholders(
         if isinstance(node, ast.ClassDef):
             # Module-level marker or class-level __test__ = False: all test_* methods are placeholders
             if module_is_placeholder or _statements_have_test_false(statements=node.body):
-                candidate = PlaceholderClass(
-                    name=node.name,
-                    test_methods=get_test_methods_from_class(class_node=node),
-                )
-                if candidate.test_methods:
-                    placeholder.classes.append(candidate)
+                placeholder_methods = get_test_methods_from_class(class_node=node)
+                disabled_methods = get_disabled_methods_from_class(class_node=node)
+                if placeholder_methods or disabled_methods:
+                    placeholder.classes.append(
+                        PlaceholderClass(
+                            name=node.name,
+                            test_methods=placeholder_methods,
+                            disabled_methods=disabled_methods,
+                        )
+                    )
             # No class-level marker: check each method for method_name.__test__ = False
             else:
-                method_names: list[str] = []
+                placeholder_method_names: list[str] = []
+                disabled_method_names: list[str] = []
                 for method in node.body:
                     # Check each test_* method for an attribute assignment in the class body
                     if isinstance(method, ast.FunctionDef) and method.name.startswith("test_"):
-                        if _is_placeholder_body(func_node=method) and _statements_have_test_false(
-                            statements=node.body, target_name=method.name
-                        ):
-                            method_names.append(method.name)
-                if method_names:
-                    placeholder.classes.append(PlaceholderClass(name=node.name, test_methods=method_names))
+                        if _statements_have_test_false(statements=node.body, target_name=method.name):
+                            if _is_placeholder_body(func_node=method):
+                                placeholder_method_names.append(method.name)
+                            else:
+                                disabled_method_names.append(method.name)
+                if placeholder_method_names or disabled_method_names:
+                    placeholder.classes.append(
+                        PlaceholderClass(
+                            name=node.name,
+                            test_methods=placeholder_method_names,
+                            disabled_methods=disabled_method_names,
+                        )
+                    )
 
         elif isinstance(node, ast.FunctionDef) and node.name.startswith("test_"):
             # Module-level marker or func.__test__ = False at module level
             if module_is_placeholder or _statements_have_test_false(statements=tree.body, target_name=node.name):
                 if _is_placeholder_body(func_node=node):
                     placeholder.standalone_tests.append(node.name)
+                else:
+                    placeholder.disabled_standalone_tests.append(node.name)
 
-    if placeholder.classes or placeholder.standalone_tests:
+    if placeholder.classes or placeholder.standalone_tests or placeholder.disabled_standalone_tests:
         return placeholder
     return None
 
@@ -285,8 +337,22 @@ def count_placeholder_tests(placeholder_files: list[PlaceholderFile]) -> tuple[i
     return total_tests, total_files
 
 
+def count_disabled_tests(placeholder_files: list[PlaceholderFile]) -> tuple[int, int]:
+    """Count total disabled tests and files containing them.
+
+    Args:
+        placeholder_files: List of PlaceholderFile objects to count.
+
+    Returns:
+        A tuple of (total_disabled_tests, total_files_with_disabled).
+    """
+    total_disabled = sum(pf.total_disabled for pf in placeholder_files)
+    files_with_disabled = sum(1 for pf in placeholder_files if pf.total_disabled > 0)
+    return total_disabled, files_with_disabled
+
+
 def _format_placeholder_lines(placeholder_file: PlaceholderFile) -> list[str]:
-    """Format a PlaceholderFile into display lines.
+    """Format placeholder tests from a PlaceholderFile into display lines.
 
     Args:
         placeholder_file: The placeholder file to format.
@@ -297,12 +363,36 @@ def _format_placeholder_lines(placeholder_file: PlaceholderFile) -> list[str]:
     lines: list[str] = []
 
     for cls in placeholder_file.classes:
-        lines.append(f"{placeholder_file.file_path}::{cls.name}")
-        lines.extend(f"  - {method}" for method in cls.test_methods)
+        if cls.test_methods:
+            lines.append(f"{placeholder_file.file_path}::{cls.name}")
+            lines.extend(f"  - {method}" for method in cls.test_methods)
 
     if placeholder_file.standalone_tests:
         lines.append(f"{placeholder_file.file_path}::<standalone>")
         lines.extend(f"  - {test}" for test in placeholder_file.standalone_tests)
+
+    return lines
+
+
+def _format_disabled_lines(placeholder_file: PlaceholderFile) -> list[str]:
+    """Format disabled tests from a PlaceholderFile into display lines.
+
+    Args:
+        placeholder_file: The placeholder file to format.
+
+    Returns:
+        List of formatted strings for display.
+    """
+    lines: list[str] = []
+
+    for cls in placeholder_file.classes:
+        if cls.disabled_methods:
+            lines.append(f"{placeholder_file.file_path}::{cls.name}")
+            lines.extend(f"  - {method}" for method in cls.disabled_methods)
+
+    if placeholder_file.disabled_standalone_tests:
+        lines.append(f"{placeholder_file.file_path}::<standalone>")
+        lines.extend(f"  - {test}" for test in placeholder_file.disabled_standalone_tests)
 
     return lines
 
@@ -313,28 +403,51 @@ def output_text(placeholder_files: list[PlaceholderFile]) -> None:
     Args:
         placeholder_files: List of PlaceholderFile objects to display.
     """
-    if not placeholder_files:
-        LOGGER.info("No STD placeholder tests found.")
+    total_tests, total_files = count_placeholder_tests(placeholder_files=placeholder_files)
+    total_disabled, disabled_files = count_disabled_tests(placeholder_files=placeholder_files)
+
+    if total_tests == 0 and total_disabled == 0:
+        LOGGER.info("No STD placeholder or disabled tests found.")
         return
 
-    total_tests, total_files = count_placeholder_tests(placeholder_files=placeholder_files)
+    output_lines: list[str] = []
 
-    output_lines: list[str] = [
-        separator(symbol="="),
-        "STD PLACEHOLDER TESTS (not yet implemented)",
-        separator(symbol="="),
-        "",
-    ]
+    if total_tests > 0:
+        output_lines.append(separator(symbol="="))
+        output_lines.append("STD PLACEHOLDER TESTS (not yet implemented)")
+        output_lines.append(separator(symbol="="))
+        output_lines.append("")
 
-    for placeholder_file in placeholder_files:
-        output_lines.extend(_format_placeholder_lines(placeholder_file=placeholder_file))
+        for placeholder_file in placeholder_files:
+            lines = _format_placeholder_lines(placeholder_file=placeholder_file)
+            if lines:
+                output_lines.extend(lines)
 
-    output_lines.append("")
-    output_lines.append(separator(symbol="-"))
-    test_word = "test" if total_tests == 1 else "tests"
-    file_word = "file" if total_files == 1 else "files"
-    output_lines.append(f"Total: {total_tests} placeholder {test_word} in {total_files} {file_word}")
-    output_lines.append(separator(symbol="="))
+        output_lines.append("")
+        output_lines.append(separator(symbol="-"))
+        test_word = "test" if total_tests == 1 else "tests"
+        file_word = "file" if total_files == 1 else "files"
+        output_lines.append(f"Total: {total_tests} placeholder {test_word} in {total_files} {file_word}")
+        output_lines.append(separator(symbol="="))
+
+    if total_disabled > 0:
+        output_lines.append("")
+        output_lines.append(separator(symbol="="))
+        output_lines.append("DISABLED TESTS (implemented but marked __test__ = False)")
+        output_lines.append(separator(symbol="="))
+        output_lines.append("")
+
+        for placeholder_file in placeholder_files:
+            lines = _format_disabled_lines(placeholder_file=placeholder_file)
+            if lines:
+                output_lines.extend(lines)
+
+        output_lines.append("")
+        output_lines.append(separator(symbol="-"))
+        test_word = "test" if total_disabled == 1 else "tests"
+        file_word = "file" if disabled_files == 1 else "files"
+        output_lines.append(f"Total: {total_disabled} disabled {test_word} in {disabled_files} {file_word}")
+        output_lines.append(separator(symbol="="))
 
     for line in output_lines:
         LOGGER.info(line)
@@ -347,20 +460,39 @@ def output_json(placeholder_files: list[PlaceholderFile]) -> None:
         placeholder_files: List of PlaceholderFile objects to output as JSON.
     """
     total_tests, total_files = count_placeholder_tests(placeholder_files=placeholder_files)
+    total_disabled, disabled_files = count_disabled_tests(placeholder_files=placeholder_files)
 
-    tests_by_file: dict[str, list[str]] = {}
+    placeholder_by_file: dict[str, list[str]] = {}
+    disabled_by_file: dict[str, list[str]] = {}
+
     for placeholder_file in placeholder_files:
+        # Placeholder tests
         tests: list[str] = []
         for cls in placeholder_file.classes:
             tests.extend(f"{cls.name}::{method}" for method in cls.test_methods)
         tests.extend(placeholder_file.standalone_tests)
         if tests:
-            tests_by_file[placeholder_file.file_path] = tests
+            placeholder_by_file[placeholder_file.file_path] = tests
+
+        # Disabled tests
+        disabled: list[str] = []
+        for cls in placeholder_file.classes:
+            disabled.extend(f"{cls.name}::{method}" for method in cls.disabled_methods)
+        disabled.extend(placeholder_file.disabled_standalone_tests)
+        if disabled:
+            disabled_by_file[placeholder_file.file_path] = disabled
 
     output: dict[str, Any] = {
-        "total_tests": total_tests,
-        "total_files": total_files,
-        "files": tests_by_file,
+        "placeholder": {
+            "total_tests": total_tests,
+            "total_files": total_files,
+            "files": placeholder_by_file,
+        },
+        "disabled": {
+            "total_tests": total_disabled,
+            "total_files": disabled_files,
+            "files": disabled_by_file,
+        },
     }
 
     # Use print() instead of LOGGER to produce clean JSON on stdout without log formatting

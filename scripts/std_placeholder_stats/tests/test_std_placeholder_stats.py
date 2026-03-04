@@ -19,9 +19,12 @@ import pytest
 from scripts.std_placeholder_stats.std_placeholder_stats import (
     PlaceholderClass,
     PlaceholderFile,
+    _format_disabled_lines,
     _format_placeholder_lines,
     _statements_have_test_false,
+    count_disabled_tests,
     count_placeholder_tests,
+    get_disabled_methods_from_class,
     get_test_methods_from_class,
     output_json,
     output_text,
@@ -600,7 +603,13 @@ class TestOutputFunctions:
     SAMPLE_PLACEHOLDER_FILES: ClassVar[list[PlaceholderFile]] = [
         PlaceholderFile(
             file_path="tests/test_foo.py",
-            classes=[PlaceholderClass(name="TestFoo", test_methods=["test_bar", "test_baz"])],
+            classes=[
+                PlaceholderClass(
+                    name="TestFoo",
+                    test_methods=["test_bar", "test_baz"],
+                    disabled_methods=["test_implemented"],
+                )
+            ],
         ),
         PlaceholderFile(
             file_path="tests/test_standalone.py",
@@ -614,16 +623,24 @@ class TestOutputFunctions:
         captured = capsys.readouterr()
         result = json.loads(captured.out)
 
-        assert result["total_tests"] == 3, f"Expected 3 total tests, got {result['total_tests']}"
-        assert result["total_files"] == 2, f"Expected 2 total files, got {result['total_files']}"
-        assert "tests/test_foo.py" in result["files"], (
-            f"Missing tests/test_foo.py in files, got keys: {list(result['files'].keys())}"
+        placeholder = result["placeholder"]
+        assert placeholder["total_tests"] == 3, f"Expected 3 total tests, got {placeholder['total_tests']}"
+        assert placeholder["total_files"] == 2, f"Expected 2 total files, got {placeholder['total_files']}"
+        assert "tests/test_foo.py" in placeholder["files"], (
+            f"Missing tests/test_foo.py in files, got keys: {list(placeholder['files'].keys())}"
         )
-        assert result["files"]["tests/test_foo.py"] == ["TestFoo::test_bar", "TestFoo::test_baz"], (
-            f"Expected ['TestFoo::test_bar', 'TestFoo::test_baz'], got {result['files']['tests/test_foo.py']}"
+        assert placeholder["files"]["tests/test_foo.py"] == ["TestFoo::test_bar", "TestFoo::test_baz"], (
+            f"Expected ['TestFoo::test_bar', 'TestFoo::test_baz'], got {placeholder['files']['tests/test_foo.py']}"
         )
-        assert result["files"]["tests/test_standalone.py"] == ["test_alpha"], (
-            f"Expected ['test_alpha'], got {result['files']['tests/test_standalone.py']}"
+        assert placeholder["files"]["tests/test_standalone.py"] == ["test_alpha"], (
+            f"Expected ['test_alpha'], got {placeholder['files']['tests/test_standalone.py']}"
+        )
+
+        disabled = result["disabled"]
+        assert disabled["total_tests"] == 1, f"Expected 1 disabled test, got {disabled['total_tests']}"
+        assert disabled["total_files"] == 1, f"Expected 1 file with disabled tests, got {disabled['total_files']}"
+        assert disabled["files"]["tests/test_foo.py"] == ["TestFoo::test_implemented"], (
+            f"Expected ['TestFoo::test_implemented'], got {disabled['files']['tests/test_foo.py']}"
         )
 
     def test_output_json_empty_input(self, capsys: pytest.CaptureFixture[str]) -> None:
@@ -632,9 +649,15 @@ class TestOutputFunctions:
         captured = capsys.readouterr()
         result = json.loads(captured.out)
 
-        assert result["total_tests"] == 0, f"Expected 0 total tests, got {result['total_tests']}"
-        assert result["total_files"] == 0, f"Expected 0 total files, got {result['total_files']}"
-        assert result["files"] == {}, f"Expected empty files dict, got: {result['files']}"
+        placeholder = result["placeholder"]
+        assert placeholder["total_tests"] == 0, f"Expected 0 total tests, got {placeholder['total_tests']}"
+        assert placeholder["total_files"] == 0, f"Expected 0 total files, got {placeholder['total_files']}"
+        assert placeholder["files"] == {}, f"Expected empty files dict, got: {placeholder['files']}"
+
+        disabled = result["disabled"]
+        assert disabled["total_tests"] == 0, f"Expected 0 disabled tests, got {disabled['total_tests']}"
+        assert disabled["total_files"] == 0, f"Expected 0 disabled files, got {disabled['total_files']}"
+        assert disabled["files"] == {}, f"Expected empty disabled files dict, got: {disabled['files']}"
 
     def test_output_text_counts_only_files_with_tests(self, caplog: pytest.LogCaptureFixture) -> None:
         """output_text() counts only files that have test entries in the total."""
@@ -670,8 +693,8 @@ class TestOutputFunctions:
         finally:
             logger.propagate = original_propagate
 
-        assert any("No STD placeholder tests found" in msg for msg in caplog.messages), (
-            f"Expected 'No STD placeholder tests found' in log output, got: {caplog.messages}"
+        assert any("No STD placeholder or disabled tests found" in msg for msg in caplog.messages), (
+            f"Expected 'No STD placeholder or disabled tests found' in log output, got: {caplog.messages}"
         )
 
 
@@ -760,3 +783,227 @@ class TestFormatPlaceholderLines:
         lines = _format_placeholder_lines(placeholder_file=placeholder)
         assert lines[0] == "tests/test_foo.py::<standalone>", f"Expected standalone header, got: {lines[0]}"
         assert "  - test_alpha" in lines, f"Expected '  - test_alpha' in lines, got: {lines}"
+
+
+# ===========================================================================
+# Tests for get_disabled_methods_from_class()
+# ===========================================================================
+
+
+class TestGetDisabledMethodsFromClass:
+    """Tests for the get_disabled_methods_from_class() function."""
+
+    def test_returns_implemented_test_methods(self) -> None:
+        """get_disabled_methods_from_class() returns test methods with implementation."""
+        source = (
+            "class TestFoo:\n"
+            "    def test_placeholder(self):\n"
+            '        """Placeholder test."""\n\n'
+            "    def test_implemented(self):\n"
+            '        """Has code."""\n'
+            "        assert True\n"
+        )
+        class_node = _get_first_class_node(source=source)
+        result = get_disabled_methods_from_class(class_node=class_node)
+        assert result == ["test_implemented"], f"Expected ['test_implemented'], got: {result}"
+
+    def test_excludes_placeholder_methods(self) -> None:
+        """get_disabled_methods_from_class() excludes docstring-only methods."""
+        class_node = _get_first_class_node(source=SOURCE_CLASS_TEST_FALSE)
+        result = get_disabled_methods_from_class(class_node=class_node)
+        assert result == [], f"Expected empty list, got: {result}"
+
+    def test_excludes_non_test_methods(self) -> None:
+        """get_disabled_methods_from_class() excludes helper methods."""
+        class_node = _get_first_class_node(source=SOURCE_CLASS_NO_TEST_METHODS)
+        result = get_disabled_methods_from_class(class_node=class_node)
+        assert result == [], f"Expected empty list, got: {result}"
+
+
+# ===========================================================================
+# Tests for disabled test detection in scan_placeholder_tests()
+# ===========================================================================
+
+
+class TestDisabledTestDetection:
+    """Tests for disabled test detection in scan_placeholder_tests()."""
+
+    def test_module_level_test_false_separates_placeholder_and_disabled(self, tests_dir: Path) -> None:
+        """scan_placeholder_tests() separates placeholder (docstring-only) from disabled (implemented) tests."""
+        _create_test_file(
+            directory=tests_dir,
+            filename="test_mixed.py",
+            content=(
+                f"{TEST_FALSE_MARKER}\n\n"
+                "class TestMixed:\n"
+                "    def test_placeholder(self):\n"
+                '        """This test is not yet implemented."""\n\n'
+                "    def test_implemented(self):\n"
+                '        """This test has code."""\n'
+                "        assert True\n"
+            ),
+        )
+
+        result = scan_placeholder_tests(tests_dir=tests_dir)
+
+        assert result, "Expected non-empty result list"
+        placeholder = _find_placeholder_file(result=result, file_path="tests/test_mixed.py")
+        mixed_class = _find_placeholder_class(placeholder=placeholder, class_name="TestMixed")
+        assert "test_placeholder" in mixed_class.test_methods, (
+            f"Expected 'test_placeholder' in placeholder methods, got: {mixed_class.test_methods}"
+        )
+        assert "test_implemented" in mixed_class.disabled_methods, (
+            f"Expected 'test_implemented' in disabled methods, got: {mixed_class.disabled_methods}"
+        )
+        assert "test_implemented" not in mixed_class.test_methods, (
+            f"Unexpected 'test_implemented' in placeholder methods: {mixed_class.test_methods}"
+        )
+
+    def test_standalone_disabled_function_detected(self, tests_dir: Path) -> None:
+        """scan_placeholder_tests() detects standalone disabled functions with implementation."""
+        _create_test_file(
+            directory=tests_dir,
+            filename="test_disabled_func.py",
+            content=(
+                "def test_with_code():\n"
+                '    """Has implementation."""\n'
+                "    assert 1 + 1 == 2\n\n"
+                f"test_with_code.{TEST_FALSE_MARKER}\n"
+            ),
+        )
+
+        result = scan_placeholder_tests(tests_dir=tests_dir)
+
+        assert result, "Expected non-empty result list"
+        placeholder = _find_placeholder_file(result=result, file_path="tests/test_disabled_func.py")
+        assert "test_with_code" in placeholder.disabled_standalone_tests, (
+            f"Expected 'test_with_code' in disabled_standalone_tests, got: {placeholder.disabled_standalone_tests}"
+        )
+        assert "test_with_code" not in placeholder.standalone_tests, (
+            f"Unexpected 'test_with_code' in placeholder standalone_tests: {placeholder.standalone_tests}"
+        )
+
+    def test_class_level_test_false_separates_placeholder_and_disabled(self, tests_dir: Path) -> None:
+        """scan_placeholder_tests() separates categories at class level __test__ = False."""
+        _create_test_file(
+            directory=tests_dir,
+            filename="test_cls_mixed.py",
+            content=(
+                "class TestFoo:\n"
+                f"    {TEST_FALSE_MARKER}\n\n"
+                "    def test_placeholder(self):\n"
+                '        """Placeholder test."""\n\n'
+                "    def test_implemented(self):\n"
+                '        """Has code."""\n'
+                "        assert True\n"
+            ),
+        )
+
+        result = scan_placeholder_tests(tests_dir=tests_dir)
+
+        assert result, "Expected non-empty result list"
+        placeholder = _find_placeholder_file(result=result, file_path="tests/test_cls_mixed.py")
+        foo_class = _find_placeholder_class(placeholder=placeholder, class_name="TestFoo")
+        assert "test_placeholder" in foo_class.test_methods, (
+            f"Expected 'test_placeholder' in test_methods, got: {foo_class.test_methods}"
+        )
+        assert "test_implemented" in foo_class.disabled_methods, (
+            f"Expected 'test_implemented' in disabled_methods, got: {foo_class.disabled_methods}"
+        )
+
+    def test_method_level_disabled_detected(self, tests_dir: Path) -> None:
+        """scan_placeholder_tests() detects method-level disabled tests with implementation."""
+        _create_test_file(
+            directory=tests_dir,
+            filename="test_meth_disabled.py",
+            content=(
+                "class TestFoo:\n"
+                "    def test_implemented(self):\n"
+                '        """Has code."""\n'
+                "        assert True\n\n"
+                f"    test_implemented.{TEST_FALSE_MARKER}\n\n"
+                "    def test_normal(self):\n"
+                "        assert True\n"
+            ),
+        )
+
+        result = scan_placeholder_tests(tests_dir=tests_dir)
+
+        assert result, "Expected non-empty result list"
+        placeholder = _find_placeholder_file(result=result, file_path="tests/test_meth_disabled.py")
+        foo_class = _find_placeholder_class(placeholder=placeholder, class_name="TestFoo")
+        assert "test_implemented" in foo_class.disabled_methods, (
+            f"Expected 'test_implemented' in disabled_methods, got: {foo_class.disabled_methods}"
+        )
+        assert "test_implemented" not in foo_class.test_methods, (
+            f"Unexpected 'test_implemented' in test_methods: {foo_class.test_methods}"
+        )
+
+
+# ===========================================================================
+# Tests for count_disabled_tests()
+# ===========================================================================
+
+
+class TestCountDisabledTests:
+    """Tests for the count_disabled_tests() function."""
+
+    def test_counts_disabled_tests_and_files(self) -> None:
+        """count_disabled_tests() returns correct totals."""
+        placeholder_files = [
+            PlaceholderFile(
+                file_path="tests/test_a.py",
+                classes=[PlaceholderClass(name="TestA", disabled_methods=["test_disabled"])],
+            ),
+            PlaceholderFile(
+                file_path="tests/test_b.py",
+                standalone_tests=["test_placeholder"],
+            ),
+        ]
+        total_disabled, disabled_files = count_disabled_tests(placeholder_files=placeholder_files)
+        assert total_disabled == 1, f"Expected 1 disabled test, got {total_disabled}"
+        assert disabled_files == 1, f"Expected 1 file with disabled tests, got {disabled_files}"
+
+    def test_empty_input(self) -> None:
+        """count_disabled_tests() returns zeros for empty input."""
+        total_disabled, disabled_files = count_disabled_tests(placeholder_files=[])
+        assert total_disabled == 0, f"Expected 0 disabled tests, got {total_disabled}"
+        assert disabled_files == 0, f"Expected 0 files, got {disabled_files}"
+
+
+# ===========================================================================
+# Tests for _format_disabled_lines()
+# ===========================================================================
+
+
+class TestFormatDisabledLines:
+    """Tests for the _format_disabled_lines() function."""
+
+    def test_formats_disabled_entries(self) -> None:
+        """_format_disabled_lines() formats disabled test entries."""
+        placeholder = PlaceholderFile(
+            file_path="tests/test_foo.py",
+            classes=[PlaceholderClass(name="TestFoo", disabled_methods=["test_implemented"])],
+        )
+        lines = _format_disabled_lines(placeholder_file=placeholder)
+        assert lines[0] == "tests/test_foo.py::TestFoo", f"Expected class header, got: {lines[0]}"
+        assert "  - test_implemented" in lines, f"Expected '  - test_implemented' in lines, got: {lines}"
+
+    def test_formats_standalone_disabled_entries(self) -> None:
+        """_format_disabled_lines() formats standalone disabled tests."""
+        placeholder = PlaceholderFile(
+            file_path="tests/test_foo.py",
+            disabled_standalone_tests=["test_disabled_func"],
+        )
+        lines = _format_disabled_lines(placeholder_file=placeholder)
+        assert lines[0] == "tests/test_foo.py::<standalone>", f"Expected standalone header, got: {lines[0]}"
+        assert "  - test_disabled_func" in lines, f"Expected '  - test_disabled_func' in lines, got: {lines}"
+
+    def test_returns_empty_for_no_disabled(self) -> None:
+        """_format_disabled_lines() returns empty list when no disabled tests."""
+        placeholder = PlaceholderFile(
+            file_path="tests/test_foo.py",
+            classes=[PlaceholderClass(name="TestFoo", test_methods=["test_bar"])],
+        )
+        lines = _format_disabled_lines(placeholder_file=placeholder)
+        assert lines == [], f"Expected empty list, got: {lines}"
