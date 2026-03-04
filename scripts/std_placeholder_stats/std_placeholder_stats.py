@@ -128,6 +128,34 @@ def _statements_have_test_false(
     return False
 
 
+def _is_placeholder_body(func_node: ast.FunctionDef) -> bool:
+    """Check if a function body contains only a docstring (no implementation).
+
+    A placeholder test has only a docstring describing expected behavior,
+    with no actual test logic (assertions, calls, etc.).
+
+    Args:
+        func_node: AST function definition node.
+
+    Returns:
+        True if the function body is docstring-only (placeholder).
+    """
+    # A docstring-only body has exactly one statement: an Expr containing a Constant string
+    if len(func_node.body) == 1:
+        stmt = func_node.body[0]
+        return isinstance(stmt, ast.Expr) and isinstance(stmt.value, ast.Constant) and isinstance(stmt.value.value, str)
+    # Also allow docstring + pass (common pattern)
+    if len(func_node.body) == 2:
+        first = func_node.body[0]
+        second = func_node.body[1]
+        is_docstring = (
+            isinstance(first, ast.Expr) and isinstance(first.value, ast.Constant) and isinstance(first.value.value, str)
+        )
+        is_pass = isinstance(second, ast.Pass)
+        return is_docstring and is_pass
+    return False
+
+
 def get_test_methods_from_class(class_node: ast.ClassDef) -> list[str]:
     """Extract test method names from a class definition.
 
@@ -140,8 +168,10 @@ def get_test_methods_from_class(class_node: ast.ClassDef) -> list[str]:
     return [
         method.name
         for method in class_node.body
-        # Collect only function definitions named test_* (skip __init__, helpers, etc.)
-        if isinstance(method, ast.FunctionDef) and method.name.startswith("test_")
+        # Collect only function definitions named test_* that are docstring-only placeholders
+        if isinstance(method, ast.FunctionDef)
+        and method.name.startswith("test_")
+        and _is_placeholder_body(func_node=method)
     ]
 
 
@@ -182,7 +212,9 @@ def _collect_placeholders(
                 for method in node.body:
                     # Check each test_* method for an attribute assignment in the class body
                     if isinstance(method, ast.FunctionDef) and method.name.startswith("test_"):
-                        if _statements_have_test_false(statements=node.body, target_name=method.name):
+                        if _is_placeholder_body(func_node=method) and _statements_have_test_false(
+                            statements=node.body, target_name=method.name
+                        ):
                             method_names.append(method.name)
                 if method_names:
                     placeholder.classes.append(PlaceholderClass(name=node.name, test_methods=method_names))
@@ -190,7 +222,8 @@ def _collect_placeholders(
         elif isinstance(node, ast.FunctionDef) and node.name.startswith("test_"):
             # Module-level marker or func.__test__ = False at module level
             if module_is_placeholder or _statements_have_test_false(statements=tree.body, target_name=node.name):
-                placeholder.standalone_tests.append(node.name)
+                if _is_placeholder_body(func_node=node):
+                    placeholder.standalone_tests.append(node.name)
 
     if placeholder.classes or placeholder.standalone_tests:
         return placeholder
@@ -214,7 +247,7 @@ def scan_placeholder_tests(tests_dir: Path) -> list[PlaceholderFile]:
         except (UnicodeDecodeError, OSError) as exc:
             LOGGER.warning(f"Failed to read {test_file}: {exc}")
             continue
-        if TEST_ATTR not in file_content or "False" not in file_content:
+        if TEST_ATTR not in file_content:
             continue
 
         try:

@@ -44,7 +44,7 @@ SOURCE_MODULE_TEST_FALSE = f"""\
 
 class TestFoo:
     def test_bar(self):
-        pass
+        \"\"\"Placeholder test.\"\"\"
 """
 
 SOURCE_NO_TEST_ASSIGNMENT = """\
@@ -58,22 +58,22 @@ class TestFoo:
     {TEST_FALSE_MARKER}
 
     def test_bar(self):
-        pass
+        \"\"\"Placeholder test.\"\"\"
 
     def test_baz(self):
-        pass
+        \"\"\"Placeholder test.\"\"\"
 """
 
 SOURCE_FUNCTION_TEST_FALSE = f"""\
 def test_standalone():
-    pass
+    \"\"\"Placeholder test.\"\"\"
 
 test_standalone.{TEST_FALSE_MARKER}
 """
 
 SOURCE_FUNCTION_TEST_FALSE_DIFFERENT_NAME = f"""\
 def test_alpha():
-    pass
+    \"\"\"Placeholder test.\"\"\"
 
 test_alpha.{TEST_FALSE_MARKER}
 
@@ -89,7 +89,7 @@ def test_standalone():
 SOURCE_METHOD_TEST_FALSE = f"""\
 class TestFoo:
     def test_alpha(self):
-        pass
+        \"\"\"Placeholder test.\"\"\"
 
     test_alpha.{TEST_FALSE_MARKER}
 
@@ -117,10 +117,10 @@ class TestFoo:
         pass
 
     def test_one(self):
-        pass
+        \"\"\"Placeholder test.\"\"\"
 
     def test_two(self):
-        pass
+        \"\"\"Placeholder test.\"\"\"
 
     def setup_method(self):
         pass
@@ -376,10 +376,10 @@ class TestScanPlaceholderTests:
                 f"{TEST_FALSE_MARKER}\n\n"
                 "class TestFoo:\n"
                 "    def test_bar(self):\n"
-                "        pass\n\n"
+                '        """Placeholder test."""\n\n'
                 "class TestBaz:\n"
                 "    def test_qux(self):\n"
-                "        pass\n"
+                '        """Placeholder test."""\n'
             ),
         )
 
@@ -404,7 +404,7 @@ class TestScanPlaceholderTests:
         _create_test_file(
             directory=tests_dir,
             filename="test_funcs.py",
-            content=f"{TEST_FALSE_MARKER}\n\ndef test_alpha():\n    pass\n\ndef test_beta():\n    pass\n",
+            content=f'{TEST_FALSE_MARKER}\n\ndef test_alpha():\n    """Placeholder test."""\n\ndef test_beta():\n    """Placeholder test."""\n',
         )
 
         result = scan_placeholder_tests(tests_dir=tests_dir)
@@ -427,9 +427,9 @@ class TestScanPlaceholderTests:
                 "class TestFoo:\n"
                 f"    {TEST_FALSE_MARKER}\n\n"
                 "    def test_bar(self):\n"
-                "        pass\n\n"
+                '        """Placeholder test."""\n\n'
                 "    def test_baz(self):\n"
-                "        pass\n"
+                '        """Placeholder test."""\n'
             ),
         )
 
@@ -454,7 +454,7 @@ class TestScanPlaceholderTests:
             content=(
                 "class TestFoo:\n"
                 "    def test_alpha(self):\n"
-                "        pass\n\n"
+                '        """Placeholder test."""\n\n'
                 f"    test_alpha.{TEST_FALSE_MARKER}\n\n"
                 "    def test_beta(self):\n"
                 "        pass\n"
@@ -478,7 +478,7 @@ class TestScanPlaceholderTests:
         _create_test_file(
             directory=tests_dir,
             filename="test_func.py",
-            content=f"def test_alpha():\n    pass\n\ntest_alpha.{TEST_FALSE_MARKER}\n\ndef test_beta():\n    pass\n",
+            content=f'def test_alpha():\n    """Placeholder test."""\n\ntest_alpha.{TEST_FALSE_MARKER}\n\ndef test_beta():\n    pass\n',
         )
 
         result = scan_placeholder_tests(tests_dir=tests_dir)
@@ -514,7 +514,7 @@ class TestScanPlaceholderTests:
         _create_test_file(
             directory=tests_dir,
             filename="test_valid.py",
-            content=f"{TEST_FALSE_MARKER}\n\nclass TestGood:\n    def test_pass(self):\n        pass\n",
+            content=f'{TEST_FALSE_MARKER}\n\nclass TestGood:\n    def test_pass(self):\n        """Placeholder test."""\n',
         )
 
         result = scan_placeholder_tests(tests_dir=tests_dir)
@@ -536,7 +536,7 @@ class TestScanPlaceholderTests:
         _create_test_file(
             directory=sub_dir,
             filename="test_deep.py",
-            content=f"{TEST_FALSE_MARKER}\n\nclass TestDeep:\n    def test_nested(self):\n        pass\n",
+            content=f'{TEST_FALSE_MARKER}\n\nclass TestDeep:\n    def test_nested(self):\n        """Placeholder test."""\n',
         )
 
         result = scan_placeholder_tests(tests_dir=tests_dir)
@@ -546,6 +546,30 @@ class TestScanPlaceholderTests:
         assert any("test_deep.py" in path for path in file_paths), (
             f"Expected a file_path containing 'test_deep.py' in results, got: {file_paths}"
         )
+
+    def test_handles_unreadable_files_gracefully(self, tests_dir: Path) -> None:
+        """scan_placeholder_tests() logs warning and continues on permission errors."""
+        unreadable = _create_test_file(
+            directory=tests_dir,
+            filename="test_unreadable.py",
+            content=f'{TEST_FALSE_MARKER}\n\nclass TestFoo:\n    def test_bar(self):\n        """Placeholder."""\n',
+        )
+        unreadable.chmod(0o000)
+        _create_test_file(
+            directory=tests_dir,
+            filename="test_readable.py",
+            content=f'{TEST_FALSE_MARKER}\n\nclass TestGood:\n    def test_pass(self):\n        """Placeholder."""\n',
+        )
+
+        result = scan_placeholder_tests(tests_dir=tests_dir)
+
+        file_paths = [pf.file_path for pf in result]
+        assert "tests/test_unreadable.py" not in file_paths, (
+            f"Unexpected 'tests/test_unreadable.py' in result: {file_paths}"
+        )
+        assert "tests/test_readable.py" in file_paths, f"Expected 'tests/test_readable.py' in result, got: {file_paths}"
+        # Restore permissions for cleanup
+        unreadable.chmod(0o644)
 
     def test_ignores_non_test_files(self, tests_dir: Path) -> None:
         """scan_placeholder_tests() only processes files matching test_*.py pattern."""
@@ -621,12 +645,13 @@ class TestOutputFunctions:
             ),
         ]
         logger = logging.getLogger(name="scripts.std_placeholder_stats.std_placeholder_stats")
+        original_propagate = logger.propagate
         logger.propagate = True
         try:
             with caplog.at_level(level=logging.INFO, logger="scripts.std_placeholder_stats.std_placeholder_stats"):
                 output_text(placeholder_files=placeholder_files)
         finally:
-            logger.propagate = False
+            logger.propagate = original_propagate
 
         summary_line = [line for line in caplog.messages if "Total:" in line]
         assert summary_line, f"Expected 'Total:' summary line in log output, got: {caplog.messages}"
@@ -637,12 +662,13 @@ class TestOutputFunctions:
     def test_output_text_empty_input(self, caplog: pytest.LogCaptureFixture) -> None:
         """output_text() logs 'no placeholder tests found' for empty input."""
         logger = logging.getLogger(name="scripts.std_placeholder_stats.std_placeholder_stats")
+        original_propagate = logger.propagate
         logger.propagate = True
         try:
             with caplog.at_level(level=logging.INFO, logger="scripts.std_placeholder_stats.std_placeholder_stats"):
                 output_text(placeholder_files=[])
         finally:
-            logger.propagate = False
+            logger.propagate = original_propagate
 
         assert any("No STD placeholder tests found" in msg for msg in caplog.messages), (
             f"Expected 'No STD placeholder tests found' in log output, got: {caplog.messages}"
