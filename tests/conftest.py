@@ -251,9 +251,10 @@ def kubeconfig_export_path():
 
 
 @pytest.fixture(scope="session")
-def exported_kubeconfig(unprivileged_secret, kubeconfig_export_path):
+def exported_kubeconfig(admin_client, unprivileged_secret, kubeconfig_export_path):
     if not unprivileged_secret:
-        yield
+        LOGGER.error("test message in exported_kubeconfig")
+        yield admin_client
 
     else:
         kube_config_path = os.path.join(os.path.expanduser("~"), ".kube/config")
