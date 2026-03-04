@@ -214,7 +214,7 @@ def scan_placeholder_tests(tests_dir: Path) -> list[PlaceholderFile]:
         except (UnicodeDecodeError, OSError) as exc:
             LOGGER.warning(f"Failed to read {test_file}: {exc}")
             continue
-        if f"{TEST_ATTR} = False" not in file_content:
+        if TEST_ATTR not in file_content or "False" not in file_content:
             continue
 
         try:

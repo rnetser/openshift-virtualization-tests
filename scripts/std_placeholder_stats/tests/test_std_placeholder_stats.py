@@ -623,7 +623,7 @@ class TestOutputFunctions:
         logger = logging.getLogger(name="scripts.std_placeholder_stats.std_placeholder_stats")
         logger.propagate = True
         try:
-            with caplog.at_level(logging.INFO, logger="scripts.std_placeholder_stats.std_placeholder_stats"):
+            with caplog.at_level(level=logging.INFO, logger="scripts.std_placeholder_stats.std_placeholder_stats"):
                 output_text(placeholder_files=placeholder_files)
         finally:
             logger.propagate = False
@@ -639,7 +639,7 @@ class TestOutputFunctions:
         logger = logging.getLogger(name="scripts.std_placeholder_stats.std_placeholder_stats")
         logger.propagate = True
         try:
-            with caplog.at_level(logging.INFO, logger="scripts.std_placeholder_stats.std_placeholder_stats"):
+            with caplog.at_level(level=logging.INFO, logger="scripts.std_placeholder_stats.std_placeholder_stats"):
                 output_text(placeholder_files=[])
         finally:
             logger.propagate = False
