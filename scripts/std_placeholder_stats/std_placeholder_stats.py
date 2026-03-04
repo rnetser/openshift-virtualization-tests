@@ -333,7 +333,7 @@ def count_placeholder_tests(placeholder_files: list[PlaceholderFile]) -> tuple[i
         A tuple of (total_tests, total_files).
     """
     total_tests = sum(pf.total_tests for pf in placeholder_files)
-    total_files = len(placeholder_files)
+    total_files = sum(1 for pf in placeholder_files if pf.total_tests > 0)
     return total_tests, total_files
 
 

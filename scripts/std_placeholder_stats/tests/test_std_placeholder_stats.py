@@ -550,19 +550,31 @@ class TestScanPlaceholderTests:
             f"Expected a file_path containing 'test_deep.py' in results, got: {file_paths}"
         )
 
-    def test_handles_unreadable_files_gracefully(self, tests_dir: Path) -> None:
-        """scan_placeholder_tests() logs warning and continues on permission errors."""
+    def test_handles_unreadable_files_gracefully(
+        self,
+        tests_dir: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """scan_placeholder_tests() logs warning and continues on read errors."""
         unreadable = _create_test_file(
             directory=tests_dir,
             filename="test_unreadable.py",
             content=f'{TEST_FALSE_MARKER}\n\nclass TestFoo:\n    def test_bar(self):\n        """Placeholder."""\n',
         )
-        unreadable.chmod(0o000)
         _create_test_file(
             directory=tests_dir,
             filename="test_readable.py",
             content=f'{TEST_FALSE_MARKER}\n\nclass TestGood:\n    def test_pass(self):\n        """Placeholder."""\n',
         )
+
+        original_read_text = Path.read_text
+
+        def fake_read_text(path_self: Path, *args: object, **kwargs: object) -> str:
+            if path_self == unreadable:
+                raise OSError("simulated read failure")
+            return original_read_text(path_self, *args, **kwargs)
+
+        monkeypatch.setattr(target=Path, name="read_text", value=fake_read_text)
 
         result = scan_placeholder_tests(tests_dir=tests_dir)
 
@@ -571,8 +583,6 @@ class TestScanPlaceholderTests:
             f"Unexpected 'tests/test_unreadable.py' in result: {file_paths}"
         )
         assert "tests/test_readable.py" in file_paths, f"Expected 'tests/test_readable.py' in result, got: {file_paths}"
-        # Restore permissions for cleanup
-        unreadable.chmod(0o644)
 
     def test_ignores_non_test_files(self, tests_dir: Path) -> None:
         """scan_placeholder_tests() only processes files matching test_*.py pattern."""
