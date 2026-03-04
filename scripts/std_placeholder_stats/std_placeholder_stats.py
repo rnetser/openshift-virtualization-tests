@@ -10,131 +10,121 @@ Output:
     - json: Machine-readable JSON output
 
 Usage:
-    uv run python scripts/std_placeholder_stats/std_placeholder_stats.py
-    uv run python scripts/std_placeholder_stats/std_placeholder_stats.py --tests-dir tests
-    uv run python scripts/std_placeholder_stats/std_placeholder_stats.py --output-format json
+    uv run python std_placeholder_stats.py
+    uv run python std_placeholder_stats.py --tests-dir tests
+    uv run python std_placeholder_stats.py --output-format json
 
-Generated using Claude cli
+Co-authored-by: Claude <noreply@anthropic.com>
 """
 
 from __future__ import annotations
 
 import ast
 import json
-from argparse import ArgumentParser, Namespace, RawDescriptionHelpFormatter
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+import click
 from simple_logger.logger import get_logger
 
 LOGGER = get_logger(name=__name__)
+TERMINAL_WIDTH = 120
+TEST_ATTR = "__test__"
 
 
-def separator(symbol_: str, val: str | None = None) -> str:
+@dataclass
+class PlaceholderClass:
+    """A test class containing placeholder test methods.
+
+    Attributes:
+        name: Name of the test class.
+        test_methods: List of placeholder test method names.
+    """
+
+    name: str
+    test_methods: list[str] = field(default_factory=list)
+
+
+@dataclass
+class PlaceholderFile:
+    """A test file containing placeholder tests.
+
+    Attributes:
+        file_path: Path to the test file relative to the project root.
+        classes: List of placeholder test classes in this file.
+        standalone_tests: List of standalone placeholder test function names.
+    """
+
+    file_path: str
+    classes: list[PlaceholderClass] = field(default_factory=list)
+    standalone_tests: list[str] = field(default_factory=list)
+
+    @property
+    def total_tests(self) -> int:
+        """Return the total number of placeholder tests in this file."""
+        class_tests = sum(len(cls.test_methods) for cls in self.classes)
+        return class_tests + len(self.standalone_tests)
+
+
+def separator(symbol: str, title: str | None = None) -> str:
     """Create a separator line for terminal output.
 
     Args:
-        symbol_: The character to use for the separator.
-        val: Optional text to center in the separator.
+        symbol: The character to use for the separator.
+        title: Optional text to center in the separator.
 
     Returns:
         Formatted separator string.
     """
-    terminal_width = 120  # Fixed width for consistent output
-    if not val:
-        return symbol_ * terminal_width
+    if title is None:
+        return symbol * TERMINAL_WIDTH
 
-    sepa = (terminal_width - len(val) - 2) // 2
-    return f"{symbol_ * sepa} {val} {symbol_ * sepa}"
-
-
-def module_has_test_false(module_tree: ast.Module) -> bool:
-    """Check if a module has `__test__ = False` assignment at top level.
-
-    Args:
-        module_tree: AST module tree
-
-    Returns:
-        True if the module has __test__ = False at top level, False otherwise
-    """
-    for node in module_tree.body:
-        if isinstance(node, ast.Assign):
-            for target in node.targets:
-                if isinstance(target, ast.Name) and target.id == "__test__":
-                    if isinstance(node.value, ast.Constant) and node.value.value is False:
-                        return True
-    return False
+    padding_total = TERMINAL_WIDTH - len(title) - 2
+    padding_left = padding_total // 2
+    padding_right = padding_total - padding_left
+    return f"{symbol * padding_left} {title} {symbol * padding_right}"
 
 
-def class_has_test_false(class_node: ast.ClassDef) -> bool:
-    """Check if a class has `__test__ = False` assignment in its body.
+def _statements_have_test_false(
+    statements: list[ast.stmt],
+    target_name: str | None = None,
+) -> bool:
+    """Check if a list of AST statements contains a `__test__ = False` assignment.
+
+    Handles two patterns:
+        - Bare assignment: ``__test__ = False`` (when target_name is None)
+        - Attribute assignment: ``target_name.__test__ = False`` (when target_name is provided)
 
     Args:
-        class_node: AST class definition node
+        statements: List of AST statement nodes to search.
+        target_name: When provided, look for ``target_name.__test__ = False``
+            attribute assignment. When None, look for bare ``__test__ = False``.
 
     Returns:
-        True if the class has __test__ = False, False otherwise
+        True if the matching ``__test__ = False`` assignment is found.
     """
-    for stmt in class_node.body:
-        if isinstance(stmt, ast.Assign):
-            for target in stmt.targets:
-                if isinstance(target, ast.Name) and target.id == "__test__":
-                    if isinstance(stmt.value, ast.Constant) and stmt.value.value is False:
-                        return True
-    return False
-
-
-def function_has_test_false(module_tree: ast.Module, function_name: str) -> bool:
-    """Check if a standalone function has `function_name.__test__ = False` assignment.
-
-    Args:
-        module_tree: AST module tree
-        function_name: Name of the function to check
-
-    Returns:
-        True if the function has __test__ = False assignment, False otherwise
-    """
-    for node in module_tree.body:
-        if isinstance(node, ast.Assign):
-            for target in node.targets:
-                if isinstance(target, ast.Attribute):
-                    if (
-                        isinstance(target.value, ast.Name)
-                        and target.value.id == function_name
-                        and target.attr == "__test__"
-                    ):
-                        if isinstance(node.value, ast.Constant) and node.value.value is False:
-                            return True
-    return False
-
-
-def method_has_test_false(class_node: ast.ClassDef, method_name: str) -> bool:
-    """Check if a method has `method_name.__test__ = False` assignment in the class body.
-
-    This detects patterns like:
-        class TestFoo:
-            def test_bar(self):
-                pass
-            test_bar.__test__ = False
-
-    Args:
-        class_node: AST class definition node
-        method_name: Name of the method to check
-
-    Returns:
-        True if the method has __test__ = False assignment in the class body, False otherwise
-    """
-    for stmt in class_node.body:
-        if isinstance(stmt, ast.Assign):
-            for target in stmt.targets:
-                if isinstance(target, ast.Attribute):
-                    if (
-                        isinstance(target.value, ast.Name)
-                        and target.value.id == method_name
-                        and target.attr == "__test__"
-                    ):
-                        if isinstance(stmt.value, ast.Constant) and stmt.value.value is False:
-                            return True
+    for node in statements:
+        # Skip non-assignment statements; only assignments can set __test__ = False
+        if not isinstance(node, ast.Assign):
+            continue
+        # Skip assignments where the value is not the constant False
+        if not (isinstance(node.value, ast.Constant) and node.value.value is False):
+            continue
+        for target in node.targets:
+            if target_name is None:
+                # Bare assignment pattern: __test__ = False (module or class level)
+                if isinstance(target, ast.Name) and target.id == TEST_ATTR:
+                    return True
+            else:
+                # Attribute assignment pattern: target_name.__test__ = False (e.g., test_func.__test__ = False)
+                if (
+                    isinstance(target, ast.Attribute)
+                    and isinstance(target.value, ast.Name)
+                    and target.value.id == target_name
+                    and target.attr == TEST_ATTR
+                ):
+                    return True
     return False
 
 
@@ -142,7 +132,7 @@ def get_test_methods_from_class(class_node: ast.ClassDef) -> list[str]:
     """Extract test method names from a class definition.
 
     Args:
-        class_node: AST class definition node
+        class_node: AST class definition node.
 
     Returns:
         List of test method names.
@@ -150,245 +140,237 @@ def get_test_methods_from_class(class_node: ast.ClassDef) -> list[str]:
     return [
         method.name
         for method in class_node.body
+        # Collect only function definitions named test_* (skip __init__, helpers, etc.)
         if isinstance(method, ast.FunctionDef) and method.name.startswith("test_")
     ]
 
 
-def _append_class_entries(
-    placeholder_files: dict[str, list[str]],
+def _collect_placeholders(
+    tree: ast.Module,
     relative_path: str,
-    class_node: ast.ClassDef,
-) -> None:
-    """Append a class and its test methods to the placeholder files mapping.
+    module_is_placeholder: bool,
+) -> PlaceholderFile | None:
+    """Collect placeholder tests from a module's AST.
 
-    Adds the class entry in ``path::ClassName`` format and indented method
-    entries for every ``test_*`` method found in the class body.
+    When module_is_placeholder is True (module has top-level __test__ = False),
+    all test classes and standalone test functions are included unconditionally.
+    Otherwise, each class and function is checked individually for __test__ = False.
 
     Args:
-        placeholder_files: Mapping of file paths to placeholder test entries
-            (modified in place).
+        tree: AST module tree.
         relative_path: File path relative to the project root.
-        class_node: AST class definition node to extract entries from.
+        module_is_placeholder: Whether the module has top-level __test__ = False.
+
+    Returns:
+        A PlaceholderFile if any placeholders are found, None otherwise.
     """
-    placeholder_files.setdefault(relative_path, []).append(f"{relative_path}::{class_node.name}")
-    test_methods = get_test_methods_from_class(class_node=class_node)
-    if test_methods:
-        placeholder_files[relative_path].extend(f"  - {method}" for method in test_methods)
+    placeholder = PlaceholderFile(file_path=relative_path)
+
+    for node in tree.body:
+        if isinstance(node, ast.ClassDef):
+            # Module-level marker or class-level __test__ = False: all test_* methods are placeholders
+            if module_is_placeholder or _statements_have_test_false(statements=node.body):
+                candidate = PlaceholderClass(
+                    name=node.name,
+                    test_methods=get_test_methods_from_class(class_node=node),
+                )
+                if candidate.test_methods:
+                    placeholder.classes.append(candidate)
+            # No class-level marker: check each method for method_name.__test__ = False
+            else:
+                method_names: list[str] = []
+                for method in node.body:
+                    # Check each test_* method for an attribute assignment in the class body
+                    if isinstance(method, ast.FunctionDef) and method.name.startswith("test_"):
+                        if _statements_have_test_false(statements=node.body, target_name=method.name):
+                            method_names.append(method.name)
+                if method_names:
+                    placeholder.classes.append(PlaceholderClass(name=node.name, test_methods=method_names))
+
+        elif isinstance(node, ast.FunctionDef) and node.name.startswith("test_"):
+            # Module-level marker or func.__test__ = False at module level
+            if module_is_placeholder or _statements_have_test_false(statements=tree.body, target_name=node.name):
+                placeholder.standalone_tests.append(node.name)
+
+    if placeholder.classes or placeholder.standalone_tests:
+        return placeholder
+    return None
 
 
-def scan_placeholder_tests(tests_dir: Path) -> dict[str, list[str]]:
+def scan_placeholder_tests(tests_dir: Path) -> list[PlaceholderFile]:
     """Scan tests directory for STD placeholder tests.
 
     Args:
         tests_dir: Path to the tests directory to scan.
 
     Returns:
-        Dictionary mapping file paths to lists of placeholder test entries.
+        List of PlaceholderFile objects describing found placeholder tests.
     """
-    placeholder_files: dict[str, list[str]] = {}
+    placeholder_files: list[PlaceholderFile] = []
 
     for test_file in tests_dir.rglob("test_*.py"):
-        file_content = test_file.read_text(encoding="utf-8")
-        if "__test__ = False" not in file_content:
+        try:
+            file_content = test_file.read_text(encoding="utf-8")
+        except (UnicodeDecodeError, OSError) as exc:
+            LOGGER.warning(f"Failed to read {test_file}: {exc}")
+            continue
+        if f"{TEST_ATTR} = False" not in file_content:
             continue
 
         try:
             tree = ast.parse(source=file_content)
         except SyntaxError as exc:
-            # Intentionally skip unparseable files; warn so the user can investigate
             LOGGER.warning(f"Failed to parse {test_file}: {exc}")
             continue
 
         relative_path = str(test_file.relative_to(tests_dir.parent))
 
-        # Check if module has __test__ = False at top level
-        if module_has_test_false(module_tree=tree):
-            # Report ALL test classes and functions in this module
-            module_has_standalone_tests = False
+        # Dispatch: unified placeholder collection with module-level marker detection
+        result = _collect_placeholders(
+            tree=tree,
+            relative_path=relative_path,
+            module_is_placeholder=_statements_have_test_false(statements=tree.body),
+        )
 
-            for node in tree.body:
-                if isinstance(node, ast.ClassDef):
-                    _append_class_entries(
-                        placeholder_files=placeholder_files,
-                        relative_path=relative_path,
-                        class_node=node,
-                    )
-
-                elif isinstance(node, ast.FunctionDef) and node.name.startswith("test_"):
-                    # For standalone functions, add module path first if not already added
-                    if not module_has_standalone_tests:
-                        placeholder_files.setdefault(relative_path, []).append(relative_path)
-                        module_has_standalone_tests = True
-                    placeholder_files[relative_path].append(f"  - {node.name}")
-        else:
-            # Check individual classes and functions for __test__ = False
-            has_standalone_header = False
-            for node in tree.body:
-                if isinstance(node, ast.ClassDef):
-                    if class_has_test_false(class_node=node):
-                        # Class-level __test__ = False: report class and all methods
-                        _append_class_entries(
-                            placeholder_files=placeholder_files,
-                            relative_path=relative_path,
-                            class_node=node,
-                        )
-                    else:
-                        # Check each method for method.__test__ = False in class body
-                        method_placeholders: list[str] = []
-                        for method in node.body:
-                            if isinstance(method, ast.FunctionDef) and method.name.startswith("test_"):
-                                if method_has_test_false(class_node=node, method_name=method.name):
-                                    method_placeholders.append(f"  - {method.name}")
-                        if method_placeholders:
-                            placeholder_files.setdefault(relative_path, []).append(f"{relative_path}::{node.name}")
-                            placeholder_files[relative_path].extend(method_placeholders)
-
-                elif isinstance(node, ast.FunctionDef) and node.name.startswith("test_"):
-                    if function_has_test_false(module_tree=tree, function_name=node.name):
-                        if not has_standalone_header:
-                            placeholder_files.setdefault(relative_path, []).insert(0, relative_path)
-                            has_standalone_header = True
-                        placeholder_files[relative_path].append(f"  - {node.name}")
+        if result:
+            placeholder_files.append(result)
 
     return placeholder_files
 
 
-def output_text(placeholder_files: dict[str, list[str]]) -> None:
+def count_placeholder_tests(placeholder_files: list[PlaceholderFile]) -> tuple[int, int]:
+    """Count total placeholder tests and files.
+
+    Args:
+        placeholder_files: List of PlaceholderFile objects to count.
+
+    Returns:
+        A tuple of (total_tests, total_files).
+    """
+    total_tests = sum(pf.total_tests for pf in placeholder_files)
+    total_files = len(placeholder_files)
+    return total_tests, total_files
+
+
+def _format_placeholder_lines(placeholder_file: PlaceholderFile) -> list[str]:
+    """Format a PlaceholderFile into display lines.
+
+    Args:
+        placeholder_file: The placeholder file to format.
+
+    Returns:
+        List of formatted strings for display.
+    """
+    lines: list[str] = []
+
+    for cls in placeholder_file.classes:
+        lines.append(f"{placeholder_file.file_path}::{cls.name}")
+        lines.extend(f"  - {method}" for method in cls.test_methods)
+
+    if placeholder_file.standalone_tests:
+        lines.append(f"{placeholder_file.file_path}::<standalone>")
+        lines.extend(f"  - {test}" for test in placeholder_file.standalone_tests)
+
+    return lines
+
+
+def output_text(placeholder_files: list[PlaceholderFile]) -> None:
     """Output results in human-readable text format.
 
     Args:
-        placeholder_files: Dictionary mapping file paths to placeholder test entries.
+        placeholder_files: List of PlaceholderFile objects to display.
     """
     if not placeholder_files:
         LOGGER.info("No STD placeholder tests found.")
         return
 
-    total_tests = 0
-    total_files = 0
+    total_tests, total_files = count_placeholder_tests(placeholder_files=placeholder_files)
 
-    output_lines: list[str] = []
-    output_lines.append(separator(symbol_="="))
-    output_lines.append("STD PLACEHOLDER TESTS (not yet implemented)")
-    output_lines.append(separator(symbol_="="))
-    output_lines.append("")
+    output_lines: list[str] = [
+        separator(symbol="="),
+        "STD PLACEHOLDER TESTS (not yet implemented)",
+        separator(symbol="="),
+        "",
+    ]
 
-    for entries in placeholder_files.values():
-        has_tests = False
-        for entry in entries:
-            output_lines.append(entry)
-            if entry.startswith("  - "):
-                total_tests += 1
-                has_tests = True
-        if has_tests:
-            total_files += 1
+    for placeholder_file in placeholder_files:
+        output_lines.extend(_format_placeholder_lines(placeholder_file=placeholder_file))
 
     output_lines.append("")
-    output_lines.append(separator(symbol_="-"))
-    output_lines.append(f"Total: {total_tests} placeholder tests in {total_files} files")
-    output_lines.append(separator(symbol_="="))
+    output_lines.append(separator(symbol="-"))
+    test_word = "test" if total_tests == 1 else "tests"
+    file_word = "file" if total_files == 1 else "files"
+    output_lines.append(f"Total: {total_tests} placeholder {test_word} in {total_files} {file_word}")
+    output_lines.append(separator(symbol="="))
 
     for line in output_lines:
         LOGGER.info(line)
 
 
-def output_json(placeholder_files: dict[str, list[str]]) -> None:
+def output_json(placeholder_files: list[PlaceholderFile]) -> None:
     """Output results in JSON format.
 
     Args:
-        placeholder_files: Dictionary mapping file paths to placeholder test entries.
+        placeholder_files: List of PlaceholderFile objects to output as JSON.
     """
-    total_tests = 0
-    tests_by_file: dict[str, list[str]] = {}
+    total_tests, total_files = count_placeholder_tests(placeholder_files=placeholder_files)
 
-    for file_path, entries in placeholder_files.items():
+    tests_by_file: dict[str, list[str]] = {}
+    for placeholder_file in placeholder_files:
         tests: list[str] = []
-        for entry in entries:
-            if entry.startswith("  - "):
-                tests.append(entry.strip().removeprefix("- "))
-                total_tests += 1
+        for cls in placeholder_file.classes:
+            tests.extend(f"{cls.name}::{method}" for method in cls.test_methods)
+        tests.extend(placeholder_file.standalone_tests)
         if tests:
-            tests_by_file[file_path] = tests
+            tests_by_file[placeholder_file.file_path] = tests
 
     output: dict[str, Any] = {
         "total_tests": total_tests,
-        "total_files": len(tests_by_file),
+        "total_files": total_files,
         "files": tests_by_file,
     }
 
-    print(json.dumps(output, indent=2))
+    # Use print() instead of LOGGER to produce clean JSON on stdout without log formatting
+    print(json.dumps(obj=output, indent=2))
 
 
-def parse_args() -> Namespace:
-    """Parse command line arguments.
-
-    Returns:
-        Parsed arguments namespace.
-    """
-    parser = ArgumentParser(
-        description="STD Placeholder Tests Statistics Generator",
-        formatter_class=RawDescriptionHelpFormatter,
-        epilog="""
+@click.command(
+    help="STD Placeholder Tests Statistics Generator",
+    epilog="""
 Scans the tests directory for STD (Standard Test Design) placeholder tests.
 These are tests marked with `__test__ = False` that contain only docstrings
 describing expected behavior, without actual implementation code.
 
+\b
 Examples:
-    # Scan default tests directory with text output
-    uv run python scripts/std_placeholder_stats/std_placeholder_stats.py
-
-    # Scan custom tests directory
-    uv run python scripts/std_placeholder_stats/std_placeholder_stats.py --tests-dir my_tests
-
-    # Output as JSON
-    uv run python scripts/std_placeholder_stats/std_placeholder_stats.py --output-format json
-        """,
-    )
-    parser.add_argument(
-        "--tests-dir",
-        type=Path,
-        default=Path("tests"),
-        help="The tests directory to scan (default: tests)",
-    )
-    parser.add_argument(
-        "--output-format",
-        choices=["text", "json"],
-        default="text",
-        help="Output format: text (default) or json",
-    )
-    return parser.parse_args()
-
-
-def main() -> int:
-    """Main entry point for the STD placeholder stats generator.
-
-    Returns:
-        Exit code: 0 on success, 1 on error.
-    """
-    args = parse_args()
-
-    tests_dir = args.tests_dir
-    if not tests_dir.is_absolute():
-        tests_dir = Path.cwd() / tests_dir
-
-    if not tests_dir.exists():
-        LOGGER.error(f"Tests directory does not exist: {tests_dir}")
-        return 1
-
-    if not tests_dir.is_dir():
-        LOGGER.error(f"Path is not a directory: {tests_dir}")
-        return 1
-
+    uv run python std_placeholder_stats.py
+    uv run python std_placeholder_stats.py --tests-dir my_tests
+    uv run python std_placeholder_stats.py --output-format json
+    """,
+)
+@click.option(
+    "--tests-dir",
+    type=click.Path(exists=True, file_okay=False, dir_okay=True, resolve_path=True, path_type=Path),
+    default=Path("tests"),
+    help="The tests directory to scan (default: tests)",
+)
+@click.option(
+    "--output-format",
+    type=click.Choice(choices=["text", "json"]),
+    default="text",
+    help="Output format: text (default) or json",
+)
+def main(tests_dir: Path, output_format: str) -> None:
+    """Main entry point for the STD placeholder stats generator."""
     LOGGER.info(f"Scanning tests directory: {tests_dir}")
 
     placeholder_files = scan_placeholder_tests(tests_dir=tests_dir)
 
-    if args.output_format == "json":
+    if output_format == "json":
         output_json(placeholder_files=placeholder_files)
     else:
         output_text(placeholder_files=placeholder_files)
 
-    return 0
-
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    main()
