@@ -29,6 +29,7 @@ Before writing ANY new code:
 ### Python Requirements
 
 - **Type hints MANDATORY** - mypy strict mode in `libs/`, all new public functions under utilities MUST be typed
+- **Use `TYPE_CHECKING` for type-only imports** - wrap imports needed solely for type hints in `if TYPE_CHECKING:` to avoid runtime overhead and circular imports
 - **Google-format docstrings REQUIRED** - for all public functions with non-obvious return values OR side effects
 - **No defensive programming** - fail-fast, don't hide bugs with fake defaults (see exceptions below)
 - **ALWAYS use `uv run`** - NEVER execute `python`, `pip`, or `pytest` directly. Use `uv run python`, `uv run pytest`, `uv add` for package installation.
@@ -64,6 +65,15 @@ The "no defensive programming" rule has these five exceptions:
 - **Tests MUST be independent** - use `pytest-dependency` ONLY when test B requires side effects from test A (e.g., cluster-wide configuration).
   For resource dependencies, use shared fixtures instead. **When using `@pytest.mark.dependency`, a comment explaining WHY the dependency exists is REQUIRED.**
 - **ALWAYS use `@pytest.mark.usefixtures`** - REQUIRED when fixture return value is not used by test
+
+**`__test__ = False` Usage Rules:**
+
+- ✅ **ALLOWED for STD placeholder tests** - tests that contain ONLY:
+  - Docstrings describing expected behavior
+  - No actual implementation code (no assertions, no test logic)
+- ❌ **FORBIDDEN for implemented tests** - if a test has actual implementation code (assertions, test logic, setup/teardown), do NOT use `__test__ = False`
+
+**Rationale:** STD (Standard Test Design) placeholder tests document what will be tested before implementation. These can use `__test__ = False` to prevent collection errors. Once a test has implementation code, `__test__ = False` must be removed.
 
 ### Fixture Guidelines (CRITICAL)
 
