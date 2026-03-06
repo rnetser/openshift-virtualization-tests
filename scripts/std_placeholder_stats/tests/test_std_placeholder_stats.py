@@ -584,6 +584,51 @@ class TestScanPlaceholderTests:
         )
         assert "tests/test_readable.py" in file_paths, f"Expected 'tests/test_readable.py' in result, got: {file_paths}"
 
+    def test_async_placeholder_and_disabled_detected(self, tests_dir: Path) -> None:
+        """scan_placeholder_tests() detects async test methods as placeholders and disabled."""
+        _create_test_file(
+            directory=tests_dir,
+            filename="test_async.py",
+            content=(
+                "class TestAsync:\n"
+                f"    {TEST_FALSE_MARKER}\n\n"
+                "    async def test_async_placeholder(self):\n"
+                '        """This async test is a placeholder."""\n\n'
+                "    async def test_async_disabled(self):\n"
+                '        """This async test has implementation."""\n'
+                "        await some_function()\n"
+                "        assert True\n"
+            ),
+        )
+
+        result = scan_placeholder_tests(tests_dir=tests_dir)
+
+        assert result, "Expected non-empty result list"
+        placeholder = _find_placeholder_file(result=result, file_path="tests/test_async.py")
+        async_class = _find_placeholder_class(placeholder=placeholder, class_name="TestAsync")
+        assert "test_async_placeholder" in async_class.test_methods, (
+            f"Expected 'test_async_placeholder' in test_methods, got: {async_class.test_methods}"
+        )
+        assert "test_async_disabled" in async_class.disabled_methods, (
+            f"Expected 'test_async_disabled' in disabled_methods, got: {async_class.disabled_methods}"
+        )
+
+    def test_async_standalone_placeholder_detected(self, tests_dir: Path) -> None:
+        """scan_placeholder_tests() detects standalone async placeholder test functions."""
+        _create_test_file(
+            directory=tests_dir,
+            filename="test_async_standalone.py",
+            content=(f'{TEST_FALSE_MARKER}\n\nasync def test_async_standalone():\n    """Async placeholder test."""\n'),
+        )
+
+        result = scan_placeholder_tests(tests_dir=tests_dir)
+
+        assert result, "Expected non-empty result list"
+        placeholder = _find_placeholder_file(result=result, file_path="tests/test_async_standalone.py")
+        assert "test_async_standalone" in placeholder.standalone_tests, (
+            f"Expected 'test_async_standalone' in standalone_tests, got: {placeholder.standalone_tests}"
+        )
+
     def test_ignores_non_test_files(self, tests_dir: Path) -> None:
         """scan_placeholder_tests() only processes files matching test_*.py pattern."""
         _create_test_file(

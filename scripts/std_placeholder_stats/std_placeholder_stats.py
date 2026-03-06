@@ -142,7 +142,7 @@ def _statements_have_test_false(
     return False
 
 
-def _is_placeholder_body(func_node: ast.FunctionDef) -> bool:
+def _is_placeholder_body(func_node: ast.FunctionDef | ast.AsyncFunctionDef) -> bool:
     """Check if a function body contains only a docstring (no implementation).
 
     A placeholder test has only a docstring describing expected behavior,
@@ -185,7 +185,7 @@ def get_test_methods_from_class(class_node: ast.ClassDef) -> list[str]:
         method.name
         for method in class_node.body
         # Collect only function definitions named test_* that are docstring-only placeholders
-        if isinstance(method, ast.FunctionDef)
+        if isinstance(method, (ast.FunctionDef, ast.AsyncFunctionDef))
         and method.name.startswith("test_")
         and _is_placeholder_body(func_node=method)
     ]
@@ -207,7 +207,7 @@ def get_disabled_methods_from_class(class_node: ast.ClassDef) -> list[str]:
         method.name
         for method in class_node.body
         # Collect test_* methods that have implementation (NOT docstring-only placeholders)
-        if isinstance(method, ast.FunctionDef)
+        if isinstance(method, (ast.FunctionDef, ast.AsyncFunctionDef))
         and method.name.startswith("test_")
         and not _is_placeholder_body(func_node=method)
     ]
@@ -254,7 +254,7 @@ def _collect_placeholders(
                 disabled_method_names: list[str] = []
                 for method in node.body:
                     # Check each test_* method for an attribute assignment in the class body
-                    if isinstance(method, ast.FunctionDef) and method.name.startswith("test_"):
+                    if isinstance(method, (ast.FunctionDef, ast.AsyncFunctionDef)) and method.name.startswith("test_"):
                         if _statements_have_test_false(statements=node.body, target_name=method.name):
                             if _is_placeholder_body(func_node=method):
                                 placeholder_method_names.append(method.name)
@@ -269,7 +269,7 @@ def _collect_placeholders(
                         )
                     )
 
-        elif isinstance(node, ast.FunctionDef) and node.name.startswith("test_"):
+        elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name.startswith("test_"):
             # Module-level marker or func.__test__ = False at module level
             if module_is_placeholder or _statements_have_test_false(statements=tree.body, target_name=node.name):
                 if _is_placeholder_body(func_node=node):
