@@ -61,12 +61,9 @@ def bridge_nad(
 
 @pytest.fixture(scope="class")
 def bridge_nncp(
-    nmstate_dependent_placeholder: None,
-    admin_client: DynamicClient,
     hosts_common_available_ports: list[str],
 ) -> Generator[libnncp.NodeNetworkConfigurationPolicy]:
     with libnncp.NodeNetworkConfigurationPolicy(
-        client=admin_client,
         name="iface-stability-bridge",
         desired_state=libnncp.DesiredState(
             interfaces=[
