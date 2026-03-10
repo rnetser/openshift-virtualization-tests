@@ -3,14 +3,13 @@ import logging
 from collections.abc import Iterator
 from typing import Final
 
-from kubernetes.dynamic import DynamicClient
 from kubernetes.dynamic.resource import ResourceField
 from ocp_resources.virtual_machine_instance import VirtualMachineInstance
 
-from libs.net.vmspec import lookup_iface_status, lookup_primary_network
+from libs.net.vmspec import add_volume_disk, lookup_iface_status, lookup_primary_network
 from libs.vm.factory import base_vmspec, fedora_vm
 from libs.vm.spec import CloudInitNoCloud, Interface, Multus, Network
-from libs.vm.vm import BaseVirtualMachine, add_volume_disk, cloudinitdisk_storage
+from libs.vm.vm import BaseVirtualMachine, cloudinitdisk_storage
 from tests.network.libs import cloudinit
 from tests.network.libs.ip import random_ipv4_address, random_ipv6_address
 
@@ -22,7 +21,6 @@ LINUX_BRIDGE_IFACE_NAME: Final[str] = "linux-bridge"
 def secondary_network_vm(
     namespace: str,
     name: str,
-    client: DynamicClient,
     bridge_network_name: str,
     ipv4_supported_cluster: bool,
     ipv6_supported_cluster: bool,
@@ -59,7 +57,7 @@ def secondary_network_vm(
     )
     spec.template.spec = add_volume_disk(vmi_spec=spec.template.spec, volume=volume, disk=disk)
 
-    return fedora_vm(namespace=namespace, name=name, client=client, spec=spec)
+    return fedora_vm(namespace=namespace, name=name, spec=spec)
 
 
 def primary_iface_cloud_init(

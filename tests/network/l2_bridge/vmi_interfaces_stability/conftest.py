@@ -18,14 +18,12 @@ from utilities.constants import LINUX_BRIDGE, WORKER_NODE_LABEL_KEY
 def running_linux_bridge_vm(
     ipv4_supported_cluster: bool,
     ipv6_supported_cluster: bool,
-    unprivileged_client: DynamicClient,
     namespace: Namespace,
     bridge_nad: NetworkAttachmentDefinition,
 ) -> Generator[BaseVirtualMachine]:
     with secondary_network_vm(
         namespace=namespace.name,
         name="vm-iface-stability",
-        client=unprivileged_client,
         bridge_network_name=bridge_nad.name,
         ipv4_supported_cluster=ipv4_supported_cluster,
         ipv6_supported_cluster=ipv6_supported_cluster,
@@ -61,12 +59,9 @@ def bridge_nad(
 
 @pytest.fixture(scope="class")
 def bridge_nncp(
-    nmstate_dependent_placeholder: None,
-    admin_client: DynamicClient,
     hosts_common_available_ports: list[str],
 ) -> Generator[libnncp.NodeNetworkConfigurationPolicy]:
     with libnncp.NodeNetworkConfigurationPolicy(
-        client=admin_client,
         name="iface-stability-bridge",
         desired_state=libnncp.DesiredState(
             interfaces=[
