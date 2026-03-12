@@ -60,6 +60,10 @@ environmental signals into a confident product-defect claim.
 
 ### Required Decision Order
 
+0. **Read the test source code.**
+   Before ANY classification, read the failing test function, its fixtures, and any
+   helpers it calls. You cannot correctly classify a failure without understanding
+   what the test code does. If the test repository is available, this step is mandatory.
 1. **Identify the first true failure.**
    Distinguish `setup` (fixture), `call` (test body), and `teardown` failures. In
    incremental classes, classify the earliest real failure and treat later
@@ -206,9 +210,11 @@ Pattern guidance:
   target node resources in test setup is `CODE ISSUE`; valid configuration plus
   `virt-controller` or `virt-handler` failure is `PRODUCT BUG`; node drain or
   network partition is environmental
-- **SSH connectivity failure:** Wrong credentials, missing `virtctl` binary, or
-  no retry logic is `CODE ISSUE`; VM network misconfiguration after migration or
-  snapshot restore is `PRODUCT BUG`; cluster network outage is environmental
+- **SSH connectivity failure:** Read the test code to determine how SSH is used.
+  Wrong credentials, missing `virtctl` binary, no retry logic, or missing
+  `wait_for_ssh_connectivity()` before running commands is `CODE ISSUE`.
+  VM network misconfiguration after migration or snapshot restore where the test
+  correctly waits and retries is `PRODUCT BUG`. Cluster network outage is environmental.
 - **DataVolume/CDI failure:** Wrong source URL, bad storage class reference, or
   insufficient PVC size in test is `CODE ISSUE`; valid import/upload/clone rejected
   or stuck by CDI controller is `PRODUCT BUG`; storage backend outage is environmental
@@ -400,8 +406,74 @@ never completed. Investigate it explicitly before ruling it out.
 - **Resource management:** Fixtures handle resource lifecycle; cleanup uses `yield`
   with context managers
 
-**Repository exploration:** When analyzing failures, examine the test source code to
-understand the failure path. Key locations:
+### MANDATORY: Read the Test Source Code Before Classifying
+
+**You MUST read the actual test source code before making any classification.**
+Do not classify based solely on error messages, stack traces, or log output.
+
+Required steps for EVERY failure:
+
+1. **Find the failing test file.** The test name format is `test_<file>::<class>::<method>` or
+   `test_<file>::<method>`. Map it to the test file path in the repo.
+2. **Read the test function.** Understand what the test is doing, what it validates,
+   and what the expected behavior is.
+3. **Read the fixtures.** Check the `conftest.py` in the same directory to understand
+   the setup and teardown logic.
+4. **Read the helper functions.** If the test calls utility functions, read them too.
+5. **Trace the failure path.** Follow the stack trace through the source code to find
+   exactly where and why the failure occurred.
+
+Only AFTER reading the code should you classify the failure.
+
+### MANDATORY: Verify Product Behavior Before Declaring PRODUCT BUG
+
+**Before classifying any failure as `PRODUCT BUG`, you MUST verify that the product
+code actually has the defect you're claiming.**
+
+Required steps before declaring PRODUCT BUG:
+
+1. **Read the product source code.** If the error points to a KubeVirt, CDI, or HCO
+   component, read the relevant source code in the upstream repositories to understand
+   the expected behavior:
+   - KubeVirt: [kubevirt/kubevirt][kubevirt-repo]
+   - CDI: [kubevirt/containerized-data-importer][cdi-repo]
+   - HCO: [kubevirt/hyperconverged-cluster-operator][hco-repo]
+2. **Read the operator code.** If the failure involves a dependent operator, read its
+   source code to verify the defect exists there:
+   - NMState: [kubernetes-nmstate][nmstate-repo]
+   - SR-IOV: [sriov-network-operator][sriov-repo]
+   - MTV (Forklift): [forklift][mtv-repo]
+   - Node Health Check: [node-healthcheck-operator][nhc-repo]
+   - OADP: [oadp-operator][oadp-repo]
+3. **Trace the error to product code.** Follow the error path from the test failure
+   into the product/operator source. Show the specific product code that is
+   malfunctioning.
+4. **Provide code-level evidence.** Your `archive_evidence` and `evidence` fields must
+   reference specific product source files, functions, or code paths — not just
+   error messages from the test side.
+
+If you cannot trace the failure to a specific defect in the product or operator source
+code, reconsider whether it is truly a `PRODUCT BUG` or if it is a `CODE ISSUE` in
+the test infrastructure.
+
+### Show Your Work: Product Code Investigation
+
+When classifying as `PRODUCT BUG`, your analysis MUST include evidence that you
+investigated the product source code. In your `details` field, include a section like:
+
+```
+Product code investigation:
+- Examined [component] source at [repo]/[path/to/file.go]
+- The [function/handler] at [file:line] is responsible for [behavior]
+- The code shows [specific observation about why this is a product defect]
+```
+
+This proves the classification is based on actual product code analysis, not just
+symptoms observed from the test side. If the product code is not accessible or the
+relevant code path cannot be identified, state this explicitly and lower confidence
+to `medium` or `low`.
+
+Key locations in the repository:
 
 - Test file: `tests/<component>/<feature>/test_<name>.py` — the failing test
 - Fixtures: `tests/<component>/<feature>/conftest.py` — setup and teardown logic
