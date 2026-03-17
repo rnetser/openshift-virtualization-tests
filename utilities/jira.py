@@ -21,12 +21,12 @@ def get_jira_status(jira: str) -> str:
 
     Raises:
         MissingEnvironmentVariableError: if PYTEST_JIRA_TOKEN or PYTEST_JIRA_URL or
-            PYTEST_JIRA_USER environment variables are not set
+            PYTEST_JIRA_USERNAME environment variables are not set
 
     """
     url = os.getenv("PYTEST_JIRA_URL")
     token = os.getenv("PYTEST_JIRA_TOKEN")
-    email = os.getenv("PYTEST_JIRA_USER")
+    email = os.getenv("PYTEST_JIRA_USERNAME")
 
     if not (token and url and email):
         # For conformance tests without JIRA credentials, assume the JIRA is open
@@ -35,7 +35,7 @@ def get_jira_status(jira: str) -> str:
             return "open"
 
         raise MissingEnvironmentVariableError(
-            "Please set PYTEST_JIRA_TOKEN, PYTEST_JIRA_URL and PYTEST_JIRA_USER environment variables"
+            "Please set PYTEST_JIRA_TOKEN, PYTEST_JIRA_URL and PYTEST_JIRA_USERNAME environment variables"
         )
 
     jira_connection = JIRA(
