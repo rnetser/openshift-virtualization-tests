@@ -818,7 +818,7 @@ requires-dist = [
     { name = "pytest-testconfig", specifier = ">=0.2.0" },
     { name = "python-benedict", specifier = ">=0.34.0" },
     { name = "python-rrmngmnt", specifier = ">=0.1.32" },
-    { name = "python-utility-scripts", specifier = ">=1.0.1" },
+    { name = "python-utility-scripts", specifier = ">=2.0.1" },
     { name = "pyvmomi", specifier = ">=8.0.3.0.1" },
     { name = "pyyaml", specifier = ">=6.0.2" },
     { name = "requests", specifier = ">=2.32.3" },
@@ -1328,7 +1328,7 @@ wheels = [
 
 [[package]]
 name = "python-utility-scripts"
-version = "1.0.24"
+version = "2.0.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "ast-comments" },
@@ -1341,7 +1341,7 @@ dependencies = [
     { name = "pyyaml" },
     { name = "tenacity" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/16/68/6f500bdbcd4efb313f96a30fa2285750195f774fa2d284c1153e0a480908/python_utility_scripts-1.0.24.tar.gz", hash = "sha256:270a881b928fccd46c5198299e5c109ec6af4faa10e880fc0aa830bcce524224", size = 15760, upload-time = "2025-07-20T08:21:41.399Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/38/fc/d0af117ae6a2507089047067300060bcb12ddd0da73a728f04db5338d28e/python_utility_scripts-2.0.1.tar.gz", hash = "sha256:e8045d9baec39fad6e065f6e766d026e9d269631dce56af8025ae1c9e2f6248e", size = 21124, upload-time = "2025-11-11T20:46:56.257Z" }
 
 [[package]]
 name = "pyvmomi"
