@@ -1689,16 +1689,17 @@ wheels = [
 
 [[package]]
 name = "pyhelper-utils"
-version = "2.0.0"
+version = "2.0.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "ipdb" },
+    { name = "paramiko" },
     { name = "python-rrmngmnt" },
     { name = "python-simple-logger" },
     { name = "requests" },
     { name = "rich" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/8b/d0/00161ed607273db4c78305d8c8267ff306537a08e465e75b7fe781bb7696/pyhelper_utils-2.0.0.tar.gz", hash = "sha256:4decb58db7ed49894612151ad142dddc9b4d729b35b61cb043b2d54a08fe7775", size = 10763, upload-time = "2025-11-11T21:17:31.552Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/96/c3/ac6673c23c34970550143350ca825197d0ce4e12d7cf5f5147db723826ec/pyhelper_utils-2.0.1.tar.gz", hash = "sha256:6a1dd0fd63ba1dec8dabfd114a4948a19d049e784b04742cdc04be676e83611d", size = 10988, upload-time = "2026-03-18T09:43:08.89Z" }
 
 [[package]]
 name = "pyjwt"
