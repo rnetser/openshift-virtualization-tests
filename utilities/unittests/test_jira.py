@@ -13,10 +13,9 @@ from utilities.jira import get_jira_status, is_jira_open
 class TestGetJiraStatus:
     """Test cases for get_jira_status function"""
 
-    @patch("utilities.jira.py_config")
     @patch("utilities.jira.JIRA")
     @patch("utilities.jira.os.getenv")
-    def test_get_jira_status_with_valid_credentials(self, mock_getenv, mock_jira_class, mock_py_config):
+    def test_get_jira_status_with_valid_credentials(self, mock_getenv, mock_jira_class):
         """Test get_jira_status with valid JIRA credentials returns status"""
         # Setup
         mock_getenv.side_effect = lambda key, default=None: {
@@ -118,11 +117,10 @@ class TestGetJiraStatus:
             == "Please set PYTEST_JIRA_TOKEN, PYTEST_JIRA_URL and PYTEST_JIRA_USERNAME environment variables"
         )
 
-    @patch("utilities.jira.py_config")
     @patch("utilities.jira.JIRA")
     @patch("utilities.jira.LOGGER")
     @patch("utilities.jira.os.getenv")
-    def test_get_jira_status_logs_returned_status(self, mock_getenv, mock_logger, mock_jira_class, mock_py_config):
+    def test_get_jira_status_logs_returned_status(self, mock_getenv, mock_logger, mock_jira_class):
         """Test get_jira_status logs the returned status"""
         # Setup
         mock_getenv.side_effect = lambda key, default=None: {
@@ -144,10 +142,9 @@ class TestGetJiraStatus:
         assert result == "open"
         mock_logger.info.assert_called_once_with("Jira CNV-54321: status is open")
 
-    @patch("utilities.jira.py_config")
     @patch("utilities.jira.JIRA")
     @patch("utilities.jira.os.getenv")
-    def test_get_jira_status_with_closed_status(self, mock_getenv, mock_jira_class, mock_py_config):
+    def test_get_jira_status_with_closed_status(self, mock_getenv, mock_jira_class):
         """Test get_jira_status returns 'closed' status correctly"""
         # Setup
         mock_getenv.side_effect = lambda key, default=None: {
@@ -168,10 +165,9 @@ class TestGetJiraStatus:
         # Verify
         assert result == "closed"
 
-    @patch("utilities.jira.py_config")
     @patch("utilities.jira.JIRA")
     @patch("utilities.jira.os.getenv")
-    def test_get_jira_status_with_on_qa_status(self, mock_getenv, mock_jira_class, mock_py_config):
+    def test_get_jira_status_with_on_qa_status(self, mock_getenv, mock_jira_class):
         """Test get_jira_status returns 'on_qa' status correctly"""
         # Setup
         mock_getenv.side_effect = lambda key, default=None: {
@@ -192,10 +188,9 @@ class TestGetJiraStatus:
         # Verify
         assert result == "on_qa"
 
-    @patch("utilities.jira.py_config")
     @patch("utilities.jira.JIRA")
     @patch("utilities.jira.os.getenv")
-    def test_get_jira_status_with_verified_status(self, mock_getenv, mock_jira_class, mock_py_config):
+    def test_get_jira_status_with_verified_status(self, mock_getenv, mock_jira_class):
         """Test get_jira_status returns 'verified' status correctly"""
         # Setup
         mock_getenv.side_effect = lambda key, default=None: {
@@ -216,10 +211,9 @@ class TestGetJiraStatus:
         # Verify
         assert result == "verified"
 
-    @patch("utilities.jira.py_config")
     @patch("utilities.jira.JIRA")
     @patch("utilities.jira.os.getenv")
-    def test_get_jira_status_with_release_pending_status(self, mock_getenv, mock_jira_class, mock_py_config):
+    def test_get_jira_status_with_release_pending_status(self, mock_getenv, mock_jira_class):
         """Test get_jira_status returns 'release pending' status correctly"""
         # Setup
         mock_getenv.side_effect = lambda key, default=None: {
