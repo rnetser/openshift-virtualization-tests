@@ -19,9 +19,9 @@ def output_dir(tmp_path):
 def kubeconfig_path():
     path = os.environ.get("KUBECONFIG")
     if not path:
-        pytest.skip("KUBECONFIG env var not set")
+        pytest.xfail("KUBECONFIG env var not set")
     if not os.path.isfile(path):
-        pytest.skip(f"KUBECONFIG file not found: {path}")
+        pytest.xfail(f"KUBECONFIG file not found: {path}")
     return path
 
 
@@ -39,10 +39,25 @@ def host_and_token(kubeconfig_dict):
     user = kubeconfig_dict["users"][0]["user"]
     token = user.get("token")
     if not token:
-        pytest.skip("No token in kubeconfig (may use client certs)")
+        pytest.xfail("No token in kubeconfig (may use client certs)")
 
     verify_ssl = not cluster.get("insecure-skip-tls-verify", False)
     return host, token, verify_ssl
+
+
+@pytest.fixture()
+def host_username_and_password(request):
+    host = request.session.config.getoption("--remote_cluster_host")
+    username = request.session.config.getoption("--remote_cluster_username")
+    password = request.session.config.getoption("--remote_cluster_password")
+
+    if not all([host, username, password]):
+        pytest.xfail(
+            "--remote_cluster_host, --remote_cluster_username, and/or --remote_cluster_password CLI args not provided"
+        )
+
+    verify_ssl = False
+    return host, username, password, verify_ssl
 
 
 def _assert_nodes(client):
@@ -64,23 +79,14 @@ class TestGetClientNoOutputFile:
         assert client is not None
         _assert_nodes(client=client)
 
-
-class TestGetClientKubeconfigOutput:
-    """Each code path with kubeconfig_output_path, then use saved file."""
-
-    def test_config_file_path(self, kubeconfig_path, output_dir):
-        """config_file provided: copies the file, then use it."""
-        output = str(output_dir / "from_config_file.kubeconfig")
-
-        client = get_client(config_file=kubeconfig_path, kubeconfig_output_path=output)
+    def test_get_client_without_output_path_no_kube_set(self):
+        client = get_client()
         assert client is not None
         _assert_nodes(client=client)
 
-        assert os.path.isfile(output)
-        _assert_file_permissions(path=output)
 
-        new_client = get_client(config_file=output)
-        _assert_nodes(client=new_client)
+class TestGetClientKubeconfigOutput:
+    """Each code path with kubeconfig_output_path, then use saved file."""
 
     def test_config_dict_path(self, kubeconfig_dict, output_dir):
         """config_dict provided: writes dict as YAML, then use it."""
@@ -119,6 +125,33 @@ class TestGetClientKubeconfigOutput:
 
         with open(output) as f:
             saved = yaml.safe_load(f)
+        assert saved["clusters"][0]["cluster"]["server"] == host
+        assert "users" in saved
+        assert "contexts" in saved
+
+        new_client = get_client(config_file=output)
+        _assert_nodes(client=new_client)
+
+    def test_host_username_password_path(self, host_username_and_password, output_dir):
+        """host+username+password provided: builds kubeconfig, then use it."""
+        host, username, password, verify_ssl = host_username_and_password
+        output = str(output_dir / "from_host_username_password.kubeconfig")
+
+        client = get_client(
+            host=host,
+            username=username,
+            password=password,
+            verify_ssl=verify_ssl,
+            kubeconfig_output_path=output,
+        )
+        assert client is not None
+        _assert_nodes(client=client)
+
+        assert os.path.isfile(output)
+        _assert_file_permissions(path=output)
+
+        with open(output) as fh:
+            saved = yaml.safe_load(fh)
         assert saved["clusters"][0]["cluster"]["server"] == host
         assert "users" in saved
         assert "contexts" in saved
