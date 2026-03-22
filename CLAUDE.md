@@ -78,6 +78,17 @@ The "no defensive programming" rule has these five exceptions:
 
 **Rationale:** STD (Standard Test Design) placeholder tests document what will be tested before implementation. These can use `__test__ = False` to prevent collection errors. Once a test has implementation code, `__test__ = False` must be removed.
 
+**STD Docstring Format (MANDATORY):**
+
+When writing or reviewing STD (Software Test Description) test docstrings, follow the format defined in [`docs/SOFTWARE_TEST_DESCRIPTION.md`](docs/SOFTWARE_TEST_DESCRIPTION.md):
+- **Required sections:** `Preconditions:`, `Steps:`, `Expected:`
+- ❌ **NEVER** use alternative section names.
+- Each test verifies ONE thing with ONE `Expected:` assertion (rare exceptions allowed when multiple assertions verify a single behavior — see STD doc)
+- **No implementation details in STD docstrings** — no fixture names, no code references, no variable names; describe behavior in natural language
+- **STP link REQUIRED** — module docstring must reference the approved STP (Software Test Plan)
+- **Shared vs. test-specific preconditions** — class/module docstring holds shared `Preconditions:`, individual tests add only their own
+- **`[NEGATIVE]` indicator REQUIRED** — tests verifying failure scenarios must include `[NEGATIVE]` in the description
+
 ### Fixture Guidelines (CRITICAL)
 
 1. **Single Action REQUIRED**: Fixtures MUST do ONE action only (single responsibility)
