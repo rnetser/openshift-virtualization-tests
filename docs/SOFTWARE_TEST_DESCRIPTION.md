@@ -534,53 +534,43 @@ VM Live Migration Tests
 STP Reference: https://example.com/stp/vm-live-migration
 
 Preconditions:
-    - Running RHEL VM with 2 GiB memory and 1 data disk
     - Two worker nodes available for migration
+    - Running VM, accessible via SSH
+
 """
 __test__ = False
 
+ def test_ssh_connectivity_after_migration(self):
+     """
+     Test that SSH connectivity is preserved after live migration.
 
-class TestLiveMigrationConnectivity:
-    """
-    Tests for network connectivity during and after live migration.
+     Preconditions:
+         - Running VM, accessible via SSH
 
-    Preconditions:
-        - VM is accessible via SSH
-    """
+     Steps:
+         1. Live migrate the VM to another node
+         2. Wait for migration to complete
+         3. Connect to VM via SSH
 
-    def test_ssh_connectivity_after_migration(self):
-        """
-        Test that SSH connectivity is preserved after live migration.
+     Expected:
+         - SSH connection succeeds
+     """
 
-        Preconditions:
-            - Running RHEL VM with 2 GiB memory and 1 data disk
+ def test_data_disk_accessible_after_migration(self):
+     """
+     Test that data disk content is preserved after live migration.
 
-        Steps:
-            1. Live migrate the VM to another node
-            2. Wait for migration to complete
-            3. Connect to VM via SSH
+     Preconditions:
+         - Running VM, accessible via SSH
+         - Data is written to a file in the VM
 
-        Expected:
-            - SSH connection succeeds
-        """
+     Steps:
+         1. Live migrate the VM to another node
+         2. Read data from the data disk
 
-    def test_data_disk_accessible_after_migration(self):
-        """
-        Test that data disk content is preserved after live migration.
-
-        Preconditions:
-            - Running RHEL VM with 2 GiB memory and 1 data disk
-
-        Steps:
-            1. Write test data to the data disk
-            2. Live migrate the VM to another node
-            3. Read data from the data disk
-
-        Expected:
-            - Data disk content equals the written test data
-        """
+     Expected:
+         - Data disk content equals the written test data
+     """
 ```
-
-Note how the "Running RHEL VM" appears in the module preconditions (shared setup) **and** in each test's preconditions (because each test directly uses the VM).
 
 ---
