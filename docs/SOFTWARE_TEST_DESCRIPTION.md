@@ -162,8 +162,9 @@ When specific pytest markers are required, list them explicitly.
 - Related tests are grouped in a **test class**
   - If a test needs a precondition that could be another test's outcome, place the tests under the class in the required order
   - Mention handling of early failures (i.e "fail fast")
-- **Shared preconditions** go in the class docstring
+- **Shared preconditions** go in the class/module docstring
 - **Test-specific preconditions** (if any) go in the test docstring
+- **Shared resources used directly by tests** must be mentioned at both levels: in the shared preconditions (class/module) AND in the test-level preconditions. E.g., a VM shared across the module and used in tests should appear in both the module/class preconditions and each test's preconditions.
 
 ### Class-Level Template
 

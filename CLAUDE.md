@@ -86,7 +86,7 @@ When writing or reviewing STD (Software Test Description) test docstrings, follo
 - Each test verifies ONE thing with ONE `Expected:` assertion (rare exceptions allowed when multiple assertions verify a single behavior — see STD doc)
 - **No implementation details in STD docstrings** — no fixture names, no code references, no variable names; describe behavior in natural language
 - **STP link REQUIRED** — module docstring must reference the approved STP (Software Test Plan)
-- **Shared vs. test-specific preconditions** — class/module docstring holds shared `Preconditions:`, individual tests add only their own
+- **Shared vs. test-specific preconditions** — class/module docstring holds shared `Preconditions:`, individual tests add only their own. When a shared resource (e.g., a VM) is directly used by a test, it must appear in both the shared and test-level preconditions.
 - **`[NEGATIVE]` indicator REQUIRED** — tests verifying failure scenarios must include `[NEGATIVE]` in the description
 
 ### Fixture Guidelines (CRITICAL)
