@@ -522,3 +522,65 @@ test_online_disk_resize.__test__ = False
 ```
 
 ---
+
+### Example 6: Module-Level Preconditions
+
+When a module contains multiple classes or standalone tests that share common setup, use the **module docstring** for shared preconditions. Resources used directly by tests must appear in both the module preconditions and the test-level preconditions:
+
+```python
+"""
+VM Live Migration Tests
+
+STP Reference: https://example.com/stp/vm-live-migration
+
+Preconditions:
+    - Running RHEL VM with 2 GiB memory and 1 data disk
+    - Two worker nodes available for migration
+"""
+__test__ = False
+
+
+class TestLiveMigrationConnectivity:
+    """
+    Tests for network connectivity during and after live migration.
+
+    Preconditions:
+        - VM is accessible via SSH
+    """
+
+    def test_ssh_connectivity_after_migration(self):
+        """
+        Test that SSH connectivity is preserved after live migration.
+
+        Preconditions:
+            - Running RHEL VM with 2 GiB memory and 1 data disk
+
+        Steps:
+            1. Live migrate the VM to another node
+            2. Wait for migration to complete
+            3. Connect to VM via SSH
+
+        Expected:
+            - SSH connection succeeds
+        """
+
+    def test_data_disk_accessible_after_migration(self):
+        """
+        Test that data disk content is preserved after live migration.
+
+        Preconditions:
+            - Running RHEL VM with 2 GiB memory and 1 data disk
+
+        Steps:
+            1. Write test data to the data disk
+            2. Live migrate the VM to another node
+            3. Read data from the data disk
+
+        Expected:
+            - Data disk content equals the written test data
+        """
+```
+
+Note how the "Running RHEL VM" appears in the module preconditions (shared setup) **and** in each test's preconditions (because each test directly uses the VM).
+
+---
