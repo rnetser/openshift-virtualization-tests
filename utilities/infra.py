@@ -251,15 +251,24 @@ def authorized_key(private_key_path):
 
 
 def get_jira_status(jira):
-    env_var = os.environ
-    if not (env_var.get("PYTEST_JIRA_TOKEN") and env_var.get("PYTEST_JIRA_URL")):
-        raise MissingEnvironmentVariableError("Please set PYTEST_JIRA_TOKEN and PYTEST_JIRA_URL environment variables")
+    url = os.getenv("PYTEST_JIRA_URL")
+    token = os.getenv("PYTEST_JIRA_TOKEN")
+    email = os.getenv("PYTEST_JIRA_USERNAME")
+
+    if not (token and url and email):
+        raise MissingEnvironmentVariableError(
+            "Please set PYTEST_JIRA_TOKEN, PYTEST_JIRA_URL and PYTEST_JIRA_USERNAME environment variables"
+        )
 
     jira_connection = JIRA(
-        token_auth=env_var["PYTEST_JIRA_TOKEN"],
-        options={"server": env_var["PYTEST_JIRA_URL"]},
+        server=url,
+        basic_auth=(email, token),
     )
-    return jira_connection.issue(id=jira).fields.status.name.lower()
+
+    status = jira_connection.issue(id=jira).fields.status.name.lower()
+    LOGGER.info(f"Jira {jira}: status is {status}")
+
+    return status
 
 
 def get_pods(dyn_client: DynamicClient, namespace: Namespace, label: str = "") -> list[Pod]:
@@ -1029,11 +1038,7 @@ def is_jira_open(jira_id):
         True: if jira is open
         False: if jira is closed
     """
-    jira_status = get_jira_status(jira=jira_id)
-    if jira_status not in JIRA_STATUS_CLOSED:
-        LOGGER.info(f"Jira {jira_id}: status is {jira_status}")
-        return True
-    return False
+    return get_jira_status(jira=jira_id) not in JIRA_STATUS_CLOSED
 
 
 def get_hyperconverged_resource(client, hco_ns_name):
