@@ -150,7 +150,10 @@ When a test should run with multiple parameter combinations, add a `Parametrize:
 
 ### Markers Section
 
-When specific pytest markers are required, list them explicitly.
+When specific pytest markers are required, list them explicitly. Markers can be placed at any level:
+- **Module docstring** — markers that apply to all tests in the module
+- **Class docstring** — markers that apply to all tests in the class
+- **Test docstring** — markers specific to a single test
 
 ---
 
@@ -532,6 +535,9 @@ When a module contains multiple classes or standalone tests that share common se
 VM Live Migration Tests
 
 STP Reference: https://example.com/stp/vm-live-migration
+
+Markers:
+    - gating
 
 Preconditions:
     - Two worker nodes available for migration
