@@ -30,7 +30,7 @@ This project follows a **two-phase development workflow** that separates test de
 1. **Create test stubs with docstrings only**:
    - Write the test function signature
    - Add the complete STD docstring (Preconditions/Steps/Expected)
-   - Include a link to the approved STP (Software Test Plan) in the **module docstring** (top of the test file)
+   - Include a link to the approved STP (Software Test Plan) directly in the **module docstring** (top of the test file). Do NOT reference a README or other file — the STP link must be in the module docstring itself.
    - Add applicable pytest markers (architecture markers, etc.)
    - Add `__test__ = False` on unimplemented test(s).  For a single test, add `<test_name>.__test__ = False`
 
