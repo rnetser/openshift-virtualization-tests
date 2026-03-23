@@ -147,6 +147,14 @@ test_isolated_vms_cannot_communicate.__test__ = False
 
 When a test should run with multiple parameter combinations, add a `Parametrize:` section.
 
+Parameter values may have their own markers using inline `[Markers: ...]` syntax to differentiate between common test markers and parameter-specific ones:
+
+```text
+Parametrize:
+    - ip_family:
+        - ipv4 [Markers: ipv4]
+        - ipv6 [Markers: ipv6]
+```
 
 ### Markers Section
 
@@ -266,13 +274,18 @@ test_<specific_behavior>.__test__ = False
    - Good: `- Running Fedora virtual machine`
    - Bad: `- Running Fedora VM (vm_to_restart fixture)`
 
-5. **Single Expected Behavior per Test**: One assertion: clear pass/fail.
+5. **Name Resources by Function**: Name objects by their role, not generic labels.
+   - Good: `- Connectivity reference VM`, `- Client VM`
+   - Bad: `- VM-A`, `- VM-B`, `- First VM`
+   - This is especially important when multiple resources of the same kind are used, to clarify each resource's purpose.
+
+6. **Single Expected Behavior per Test**: One assertion: clear pass/fail.
    - Good: `Expected: - Ping succeeds with 0% packet loss`
    - Bad: `Expected: - Ping succeeds - VM remains running - No errors logged`
    - There may be **exceptions**, where multiple assertions are required to verify a **single** behavior.
      - Example: `Expected: - VM reports valid IP addres. Expected - User can access VM via SSH`
 
-6. **Tests Must Be Independent**: Tests should not depend on other tests.
+7. **Tests Must Be Independent**: Tests should not depend on other tests.
    - Dependencies between tests mean that one test depends on the result of a previous test.
    - If testing of a feature requires dependencies between tests, make sure that:
      - They are grouped under a class with shared preconditions
