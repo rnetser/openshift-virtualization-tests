@@ -416,6 +416,15 @@ wheels = [
 ]
 
 [[package]]
+name = "invoke"
+version = "2.2.1"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/de/bd/b461d3424a24c80490313fd77feeb666ca4f6a28c7e72713e3d9095719b4/invoke-2.2.1.tar.gz", hash = "sha256:515bf49b4a48932b79b024590348da22f39c4942dff991ad1fb8b8baea1be707", size = 304762, upload-time = "2025-10-11T00:36:35.172Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/32/4b/b99e37f88336009971405cbb7630610322ed6fbfa31e1d7ab3fbf3049a2d/invoke-2.2.1-py3-none-any.whl", hash = "sha256:2413bc441b376e5cd3f55bb5d364f973ad8bdd7bf87e53c79de3c11bf3feecc8", size = 160287, upload-time = "2025-10-11T00:36:33.703Z" },
+]
+
+[[package]]
 name = "ipdb"
 version = "0.13.13"
 source = { registry = "https://pypi.org/simple" }
@@ -892,16 +901,17 @@ wheels = [
 
 [[package]]
 name = "paramiko"
-version = "3.5.1"
+version = "4.0.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "bcrypt" },
     { name = "cryptography" },
+    { name = "invoke" },
     { name = "pynacl" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/7d/15/ad6ce226e8138315f2451c2aeea985bf35ee910afb477bae7477dc3a8f3b/paramiko-3.5.1.tar.gz", hash = "sha256:b2c665bc45b2b215bd7d7f039901b14b067da00f3a11e6640995fd58f2664822", size = 1566110, upload-time = "2025-02-04T02:37:59.783Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/1f/e7/81fdcbc7f190cdb058cffc9431587eb289833bdd633e2002455ca9bb13d4/paramiko-4.0.0.tar.gz", hash = "sha256:6a25f07b380cc9c9a88d2b920ad37167ac4667f8d9886ccebd8f90f654b5d69f", size = 1630743, upload-time = "2025-08-04T01:02:03.711Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/15/f8/c7bd0ef12954a81a1d3cea60a13946bd9a49a0036a5927770c461eade7ae/paramiko-3.5.1-py3-none-any.whl", hash = "sha256:43b9a0501fc2b5e70680388d9346cf252cfb7d00b0667c39e80eb43a408b8f61", size = 227298, upload-time = "2025-02-04T02:37:57.672Z" },
+    { url = "https://files.pythonhosted.org/packages/a9/90/a744336f5af32c433bd09af7854599682a383b37cfd78f7de263de6ad6cb/paramiko-4.0.0-py3-none-any.whl", hash = "sha256:0e20e00ac666503bf0b4eda3b6d833465a2b7aff2e2b3d79a8bba5ef144ee3b9", size = 223932, upload-time = "2025-08-04T01:02:02.029Z" },
 ]
 
 [[package]]
@@ -1063,28 +1073,29 @@ wheels = [
 
 [[package]]
 name = "pyhelper-utils"
-version = "1.0.18"
+version = "2.0.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "ipdb" },
+    { name = "paramiko" },
     { name = "python-rrmngmnt" },
     { name = "python-simple-logger" },
     { name = "requests" },
     { name = "rich" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/85/92/d38d06824adfc1bea10d7af617632a24ba75acf800985121fbaaa2f908a1/pyhelper_utils-1.0.18.tar.gz", hash = "sha256:86484170c4c29c7af0271d6d1e3f2c9c1252ed67b9859e3223bb10c434e121a4", size = 10768, upload-time = "2025-07-20T08:21:11.146Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/96/c3/ac6673c23c34970550143350ca825197d0ce4e12d7cf5f5147db723826ec/pyhelper_utils-2.0.1.tar.gz", hash = "sha256:6a1dd0fd63ba1dec8dabfd114a4948a19d049e784b04742cdc04be676e83611d", size = 10988, upload-time = "2026-03-18T09:43:08.89Z" }
 
 [[package]]
 name = "pylero"
-version = "0.1.1"
+version = "0.2.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "click" },
     { name = "suds" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/88/38/0c0ccaafbb8594cf50af8d2376a5afee9e7279b7715a928558e7b52eb6f6/pylero-0.1.1.tar.gz", hash = "sha256:de0ccd37da69e50993fe403eca5d093d70c57319640d6af6403ab9a3496ae16c", size = 309121, upload-time = "2025-05-30T13:38:52.34Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/93/a3/04efbc25a706d04d9d12cc5346b9ade9326d322496556eb07fa86b8cd3d5/pylero-0.2.0.tar.gz", hash = "sha256:534e86667e318ac353d24d041229d3f821316e0f3b659f2fd050adfcd4f3472f", size = 486274, upload-time = "2025-12-19T15:17:13.281Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/0b/79/4a7ff895325f7226f846cf4e274be9bbeedcd2d9804027c5025e72134ff4/pylero-0.1.1-py3-none-any.whl", hash = "sha256:ada04668e36adaaed950e213699f8442466994142c127a3f07b5e4d19fc9709f", size = 101338, upload-time = "2025-12-19T15:11:28.422Z" },
+    { url = "https://files.pythonhosted.org/packages/ce/24/d26a5582611ba222c2f36cbd06736af106e424776bb54277f93407672926/pylero-0.2.0-py3-none-any.whl", hash = "sha256:3fd52d56fa11b8f77313681523b2b90ab986d34cc504aa6ce846510e732a2894", size = 101341, upload-time = "2025-12-19T15:17:11.685Z" },
 ]
 
 [[package]]
@@ -1330,7 +1341,7 @@ wheels = [
 
 [[package]]
 name = "python-utility-scripts"
-version = "2.0.1"
+version = "2.0.6"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "ast-comments" },
@@ -1343,7 +1354,7 @@ dependencies = [
     { name = "pyyaml" },
     { name = "tenacity" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/38/fc/d0af117ae6a2507089047067300060bcb12ddd0da73a728f04db5338d28e/python_utility_scripts-2.0.1.tar.gz", hash = "sha256:e8045d9baec39fad6e065f6e766d026e9d269631dce56af8025ae1c9e2f6248e", size = 21124, upload-time = "2025-11-11T20:46:56.257Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/6c/84/eb74b833ffad45287e19964102028d7cd69b9f1bf2c5308d0be6792791ab/python_utility_scripts-2.0.6.tar.gz", hash = "sha256:a43ac3eddea5b5865b0c182b04c43457e073da360ec202ad5b0f715011213c7a", size = 21742, upload-time = "2026-03-16T12:13:10.334Z" }
 
 [[package]]
 name = "pyvmomi"
