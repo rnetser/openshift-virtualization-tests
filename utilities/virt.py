@@ -63,6 +63,7 @@ from utilities.constants import (
     IP_FAMILY_POLICY_PREFER_DUAL_STACK,
     LINUX_AMD_64,
     LINUX_STR,
+    MULTIARCH,
     OS_FLAVOR_ALPINE,
     OS_FLAVOR_CIRROS,
     OS_FLAVOR_FEDORA,
@@ -88,6 +89,7 @@ from utilities.constants import (
     VIRT_HANDLER,
     VIRT_LAUNCHER,
     VIRTCTL,
+    ArchImages,
     Images,
 )
 from utilities.data_collector import collect_vnc_screenshot_for_vms
@@ -1190,10 +1192,6 @@ class VirtualMachineForTests(VirtualMachine):
             LOGGER.error(f"Status of {self.kind} {self.name} is {status}")
             raise
 
-    @property
-    def privileged_vmi(self):
-        return VirtualMachineInstance(client=get_client(), name=self.name, namespace=self.namespace)
-
     def wait_for_agent_connected(self, timeout: int = TIMEOUT_5MIN):
         self.vmi.wait_for_condition(
             condition=VirtualMachineInstance.Condition.Type.AGENT_CONNECTED,
@@ -1521,26 +1519,33 @@ def vm_console_run_commands(
 def fedora_vm_body(name: str) -> dict[str, Any]:
     pull_secret = utilities.infra.generate_openshift_pull_secret_file()
 
-    # Make sure we can find the file even if utilities was installed via pip.
-    yaml_file = os.path.abspath("utilities/manifests/vm-fedora.yaml")
-
-    with open(yaml_file) as fd:
-        data = fd.read()
-
-    image = Images.Fedora.FEDORA_CONTAINER_IMAGE
+    image = getattr(ArchImages, py_config["cpu_arch"].upper()).Fedora.FEDORA_CONTAINER_IMAGE
     image_info = get_oc_image_info(
         image=image,
         pull_secret=pull_secret,
-        architecture=utilities.cpu.get_nodes_cpu_architecture(
-            nodes=list(Node.get(client=get_client())),
-        ),
+        architecture=py_config["cpu_arch"],
     )
     image_digest = image_info["digest"]
-    return generate_dict_from_yaml_template(
-        stream=io.StringIO(data),
-        name=name,
-        image=f"{image}@{image_digest}",
-    )
+
+    # TODO: Move to jinja2 template
+    if py_config["cluster_type"] == MULTIARCH:
+        with open(os.path.abspath("utilities/manifests/vm-fedora-multiarch.yaml")) as fd:
+            data = fd.read()
+
+        return generate_dict_from_yaml_template(
+            stream=io.StringIO(data),
+            name=name,
+            image=f"{image}@{image_digest}",
+            arch=py_config["cpu_arch"],
+        )
+    else:
+        with open(os.path.abspath("utilities/manifests/vm-fedora.yaml")) as fd:
+            data = fd.read()
+        return generate_dict_from_yaml_template(
+            stream=io.StringIO(data),
+            name=name,
+            image=f"{image}@{image_digest}",
+        )
 
 
 def kubernetes_taint_exists(node):
@@ -2304,12 +2309,12 @@ def get_created_migration_job(vm, timeout=TIMEOUT_1MIN, client=None):
         raise
 
 
-def check_migration_process_after_node_drain(client, vm):
+def check_migration_process_after_node_drain(client, vm, admin_client):
     """
     Wait for migration process to succeed and verify that VM indeed moved to new node.
     """
     vmi_old_uid = vm.vmi.instance.metadata.uid
-    source_node = vm.privileged_vmi.virt_launcher_pod.node
+    source_node = vm.vmi.get_node(privileged_client=admin_client)
     LOGGER.info(f"The VMI was running on {source_node.name}")
     wait_for_node_schedulable_status(node=source_node, status=False)
     vmim = get_created_migration_job(vm=vm, client=client, timeout=TIMEOUT_5MIN)
@@ -2317,7 +2322,7 @@ def check_migration_process_after_node_drain(client, vm):
         namespace=vm.namespace, migration=vmim, timeout=TIMEOUT_30MIN if "windows" in vm.name else TIMEOUT_10MIN
     )
 
-    target_pod = vm.privileged_vmi.virt_launcher_pod
+    target_pod = vm.vmi.get_virt_launcher_pod(privileged_client=admin_client)
     target_pod.wait_for_status(status=Pod.Status.RUNNING, timeout=TIMEOUT_3MIN)
     target_node = target_pod.node
     LOGGER.info(f"The VMI is currently running on {target_node.name}")
@@ -2548,8 +2553,8 @@ def check_qemu_guest_agent_installed(ssh_exec: Host) -> bool:
     return ssh_exec.package_manager.exist(package="qemu-guest-agent")
 
 
-def validate_libvirt_persistent_domain(vm):
-    domain = vm.privileged_vmi.virt_launcher_pod.execute(
+def validate_libvirt_persistent_domain(vm, admin_client):
+    domain = vm.vmi.get_virt_launcher_pod(privileged_client=admin_client).execute(
         command=shlex.split("virsh list --persistent"), container="compute"
     )
     assert vm.vmi.Status.RUNNING.lower() in domain
@@ -2586,14 +2591,14 @@ def validate_pause_unpause_linux_vm(vm: VirtualMachineForTests, pre_pause_pid: i
     )
 
 
-def check_vm_xml_smbios(vm: VirtualMachineForTests, cm_values: Dict[str, str]) -> None:
+def check_vm_xml_smbios(vm: VirtualMachineForTests, cm_values: Dict[str, str], admin_client: DynamicClient) -> None:
     """
     Verify SMBIOS on VM XML [sysinfo type=smbios][system] match kubevirt-config
     config map.
     """
 
     LOGGER.info("Verify VM XML - SMBIOS values.")
-    smbios_vm = vm.privileged_vmi.xml_dict["domain"]["sysinfo"]["system"]["entry"]
+    smbios_vm = vm.vmi.get_xml_dict(privileged_client=admin_client)["domain"]["sysinfo"]["system"]["entry"]
     smbios_vm_dict = {entry["@name"]: entry["#text"] for entry in smbios_vm}
     assert smbios_vm, "VM XML missing SMBIOS values."
     results = {
@@ -2601,7 +2606,6 @@ def check_vm_xml_smbios(vm: VirtualMachineForTests, cm_values: Dict[str, str]) -
         "product": smbios_vm_dict["product"] == cm_values["product"],
         "family": smbios_vm_dict["family"] == cm_values["family"],
         "version": smbios_vm_dict["version"] == cm_values["version"],
-        "sku": smbios_vm_dict["sku"] == cm_values["sku"],
         "serial": smbios_vm_dict.get("serial"),
         "uuid": smbios_vm_dict.get("uuid"),
     }
@@ -2609,9 +2613,11 @@ def check_vm_xml_smbios(vm: VirtualMachineForTests, cm_values: Dict[str, str]) -
     assert all(results.values())
 
 
-def assert_vm_xml_efi(vm: VirtualMachineForTests, secure_boot_enabled: bool = True) -> None:
+def assert_vm_xml_efi(
+    vm: VirtualMachineForTests, admin_client: DynamicClient, *, secure_boot_enabled: bool = True
+) -> None:
     LOGGER.info("Verify VM XML - EFI secureBoot values.")
-    xml_dict_os = vm.privileged_vmi.xml_dict["domain"]["os"]
+    xml_dict_os = vm.vmi.get_xml_dict(privileged_client=admin_client)["domain"]["os"]
     ovmf_path = "/usr/share/OVMF"
     efi_path = f"{ovmf_path}/OVMF_CODE.secboot.fd"
     # efi vars path when secure boot is enabled: /usr/share/OVMF/OVMF_VARS.secboot.fd
