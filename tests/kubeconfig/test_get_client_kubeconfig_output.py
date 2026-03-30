@@ -64,11 +64,6 @@ def _assert_file_permissions(path):
     assert perms == 0o600, f"Expected 0o600, got {oct(perms)}"
 
 
-def _cleanup_kubeconfig(path):
-    if path and os.path.exists(path):
-        os.unlink(path)
-
-
 class TestGetClientNoGenerateKubeconfig:
     """Regression: get_client without generate_kubeconfig."""
 
@@ -88,81 +83,83 @@ class TestGetClientGenerateKubeconfig:
 
     def test_generate_kubeconfig_config_dict(self, kubeconfig_dict):
         """config_dict provided with generate_kubeconfig=True: writes dict as YAML, then use it."""
-        kubeconfig_output_path = None
-        try:
-            client, kubeconfig_output_path = get_client(config_dict=kubeconfig_dict, generate_kubeconfig=True)
-            assert client is not None
-            _assert_nodes(client=client)
+        client = get_client(config_dict=kubeconfig_dict, generate_kubeconfig=True)
+        assert client is not None
+        _assert_nodes(client=client)
 
-            assert os.path.isfile(kubeconfig_output_path)
-            _assert_file_permissions(path=kubeconfig_output_path)
+        assert os.path.isfile(client.kubeconfig)
+        _assert_file_permissions(path=client.kubeconfig)
 
-            with open(kubeconfig_output_path) as f:
-                saved = yaml.safe_load(f)
-            assert saved == kubeconfig_dict
+        with open(client.kubeconfig) as f:
+            saved = yaml.safe_load(f)
+        assert saved == kubeconfig_dict
 
-            new_client = get_client(config_file=kubeconfig_output_path)
-            _assert_nodes(client=new_client)
-        finally:
-            _cleanup_kubeconfig(path=kubeconfig_output_path)
+        new_client = get_client(config_file=client.kubeconfig)
+        _assert_nodes(client=new_client)
 
     def test_generate_kubeconfig_host_token(self, host_and_token):
         """host+token provided with generate_kubeconfig=True: builds kubeconfig from scratch, then use it."""
         host, token, verify_ssl = host_and_token
-        kubeconfig_output_path = None
-        try:
-            client, kubeconfig_output_path = get_client(
-                host=host,
-                token=token,
-                verify_ssl=verify_ssl,
-                generate_kubeconfig=True,
-            )
-            assert client is not None
-            _assert_nodes(client=client)
+        client = get_client(
+            host=host,
+            token=token,
+            verify_ssl=verify_ssl,
+            generate_kubeconfig=True,
+        )
+        assert client is not None
+        _assert_nodes(client=client)
 
-            assert os.path.isfile(kubeconfig_output_path)
-            _assert_file_permissions(path=kubeconfig_output_path)
+        assert os.path.isfile(client.kubeconfig)
+        _assert_file_permissions(path=client.kubeconfig)
 
-            with open(kubeconfig_output_path) as f:
-                saved = yaml.safe_load(f)
-            assert saved["clusters"][0]["cluster"]["server"] == host
-            assert "users" in saved
-            assert "contexts" in saved
+        with open(client.kubeconfig) as f:
+            saved = yaml.safe_load(f)
+        assert saved["clusters"][0]["cluster"]["server"] == host
+        assert "users" in saved
+        assert "contexts" in saved
 
-            new_client = get_client(config_file=kubeconfig_output_path)
-            _assert_nodes(client=new_client)
-        finally:
-            _cleanup_kubeconfig(path=kubeconfig_output_path)
+        new_client = get_client(config_file=client.kubeconfig)
+        _assert_nodes(client=new_client)
 
     def test_generate_kubeconfig_host_username_password(self, host_username_and_password):
         """host+username+password provided with generate_kubeconfig=True: builds kubeconfig, then use it.
 
-        Note: the saved kubeconfig will contain a token (extracted via _resolve_bearer_token
+        Note: the saved kubeconfig will contain a token (extracted via resolve_bearer_token
         from the bearer auth), not username+password.
         """
         host, username, password, verify_ssl = host_username_and_password
-        kubeconfig_output_path = None
-        try:
-            client, kubeconfig_output_path = get_client(
-                host=host,
-                username=username,
-                password=password,
-                verify_ssl=verify_ssl,
-                generate_kubeconfig=True,
-            )
-            assert client is not None
-            _assert_nodes(client=client)
+        client = get_client(
+            host=host,
+            username=username,
+            password=password,
+            verify_ssl=verify_ssl,
+            generate_kubeconfig=True,
+        )
+        assert client is not None
+        _assert_nodes(client=client)
 
-            assert os.path.isfile(kubeconfig_output_path)
-            _assert_file_permissions(path=kubeconfig_output_path)
+        assert os.path.isfile(client.kubeconfig)
+        _assert_file_permissions(path=client.kubeconfig)
 
-            with open(kubeconfig_output_path) as fh:
-                saved = yaml.safe_load(fh)
-            assert saved["clusters"][0]["cluster"]["server"] == host
-            assert "users" in saved
-            assert "contexts" in saved
+        with open(client.kubeconfig) as fh:
+            saved = yaml.safe_load(fh)
+        assert saved["clusters"][0]["cluster"]["server"] == host
+        assert "users" in saved
+        assert "contexts" in saved
 
-            new_client = get_client(config_file=kubeconfig_output_path)
-            _assert_nodes(client=new_client)
-        finally:
-            _cleanup_kubeconfig(path=kubeconfig_output_path)
+        new_client = get_client(config_file=client.kubeconfig)
+        _assert_nodes(client=new_client)
+
+    def test_generate_kubeconfig_with_config_file(self, kubeconfig_path):
+        """config_file passed with generate_kubeconfig=True: reuses original path, no temp file created."""
+        client = get_client(config_file=kubeconfig_path, generate_kubeconfig=True)
+        assert client.kubeconfig == kubeconfig_path, (
+            f"Expected kubeconfig path {kubeconfig_path}, got {client.kubeconfig}"
+        )
+        _assert_nodes(client=client)
+
+    def test_generate_kubeconfig_env_kubeconfig(self, kubeconfig_path):
+        """KUBECONFIG env set, no config_file param, with generate_kubeconfig=True."""
+        client = get_client(generate_kubeconfig=True)
+        assert client.kubeconfig, "Expected non-empty kubeconfig path"
+        _assert_nodes(client=client)
