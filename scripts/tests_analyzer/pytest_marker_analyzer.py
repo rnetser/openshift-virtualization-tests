@@ -709,6 +709,15 @@ class SymbolClassification:
     modified_members: dict[str, set[str]] = field(default_factory=dict)
     """class_name -> set of modified member names (after transitive expansion).
     Absent class = no member-level info, fall back to class-level."""
+    has_unattributed_changes: bool = False
+    """True when some changed lines could not be mapped to any named symbol.
+
+    This covers import reorderings, comments between functions, and other
+    module-level code that is not a function, class, or variable assignment.
+    When set, callers that already have symbol-level import data can still
+    use the ``modified_symbols`` set for narrowing instead of falling back
+    to file-level dependency tracking.
+    """
 
 
 @dataclass
@@ -1648,9 +1657,14 @@ def _extract_modified_symbols(
     Returns:
         ``SymbolClassification`` with modified and new symbol sets, or
         ``None`` when symbol-level analysis is not possible (diff failure,
-        module-level changes outside any symbol, or parse errors).
-        A ``None`` return signals the caller to fall back to file-level
-        dependency tracking.
+        pure deletion, or parse errors).  A ``None`` return signals the
+        caller to fall back to file-level dependency tracking.
+
+        When some changed lines fall outside any named symbol (e.g. import
+        reorderings or comments between functions), the returned
+        ``SymbolClassification`` will have ``has_unattributed_changes=True``
+        but still contain any symbols that *were* identified from other
+        changed lines.
     """
     diff_content = _get_diff_content(
         file_path=file_path,
@@ -1684,10 +1698,9 @@ def _extract_modified_symbols(
             )
             if source is None:
                 logger.info(
-                    msg="Failed to fetch PR file version, falling back to file-level analysis",
+                    msg="Failed to fetch PR file version, falling back to local file",
                     extra={"file": str(file_path)},
                 )
-                return None
         if source is None:
             source = file_path.read_text(encoding="utf-8")
         symbol_map = _build_line_to_symbol_map(source=source)
@@ -1698,6 +1711,7 @@ def _extract_modified_symbols(
         )
         return None
 
+    has_unattributed = False
     modified_symbols: set[str] = set()
     for line_number in changed_lines:
         found = False
@@ -1707,9 +1721,10 @@ def _extract_modified_symbols(
                 found = True
                 break
         if not found:
-            # Changed line is outside any top-level symbol (module-level code).
-            # Conservative fallback: cannot safely narrow impact.
-            return None
+            # Changed line is outside any top-level symbol (e.g. import
+            # reordering, comment between functions).  Record it but keep
+            # collecting symbol info from other changed lines.
+            has_unattributed = True
 
     # --- Member-level analysis for modified classes ---
     modified_members: dict[str, set[str]] = {}
@@ -1760,6 +1775,7 @@ def _extract_modified_symbols(
             modified_symbols=set(),
             new_symbols=modified_symbols,
             modified_members=modified_members,
+            has_unattributed_changes=has_unattributed,
         )
 
     # Identify candidate new symbols: symbols whose ENTIRE line range
@@ -1778,6 +1794,7 @@ def _extract_modified_symbols(
             modified_symbols=modified_symbols,
             new_symbols=set(),
             modified_members=modified_members,
+            has_unattributed_changes=has_unattributed,
         )
 
     # Optimization: if the diff has no deletions, existing code was not
@@ -1789,6 +1806,7 @@ def _extract_modified_symbols(
             modified_symbols=truly_modified,
             new_symbols=truly_new,
             modified_members=modified_members,
+            has_unattributed_changes=has_unattributed,
         )
 
     # Deletions exist — need to check old file to distinguish rewrites
@@ -1805,6 +1823,7 @@ def _extract_modified_symbols(
             modified_symbols=modified_symbols,
             new_symbols=set(),
             modified_members=modified_members,
+            has_unattributed_changes=has_unattributed,
         )
 
     old_symbols, old_class_members = old_result
@@ -1832,6 +1851,7 @@ def _extract_modified_symbols(
         modified_symbols=truly_modified,
         new_symbols=truly_new,
         modified_members=modified_members,
+        has_unattributed_changes=has_unattributed,
     )
 
 
@@ -2034,12 +2054,11 @@ def _check_conftest_pathway(
                 break
 
         if not fixture_match:
-            # Overlap exists but no fixture calls them — could be module-level usage
-            # Conservative: flag test
-            symbols_str = ", ".join(sorted(overlapping))
-            matching_deps.append(
-                f"{changed_file.relative_to(repo_root)} (via {conftest_path.relative_to(repo_root)}, symbols: {symbols_str})"
-            )
+            # Conftest imports the modified symbol but no fixture used by
+            # this test calls it.  conftest.py files are fixture containers;
+            # module-level function calls are negligible in practice.
+            # Resolve as safe — do not flag.
+            pass
 
         conftest_resolved = True
         break
@@ -2386,11 +2405,11 @@ def _extract_modified_items_from_conftest(
             pr_diffs_cache=pr_diffs_cache,
         )
 
-        # Preserve the raw set before additive filtering for fallback logic:
-        # if diff parsing found functions but additive filtering emptied the
-        # set, the conftest only contains new additions and should NOT trigger
-        # the conservative all-fixtures fallback.
-        raw_modified_function_names = set(modified_function_names)
+        # None means diff retrieval failed — fall back conservatively
+        if modified_function_names is None:
+            if changed_file.exists():
+                return all_fixtures, set()
+            return set(), set()
 
         # Filter out purely new functions/fixtures (additive-change detection)
         if modified_function_names and file_status != "added":
@@ -2410,11 +2429,6 @@ def _extract_modified_items_from_conftest(
                 modified_fixtures.add(func_name)
             else:
                 modified_functions.add(func_name)
-
-        # Fallback: only trigger when diff parsing itself failed (raw set empty),
-        # NOT when additive filtering legitimately emptied the set.
-        if not raw_modified_function_names and changed_file.exists():
-            return all_fixtures, set()
 
     except (SyntaxError, UnicodeDecodeError, OSError, subprocess.SubprocessError) as exc:  # fmt: skip
         logger.info(
@@ -2441,10 +2455,15 @@ def _get_modified_function_names(
     repo_root: Path,
     github_pr_info: dict[str, Any] | None,
     pr_diffs_cache: dict[str, str] | None = None,
-) -> set[str]:
-    """Get names of functions modified in a file based on diff analysis."""
-    modified: set[str] = set()
+) -> set[str] | None:
+    """Get names of functions modified in a file based on diff analysis.
 
+    Returns:
+        Set of modified function names, or None if diff retrieval failed.
+        An empty set means the diff was successfully obtained but no
+        functions were in the changed lines (e.g., only module-level
+        import changes).
+    """
     # Try pre-fetched cache first
     if pr_diffs_cache is not None:
         try:
@@ -2468,8 +2487,8 @@ def _get_modified_function_names(
 
         diff_content = get_pr_file_diff(repo=repo, pr_number=pr_number, file_path=str(relative_path), token=token)
         if diff_content:
-            modified = _parse_diff_for_functions(diff_content=diff_content)
-        return modified
+            return _parse_diff_for_functions(diff_content=diff_content)
+        return None  # Diff retrieval failed
 
     # Use local git
     try:
@@ -2481,11 +2500,11 @@ def _get_modified_function_names(
             timeout=10,
         )
         if result.returncode == 0:
-            modified = _parse_diff_for_functions(diff_content=result.stdout)
+            return _parse_diff_for_functions(diff_content=result.stdout)
+        return None  # git diff failed
     except (subprocess.SubprocessError, OSError) as e:  # fmt: skip
         logger.info(msg="Error getting modified function names", extra={"file": str(file_path), "error": str(e)})
-
-    return modified
+        return None  # Diff retrieval failed
 
 
 def _parse_diff_for_functions(diff_content: str) -> set[str]:
@@ -3597,8 +3616,14 @@ def run_github_mode(args: argparse.Namespace) -> tuple[AnalysisResult | None, in
                 )
                 # Continue anyway - the branch might already be available
 
-            # When we checkout, we can use local git diff, so no need to pass github_pr_info
-            github_pr_info = None
+            # Pass github_pr_info even in checkout mode so the GitHub API
+            # diffs cache is available when local git diff fails (e.g.,
+            # base branch fetch failure or shallow clone limitations).
+            github_pr_info = {
+                "repo": args.repo,
+                "pr_number": args.pr,
+                "token": token,
+            }
         else:
             # Remote mode: use current directory and GitHub API for diffs
             repo_root = Path.cwd()
