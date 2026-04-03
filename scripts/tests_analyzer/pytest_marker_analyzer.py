@@ -2119,6 +2119,7 @@ def _check_test_impact(
     conftest_opaque_deps: dict[Path, set[Path]] | None = None,
     pr_diffs_cache: dict[str, str] | None = None,
     pr_file_statuses: dict[str, str] | None = None,
+    is_checkout: bool = False,
 ) -> dict[str, Any] | None:
     """Check if a single test is affected by changed files (for parallel execution).
 
@@ -2233,6 +2234,7 @@ def _check_test_impact(
                 github_pr_info=github_pr_info,
                 pr_diffs_cache=pr_diffs_cache,
                 file_status=file_status_conftest,
+                is_checkout=is_checkout,
             )
 
             # Get all transitively affected fixtures
@@ -2388,6 +2390,7 @@ def _extract_modified_items_from_conftest(
     github_pr_info: dict[str, Any] | None,
     pr_diffs_cache: dict[str, str] | None = None,
     file_status: str | None = None,
+    is_checkout: bool = False,
 ) -> tuple[set[str], set[str]]:
     """Extract modified fixtures and functions from conftest.py.
 
@@ -2438,6 +2441,7 @@ def _extract_modified_items_from_conftest(
             repo_root=repo_root,
             github_pr_info=github_pr_info,
             pr_diffs_cache=pr_diffs_cache,
+            is_checkout=is_checkout,
         )
 
         # None means diff retrieval failed — fall back conservatively
@@ -2490,6 +2494,7 @@ def _get_modified_function_names(
     repo_root: Path,
     github_pr_info: dict[str, Any] | None,
     pr_diffs_cache: dict[str, str] | None = None,
+    is_checkout: bool = False,
 ) -> set[str] | None:
     """Get names of functions modified in a file based on diff analysis.
 
@@ -2523,7 +2528,9 @@ def _get_modified_function_names(
         diff_content = get_pr_file_diff(repo=repo, pr_number=pr_number, file_path=str(relative_path), token=token)
         if diff_content:
             return _parse_diff_for_functions(diff_content=diff_content)
-        return None  # Diff retrieval failed
+        if not is_checkout:
+            return None  # Remote mode: no local fallback
+        # Checkout mode: fall through to local git diff
 
     # Use local git
     try:
@@ -3387,6 +3394,7 @@ class MarkerTestAnalyzer:
                     conftest_opaque_deps=self.conftest_opaque_deps,
                     pr_diffs_cache=pr_diffs_cache,
                     pr_file_statuses=pr_file_statuses,
+                    is_checkout=self.is_checkout,
                 ): node_id
                 for node_id, marked_test in self.marked_tests.items()
             }

@@ -834,6 +834,62 @@ class TestGetModifiedFunctionNames:
 
         assert result == {"my_fixture"}
 
+    def test_checkout_mode_falls_through_to_local_git_when_github_api_empty(self, tmp_path: Path) -> None:
+        """In checkout mode, when GitHub API returns empty diff, fall through to local git diff."""
+        file_path = tmp_path / "conftest.py"
+        file_path.write_text("def my_func(): pass\n")
+        github_pr_info = {"repo": "org/repo", "pr_number": 1, "token": "fake"}
+        diff_content = (
+            "--- a/conftest.py\n"
+            "+++ b/conftest.py\n"
+            "@@ -1,3 +1,3 @@ def my_func\n"
+            " def my_func():\n"
+            "-    pass\n"
+            "+    return 42\n"
+        )
+        mock_result = type("Result", (), {"returncode": 0, "stdout": diff_content, "stderr": ""})()
+
+        with (
+            patch(
+                "scripts.tests_analyzer.pytest_marker_analyzer.get_pr_file_diff",
+                return_value="",
+            ),
+            patch(
+                "scripts.tests_analyzer.pytest_marker_analyzer.subprocess.run",
+                return_value=mock_result,
+            ),
+        ):
+            result = _get_modified_function_names(
+                file_path=file_path,
+                base_branch="main",
+                repo_root=tmp_path,
+                github_pr_info=github_pr_info,
+                is_checkout=True,
+            )
+
+        assert result is not None, "Checkout mode should fall through to local git diff"
+        assert result == {"my_func"}
+
+    def test_remote_mode_returns_none_when_github_api_empty(self, tmp_path: Path) -> None:
+        """In remote mode (default), when GitHub API returns empty diff, returns None without local fallback."""
+        file_path = tmp_path / "conftest.py"
+        file_path.write_text("def my_func(): pass\n")
+        github_pr_info = {"repo": "org/repo", "pr_number": 1, "token": "fake"}
+
+        with patch(
+            "scripts.tests_analyzer.pytest_marker_analyzer.get_pr_file_diff",
+            return_value="",
+        ):
+            result = _get_modified_function_names(
+                file_path=file_path,
+                base_branch="main",
+                repo_root=tmp_path,
+                github_pr_info=github_pr_info,
+                is_checkout=False,
+            )
+
+        assert result is None
+
 
 class TestExtractModifiedItemsFromConftestDiffFailure:
     """Tests that _extract_modified_items_from_conftest handles diff failure vs empty diff correctly."""
@@ -905,6 +961,35 @@ class TestExtractModifiedItemsFromConftestDiffFailure:
 
         assert modified_fixtures == {"my_fixture", "another_fixture"}
         assert modified_functions == set()
+
+    def test_passes_is_checkout_to_get_modified_function_names(self, tmp_path: Path) -> None:
+        """Verify is_checkout parameter is threaded through to _get_modified_function_names."""
+        conftest = tmp_path / "conftest.py"
+        conftest.write_text(
+            textwrap.dedent("""\
+            import pytest
+
+            @pytest.fixture()
+            def my_fixture():
+                return 42
+        """)
+        )
+
+        with patch(
+            "scripts.tests_analyzer.pytest_marker_analyzer._get_modified_function_names",
+            return_value=set(),
+        ) as mock_get_modified:
+            _extract_modified_items_from_conftest(
+                changed_file=conftest,
+                base_branch="main",
+                repo_root=tmp_path,
+                github_pr_info=None,
+                is_checkout=True,
+            )
+
+        mock_get_modified.assert_called_once()
+        call_kwargs = mock_get_modified.call_args[1]
+        assert call_kwargs["is_checkout"] is True, "is_checkout must be passed through"
 
 
 class TestSymbolClassificationHasUnattributedChanges:
