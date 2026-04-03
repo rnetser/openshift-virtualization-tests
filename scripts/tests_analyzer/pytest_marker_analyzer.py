@@ -1632,6 +1632,7 @@ def _extract_modified_symbols(
     pr_diffs_cache: dict[str, str] | None = None,
     file_status: str | None = None,
     pr_head_ref: str | None = None,
+    is_checkout: bool = False,
 ) -> SymbolClassification | None:
     """Determine which top-level symbols were modified or added in a file.
 
@@ -1653,6 +1654,11 @@ def _extract_modified_symbols(
         pr_head_ref: Optional PR HEAD commit SHA. When provided in remote
             mode, the symbol map is built from the PR's version of the
             file so that line numbers align with the diff.
+        is_checkout: Whether the analyzer is running in checkout mode
+            (the local working tree is the PR HEAD).  When ``True``,
+            falling back to the local file after a fetch failure is safe.
+            When ``False`` (remote analysis), the local file may be on a
+            different branch and must not be used as fallback.
 
     Returns:
         ``SymbolClassification`` with modified and new symbol sets, or
@@ -1697,11 +1703,21 @@ def _extract_modified_symbols(
                 token=github_pr_info.get("token"),
             )
             if source is None:
-                logger.info(
-                    msg="Failed to fetch PR file version, falling back to local file",
-                    extra={"file": str(file_path)},
-                )
+                if is_checkout:
+                    logger.info(
+                        msg="Failed to fetch PR file version, falling back to local file (checkout mode)",
+                        extra={"file": str(file_path)},
+                    )
+                else:
+                    # Remote mode: local file may not match PR HEAD.
+                    # Fall back conservatively to file-level analysis.
+                    logger.info(
+                        msg="Failed to fetch PR file version, falling back to file-level analysis",
+                        extra={"file": str(file_path)},
+                    )
+                    return None
         if source is None:
+            # pr_head_ref was None — pure local mode, local file is authoritative
             source = file_path.read_text(encoding="utf-8")
         symbol_map = _build_line_to_symbol_map(source=source)
     except (SyntaxError, UnicodeDecodeError, OSError) as exc:  # fmt: skip
@@ -1712,6 +1728,7 @@ def _extract_modified_symbols(
         return None
 
     has_unattributed = False
+    source_lines = source.splitlines()
     modified_symbols: set[str] = set()
     for line_number in changed_lines:
         found = False
@@ -1721,10 +1738,23 @@ def _extract_modified_symbols(
                 found = True
                 break
         if not found:
-            # Changed line is outside any top-level symbol (e.g. import
-            # reordering, comment between functions).  Record it but keep
-            # collecting symbol info from other changed lines.
-            has_unattributed = True
+            # Changed line is outside any top-level symbol.  Check whether
+            # the line is "safe" (import, comment, blank, or string literal)
+            # or potentially impactful executable code.
+            if line_number <= len(source_lines):
+                line_content = source_lines[line_number - 1].strip()
+                if (
+                    not line_content
+                    or line_content.startswith("#")
+                    or line_content.startswith(("import ", "from "))
+                    or line_content.startswith(('"""', "'''", '"', "'"))
+                ):
+                    has_unattributed = True
+                else:
+                    # Executable module-level code — conservative fallback
+                    return None
+            else:
+                return None
 
     # --- Member-level analysis for modified classes ---
     modified_members: dict[str, set[str]] = {}
@@ -2054,14 +2084,13 @@ def _check_conftest_pathway(
                 break
 
         if not fixture_match:
-            # Conftest imports the modified symbol but no fixture used by
-            # this test calls it.  conftest.py files are fixture containers;
-            # module-level function calls are negligible in practice.
-            # Resolve as safe — do not flag.
-            pass
+            # Safe for this specific conftest path, but other conftest.py
+            # files higher in the hierarchy may still create a dependency.
+            conftest_resolved = True
+            continue
 
         conftest_resolved = True
-        break
+        return True, matching_deps
 
     if not conftest_resolved:
         # No conftest pathway found — file-level fallback (conservative)
@@ -2740,12 +2769,14 @@ class MarkerTestAnalyzer:
         repo_root: Path | None = None,
         base_branch: str = "main",
         github_pr_info: dict[str, Any] | None = None,
+        is_checkout: bool = False,
     ) -> None:
         self.marker_expression = marker_expression
         self.marker_names = extract_marker_names(marker_expression=marker_expression)
         self.repo_root = repo_root or Path.cwd()
         self.base_branch = base_branch
         self.github_pr_info = github_pr_info  # Contains repo, pr_number, token for GitHub API calls
+        self.is_checkout = is_checkout
         self.marked_tests: dict[str, MarkedTest] = {}
         self.conftest_files: list[Path] = []
         self.fixtures: dict[str, Fixture] = {}  # name -> Fixture
@@ -3328,6 +3359,7 @@ class MarkerTestAnalyzer:
                     pr_diffs_cache=pr_diffs_cache,
                     file_status=file_status,
                     pr_head_ref=pr_head_ref,
+                    is_checkout=self.is_checkout,
                 )
 
         # Check each marked test for dependency matches in parallel using ThreadPoolExecutor
@@ -3640,7 +3672,8 @@ def run_github_mode(args: argparse.Namespace) -> tuple[AnalysisResult | None, in
             repo_root=repo_root,
             base_branch=base_branch,
             github_pr_info=github_pr_info,
-        )  # Constructor already uses keyword arguments
+            is_checkout=args.checkout,
+        )
         analyzer.discover_marked_tests()
 
         if not analyzer.marked_tests:

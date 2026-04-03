@@ -926,9 +926,10 @@ class TestSymbolClassificationHasUnattributedChanges:
 class TestExtractModifiedSymbolsUnattributed:
     """Tests that _extract_modified_symbols handles unattributed lines correctly.
 
-    When changed lines fall outside any named symbol (e.g., import statements,
-    comments between functions), the function should set has_unattributed_changes
-    instead of returning None.
+    Safe unmapped lines (imports, comments, blanks, docstrings) set
+    has_unattributed_changes=True.  Unsafe unmapped lines (executable
+    module-level code like function calls or assignments not captured
+    in the symbol map) force a conservative None return.
     """
 
     def test_import_only_change_returns_classification_not_none(self, tmp_path: Path) -> None:
@@ -1072,12 +1073,193 @@ class TestExtractModifiedSymbolsUnattributed:
         # Pure deletion should return None (conservative fallback)
         assert result is None
 
-    def test_fetch_failure_falls_through_to_local_file(self, tmp_path: Path) -> None:
-        """When _fetch_file_at_ref fails, should fall through to local file read instead of returning None.
+    def test_executable_module_level_code_returns_none(self, tmp_path: Path) -> None:
+        """When unmapped line is executable code (e.g. function call), returns None (conservative)."""
+        source = textwrap.dedent("""\
+            import os
 
-        In --checkout mode the local file IS the PR HEAD, so returning None
-        (file-level fallback) is a false positive.  The function must read
-        the local file and continue with symbol-level analysis.
+            setup_logging()
+
+            def my_func():
+                pass
+        """)
+        file_path = tmp_path / "module.py"
+        file_path.write_text(source)
+
+        # Diff that changes line 3 (setup_logging() call — executable, unmapped)
+        diff_content = "--- a/module.py\n+++ b/module.py\n@@ -3 +3 @@\n-configure_logging()\n+setup_logging()\n"
+        mock_result = type("Result", (), {"returncode": 0, "stdout": diff_content, "stderr": ""})()
+        with patch(
+            "scripts.tests_analyzer.pytest_marker_analyzer.subprocess.run",
+            return_value=mock_result,
+        ):
+            result = _extract_modified_symbols(
+                file_path=file_path,
+                base_branch="main",
+                repo_root=tmp_path,
+                github_pr_info=None,
+            )
+
+        assert result is None, "Executable module-level code should trigger conservative fallback"
+
+    def test_comment_between_functions_is_safe(self, tmp_path: Path) -> None:
+        """When unmapped line is a comment, returns SymbolClassification with has_unattributed_changes."""
+        source = textwrap.dedent("""\
+            def func_a():
+                pass
+
+            # This is a comment between functions
+
+            def func_b():
+                pass
+        """)
+        file_path = tmp_path / "module.py"
+        file_path.write_text(source)
+
+        # Diff that changes only line 4 (comment)
+        diff_content = (
+            "--- a/module.py\n+++ b/module.py\n@@ -4 +4 @@\n-# Old comment\n+# This is a comment between functions\n"
+        )
+        mock_result = type("Result", (), {"returncode": 0, "stdout": diff_content, "stderr": ""})()
+        with patch(
+            "scripts.tests_analyzer.pytest_marker_analyzer.subprocess.run",
+            return_value=mock_result,
+        ):
+            result = _extract_modified_symbols(
+                file_path=file_path,
+                base_branch="main",
+                repo_root=tmp_path,
+                github_pr_info=None,
+            )
+
+        assert result is not None, "Comment-only change should not trigger conservative fallback"
+        assert result.has_unattributed_changes is True
+
+    def test_blank_line_between_functions_is_safe(self, tmp_path: Path) -> None:
+        """When unmapped line is blank, returns SymbolClassification with has_unattributed_changes."""
+        source = textwrap.dedent("""\
+            def func_a():
+                pass
+
+
+            def func_b():
+                pass
+        """)
+        file_path = tmp_path / "module.py"
+        file_path.write_text(source)
+
+        # Diff that adds a blank line (line 3 is blank, line 4 is blank)
+        diff_content = "--- a/module.py\n+++ b/module.py\n@@ -2,2 +2,3 @@\n     pass\n+\n \n"
+        mock_result = type("Result", (), {"returncode": 0, "stdout": diff_content, "stderr": ""})()
+        with patch(
+            "scripts.tests_analyzer.pytest_marker_analyzer.subprocess.run",
+            return_value=mock_result,
+        ):
+            result = _extract_modified_symbols(
+                file_path=file_path,
+                base_branch="main",
+                repo_root=tmp_path,
+                github_pr_info=None,
+            )
+
+        assert result is not None, "Blank-line change should not trigger conservative fallback"
+        assert result.has_unattributed_changes is True
+
+    def test_module_docstring_is_safe(self, tmp_path: Path) -> None:
+        """When unmapped line is a string literal (docstring), returns SymbolClassification."""
+        source = textwrap.dedent('''\
+            """Module docstring."""
+
+            def my_func():
+                pass
+        ''')
+        file_path = tmp_path / "module.py"
+        file_path.write_text(source)
+
+        # Diff that changes line 1 (module docstring)
+        diff_content = (
+            '--- a/module.py\n+++ b/module.py\n@@ -1 +1 @@\n-"""Old docstring."""\n+"""Module docstring."""\n'
+        )
+        mock_result = type("Result", (), {"returncode": 0, "stdout": diff_content, "stderr": ""})()
+        with patch(
+            "scripts.tests_analyzer.pytest_marker_analyzer.subprocess.run",
+            return_value=mock_result,
+        ):
+            result = _extract_modified_symbols(
+                file_path=file_path,
+                base_branch="main",
+                repo_root=tmp_path,
+                github_pr_info=None,
+            )
+
+        assert result is not None, "Docstring change should not trigger conservative fallback"
+        assert result.has_unattributed_changes is True
+
+    def test_mixed_safe_and_unsafe_unmapped_returns_none(self, tmp_path: Path) -> None:
+        """When unmapped lines include both safe (import) and unsafe (call), returns None."""
+        source = textwrap.dedent("""\
+            import os
+
+            register_plugin()
+
+            def my_func():
+                pass
+        """)
+        file_path = tmp_path / "module.py"
+        file_path.write_text(source)
+
+        # Diff that changes both line 1 (import) and line 3 (executable call)
+        diff_content = (
+            "--- a/module.py\n"
+            "+++ b/module.py\n"
+            "@@ -1,3 +1,3 @@\n"
+            "-import sys\n"
+            "+import os\n"
+            " \n"
+            "-init_plugin()\n"
+            "+register_plugin()\n"
+        )
+        mock_result = type("Result", (), {"returncode": 0, "stdout": diff_content, "stderr": ""})()
+        with patch(
+            "scripts.tests_analyzer.pytest_marker_analyzer.subprocess.run",
+            return_value=mock_result,
+        ):
+            result = _extract_modified_symbols(
+                file_path=file_path,
+                base_branch="main",
+                repo_root=tmp_path,
+                github_pr_info=None,
+            )
+
+        assert result is None, "Executable module-level code should trigger conservative fallback"
+
+    def test_line_number_beyond_source_returns_none(self, tmp_path: Path) -> None:
+        """When changed line number exceeds source length, returns None (conservative)."""
+        source = "def my_func():\n    pass\n"
+        file_path = tmp_path / "module.py"
+        file_path.write_text(source)
+
+        # Diff claims change at line 10, but source only has 2 lines
+        diff_content = "--- a/module.py\n+++ b/module.py\n@@ -10 +10 @@\n-old_line\n+new_line\n"
+        mock_result = type("Result", (), {"returncode": 0, "stdout": diff_content, "stderr": ""})()
+        with patch(
+            "scripts.tests_analyzer.pytest_marker_analyzer.subprocess.run",
+            return_value=mock_result,
+        ):
+            result = _extract_modified_symbols(
+                file_path=file_path,
+                base_branch="main",
+                repo_root=tmp_path,
+                github_pr_info=None,
+            )
+
+        assert result is None, "Line beyond source should trigger conservative fallback"
+
+    def test_fetch_failure_falls_through_to_local_file_in_checkout_mode(self, tmp_path: Path) -> None:
+        """When _fetch_file_at_ref fails in checkout mode, should fall through to local file.
+
+        In --checkout mode the local file IS the PR HEAD, so the local
+        file is authoritative and symbol-level analysis should proceed.
         """
         source = textwrap.dedent("""\
             def my_func():
@@ -1103,10 +1285,48 @@ class TestExtractModifiedSymbolsUnattributed:
                 github_pr_info={"repo": "owner/repo"},
                 pr_diffs_cache=pr_diffs_cache,
                 pr_head_ref="abc123",
+                is_checkout=True,
             )
 
-        assert result is not None, "Should fall through to local file, not return None"
+        assert result is not None, "Checkout mode should fall through to local file, not return None"
         assert "my_func" in result.modified_symbols
+
+    def test_fetch_failure_returns_none_in_remote_mode(self, tmp_path: Path) -> None:
+        """When _fetch_file_at_ref fails in remote mode, should return None.
+
+        In remote mode (no --checkout), the local file may be on a
+        different branch/commit than the PR HEAD.  Using it would build
+        the symbol map from the wrong file version and potentially
+        narrow away real impacts.
+        """
+        source = textwrap.dedent("""\
+            def my_func():
+                return 42
+        """)
+        file_path = tmp_path / "module.py"
+        file_path.write_text(source)
+
+        # Diff that changes line 2 (inside my_func)
+        diff_content = (
+            "--- a/module.py\n+++ b/module.py\n@@ -1,2 +1,2 @@\n def my_func():\n-    return 0\n+    return 42\n"
+        )
+        pr_diffs_cache = {"module.py": diff_content}
+
+        with patch(
+            "scripts.tests_analyzer.pytest_marker_analyzer._fetch_file_at_ref",
+            return_value=None,
+        ):
+            result = _extract_modified_symbols(
+                file_path=file_path,
+                base_branch="main",
+                repo_root=tmp_path,
+                github_pr_info={"repo": "owner/repo"},
+                pr_diffs_cache=pr_diffs_cache,
+                pr_head_ref="abc123",
+                is_checkout=False,
+            )
+
+        assert result is None, "Remote mode fetch failure should return None (conservative fallback)"
 
 
 class TestRunGithubModeCheckoutGithubPrInfo:
@@ -1234,3 +1454,85 @@ class TestCheckConftestPathwayNoFixtureMatch:
             f"but got matching_deps={matching_deps}"
         )
         assert matching_deps == []
+
+    def test_hierarchy_scans_past_no_fixture_match_conftest(self, tmp_path: Path) -> None:
+        """When the first conftest has no fixture match, later conftests must still be checked.
+
+        A test can inherit multiple conftest.py files. If the first conftest
+        imports the modified symbol but no fixture calls it (safe), the loop
+        must continue to check subsequent conftest files that may have a real
+        fixture dependency.
+        """
+        repo_root = tmp_path
+        # First conftest: imports modified symbol, but no fixture match
+        conftest_parent = tmp_path / "tests" / "conftest.py"
+        conftest_parent.parent.mkdir(parents=True)
+        conftest_parent.touch()
+
+        # Second conftest: imports modified symbol AND has a matching fixture
+        conftest_child = tmp_path / "tests" / "network" / "conftest.py"
+        conftest_child.parent.mkdir(parents=True)
+        conftest_child.touch()
+
+        changed_file = tmp_path / "utilities" / "network.py"
+        changed_file.parent.mkdir(parents=True)
+        changed_file.touch()
+
+        test_file = tmp_path / "tests" / "network" / "test_connectivity.py"
+        test_file.touch()
+
+        marked_test = MarkedTest(
+            file_path=test_file,
+            test_name="test_connectivity",
+            node_id="tests/network/test_connectivity.py::test_connectivity",
+            dependencies={conftest_parent, conftest_child},
+            fixtures={"unrelated_fixture", "network_fixture"},
+            symbol_imports={},
+        )
+
+        # Both conftests import lookup_iface_status from the changed file
+        conftest_symbol_imports: dict[Path, dict[Path, set[str]]] = {
+            conftest_parent: {changed_file: {"lookup_iface_status"}},
+            conftest_child: {changed_file: {"lookup_iface_status"}},
+        }
+
+        # lookup_iface_status was modified
+        modified_symbols_cache: dict[Path, SymbolClassification | None] = {
+            changed_file: SymbolClassification(
+                modified_symbols={"lookup_iface_status"},
+                new_symbols=set(),
+            ),
+        }
+
+        # First conftest: fixture does NOT call lookup_iface_status
+        # Second conftest: fixture DOES call lookup_iface_status
+        fixtures_dict: dict[str, Fixture] = {
+            "unrelated_fixture": Fixture(
+                name="unrelated_fixture",
+                file_path=conftest_parent,
+                function_calls={"other_function"},
+            ),
+            "network_fixture": Fixture(
+                name="network_fixture",
+                file_path=conftest_child,
+                function_calls={"lookup_iface_status"},
+            ),
+        }
+
+        is_affected, matching_deps = _check_conftest_pathway(
+            changed_file=changed_file,
+            marked_test=marked_test,
+            conftest_symbol_imports=conftest_symbol_imports,
+            conftest_opaque_deps={},
+            modified_symbols_cache=modified_symbols_cache,
+            fixtures_dict=fixtures_dict,
+            repo_root=repo_root,
+        )
+
+        assert is_affected, (
+            "Test SHOULD be flagged when a later conftest in the hierarchy has a fixture that calls the modified symbol"
+        )
+        assert matching_deps, "Should have at least one matching dependency"
+        assert any("network_fixture" in dep for dep in matching_deps), (
+            f"Should reference network_fixture, got {matching_deps}"
+        )
