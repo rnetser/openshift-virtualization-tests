@@ -1679,7 +1679,11 @@ def _extract_modified_symbols(
         github_pr_info=github_pr_info,
         pr_diffs_cache=pr_diffs_cache,
     )
+
     if diff_content is None:
+        if file_status == "renamed":
+            # Renamed with no diff — content unchanged, no symbols modified
+            return SymbolClassification(modified_symbols=set(), new_symbols=set())
         return None
 
     has_deletions = _diff_has_deletions(diff_content=diff_content)
@@ -1687,6 +1691,8 @@ def _extract_modified_symbols(
     changed_lines = _parse_diff_for_changed_lines(diff_content=diff_content)
     if not changed_lines:
         if has_deletions:
+            if file_status == "renamed":
+                return SymbolClassification(modified_symbols=set(), new_symbols=set())
             return None  # Pure deletion — cannot safely narrow impact
         return SymbolClassification(modified_symbols=set(), new_symbols=set())
 
@@ -2403,8 +2409,8 @@ def _extract_modified_items_from_conftest(
         Tuple of (modified_fixtures, modified_functions) containing only
         symbols that existed in the base version and were modified.
     """
-    if file_status == "added":
-        return set(), set()  # New conftest cannot break existing tests
+    if file_status in ("added", "renamed"):
+        return set(), set()  # New/renamed conftest cannot break existing tests
 
     modified_fixtures: set[str] = set()
     modified_functions: set[str] = set()
@@ -2441,7 +2447,7 @@ def _extract_modified_items_from_conftest(
             return set(), set()
 
         # Filter out purely new functions/fixtures (additive-change detection)
-        if modified_function_names and file_status != "added":
+        if modified_function_names and file_status not in ("added", "renamed"):
             old_result = _get_old_file_symbols(
                 file_path=changed_file,
                 base_branch=base_branch,

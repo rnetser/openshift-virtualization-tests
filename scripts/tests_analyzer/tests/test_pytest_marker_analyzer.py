@@ -1536,3 +1536,69 @@ class TestCheckConftestPathwayNoFixtureMatch:
         assert any("network_fixture" in dep for dep in matching_deps), (
             f"Should reference network_fixture, got {matching_deps}"
         )
+
+
+class TestRenamedFileHandling:
+    """Tests that renamed files with no content changes do not flag tests as affected.
+
+    When GitHub reports file_status="renamed" with no diff patch, the file was
+    only moved (e.g., tests/network/libs/ip.py -> libs/net/ip.py). All symbols
+    exist in the new location but none were modified, so zero tests should be
+    impacted.
+    """
+
+    def test_extract_modified_symbols_renamed_file_returns_empty(self, tmp_path: Path) -> None:
+        """Renamed file with no content changes should return empty classification (no impact)."""
+        source = textwrap.dedent("""\
+            def helper_func():
+                return 42
+
+            class MyClass:
+                def method(self):
+                    pass
+        """)
+        file_path = tmp_path / "ip.py"
+        file_path.write_text(source)
+
+        result = _extract_modified_symbols(
+            file_path=file_path,
+            base_branch="main",
+            repo_root=tmp_path,
+            github_pr_info=None,
+            file_status="renamed",
+        )
+
+        assert result is not None, "Renamed file should return SymbolClassification, not None"
+        assert result.modified_symbols == set(), "Renamed file should have no modified symbols"
+        assert result.new_symbols == set(), "Renamed file with no content changes should have no new symbols"
+
+    def test_extract_modified_items_from_conftest_renamed_returns_empty(self, tmp_path: Path) -> None:
+        """Renamed conftest.py should not flag any fixtures or functions as modified."""
+        conftest = tmp_path / "conftest.py"
+        conftest.write_text(
+            textwrap.dedent("""\
+            import pytest
+
+            @pytest.fixture()
+            def my_fixture():
+                return 42
+
+            @pytest.fixture()
+            def another_fixture():
+                return "hello"
+
+            def helper():
+                pass
+        """)
+        )
+
+        modified_fixtures, modified_functions = _extract_modified_items_from_conftest(
+            changed_file=conftest,
+            base_branch="main",
+            repo_root=tmp_path,
+            github_pr_info=None,
+            file_status="renamed",
+        )
+
+        assert modified_fixtures == set(), "Renamed conftest should not flag any fixtures"
+        assert modified_functions == set(), "Renamed conftest should not flag any functions"
