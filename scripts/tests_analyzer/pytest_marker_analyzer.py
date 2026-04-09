@@ -2086,23 +2086,16 @@ def _check_conftest_pathway(
                 if changed_file not in intermediate_syms:
                     continue
 
-                # Transitive path found
+                # Transitive path found — apply symbol narrowing if diff available
                 classification = modified_symbols_cache.get(changed_file)
-                if classification is None:
-                    matching_deps.append(
-                        f"{changed_file.relative_to(repo_root)} (via "
-                        f"{intermediate_path.relative_to(repo_root)} -> "
-                        f"{conftest_path.relative_to(repo_root)}, diff unavailable)"
-                    )
-                    return True, matching_deps
+                if classification is not None:
+                    intermediate_imported = intermediate_syms[changed_file]
+                    overlapping = intermediate_imported & classification.modified_symbols
+                    if not overlapping:
+                        conftest_resolved = True
+                        continue
 
-                intermediate_imported = intermediate_syms[changed_file]
-                overlapping = intermediate_imported & classification.modified_symbols
-                if not overlapping:
-                    conftest_resolved = True
-                    continue
-
-                # Modified symbols flow through intermediate — apply fixture narrowing
+                # Diff unavailable or modified symbols overlap — apply fixture narrowing
                 fixture_match = False
                 for fixture_name, fixture in fixtures_dict.items():
                     if (

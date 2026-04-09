@@ -2006,3 +2006,70 @@ class TestCheckConftestPathwayTransitive:
             f"Test should NOT be flagged when modified symbols don't overlap with "
             f"intermediate imports, but got matching_deps={matching_deps}"
         )
+
+    def test_transitive_diff_unavailable_no_fixture_match_does_not_flag(self, tmp_path: Path) -> None:
+        """When the diff for the changed file is unavailable but no fixture used
+        by the test calls the intermediate module's symbols, the test should NOT
+        be flagged. Fixture narrowing should still apply even without diff info.
+        """
+        repo_root = tmp_path
+
+        conftest_path = tmp_path / "tests" / "conftest.py"
+        conftest_path.parent.mkdir(parents=True)
+        conftest_path.touch()
+
+        intermediate_path = tmp_path / "libs" / "net" / "vmspec.py"
+        intermediate_path.parent.mkdir(parents=True, exist_ok=True)
+        intermediate_path.write_text(
+            "from libs.vm.vm import BaseVirtualMachine\n",
+            encoding="utf-8",
+        )
+
+        changed_file = tmp_path / "libs" / "vm" / "vm.py"
+        changed_file.parent.mkdir(parents=True, exist_ok=True)
+        changed_file.touch()
+
+        test_file = tmp_path / "tests" / "test_smoke.py"
+        test_file.touch()
+
+        marked_test = MarkedTest(
+            file_path=test_file,
+            test_name="test_smoke_basic",
+            node_id="tests/test_smoke.py::test_smoke_basic",
+            dependencies={conftest_path, intermediate_path, changed_file},
+            fixtures={"some_unrelated_fixture"},
+            symbol_imports={},
+        )
+
+        conftest_symbol_imports: dict[Path, dict[Path, set[str]]] = {
+            conftest_path: {intermediate_path: {"lookup_iface_status"}},
+        }
+
+        # Diff unavailable — classification is None
+        modified_symbols_cache: dict[Path, SymbolClassification | None] = {
+            changed_file: None,
+        }
+
+        fixtures_dict: dict[str, Fixture] = {
+            "some_unrelated_fixture": Fixture(
+                name="some_unrelated_fixture",
+                file_path=conftest_path,
+                function_calls={"other_function"},
+            ),
+        }
+
+        is_affected, matching_deps = _check_conftest_pathway(
+            changed_file=changed_file,
+            marked_test=marked_test,
+            conftest_symbol_imports=conftest_symbol_imports,
+            conftest_opaque_deps={},
+            modified_symbols_cache=modified_symbols_cache,
+            fixtures_dict=fixtures_dict,
+            repo_root=repo_root,
+        )
+
+        assert not is_affected, (
+            f"Test should NOT be flagged even with diff unavailable when no fixture "
+            f"calls the intermediate module's symbols, but got matching_deps={matching_deps}"
+        )
+        assert matching_deps == []
