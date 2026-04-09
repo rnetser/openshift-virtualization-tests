@@ -794,6 +794,32 @@ class ImportVisitor(ast.NodeVisitor):
                 # "from pkg import submod" may refer to pkg/submod.py
                 self.imports.add(f"{node.module}.{alias.name}")
 
+    def visit_If(self, node: ast.If) -> None:
+        """Skip imports inside ``if TYPE_CHECKING:`` blocks.
+
+        These imports exist only for static type checkers and are never
+        executed at runtime, so they should not create test dependencies.
+        The ``else`` branch is still visited because it contains runtime
+        imports (e.g. compatibility fallbacks).
+        """
+        if self._is_type_checking_guard(node=node):
+            for child in node.orelse:
+                self.visit(node=child)
+            return
+        self.generic_visit(node=node)
+
+    @staticmethod
+    def _is_type_checking_guard(node: ast.If) -> bool:
+        """Check whether an ``If`` node guards a ``TYPE_CHECKING`` block."""
+        test = node.test
+        # ``if TYPE_CHECKING:``
+        if isinstance(test, ast.Name) and test.id == "TYPE_CHECKING":
+            return True
+        # ``if typing.TYPE_CHECKING:``
+        if isinstance(test, ast.Attribute) and test.attr == "TYPE_CHECKING":
+            return True
+        return False
+
 
 class FixtureVisitor(ast.NodeVisitor):
     """AST visitor to extract fixture usage from test functions."""

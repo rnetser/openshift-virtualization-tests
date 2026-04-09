@@ -13,6 +13,7 @@ from unittest.mock import MagicMock, patch
 from scripts.tests_analyzer.pytest_marker_analyzer import (
     AttributeAccessCollector,
     Fixture,
+    ImportVisitor,
     MarkedTest,
     SymbolClassification,
     _build_intra_class_call_graph,
@@ -1687,3 +1688,107 @@ class TestRenamedFileHandling:
 
         assert modified_fixtures == set(), "Renamed conftest should not flag any fixtures"
         assert modified_functions == set(), "Renamed conftest should not flag any functions"
+
+
+class TestImportVisitorTypeChecking:
+    """Tests for TYPE_CHECKING-guarded import exclusion."""
+
+    def test_regular_imports_collected(self):
+        source = textwrap.dedent("""\
+            from libs.vm.vm import BaseVirtualMachine
+            from libs.net.ip import get_ip
+        """)
+        tree = ast.parse(source)
+        visitor = ImportVisitor()
+        visitor.visit(node=tree)
+        assert "libs.vm.vm" in visitor.imports
+        assert "libs.net.ip" in visitor.imports
+
+    def test_type_checking_imports_skipped(self):
+        source = textwrap.dedent("""\
+            from typing import TYPE_CHECKING
+
+            from libs.net.ip import get_ip
+
+            if TYPE_CHECKING:
+                from libs.vm.vm import BaseVirtualMachine
+        """)
+        tree = ast.parse(source)
+        visitor = ImportVisitor()
+        visitor.visit(node=tree)
+        assert "libs.net.ip" in visitor.imports
+        assert "libs.vm.vm" not in visitor.imports
+        assert "libs.vm.vm.BaseVirtualMachine" not in visitor.imports
+
+    def test_typing_dot_type_checking_skipped(self):
+        source = textwrap.dedent("""\
+            import typing
+
+            from libs.net.ip import get_ip
+
+            if typing.TYPE_CHECKING:
+                from libs.vm.vm import BaseVirtualMachine
+        """)
+        tree = ast.parse(source)
+        visitor = ImportVisitor()
+        visitor.visit(node=tree)
+        assert "libs.net.ip" in visitor.imports
+        assert "libs.vm.vm" not in visitor.imports
+
+    def test_type_checking_does_not_affect_symbol_imports(self):
+        source = textwrap.dedent("""\
+            from typing import TYPE_CHECKING
+            from libs.net.ip import get_ip
+
+            if TYPE_CHECKING:
+                from libs.vm.vm import BaseVirtualMachine
+        """)
+        tree = ast.parse(source)
+        visitor = ImportVisitor()
+        visitor.visit(node=tree)
+        assert "libs.net.ip" in visitor.symbol_imports
+        assert "libs.vm.vm" not in visitor.symbol_imports
+
+    def test_bare_import_inside_type_checking_skipped(self):
+        source = textwrap.dedent("""\
+            from typing import TYPE_CHECKING
+
+            if TYPE_CHECKING:
+                import libs.vm.vm
+        """)
+        tree = ast.parse(source)
+        visitor = ImportVisitor()
+        visitor.visit(node=tree)
+        assert "libs.vm.vm" not in visitor.imports
+        assert "libs.vm.vm" not in visitor.opaque_imports
+
+    def test_else_branch_of_type_checking_collected(self):
+        source = textwrap.dedent("""\
+            from typing import TYPE_CHECKING
+
+            if TYPE_CHECKING:
+                from typing_extensions import Protocol
+            else:
+                from collections.abc import Protocol
+        """)
+        tree = ast.parse(source)
+        visitor = ImportVisitor()
+        visitor.visit(node=tree)
+        assert "typing_extensions" not in visitor.imports
+        assert "collections.abc" in visitor.imports
+
+    def test_elif_after_type_checking_collected(self):
+        source = textwrap.dedent("""\
+            from typing import TYPE_CHECKING
+            import sys
+
+            if TYPE_CHECKING:
+                from libs.vm.vm import BaseVirtualMachine
+            elif sys.version_info >= (3, 11):
+                from libs.fallback import FallbackVM
+        """)
+        tree = ast.parse(source)
+        visitor = ImportVisitor()
+        visitor.visit(node=tree)
+        assert "libs.vm.vm" not in visitor.imports
+        assert "libs.fallback" in visitor.imports
