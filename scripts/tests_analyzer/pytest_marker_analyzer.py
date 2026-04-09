@@ -3330,6 +3330,9 @@ class MarkerTestAnalyzer:
         tests_dir = self.repo_root / "tests"
         if tests_dir.exists():
             self.conftest_files = list(tests_dir.rglob("conftest.py"))
+        root_conftest = self.repo_root / "conftest.py"
+        if root_conftest.exists():
+            self.conftest_files.append(root_conftest)
         logger.info(msg="Found conftest.py files", extra={"file_count": len(self.conftest_files)})
 
     def get_changed_files(self, base_branch: str = "main", files: list[str] | None = None) -> list[Path]:
