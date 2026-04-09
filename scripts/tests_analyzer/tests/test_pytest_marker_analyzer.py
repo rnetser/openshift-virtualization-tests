@@ -1792,3 +1792,217 @@ class TestImportVisitorTypeChecking:
         visitor.visit(node=tree)
         assert "libs.vm.vm" not in visitor.imports
         assert "libs.fallback" in visitor.imports
+
+
+class TestCheckConftestPathwayTransitive:
+    """Transitive conftest narrowing: conftest -> intermediate -> changed_file."""
+
+    def test_transitive_no_fixture_match_does_not_flag(self, tmp_path: Path) -> None:
+        """When conftest imports an intermediate module that imports the changed file,
+        but no fixture used by the test calls the intermediate's symbols, the test
+        should NOT be flagged.
+        """
+        repo_root = tmp_path
+
+        conftest_path = tmp_path / "tests" / "conftest.py"
+        conftest_path.parent.mkdir(parents=True)
+        conftest_path.touch()
+
+        intermediate_path = tmp_path / "libs" / "net" / "vmspec.py"
+        intermediate_path.parent.mkdir(parents=True, exist_ok=True)
+        # Intermediate module imports BaseVirtualMachine from the changed file
+        intermediate_path.write_text(
+            "from libs.vm.vm import BaseVirtualMachine\n",
+            encoding="utf-8",
+        )
+
+        changed_file = tmp_path / "libs" / "vm" / "vm.py"
+        changed_file.parent.mkdir(parents=True, exist_ok=True)
+        changed_file.touch()
+
+        test_file = tmp_path / "tests" / "test_smoke.py"
+        test_file.touch()
+
+        marked_test = MarkedTest(
+            file_path=test_file,
+            test_name="test_smoke_basic",
+            node_id="tests/test_smoke.py::test_smoke_basic",
+            dependencies={conftest_path, intermediate_path, changed_file},
+            fixtures={"some_unrelated_fixture"},
+            symbol_imports={},
+        )
+
+        # Conftest imports lookup_iface_status from the intermediate (NOT directly from changed_file)
+        conftest_symbol_imports: dict[Path, dict[Path, set[str]]] = {
+            conftest_path: {intermediate_path: {"lookup_iface_status"}},
+        }
+
+        # BaseVirtualMachine was modified in the changed file
+        modified_symbols_cache: dict[Path, SymbolClassification | None] = {
+            changed_file: SymbolClassification(
+                modified_symbols={"BaseVirtualMachine"},
+                new_symbols=set(),
+            ),
+        }
+
+        # The fixture used by the test does NOT call lookup_iface_status
+        fixtures_dict: dict[str, Fixture] = {
+            "some_unrelated_fixture": Fixture(
+                name="some_unrelated_fixture",
+                file_path=conftest_path,
+                function_calls={"other_function"},
+            ),
+        }
+
+        is_affected, matching_deps = _check_conftest_pathway(
+            changed_file=changed_file,
+            marked_test=marked_test,
+            conftest_symbol_imports=conftest_symbol_imports,
+            conftest_opaque_deps={},
+            modified_symbols_cache=modified_symbols_cache,
+            fixtures_dict=fixtures_dict,
+            repo_root=repo_root,
+        )
+
+        assert not is_affected, (
+            f"Test should NOT be flagged via transitive path when no fixture calls "
+            f"the intermediate module's symbols, but got matching_deps={matching_deps}"
+        )
+        assert matching_deps == []
+
+    def test_transitive_with_fixture_match_flags_test(self, tmp_path: Path) -> None:
+        """When a fixture used by the test calls the intermediate module's symbols,
+        and the intermediate imports modified symbols from the changed file,
+        the test SHOULD be flagged.
+        """
+        repo_root = tmp_path
+
+        conftest_path = tmp_path / "tests" / "conftest.py"
+        conftest_path.parent.mkdir(parents=True)
+        conftest_path.touch()
+
+        intermediate_path = tmp_path / "libs" / "net" / "vmspec.py"
+        intermediate_path.parent.mkdir(parents=True, exist_ok=True)
+        intermediate_path.write_text(
+            "from libs.vm.vm import BaseVirtualMachine\n",
+            encoding="utf-8",
+        )
+
+        changed_file = tmp_path / "libs" / "vm" / "vm.py"
+        changed_file.parent.mkdir(parents=True, exist_ok=True)
+        changed_file.touch()
+
+        test_file = tmp_path / "tests" / "test_upgrade.py"
+        test_file.touch()
+
+        marked_test = MarkedTest(
+            file_path=test_file,
+            test_name="test_upgrade_network",
+            node_id="tests/test_upgrade.py::test_upgrade_network",
+            dependencies={conftest_path, intermediate_path, changed_file},
+            fixtures={"running_vm_upgrade_a"},
+            symbol_imports={},
+        )
+
+        conftest_symbol_imports: dict[Path, dict[Path, set[str]]] = {
+            conftest_path: {intermediate_path: {"lookup_iface_status"}},
+        }
+
+        modified_symbols_cache: dict[Path, SymbolClassification | None] = {
+            changed_file: SymbolClassification(
+                modified_symbols={"BaseVirtualMachine"},
+                new_symbols=set(),
+            ),
+        }
+
+        # This fixture DOES call lookup_iface_status AND the test uses it
+        fixtures_dict: dict[str, Fixture] = {
+            "running_vm_upgrade_a": Fixture(
+                name="running_vm_upgrade_a",
+                file_path=conftest_path,
+                function_calls={"lookup_iface_status", "other_call"},
+            ),
+        }
+
+        is_affected, matching_deps = _check_conftest_pathway(
+            changed_file=changed_file,
+            marked_test=marked_test,
+            conftest_symbol_imports=conftest_symbol_imports,
+            conftest_opaque_deps={},
+            modified_symbols_cache=modified_symbols_cache,
+            fixtures_dict=fixtures_dict,
+            repo_root=repo_root,
+        )
+
+        assert is_affected, "Test SHOULD be flagged when fixture uses transitive dependency"
+        assert len(matching_deps) == 1
+        assert "lookup_iface_status" in matching_deps[0]
+
+    def test_transitive_no_overlapping_symbols_does_not_flag(self, tmp_path: Path) -> None:
+        """When the intermediate imports from the changed file but none of the
+        modified symbols overlap, the test should NOT be flagged.
+        """
+        repo_root = tmp_path
+
+        conftest_path = tmp_path / "tests" / "conftest.py"
+        conftest_path.parent.mkdir(parents=True)
+        conftest_path.touch()
+
+        intermediate_path = tmp_path / "libs" / "net" / "vmspec.py"
+        intermediate_path.parent.mkdir(parents=True, exist_ok=True)
+        # Intermediate imports BaseVirtualMachine but only container_image was modified
+        intermediate_path.write_text(
+            "from libs.vm.vm import BaseVirtualMachine\n",
+            encoding="utf-8",
+        )
+
+        changed_file = tmp_path / "libs" / "vm" / "vm.py"
+        changed_file.parent.mkdir(parents=True, exist_ok=True)
+        changed_file.touch()
+
+        test_file = tmp_path / "tests" / "test_smoke.py"
+        test_file.touch()
+
+        marked_test = MarkedTest(
+            file_path=test_file,
+            test_name="test_smoke_basic",
+            node_id="tests/test_smoke.py::test_smoke_basic",
+            dependencies={conftest_path, intermediate_path, changed_file},
+            fixtures={"running_vm_upgrade_a"},
+            symbol_imports={},
+        )
+
+        conftest_symbol_imports: dict[Path, dict[Path, set[str]]] = {
+            conftest_path: {intermediate_path: {"lookup_iface_status"}},
+        }
+
+        # Only container_image was modified, NOT BaseVirtualMachine
+        modified_symbols_cache: dict[Path, SymbolClassification | None] = {
+            changed_file: SymbolClassification(
+                modified_symbols={"container_image"},
+                new_symbols=set(),
+            ),
+        }
+
+        fixtures_dict: dict[str, Fixture] = {
+            "running_vm_upgrade_a": Fixture(
+                name="running_vm_upgrade_a",
+                file_path=conftest_path,
+                function_calls={"lookup_iface_status"},
+            ),
+        }
+
+        is_affected, matching_deps = _check_conftest_pathway(
+            changed_file=changed_file,
+            marked_test=marked_test,
+            conftest_symbol_imports=conftest_symbol_imports,
+            conftest_opaque_deps={},
+            modified_symbols_cache=modified_symbols_cache,
+            fixtures_dict=fixtures_dict,
+            repo_root=repo_root,
+        )
+
+        assert not is_affected, (
+            f"Test should NOT be flagged when modified symbols don't overlap with "
+            f"intermediate imports, but got matching_deps={matching_deps}"
+        )

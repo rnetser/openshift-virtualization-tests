@@ -2080,6 +2080,48 @@ def _check_conftest_pathway(
         # Check if conftest imports specific symbols from the changed file
         conftest_syms = conftest_symbol_imports.get(conftest_path, {})
         if changed_file not in conftest_syms:
+            # Check transitive path: conftest -> intermediate -> changed_file
+            for intermediate_path, conftest_imported_from_intermediate in conftest_syms.items():
+                intermediate_syms = _extract_symbol_imports_from_file(file_path=intermediate_path, repo_root=repo_root)
+                if changed_file not in intermediate_syms:
+                    continue
+
+                # Transitive path found
+                classification = modified_symbols_cache.get(changed_file)
+                if classification is None:
+                    matching_deps.append(
+                        f"{changed_file.relative_to(repo_root)} (via "
+                        f"{intermediate_path.relative_to(repo_root)} -> "
+                        f"{conftest_path.relative_to(repo_root)}, diff unavailable)"
+                    )
+                    return True, matching_deps
+
+                intermediate_imported = intermediate_syms[changed_file]
+                overlapping = intermediate_imported & classification.modified_symbols
+                if not overlapping:
+                    conftest_resolved = True
+                    continue
+
+                # Modified symbols flow through intermediate — apply fixture narrowing
+                fixture_match = False
+                for fixture_name, fixture in fixtures_dict.items():
+                    if (
+                        fixture.file_path == conftest_path
+                        and fixture_name in marked_test.fixtures
+                        and fixture.function_calls & conftest_imported_from_intermediate
+                    ):
+                        symbols_str = ", ".join(sorted(fixture.function_calls & conftest_imported_from_intermediate))
+                        matching_deps.append(
+                            f"{changed_file.relative_to(repo_root)} (via "
+                            f"{intermediate_path.relative_to(repo_root)} -> fixture {fixture_name}: {symbols_str})"
+                        )
+                        fixture_match = True
+                        break
+
+                conftest_resolved = True
+                if fixture_match:
+                    return True, matching_deps
+
             continue
 
         # Conftest imports specific symbols from the changed file
