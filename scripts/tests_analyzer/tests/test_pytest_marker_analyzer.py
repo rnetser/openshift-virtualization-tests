@@ -1623,6 +1623,67 @@ class TestCheckConftestPathwayNoFixtureMatch:
             f"Should reference network_fixture, got {matching_deps}"
         )
 
+    def test_diff_unavailable_no_fixture_match_does_not_flag(self, tmp_path: Path) -> None:
+        """When the diff for the changed file is unavailable but no fixture used
+        by the test calls the imported symbols, the test should NOT be flagged.
+        Fixture narrowing should apply even without diff info.
+        """
+        repo_root = tmp_path
+        conftest_path = tmp_path / "tests" / "conftest.py"
+        conftest_path.parent.mkdir(parents=True)
+        conftest_path.touch()
+
+        changed_file = tmp_path / "utilities" / "storage.py"
+        changed_file.parent.mkdir(parents=True)
+        changed_file.touch()
+
+        test_file = tmp_path / "tests" / "test_csv.py"
+        test_file.touch()
+
+        marked_test = MarkedTest(
+            file_path=test_file,
+            test_name="test_csv_properties",
+            node_id="tests/test_csv.py::test_csv_properties",
+            dependencies={conftest_path},
+            fixtures={"csv_scope_session"},
+            symbol_imports={},
+        )
+
+        # Conftest imports wait_for_default_sc from the changed file
+        conftest_symbol_imports: dict[Path, dict[Path, set[str]]] = {
+            conftest_path: {changed_file: {"wait_for_default_sc_in_cdiconfig"}},
+        }
+
+        # Diff unavailable — classification is None
+        modified_symbols_cache: dict[Path, SymbolClassification | None] = {
+            changed_file: None,
+        }
+
+        # The fixture used by the test does NOT call wait_for_default_sc_in_cdiconfig
+        fixtures_dict: dict[str, Fixture] = {
+            "csv_scope_session": Fixture(
+                name="csv_scope_session",
+                file_path=conftest_path,
+                function_calls={"get_csv", "other_function"},
+            ),
+        }
+
+        is_affected, matching_deps = _check_conftest_pathway(
+            changed_file=changed_file,
+            marked_test=marked_test,
+            conftest_symbol_imports=conftest_symbol_imports,
+            conftest_opaque_deps={},
+            modified_symbols_cache=modified_symbols_cache,
+            fixtures_dict=fixtures_dict,
+            repo_root=repo_root,
+        )
+
+        assert not is_affected, (
+            f"Test should NOT be flagged when diff is unavailable and no fixture "
+            f"calls the imported symbols, but got matching_deps={matching_deps}"
+        )
+        assert matching_deps == []
+
 
 class TestRenamedFileHandling:
     """Tests that renamed files with no content changes do not flag tests as affected.

@@ -2120,44 +2120,38 @@ def _check_conftest_pathway(
         # Conftest imports specific symbols from the changed file
         conftest_imported = conftest_syms[changed_file]
         classification = modified_symbols_cache.get(changed_file)
-        if classification is None:
-            # Can't determine what changed — conservative: flag test
-            matching_deps.append(
-                f"{changed_file.relative_to(repo_root)} (via {conftest_path.relative_to(repo_root)}, diff unavailable)"
-            )
-            return True, matching_deps
 
-        overlapping = conftest_imported & classification.modified_symbols
-        if not overlapping:
-            # Conftest imports from this file but none of the modified symbols
-            # — this conftest pathway is resolved as safe
-            conftest_resolved = True
-            continue
+        if classification is not None:
+            overlapping = conftest_imported & classification.modified_symbols
+            if not overlapping:
+                # Conftest imports from this file but none of the modified symbols
+                # — this conftest pathway is resolved as safe
+                conftest_resolved = True
+                continue
 
-        # Overlap found — check if any fixture from this conftest calls the overlapping symbols
+        # Diff unavailable or modified symbols overlap — apply fixture narrowing
+        # Check if any fixture from this conftest calls the imported symbols
         # AND the test uses that fixture
+        symbols_to_check = (
+            conftest_imported if classification is None else conftest_imported & classification.modified_symbols
+        )
         fixture_match = False
         for fixture_name, fixture in fixtures_dict.items():
             if (
                 fixture.file_path == conftest_path
                 and fixture_name in marked_test.fixtures
-                and fixture.function_calls & overlapping
+                and fixture.function_calls & symbols_to_check
             ):
-                symbols_str = ", ".join(sorted(fixture.function_calls & overlapping))
+                symbols_str = ", ".join(sorted(fixture.function_calls & symbols_to_check))
                 matching_deps.append(
                     f"{changed_file.relative_to(repo_root)} (via fixture {fixture_name}: {symbols_str})"
                 )
                 fixture_match = True
                 break
 
-        if not fixture_match:
-            # Safe for this specific conftest path, but other conftest.py
-            # files higher in the hierarchy may still create a dependency.
-            conftest_resolved = True
-            continue
-
         conftest_resolved = True
-        return True, matching_deps
+        if fixture_match:
+            return True, matching_deps
 
     if not conftest_resolved:
         # No conftest pathway found — file-level fallback (conservative)
@@ -3845,8 +3839,9 @@ def main() -> int:
     )
     parser.add_argument(
         "--checkout",
-        action="store_true",
-        help="Clone and checkout the repository (for CI without pre-checkout)",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Clone and checkout the repository (default: enabled, use --no-checkout to disable)",
     )
     parser.add_argument(
         "--workdir",
