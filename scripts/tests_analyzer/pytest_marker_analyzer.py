@@ -816,7 +816,12 @@ class ImportVisitor(ast.NodeVisitor):
         if isinstance(test, ast.Name) and test.id == "TYPE_CHECKING":
             return True
         # ``if typing.TYPE_CHECKING:``
-        if isinstance(test, ast.Attribute) and test.attr == "TYPE_CHECKING":
+        if (
+            isinstance(test, ast.Attribute)
+            and isinstance(test.value, ast.Name)
+            and test.value.id == "typing"
+            and test.attr == "TYPE_CHECKING"
+        ):
             return True
         return False
 
@@ -2028,6 +2033,40 @@ def _analyze_single_test_dependencies(
     return dependencies, fixtures, symbol_imports
 
 
+def _expand_used_fixtures(
+    direct_fixtures: set[str],
+    fixtures_dict: dict[str, Fixture],
+) -> set[str]:
+    """Expand direct fixture names to include transitive fixture dependencies.
+
+    Follows ``Fixture.fixture_deps`` to build the full closure of fixtures
+    that will execute when the test runs, ensuring fixture narrowing
+    considers indirect fixture chains.
+
+    Args:
+        direct_fixtures: Fixture names directly used by the test.
+        fixtures_dict: Dictionary of all known fixtures.
+
+    Returns:
+        Set of all fixture names reachable from direct_fixtures.
+    """
+    used_fixtures = set(direct_fixtures)
+    pending = list(direct_fixtures)
+
+    while pending:
+        fixture_name = pending.pop()
+        fixture = fixtures_dict.get(fixture_name)
+        if fixture is None:
+            continue
+
+        for dependency_name in fixture.fixture_deps:
+            if dependency_name not in used_fixtures:
+                used_fixtures.add(dependency_name)
+                pending.append(dependency_name)
+
+    return used_fixtures
+
+
 def _check_conftest_pathway(
     changed_file: Path,
     marked_test: MarkedTest,
@@ -2063,6 +2102,7 @@ def _check_conftest_pathway(
     """
     matching_deps: list[str] = []
     conftest_resolved = False
+    used_fixtures = _expand_used_fixtures(direct_fixtures=marked_test.fixtures, fixtures_dict=fixtures_dict)
 
     for conftest_path in marked_test.dependencies:
         if conftest_path.name != "conftest.py":
@@ -2100,7 +2140,7 @@ def _check_conftest_pathway(
                 for fixture_name, fixture in fixtures_dict.items():
                     if (
                         fixture.file_path == conftest_path
-                        and fixture_name in marked_test.fixtures
+                        and fixture_name in used_fixtures
                         and fixture.function_calls & conftest_imported_from_intermediate
                     ):
                         symbols_str = ", ".join(sorted(fixture.function_calls & conftest_imported_from_intermediate))
@@ -2139,7 +2179,7 @@ def _check_conftest_pathway(
         for fixture_name, fixture in fixtures_dict.items():
             if (
                 fixture.file_path == conftest_path
-                and fixture_name in marked_test.fixtures
+                and fixture_name in used_fixtures
                 and fixture.function_calls & symbols_to_check
             ):
                 symbols_str = ", ".join(sorted(fixture.function_calls & symbols_to_check))

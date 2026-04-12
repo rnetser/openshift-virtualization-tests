@@ -1854,6 +1854,21 @@ class TestImportVisitorTypeChecking:
         assert "libs.vm.vm" not in visitor.imports
         assert "libs.fallback" in visitor.imports
 
+    def test_non_typing_type_checking_not_skipped(self):
+        source = textwrap.dedent("""\
+            import settings
+
+            from libs.net.ip import get_ip
+
+            if settings.TYPE_CHECKING:
+                from libs.vm.vm import BaseVirtualMachine
+        """)
+        tree = ast.parse(source)
+        visitor = ImportVisitor()
+        visitor.visit(node=tree)
+        assert "libs.net.ip" in visitor.imports
+        assert "libs.vm.vm" in visitor.imports
+
 
 class TestCheckConftestPathwayTransitive:
     """Transitive conftest narrowing: conftest -> intermediate -> changed_file."""
@@ -2134,3 +2149,82 @@ class TestCheckConftestPathwayTransitive:
             f"calls the intermediate module's symbols, but got matching_deps={matching_deps}"
         )
         assert matching_deps == []
+
+    def test_transitive_fixture_chain_flags_test(self, tmp_path: Path) -> None:
+        """When fixture_a depends on fixture_b and fixture_b calls the
+        intermediate module's symbols, the test should be flagged even though
+        the test only directly uses fixture_a.
+        """
+        repo_root = tmp_path
+
+        conftest_path = tmp_path / "tests" / "conftest.py"
+        conftest_path.parent.mkdir(parents=True)
+        conftest_path.touch()
+
+        intermediate_path = tmp_path / "libs" / "net" / "vmspec.py"
+        intermediate_path.parent.mkdir(parents=True, exist_ok=True)
+        intermediate_path.write_text(
+            "from libs.vm.vm import BaseVirtualMachine\n",
+            encoding="utf-8",
+        )
+
+        changed_file = tmp_path / "libs" / "vm" / "vm.py"
+        changed_file.parent.mkdir(parents=True, exist_ok=True)
+        changed_file.touch()
+
+        test_file = tmp_path / "tests" / "test_upgrade.py"
+        test_file.touch()
+
+        # Test only directly uses fixture_a, but fixture_a depends on fixture_b
+        marked_test = MarkedTest(
+            file_path=test_file,
+            test_name="test_upgrade_vm",
+            node_id="tests/test_upgrade.py::test_upgrade_vm",
+            dependencies={conftest_path, intermediate_path, changed_file},
+            fixtures={"fixture_a"},
+            symbol_imports={},
+        )
+
+        conftest_symbol_imports: dict[Path, dict[Path, set[str]]] = {
+            conftest_path: {intermediate_path: {"lookup_iface_status"}},
+        }
+
+        modified_symbols_cache: dict[Path, SymbolClassification | None] = {
+            changed_file: SymbolClassification(
+                modified_symbols={"BaseVirtualMachine"},
+                new_symbols=set(),
+            ),
+        }
+
+        # fixture_a depends on fixture_b, fixture_b calls lookup_iface_status
+        fixtures_dict: dict[str, Fixture] = {
+            "fixture_a": Fixture(
+                name="fixture_a",
+                file_path=conftest_path,
+                function_calls={"some_setup"},
+                fixture_deps={"fixture_b"},
+            ),
+            "fixture_b": Fixture(
+                name="fixture_b",
+                file_path=conftest_path,
+                function_calls={"lookup_iface_status"},
+                fixture_deps=set(),
+            ),
+        }
+
+        is_affected, matching_deps = _check_conftest_pathway(
+            changed_file=changed_file,
+            marked_test=marked_test,
+            conftest_symbol_imports=conftest_symbol_imports,
+            conftest_opaque_deps={},
+            modified_symbols_cache=modified_symbols_cache,
+            fixtures_dict=fixtures_dict,
+            repo_root=repo_root,
+        )
+
+        assert is_affected, (
+            "Test SHOULD be flagged when fixture_b (transitively used via fixture_a) "
+            "calls the intermediate module's symbols"
+        )
+        assert len(matching_deps) == 1
+        assert "lookup_iface_status" in matching_deps[0]
