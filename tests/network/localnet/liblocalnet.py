@@ -1,5 +1,4 @@
 import contextlib
-import logging
 from typing import Final, Generator
 
 from libs.net.traffic_generator import Client, Server
