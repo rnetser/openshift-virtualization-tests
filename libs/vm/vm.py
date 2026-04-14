@@ -4,12 +4,15 @@ import uuid
 from dataclasses import asdict
 from typing import Any
 
+import yaml
+from dacite import from_dict
 from kubernetes.dynamic import DynamicClient
 from ocp_resources.node import Node
 from ocp_resources.virtual_machine import VirtualMachine, VirtualMachineInstance
 from pytest_testconfig import config as py_config
 
 from libs.vm.spec import CloudInitNoCloud, ContainerDisk, Disk, SpecDisk, VMSpec, Volume
+from tests.network.libs import cloudinit
 from utilities import infra
 from utilities.constants import CLOUD_INIT_DISK_NAME
 from utilities.virt import get_oc_image_info, vm_console_run_commands
@@ -71,6 +74,19 @@ class BaseVirtualMachine(VirtualMachine):
         self.vmi.wait_for_condition(
             condition=VirtualMachineInstance.Condition.Type.AGENT_CONNECTED,
             status=VirtualMachineInstance.Condition.Status.TRUE,
+        )
+
+    @property
+    def cloud_init_network_data(self) -> cloudinit.NetworkData:
+        """Return the parsed cloud-init network data configured for this VM.
+
+        Returns:
+            NetworkData: The cloud-init network data as a dataclass.
+        """
+        volumes = {vol.name: vol for vol in self.instance.spec.template.spec.volumes}
+        return from_dict(
+            data_class=cloudinit.NetworkData,
+            data=yaml.safe_load(volumes[CLOUD_INIT_DISK_NAME].cloudInitNoCloud.networkData),
         )
 
 

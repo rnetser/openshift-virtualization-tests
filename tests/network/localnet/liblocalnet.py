@@ -1,5 +1,5 @@
 import contextlib
-from typing import Generator
+from typing import Final, Generator
 
 from libs.net.traffic_generator import Client, Server
 from libs.net.vmspec import IP_ADDRESS, add_network_interface, add_volume_disk, lookup_iface_status
@@ -15,6 +15,9 @@ LOCALNET_BR_EX_NETWORK = "localnet-br-ex-network"
 LOCALNET_OVS_BRIDGE_NETWORK = "localnet-ovs-network"
 LOCALNET_TEST_LABEL = {"test": "localnet"}
 _IPERF_SERVER_PORT = 5201
+GUEST_1ST_IFACE_NAME: Final[str] = "eth0"
+GUEST_2ND_IFACE_NAME: Final[str] = "eth1"
+GUEST_3RD_IFACE_NAME: Final[str] = "eth2"
 
 
 def run_vms(vms: tuple[BaseVirtualMachine, ...]) -> tuple[BaseVirtualMachine, ...]:
