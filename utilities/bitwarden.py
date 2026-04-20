@@ -34,21 +34,23 @@ def _run_bws_command(args: list[str]) -> Any:
     if not access_token:
         raise MissingEnvironmentVariableError("Bitwarden client needs ACCESS_TOKEN environment variable set up")
 
-    return _run_bws_cli(access_token=access_token, args=args)
+    return json.loads(_run_bws_cli(access_token=access_token, args=args))
 
 
 @retry(wait_timeout=60, sleep=10)
-def _run_bws_cli(access_token: str, args: list[str]) -> Any:
+def _run_bws_cli(access_token: str, args: list[str]) -> str:
     """Execute bws CLI command with retry on transient failures.
 
     Retries on any exception for up to 60 seconds with 10-second intervals.
+    Returns raw JSON string (always truthy) so the retry decorator does not
+    discard valid falsy parsed values like [] or {}.
 
     Args:
         access_token: Bitwarden access token
         args: Command arguments to pass to bws
 
     Returns:
-        Any: Parsed JSON response from bws CLI (always truthy for retry decorator)
+        str: Raw JSON response string from bws CLI
 
     Raises:
         TimeoutExpiredError: If bws CLI repeatedly fails within the retry window
@@ -64,7 +66,8 @@ def _run_bws_cli(access_token: str, args: list[str]) -> Any:
     if not success:
         raise RuntimeError(f"bws command failed: {stderr}")
 
-    return json.loads(stdout)
+    json.loads(stdout)  # Validate JSON before returning
+    return stdout
 
 
 @cache

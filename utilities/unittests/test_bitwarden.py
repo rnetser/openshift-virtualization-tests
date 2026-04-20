@@ -24,10 +24,10 @@ from utilities.exceptions import MissingEnvironmentVariableError
 _original_timeout_sampler_init = TimeoutSampler.__init__
 
 
-def _short_timeout_init(self, *args, **kwargs):
+def _short_timeout_init(self: TimeoutSampler, *args: object, **kwargs: object) -> None:
     """Override TimeoutSampler.__init__ to use short timeout for tests."""
-    kwargs["wait_timeout"] = 1
-    kwargs["sleep"] = 0
+    kwargs["wait_timeout"] = 0.05
+    kwargs["sleep"] = 0.01
     _original_timeout_sampler_init(self, *args, **kwargs)
 
 
