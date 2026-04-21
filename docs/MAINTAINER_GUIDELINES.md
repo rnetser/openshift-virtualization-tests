@@ -79,7 +79,7 @@ measure this.
 Listed in the `reviewers` section of an OWNERS file. You review PRs, typically in your area
 of expertise, and can use `/lgtm` (which is non-binding).
 
-### Component Approver (SIG Approver)
+### Component Approver (SIG Owner)
 
 Listed in the `approvers` section of a subdirectory OWNERS file (e.g., `tests/storage/OWNERS`).
 
