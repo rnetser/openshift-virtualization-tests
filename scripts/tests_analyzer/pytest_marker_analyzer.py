@@ -1,6 +1,5 @@
 #!/usr/bin/env -S uv run python
 
-# flake8: noqa: N802
 
 """
 Pytest Marker Analyzer
@@ -2011,7 +2010,7 @@ def _analyze_single_test_dependencies(
             to_visit = []
 
             for dep_file in current_level:
-                if dep_file in visited or not dep_file.suffix == ".py":
+                if dep_file in visited or dep_file.suffix != ".py":
                     continue
 
                 visited.add(dep_file)

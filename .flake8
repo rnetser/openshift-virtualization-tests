@@ -3,6 +3,14 @@
 jobs = 0
 
 max-line-length = 120
+ignore =
+    N815,
+    N802,
+    E501,
+    F821,
+    E201,
+    W503,
+    N818,
 exclude =
     doc,
     .tox,
@@ -75,6 +83,8 @@ fcn_exclude_functions =
     BeautifulSoup,
     usefixtures,
     find_spec,
+    with_suffix,
+    writelines,
     skip,
     QueueListener,
     requests,

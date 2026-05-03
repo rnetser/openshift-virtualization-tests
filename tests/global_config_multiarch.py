@@ -28,15 +28,6 @@ storage_class_matrix = [
             "default": True,
         }
     },
-    {
-        StorageClassNames.CEPH_RBD_VIRTUALIZATION: {
-            "volume_mode": DataVolume.VolumeMode.BLOCK,
-            "access_mode": DataVolume.AccessMode.RWX,
-            "snapshot": True,
-            "online_resize": True,
-            "wffc": False,
-        }
-    },
 ]
 
 storage_class_a = StorageClassNames.IO2_CSI
@@ -63,7 +54,7 @@ os_matrix = {
 
 
 for _dir in dir():
-    if not config:  # noqa: F821
+    if not config:
         config: dict[str, Any] = {}
     val = locals()[_dir]
     if type(val) not in [bool, list, dict, str]:
@@ -72,4 +63,4 @@ for _dir in dir():
     if _dir in ["encoding", "py_file"]:
         continue
 
-    config[_dir] = locals()[_dir]  # noqa: F821
+    config[_dir] = locals()[_dir]

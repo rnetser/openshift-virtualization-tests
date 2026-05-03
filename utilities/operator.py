@@ -293,7 +293,7 @@ def collect_mcp_data_on_update_timeout(machine_config_pools_list, not_matching_m
     LOGGER.error(
         f"Out of MCPs {mcps_to_check}, following MCPs {not_matching_mcps} were not at desired "
         f"condition {condition_type} before timeout.\n"
-        f"Current MCP status={str({mcp.name: mcp.instance.status.conditions for mcp in machine_config_pools_list})}"
+        f"Current MCP status={ {mcp.name: mcp.instance.status.conditions for mcp in machine_config_pools_list}!s}"
     )
     collect_ocp_must_gather(since_time=since_time)
 
@@ -722,7 +722,7 @@ def get_generated_icsp_idms(
     filter_options: str = "",
 ) -> str:
     pull_secret = None
-    if image_url.startswith(tuple([BREW_REGISTERY_SOURCE, "quay.io"])):
+    if image_url.startswith((BREW_REGISTERY_SOURCE, "quay.io")):
         registry_source = BREW_REGISTERY_SOURCE
         pull_secret = generated_pulled_secret
     cnv_mirror_cmd = create_icsp_idms_command(
