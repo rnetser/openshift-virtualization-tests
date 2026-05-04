@@ -338,7 +338,7 @@ def get_numa_cpu_allocation(vm_cpus, numa_nodes):
                 cpus.append(elem)
         return cpus
 
-    for node in numa_nodes.keys():
+    for node in numa_nodes:
         if all(cpu in _parse_ranges_to_list(ranges=numa_nodes[node]) for cpu in vm_cpus):
             return node
 

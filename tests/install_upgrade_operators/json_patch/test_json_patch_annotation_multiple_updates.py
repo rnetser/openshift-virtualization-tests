@@ -110,17 +110,17 @@ class TestMultipleJsonPatch:
             )
             for component in [COMPONENT_CDI, COMPONENT_KUBEVIRT]
         }
-        for component_name in component_metrics_dict:
+        for component_name, previous_value in component_metrics_dict.items():
             LOGGER.info(f"Waiting for metrics: {QUERY_STRING} for component: {component_name}")
             wait_for_metrics_value_update(
                 prometheus=prometheus,
                 component_name=component_name,
                 query_string=QUERY_STRING,
-                previous_value=component_metrics_dict[component_name],
+                previous_value=previous_value,
             )
 
     @pytest.mark.polarion("CNV-8813")
     def test_multiple_json_patch_alert(self, prometheus):
-        for component in COMPONENT_DICT.keys():
+        for component in COMPONENT_DICT:
             LOGGER.info(f"Waiting for alert: {ALERT_NAME} for component: {component}")
             wait_for_alert(prometheus=prometheus, alert_name=ALERT_NAME, component_name=component)

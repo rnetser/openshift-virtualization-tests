@@ -52,7 +52,7 @@ def global_permission_from_csv(cnv_operators_matrix__function__, csv_permissions
 
 @pytest.fixture(scope="module")
 def operators_from_csv(csv_permissions):
-    return {service_account_name for service_account_name, all_permissions in csv_permissions.items()}
+    return {service_account_name for service_account_name in csv_permissions}
 
 
 @pytest.fixture(scope="module")
@@ -66,7 +66,7 @@ def csv_permissions(admin_client):
 
 @pytest.mark.polarion("CNV-9805")
 def test_new_operator_in_csv(operators_from_csv):
-    assert sorted(list(operators_from_csv)) == sorted(CNV_OPERATORS), (
+    assert sorted(operators_from_csv) == sorted(CNV_OPERATORS), (
         f"Expected cnv operators:{CNV_OPERATORS} does not match operators {operators_from_csv} "
     )
 
@@ -90,7 +90,7 @@ def test_global_csv_permissions(cnv_operators_matrix__function__, global_permiss
             errors[key] = error_list
     if errors:
         LOGGER.error(yaml.dump(errors))
-        if cnv_operators_matrix__function__ in JIRA_LINKS.keys() and is_jira_open(
+        if cnv_operators_matrix__function__ in JIRA_LINKS and is_jira_open(
             jira_id=JIRA_LINKS[cnv_operators_matrix__function__]
         ):
             pytest.xfail(error_message)

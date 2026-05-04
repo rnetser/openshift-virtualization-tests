@@ -1617,7 +1617,7 @@ class DashboardGenerator:
         first_tab = True
         repo_index = 0
 
-        for _, version_stats_list in self.repo_stats.items():
+        for version_stats_list in self.repo_stats.values():
             repo_index += 1
             repo_id = f"repo{repo_index}"
 

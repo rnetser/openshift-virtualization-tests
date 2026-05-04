@@ -999,8 +999,7 @@ def wait_for_node_marked_by_bridge(bridge_nad: LinuxBridgeNetworkAttachmentDefin
         wait_timeout=TIMEOUT_3MIN,
         sleep=5,
         func=lambda: (
-            bridge_annotation in node.instance.status.capacity.keys()
-            and bridge_annotation in node.instance.status.allocatable.keys()
+            bridge_annotation in node.instance.status.capacity and bridge_annotation in node.instance.status.allocatable
         ),
     )
     try:
