@@ -334,34 +334,11 @@ pod image tags, or log output under `build-artifacts/`.
 If a version still cannot be determined, mark as `unknown`.
 Do NOT skip this step — the environment block MUST appear in every `details` field.
 
-**STEP 3:** In the `artifacts_evidence` field, the first entries MUST be
-ALL version lines from `run-info.json` — one line per field. These version
-lines ARE evidence that supports the analysis (they establish the
-environment context). Do NOT filter them for relevance — include ALL of
-them:
-
-```
-[build-artifacts/run-info.json]: "openshiftVersion":"4.22.0-rc.2"
-[build-artifacts/run-info.json]: "cnvVersion":"4.22.0"
-[build-artifacts/run-info.json]: "bundleVersion":"v4.22.0.rhel9-149"
-[build-artifacts/run-info.json]: "kubevirtVersion":"v1.8.2-34-g9ff3b29bc2"
-[build-artifacts/run-info.json]: "cdiVersion":"v1.65.0-2-ge83df1593"
-[build-artifacts/run-info.json]: "kubernetesVersion":"v1.35.3"
-[build-artifacts/run-info.json]: "ocsVersion":"4.22.0-70.stable"
-[build-artifacts/run-info.json]: "networkType":"OVNKubernetes"
-[build-artifacts/run-info.json]: "hcoImage":"registry.redhat.io/..."
-[build-artifacts/run-info.json]: "testImage":"quay.io/openshift-cnv/..."
-```
-
-Do NOT omit any version or image field. Then continue with the
-failure-specific evidence lines.
-
 ### Self-Verification (MANDATORY)
 
 Before submitting your JSON response, verify:
 1. Does `details` start with "Environment:" on the first line? If NO, fix it.
-2. Does `artifacts_evidence` contain at least 5 separate `[build-artifacts/run-info.json]` lines? If NO, fix it.
-3. Are version lines in `artifacts_evidence` each on their own line (not combined)? If NO, fix it.
+2. Does the Environment block list ALL version fields from `run-info.json`? If NO, add the missing ones.
 
 **CRITICAL: Never dismiss or skip warnings, conditions, or errors found in the data.**
 Every warning, condition entry, and error message in VirtualMachine, VMI, DataVolume,
@@ -624,6 +601,12 @@ If `build-artifacts/run-info.json` does not contain a needed component version,
 check `build-artifacts/` for version evidence (CSV names, operator pod image
 tags, log output). If not found there, check `additional_repos` for the
 component's source repo context.
+
+## FINAL REMINDER — READ THIS LAST
+
+**You MUST include ALL component versions from `run-info.json` in the
+`details` Environment block. Not just the relevant ones — ALL of them.
+If you only included 3 versions, go back and add the rest NOW.**
 
 [ocp-virt-doc]: https://docs.redhat.com/en/documentation/red_hat_openshift_virtualization/
 [kubevirt-repo]: https://github.com/kubevirt/kubevirt
