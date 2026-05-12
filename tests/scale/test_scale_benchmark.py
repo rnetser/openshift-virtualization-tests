@@ -110,7 +110,7 @@ def delete_resources(resources):
 def save_must_gather_logs(must_gather_image_url):
     logs_path = os.path.join(
         os.path.expanduser("~"),
-        f"must_gather_{datetime.datetime.now(tz=datetime.timezone.utc).strftime('%Y_%m_%d_%H_%M_%S')}",
+        f"must_gather_{datetime.datetime.now(tz=datetime.UTC).strftime('%Y_%m_%d_%H_%M_%S')}",
     )
     os.makedirs(logs_path)
     return run_must_gather(

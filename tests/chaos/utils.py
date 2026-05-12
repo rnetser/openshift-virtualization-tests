@@ -6,7 +6,7 @@ import random
 import threading
 import time
 from contextlib import contextmanager
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from kubernetes.dynamic.exceptions import ResourceNotFoundError
 from ocp_resources.daemonset import DaemonSet
@@ -238,7 +238,7 @@ def collect_cluster_health_info(client, hco_namespace, additional_namespaces):
 
     log_content = json.dumps(
         {
-            f"{datetime.now(tz=timezone.utc).strftime('%Y/%m/%d %H:%M:%S')}": [
+            f"{datetime.now(tz=UTC).strftime('%Y/%m/%d %H:%M:%S')}": [
                 pods_status,
                 deployments_replicas,
                 daemonset_replicas,
