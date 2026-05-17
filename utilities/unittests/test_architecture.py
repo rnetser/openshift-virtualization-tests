@@ -147,3 +147,24 @@ class TestGetClusterArchitecture:
                 match="Cluster architecture could not be determined",
             ):
                 get_cluster_architecture()
+
+    def test_get_cluster_architecture_skips_cluster_on_help_flag(self):
+        """Test that --help flag skips cluster connection and returns default architecture"""
+        with patch.dict(in_dict=os.environ, values={}, clear=True), patch("utilities.architecture.sys") as mock_sys:
+            mock_sys.argv = ["pytest", "--help"]
+            result = get_cluster_architecture()
+            assert result == {"amd64"}
+
+    def test_get_cluster_architecture_skips_cluster_on_short_help_flag(self):
+        """Test that -h flag skips cluster connection and returns default architecture"""
+        with patch.dict(in_dict=os.environ, values={}, clear=True), patch("utilities.architecture.sys") as mock_sys:
+            mock_sys.argv = ["pytest", "-h"]
+            result = get_cluster_architecture()
+            assert result == {"amd64"}
+
+    def test_get_cluster_architecture_skips_cluster_on_version_flag(self):
+        """Test that --version flag skips cluster connection and returns default architecture"""
+        with patch.dict(in_dict=os.environ, values={}, clear=True), patch("utilities.architecture.sys") as mock_sys:
+            mock_sys.argv = ["pytest", "--version"]
+            result = get_cluster_architecture()
+            assert result == {"amd64"}
