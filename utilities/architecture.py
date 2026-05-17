@@ -29,9 +29,10 @@ def get_cluster_architecture() -> set[str]:
     if arch := os.environ.get("OPENSHIFT_VIRTUALIZATION_TEST_IMAGES_ARCH"):
         return {arch}
 
-    # Skip cluster connection for pytest flags that exit immediately without collecting tests
+    # Skip cluster connection for pytest flags that exit immediately without collecting tests.
+    # Guard: only applies when invoked via pytest to avoid masking real detection in other contexts.
     _pytest_exit_flags = {"--help", "-h", "--version"}
-    if not _pytest_exit_flags.isdisjoint(sys.argv):
+    if os.path.basename(sys.argv[0]) in ("pytest", "py.test") and not _pytest_exit_flags.isdisjoint(sys.argv):
         return {"amd64"}
 
     # cache_admin_client is used here as this function is used to get the architecture when initialing pytest config
