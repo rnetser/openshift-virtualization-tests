@@ -133,12 +133,21 @@ def config_default_storage_class(session):
     # Update only if the requested default sc is not the same as set in global_config
     if updated_default_sc and updated_default_sc != global_config_default_sc:
         py_config["default_storage_class"] = updated_default_sc
-        default_storage_class_configuration = [
+        matching_configurations = [
             sc_dict
             for sc in py_config["storage_class_matrix"]
             for sc_name, sc_dict in sc.items()
             if sc_name == updated_default_sc
-        ][0]
+        ]
+
+        if not matching_configurations:
+            available_sc_names = [sc_name for sc in py_config.get("system_storage_class_matrix", []) for sc_name in sc]
+            raise ValueError(
+                f"Storage class '{updated_default_sc}' not found in storage_class_matrix. "
+                f"Available storage classes: {available_sc_names}"
+            )
+
+        default_storage_class_configuration = matching_configurations[0]
 
         py_config["default_volume_mode"] = default_storage_class_configuration["volume_mode"]
         py_config["default_access_mode"] = default_storage_class_configuration["access_mode"]
