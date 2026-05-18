@@ -342,6 +342,27 @@ class TestConfigDefaultStorageClass:
         # Should remain unchanged
         assert py_config["default_storage_class"] == "original-sc"
 
+    @patch(
+        "utilities.pytest_utils.py_config",
+        {
+            "default_storage_class": "original-sc",
+            "storage_class_matrix": [
+                {"existing-sc-1": {"volume_mode": "Filesystem", "access_mode": "ReadWriteOnce"}},
+                {"existing-sc-2": {"volume_mode": "Block", "access_mode": "ReadWriteMany"}},
+            ],
+        },
+    )
+    def test_config_default_storage_class_not_found_raises_error(self):
+        """Test ValueError when requested storage class is not in the matrix"""
+        mock_session = MagicMock()
+        mock_session.config.getoption.side_effect = lambda name: {
+            "default_storage_class": "nonexistent-sc",
+            "storage_class_matrix": None,
+        }.get(name)
+
+        with pytest.raises(ValueError, match="nonexistent-sc"):
+            config_default_storage_class(mock_session)
+
 
 class TestSeparator:
     """Test cases for separator function"""

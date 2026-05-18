@@ -141,7 +141,7 @@ def config_default_storage_class(session):
         ]
 
         if not matching_configurations:
-            available_sc_names = [sc_name for sc in py_config.get("system_storage_class_matrix", []) for sc_name in sc]
+            available_sc_names = [sc_name for sc in py_config["storage_class_matrix"] for sc_name in sc]
             raise ValueError(
                 f"Storage class '{updated_default_sc}' not found in storage_class_matrix. "
                 f"Available storage classes: {available_sc_names}"
