@@ -240,7 +240,7 @@ def data_sources_managed_by_data_import_crons_scope_function(
     return [
         data_source
         for data_source in golden_images_data_sources_scope_function
-        if DATA_SOURCE_MANAGED_BY_CDI_LABEL in data_source.labels
+        if DATA_SOURCE_MANAGED_BY_CDI_LABEL in data_source.labels.keys()
     ]
 
 

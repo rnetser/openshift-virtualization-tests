@@ -694,7 +694,7 @@ class VirtualMachineForTests(VirtualMachine):
             )
 
     def _is_vm_from_template(self):
-        return f"{self.ApiGroup.VM_KUBEVIRT_IO}/template" in self.res["metadata"].setdefault("labels", {})
+        return f"{self.ApiGroup.VM_KUBEVIRT_IO}/template" in self.res["metadata"].setdefault("labels", {}).keys()
 
     def generate_body(self):
         if self.body:
@@ -1423,7 +1423,7 @@ class VirtualMachineForTestsFromTemplate(VirtualMachineForTests):
     def _update_vm_storage_config(self, spec, name):
         # volume name should be updated
         for volume in spec["volumes"]:
-            if "dataVolume" in volume:
+            if "dataVolume" in volume.keys():
                 volume["dataVolume"]["name"] = name
 
         return spec
@@ -1849,7 +1849,7 @@ def running_vm(
         "Internal error occurred: unable to complete request: stop/start already underway",
     ]
     vm_dv_volumes_names_list = [
-        volume.dataVolume.name for volume in vm.instance.spec.template.spec.volumes if "dataVolume" in volume
+        volume.dataVolume.name for volume in vm.instance.spec.template.spec.volumes if "dataVolume" in volume.keys()
     ]
 
     try:

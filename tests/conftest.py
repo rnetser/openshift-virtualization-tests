@@ -445,7 +445,7 @@ def schedulable_nodes(nodes):
     yield [
         node
         for node in nodes
-        if schedulable_label in node.labels
+        if schedulable_label in node.labels.keys()
         and node.labels[schedulable_label] == "true"
         and not node.instance.spec.unschedulable
         and not kubernetes_taint_exists(node)

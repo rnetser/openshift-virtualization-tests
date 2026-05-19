@@ -143,7 +143,7 @@ def os_base_templates(request, base_templates):
     os_templates = [
         template
         for template in base_templates
-        if any(label.startswith(f"{Template.Labels.OS}/{os_name}") for label in template.labels)
+        if any(label.startswith(f"{Template.Labels.OS}/{os_name}") for label in template.labels.keys())
     ]
     assert os_templates, f"No {os_name} templates found"
     return os_templates

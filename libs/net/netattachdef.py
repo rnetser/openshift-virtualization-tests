@@ -61,7 +61,7 @@ class CNIPluginBridgeConfig(CNIPluginConfig):
     mtu: int | None = None
     vlan: int | None = None
     macspoofchk: bool | None = None
-    disableContainerInterface: bool | None = None
+    disableContainerInterface: bool | None = None  # noqa: N815
 
 
 @dataclass
@@ -76,8 +76,8 @@ class CNIPluginOvnK8sConfig(CNIPluginConfig):
 
     type: str = field(default="ovn-k8s-cni-overlay", init=False)
     topology: str
-    netAttachDefName: str
-    vlanID: int | None = None
+    netAttachDefName: str  # noqa: N815
+    vlanID: int | None = None  # noqa: N815
     subnets: str | None = None
 
     class Topology(Enum):
@@ -92,10 +92,10 @@ class CNIPluginBandwidthConfig(CNIPluginConfig):
     """
 
     type: str = field(default="bandwidth", init=False)
-    ingressRate: int
-    ingressBurst: int
-    egressRate: int
-    egressBurst: int
+    ingressRate: int  # noqa: N815
+    ingressBurst: int  # noqa: N815
+    egressRate: int  # noqa: N815
+    egressBurst: int  # noqa: N815
 
 
 @dataclass
@@ -120,7 +120,7 @@ class NetConfig:
 
     name: str
     plugins: list[CNIPluginConfig]
-    cniVersion: str = _DEFAULT_CNI_VERSION
+    cniVersion: str = _DEFAULT_CNI_VERSION  # noqa: N815
 
 
 class NetworkAttachmentDefinition(NamespacedResource):

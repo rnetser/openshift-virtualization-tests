@@ -143,7 +143,7 @@ def build_namespaces_spec_for_storage_migration(
         # Get volume names from VM spec
         target_migration_pvcs = []
         for volume in vm.instance.spec.template.spec.volumes:
-            if "dataVolume" in volume:
+            if "dataVolume" in volume.keys():
                 target_migration_pvcs.append({
                     "volumeName": volume.name,
                     "destinationPVC": {

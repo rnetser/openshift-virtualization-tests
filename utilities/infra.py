@@ -752,7 +752,7 @@ def get_machine_platform():
 
 
 def get_nodes_with_label(nodes, label):
-    return [node for node in nodes if label in node.labels]
+    return [node for node in nodes if label in node.labels.keys()]
 
 
 def get_daemonset_yaml_file_with_image_hash(generated_pulled_secret=None, service_account=None):

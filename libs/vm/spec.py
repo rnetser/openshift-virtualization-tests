@@ -9,7 +9,7 @@ from ocp_resources.virtual_machine import VirtualMachine
 @dataclass
 class VMSpec:
     template: Template
-    runStrategy: str = VirtualMachine.RunStrategy.HALTED
+    runStrategy: str = VirtualMachine.RunStrategy.HALTED  # noqa: N815
 
 
 @dataclass
@@ -29,7 +29,7 @@ class VMISpec:
     domain: Domain
     networks: list[Network] | None = None
     volumes: list[Volume] | None = None
-    terminationGracePeriodSeconds: int | None = None
+    terminationGracePeriodSeconds: int | None = None  # noqa: N815
     affinity: Affinity | None = None
 
 
@@ -74,7 +74,7 @@ class Interface:
     masquerade: dict[Any, Any] | None = None
     bridge: dict[Any, Any] | None = None
     sriov: dict[Any, Any] | None = None
-    passtBinding: dict[Any, Any] | None = None
+    passtBinding: dict[Any, Any] | None = None  # noqa: N815
     binding: NetBinding | None = None
     state: str | None = None
 
@@ -93,30 +93,30 @@ class Network:
 
 @dataclass
 class Multus:
-    networkName: str
+    networkName: str  # noqa: N815
 
 
 @dataclass
 class Affinity:
-    podAntiAffinity: PodAntiAffinity | None = None
+    podAntiAffinity: PodAntiAffinity | None = None  # noqa: N815
 
 
 @dataclass
 class PodAntiAffinity:
-    requiredDuringSchedulingIgnoredDuringExecution: list[PodAffinityTerm]
+    requiredDuringSchedulingIgnoredDuringExecution: list[PodAffinityTerm]  # noqa: N815
 
 
 @dataclass
 class PodAffinityTerm:
-    labelSelector: LabelSelector
-    topologyKey: str
-    namespaceSelector: dict[str, Any] | None = None
+    labelSelector: LabelSelector  # noqa: N815
+    topologyKey: str  # noqa: N815
+    namespaceSelector: dict[str, Any] | None = None  # noqa: N815
     namespaces: list[str] | None = None
 
 
 @dataclass
 class LabelSelector:
-    matchExpressions: list[LabelSelectorRequirement]
+    matchExpressions: list[LabelSelectorRequirement]  # noqa: N815
 
 
 @dataclass
@@ -129,8 +129,8 @@ class LabelSelectorRequirement:
 @dataclass
 class Volume:
     name: str
-    containerDisk: ContainerDisk | None = None
-    cloudInitNoCloud: CloudInitNoCloud | None = None
+    containerDisk: ContainerDisk | None = None  # noqa: N815
+    cloudInitNoCloud: CloudInitNoCloud | None = None  # noqa: N815
 
 
 @dataclass
@@ -140,5 +140,5 @@ class ContainerDisk:
 
 @dataclass
 class CloudInitNoCloud:
-    networkData: str
-    userData: str | None = None
+    networkData: str  # noqa: N815
+    userData: str | None = None  # noqa: N815

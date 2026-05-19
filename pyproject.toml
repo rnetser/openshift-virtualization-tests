@@ -8,6 +8,9 @@ output-format = "grouped"
 exclude = [".git", ".venv", ".mypy_cache", ".tox", "__pycache__"]
 
 [tool.ruff.lint]
+extend-select = [
+  "N815",    # mixedCase variable in class scope — enabled so # noqa: N815 on k8s-matching dataclass fields is valid
+]
 # TODO: Each ignored rule below should be addressed in a dedicated PR.
 ignore = [
   "SIM102",  # collapsible-if — nested ifs are often more readable
@@ -31,6 +34,8 @@ ignore = [
   "B023",    # loop variable not bound in function — needs careful refactor
   "G201",    # .error(exc_info=True) vs .exception()
   "SIM115",  # context manager for file opening — may need structural changes
+  "SIM118",  # in-dict-keys — k8s resource fields require explicit .keys() (not plain dicts)
+  "PERF102", # incorrect-dict-iterator — k8s resource fields require explicit .keys()/.items()
 ]
 
 [tool.ruff.lint.per-file-ignores]
