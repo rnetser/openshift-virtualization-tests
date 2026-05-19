@@ -121,6 +121,6 @@ class TestMultipleJsonPatch:
 
     @pytest.mark.polarion("CNV-8813")
     def test_multiple_json_patch_alert(self, prometheus):
-        for component in COMPONENT_DICT:
+        for component in COMPONENT_DICT.keys():
             LOGGER.info(f"Waiting for alert: {ALERT_NAME} for component: {component}")
             wait_for_alert(prometheus=prometheus, alert_name=ALERT_NAME, component_name=component)

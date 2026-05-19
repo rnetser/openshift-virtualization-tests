@@ -1423,7 +1423,7 @@ class VirtualMachineForTestsFromTemplate(VirtualMachineForTests):
     def _update_vm_storage_config(self, spec, name):
         # volume name should be updated
         for volume in spec["volumes"]:
-            if "dataVolume" in volume.keys():
+            if "dataVolume" in volume:
                 volume["dataVolume"]["name"] = name
 
         return spec

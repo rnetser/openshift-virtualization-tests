@@ -430,7 +430,7 @@ def test_vm_annotations_in_template(base_templates):
             if not (
                 (
                     annotation_name == Template.VMAnnotations.OS
-                    and [True for label in template_labels if label_name in label]
+                    and [True for label in template_labels.keys() if label_name in label]
                 )
                 or template_labels.get(label_name)
             ):

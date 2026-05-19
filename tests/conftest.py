@@ -670,7 +670,7 @@ def nodes_active_nics(
 
 @pytest.fixture(scope="session")
 def nodes_available_nics(nodes_active_nics):
-    return {node: nodes_active_nics[node]["available"] for node in nodes_active_nics}
+    return {node: nodes_active_nics[node]["available"] for node in nodes_active_nics.keys()}
 
 
 @pytest.fixture(scope="module")

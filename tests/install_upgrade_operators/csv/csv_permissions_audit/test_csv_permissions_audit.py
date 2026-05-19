@@ -52,7 +52,7 @@ def global_permission_from_csv(cnv_operators_matrix__function__, csv_permissions
 
 @pytest.fixture(scope="module")
 def operators_from_csv(csv_permissions):
-    return set(csv_permissions.keys())
+    return {service_account_name for service_account_name, all_permissions in csv_permissions.items()}
 
 
 @pytest.fixture(scope="module")
@@ -90,7 +90,7 @@ def test_global_csv_permissions(cnv_operators_matrix__function__, global_permiss
             errors[key] = error_list
     if errors:
         LOGGER.error(yaml.dump(errors))
-        if cnv_operators_matrix__function__ in JIRA_LINKS and is_jira_open(
+        if cnv_operators_matrix__function__ in JIRA_LINKS.keys() and is_jira_open(
             jira_id=JIRA_LINKS[cnv_operators_matrix__function__]
         ):
             pytest.xfail(error_message)
