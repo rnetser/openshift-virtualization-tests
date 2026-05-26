@@ -350,6 +350,10 @@ class TestConfigDefaultStorageClass:
                 {"existing-sc-1": {"volume_mode": "Filesystem", "access_mode": "ReadWriteOnce"}},
                 {"existing-sc-2": {"volume_mode": "Block", "access_mode": "ReadWriteMany"}},
             ],
+            "system_storage_class_matrix": [
+                {"existing-sc-1": {"volume_mode": "Filesystem", "access_mode": "ReadWriteOnce"}},
+                {"existing-sc-2": {"volume_mode": "Block", "access_mode": "ReadWriteMany"}},
+            ],
         },
     )
     def test_config_default_storage_class_not_found_raises_error(self):
