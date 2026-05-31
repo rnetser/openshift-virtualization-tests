@@ -149,7 +149,7 @@ def config_default_storage_class(session):
 
         if not matching_configurations:
             raise ValueError(
-                f"Storage class '{updated_default_sc}' not found in system storage class matrix. "
+                f"Default storage class '{updated_default_sc}' not found in system storage class matrix. "
                 f"Available storage classes: {available_sc_names}"
             )
 

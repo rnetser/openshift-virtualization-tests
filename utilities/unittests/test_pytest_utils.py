@@ -384,7 +384,7 @@ class TestConfigDefaultStorageClass:
 
         with pytest.raises(
             ValueError,
-            match=r"nonexistent-sc.*Available storage classes: \['existing-sc-1', 'existing-sc-2'\]",
+            match=r"Default storage class 'nonexistent-sc' not found.*Available storage classes: \['existing-sc-1', 'existing-sc-2'\]",
         ):
             config_default_storage_class(mock_session)
 
