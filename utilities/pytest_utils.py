@@ -126,8 +126,7 @@ def config_default_storage_class(session):
         updated_default_sc = cmd_default_storage_class
     elif cmdline_storage_class_matrix:
         cmdline_storage_class_matrix = cmdline_storage_class_matrix.split(",")
-        invalid_sc_names = set(cmdline_storage_class_matrix) - set(available_sc_names)
-        if invalid_sc_names:
+        if invalid_sc_names := set(cmdline_storage_class_matrix) - set(available_sc_names):
             raise ValueError(
                 f"Storage class(es) {sorted(invalid_sc_names)} from --storage-class-matrix not found. "
                 f"Available storage classes: {available_sc_names}"
