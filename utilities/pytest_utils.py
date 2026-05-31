@@ -108,6 +108,43 @@ def get_matrix_params(pytest_config, matrix_name):
     return _matrix_params if isinstance(_matrix_params, list) else [_matrix_params]
 
 
+def _validate_storage_class_options(
+    cmd_default_storage_class: str | None,
+    cmdline_storage_class_matrix: list[str] | None,
+    available_sc_names: list[str],
+) -> None:
+    """Validates that storage class CLI options reference existing storage classes.
+
+    Args:
+        cmd_default_storage_class: Value from --default-storage-class CLI option.
+        cmdline_storage_class_matrix: Parsed values from --storage-class-matrix CLI option.
+        available_sc_names: Storage class names from system_storage_class_matrix.
+
+    Raises:
+        ValueError: If any storage class name is not found in the system matrix.
+    """
+    if cmdline_storage_class_matrix:
+        if invalid_sc_names := set(cmdline_storage_class_matrix) - set(available_sc_names):
+            raise ValueError(
+                f"Storage class(es) {sorted(invalid_sc_names)} from --storage-class-matrix not found. "
+                f"Available storage classes: {available_sc_names}"
+            )
+    if cmd_default_storage_class and cmd_default_storage_class not in available_sc_names:
+        raise ValueError(
+            f"Default storage class '{cmd_default_storage_class}' not found in system storage class matrix. "
+            f"Available storage classes: {available_sc_names}"
+        )
+    if (
+        cmd_default_storage_class
+        and cmdline_storage_class_matrix
+        and cmd_default_storage_class not in cmdline_storage_class_matrix
+    ):
+        raise ValueError(
+            f"Default storage class '{cmd_default_storage_class}' not in --storage-class-matrix. "
+            f"Matrix storage classes: {cmdline_storage_class_matrix}"
+        )
+
+
 def config_default_storage_class(session):
     # Default storage class selection order:
     # 1. --default-storage-class from command line
@@ -121,20 +158,20 @@ def config_default_storage_class(session):
     cmdline_storage_class_matrix = session.config.getoption(name="storage_class_matrix")
     system_storage_class_matrix = py_config["system_storage_class_matrix"]
     available_sc_names = [sc_name for sc in system_storage_class_matrix for sc_name in sc]
+
+    parsed_cmdline_matrix = cmdline_storage_class_matrix.split(",") if cmdline_storage_class_matrix else None
+    _validate_storage_class_options(
+        cmd_default_storage_class=cmd_default_storage_class,
+        cmdline_storage_class_matrix=parsed_cmdline_matrix,
+        available_sc_names=available_sc_names,
+    )
+
     updated_default_sc = None
     if cmd_default_storage_class:
         updated_default_sc = cmd_default_storage_class
-    elif cmdline_storage_class_matrix:
-        cmdline_storage_class_matrix = cmdline_storage_class_matrix.split(",")
-        if invalid_sc_names := set(cmdline_storage_class_matrix) - set(available_sc_names):
-            raise ValueError(
-                f"Storage class(es) {sorted(invalid_sc_names)} from --storage-class-matrix not found. "
-                f"Available storage classes: {available_sc_names}"
-            )
+    elif parsed_cmdline_matrix:
         updated_default_sc = (
-            global_config_default_sc
-            if global_config_default_sc in cmdline_storage_class_matrix
-            else cmdline_storage_class_matrix[0]
+            global_config_default_sc if global_config_default_sc in parsed_cmdline_matrix else parsed_cmdline_matrix[0]
         )
 
     # Update only if the requested default sc is not the same as set in global_config
@@ -146,12 +183,6 @@ def config_default_storage_class(session):
             for sc_name, sc_dict in sc.items()
             if sc_name == updated_default_sc
         ]
-
-        if not matching_configurations:
-            raise ValueError(
-                f"Default storage class '{updated_default_sc}' not found in system storage class matrix. "
-                f"Available storage classes: {available_sc_names}"
-            )
 
         default_storage_class_configuration = matching_configurations[0]
 
