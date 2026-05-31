@@ -486,81 +486,108 @@ class TestConfigDefaultStorageClass:
 class TestValidateStorageClassOptions:
     """Test cases for _validate_storage_class_options function"""
 
+    @patch(
+        "utilities.pytest_utils.py_config",
+        {"system_storage_class_matrix": [{"sc-1": {}}, {"sc-2": {}}, {"sc-3": {}}]},
+    )
     def test_valid_matrix_and_default(self):
         """Test no error when all values are valid"""
         _validate_storage_class_options(
             cmd_default_storage_class="sc-1",
             cmdline_storage_class_matrix=["sc-1", "sc-2"],
-            available_sc_names=["sc-1", "sc-2", "sc-3"],
         )
 
+    @patch(
+        "utilities.pytest_utils.py_config",
+        {"system_storage_class_matrix": [{"sc-1": {}}, {"sc-2": {}}]},
+    )
     def test_valid_matrix_no_default(self):
         """Test no error when matrix is valid and no default is specified"""
         _validate_storage_class_options(
             cmd_default_storage_class=None,
             cmdline_storage_class_matrix=["sc-1", "sc-2"],
-            available_sc_names=["sc-1", "sc-2"],
         )
 
+    @patch(
+        "utilities.pytest_utils.py_config",
+        {"system_storage_class_matrix": [{"sc-1": {}}]},
+    )
     def test_no_options(self):
         """Test no error when no options are specified"""
         _validate_storage_class_options(
             cmd_default_storage_class=None,
             cmdline_storage_class_matrix=None,
-            available_sc_names=["sc-1"],
         )
 
+    @patch(
+        "utilities.pytest_utils.py_config",
+        {"system_storage_class_matrix": [{"sc-1": {}}, {"sc-2": {}}]},
+    )
     def test_invalid_matrix_value(self):
         """Test ValueError for invalid storage class in matrix"""
         with pytest.raises(ValueError, match=r"from --storage-class-matrix not found"):
             _validate_storage_class_options(
                 cmd_default_storage_class=None,
                 cmdline_storage_class_matrix=["bad-sc"],
-                available_sc_names=["sc-1", "sc-2"],
             )
 
+    @patch(
+        "utilities.pytest_utils.py_config",
+        {"system_storage_class_matrix": [{"sc-1": {}}, {"sc-2": {}}]},
+    )
     def test_invalid_default_sc(self):
         """Test ValueError for default SC not in system matrix"""
         with pytest.raises(ValueError, match=r"Default storage class 'bad-sc' not found"):
             _validate_storage_class_options(
                 cmd_default_storage_class="bad-sc",
                 cmdline_storage_class_matrix=None,
-                available_sc_names=["sc-1", "sc-2"],
             )
 
+    @patch(
+        "utilities.pytest_utils.py_config",
+        {"system_storage_class_matrix": [{"sc-1": {}}, {"sc-2": {}}]},
+    )
     def test_valid_default_no_matrix(self):
         """Test no error when default SC is valid and no matrix is specified"""
         _validate_storage_class_options(
             cmd_default_storage_class="sc-1",
             cmdline_storage_class_matrix=None,
-            available_sc_names=["sc-1", "sc-2"],
         )
 
+    @patch(
+        "utilities.pytest_utils.py_config",
+        {"system_storage_class_matrix": [{"sc-1": {}}]},
+    )
     def test_multiple_invalid_matrix_values(self):
         """Test all invalid storage class names are reported"""
         with pytest.raises(ValueError, match=r"\['bad-sc-1', 'bad-sc-2'\]"):
             _validate_storage_class_options(
                 cmd_default_storage_class=None,
                 cmdline_storage_class_matrix=["bad-sc-1", "bad-sc-2"],
-                available_sc_names=["sc-1"],
             )
 
+    @patch(
+        "utilities.pytest_utils.py_config",
+        {"system_storage_class_matrix": [{"sc-1": {}}]},
+    )
     def test_invalid_matrix_checked_before_default_not_in_matrix(self):
         """Test matrix validation runs before default-in-matrix check"""
         with pytest.raises(ValueError, match=r"from --storage-class-matrix not found"):
             _validate_storage_class_options(
                 cmd_default_storage_class="sc-1",
                 cmdline_storage_class_matrix=["bad-sc"],
-                available_sc_names=["sc-1"],
             )
 
+    @patch(
+        "utilities.pytest_utils.py_config",
+        {"system_storage_class_matrix": [{"sc-1": {}}, {"sc-2": {}}, {"sc-3": {}}]},
+    )
     def test_default_sc_not_in_matrix(self):
         """Test ValueError when default SC exists on system but not in the provided matrix"""
         with pytest.raises(ValueError, match=r"not in --storage-class-matrix"):
             _validate_storage_class_options(
                 cmd_default_storage_class="sc-1",
                 cmdline_storage_class_matrix=["sc-2", "sc-3"],
-                available_sc_names=["sc-1", "sc-2", "sc-3"],
             )
 
 

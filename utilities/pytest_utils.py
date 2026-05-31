@@ -111,18 +111,17 @@ def get_matrix_params(pytest_config, matrix_name):
 def _validate_storage_class_options(
     cmd_default_storage_class: str | None,
     cmdline_storage_class_matrix: list[str] | None,
-    available_sc_names: list[str],
 ) -> None:
     """Validates that storage class CLI options reference existing storage classes.
 
     Args:
         cmd_default_storage_class: Value from --default-storage-class CLI option.
         cmdline_storage_class_matrix: Parsed values from --storage-class-matrix CLI option.
-        available_sc_names: Storage class names from py_config["system_storage_class_matrix"].
 
     Raises:
-        ValueError: If any storage class name is not found in the system matrix.
+        ValueError: If any storage class name is not found in py_config["system_storage_class_matrix"].
     """
+    available_sc_names = [sc_name for sc in py_config["system_storage_class_matrix"] for sc_name in sc]
     if cmdline_storage_class_matrix:
         if invalid_sc_names := set(cmdline_storage_class_matrix) - set(available_sc_names):
             raise ValueError(
@@ -159,13 +158,11 @@ def config_default_storage_class(session):
     cmd_default_storage_class = session.config.getoption(name="default_storage_class")
     cmdline_storage_class_matrix = session.config.getoption(name="storage_class_matrix")
     system_storage_class_matrix = py_config["system_storage_class_matrix"]
-    available_sc_names = [sc_name for sc in system_storage_class_matrix for sc_name in sc]
 
     parsed_cmdline_matrix = cmdline_storage_class_matrix.split(",") if cmdline_storage_class_matrix else None
     _validate_storage_class_options(
         cmd_default_storage_class=cmd_default_storage_class,
         cmdline_storage_class_matrix=parsed_cmdline_matrix,
-        available_sc_names=available_sc_names,
     )
 
     updated_default_sc = None
