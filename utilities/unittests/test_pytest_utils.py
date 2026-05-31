@@ -433,6 +433,55 @@ class TestConfigDefaultStorageClass:
         ):
             config_default_storage_class(mock_session)
 
+    @patch(
+        "utilities.pytest_utils.py_config",
+        {
+            "default_storage_class": "original-sc",
+            "system_storage_class_matrix": [
+                {"sc-1": {"volume_mode": "Filesystem", "access_mode": "ReadWriteOnce"}},
+                {"sc-2": {"volume_mode": "Block", "access_mode": "ReadWriteMany"}},
+            ],
+        },
+    )
+    def test_config_default_storage_class_both_options_valid(self):
+        """Test correct update when both --default-storage-class and --storage-class-matrix are valid"""
+        mock_session = MagicMock()
+        mock_session.config.getoption.side_effect = lambda name: {
+            "default_storage_class": "sc-1",
+            "storage_class_matrix": "sc-1,sc-2",
+        }.get(name)
+
+        config_default_storage_class(mock_session)
+
+        from utilities.pytest_utils import py_config  # noqa: PLC0415
+
+        assert py_config["default_storage_class"] == "sc-1"
+        assert py_config["default_volume_mode"] == "Filesystem"
+        assert py_config["default_access_mode"] == "ReadWriteOnce"
+
+    @patch(
+        "utilities.pytest_utils.py_config",
+        {
+            "default_storage_class": "original-sc",
+            "system_storage_class_matrix": [
+                {"original-sc": {"volume_mode": "Block", "access_mode": "ReadWriteMany"}},
+            ],
+        },
+    )
+    def test_config_default_storage_class_same_as_global(self):
+        """Test no update when --default-storage-class matches global default"""
+        mock_session = MagicMock()
+        mock_session.config.getoption.side_effect = lambda name: {
+            "default_storage_class": "original-sc",
+            "storage_class_matrix": None,
+        }.get(name)
+
+        config_default_storage_class(mock_session)
+
+        from utilities.pytest_utils import py_config  # noqa: PLC0415
+
+        assert py_config["default_storage_class"] == "original-sc"
+
 
 class TestValidateStorageClassOptions:
     """Test cases for _validate_storage_class_options function"""
@@ -477,6 +526,32 @@ class TestValidateStorageClassOptions:
                 cmd_default_storage_class="bad-sc",
                 cmdline_storage_class_matrix=None,
                 available_sc_names=["sc-1", "sc-2"],
+            )
+
+    def test_valid_default_no_matrix(self):
+        """Test no error when default SC is valid and no matrix is specified"""
+        _validate_storage_class_options(
+            cmd_default_storage_class="sc-1",
+            cmdline_storage_class_matrix=None,
+            available_sc_names=["sc-1", "sc-2"],
+        )
+
+    def test_multiple_invalid_matrix_values(self):
+        """Test all invalid storage class names are reported"""
+        with pytest.raises(ValueError, match=r"\['bad-sc-1', 'bad-sc-2'\]"):
+            _validate_storage_class_options(
+                cmd_default_storage_class=None,
+                cmdline_storage_class_matrix=["bad-sc-1", "bad-sc-2"],
+                available_sc_names=["sc-1"],
+            )
+
+    def test_invalid_matrix_checked_before_default_not_in_matrix(self):
+        """Test matrix validation runs before default-in-matrix check"""
+        with pytest.raises(ValueError, match=r"from --storage-class-matrix not found"):
+            _validate_storage_class_options(
+                cmd_default_storage_class="sc-1",
+                cmdline_storage_class_matrix=["bad-sc"],
+                available_sc_names=["sc-1"],
             )
 
     def test_default_sc_not_in_matrix(self):
