@@ -122,27 +122,29 @@ def _validate_storage_class_options(
         ValueError: If any storage class name is not found in py_config["system_storage_class_matrix"].
     """
     available_sc_names = [sc_name for sc in py_config["system_storage_class_matrix"] for sc_name in sc]
+
     if cmdline_storage_class_matrix:
+        # Verify storage classes passed via --storage-class-matrix are supported
         if invalid_sc_names := set(cmdline_storage_class_matrix) - set(available_sc_names):
             raise ValueError(
                 f"Storage class(es) {sorted(invalid_sc_names)} from --storage-class-matrix not found. "
                 f"Available storage classes: {available_sc_names}"
             )
 
+        # Verify default storage class passed via --default-storage-class exists in --storage-class-matrix
+        if cmd_default_storage_class and cmd_default_storage_class not in cmdline_storage_class_matrix:
+            raise ValueError(
+                f"Default storage class '{cmd_default_storage_class}' not in --storage-class-matrix. "
+                f"Matrix storage classes: {cmdline_storage_class_matrix}"
+            )
+
+        return
+
+    # Verify default storage class passed via --default-storage-class is supported (when matrix is not passed from cli)
     if cmd_default_storage_class and cmd_default_storage_class not in available_sc_names:
         raise ValueError(
             f"Default storage class '{cmd_default_storage_class}' not found in system storage class matrix. "
             f"Available storage classes: {available_sc_names}"
-        )
-
-    if (
-        cmd_default_storage_class
-        and cmdline_storage_class_matrix
-        and cmd_default_storage_class not in cmdline_storage_class_matrix
-    ):
-        raise ValueError(
-            f"Default storage class '{cmd_default_storage_class}' not in --storage-class-matrix. "
-            f"Matrix storage classes: {cmdline_storage_class_matrix}"
         )
 
 

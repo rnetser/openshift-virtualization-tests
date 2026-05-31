@@ -590,6 +590,17 @@ class TestValidateStorageClassOptions:
                 cmdline_storage_class_matrix=["sc-2", "sc-3"],
             )
 
+    @patch(
+        "utilities.pytest_utils.py_config",
+        {"system_storage_class_matrix": [{"sc-1": {}}, {"sc-2": {}}]},
+    )
+    def test_valid_matrix_skips_system_check_for_default(self):
+        """Test that when matrix is valid, default SC is only checked against matrix not system"""
+        _validate_storage_class_options(
+            cmd_default_storage_class="sc-1",
+            cmdline_storage_class_matrix=["sc-1"],
+        )
+
 
 class TestSeparator:
     """Test cases for separator function"""
