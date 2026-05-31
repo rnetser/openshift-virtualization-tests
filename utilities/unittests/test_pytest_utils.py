@@ -257,6 +257,10 @@ class TestConfigDefaultStorageClass:
                 {"new-sc": {"volume_mode": "Filesystem", "access_mode": "ReadWriteOnce"}},
                 {"original-sc": {"volume_mode": "Block", "access_mode": "ReadWriteMany"}},
             ],
+            "system_storage_class_matrix": [
+                {"new-sc": {"volume_mode": "Filesystem", "access_mode": "ReadWriteOnce"}},
+                {"original-sc": {"volume_mode": "Block", "access_mode": "ReadWriteMany"}},
+            ],
         },
     )
     def test_config_default_storage_class_cmd_override(self):
@@ -280,6 +284,10 @@ class TestConfigDefaultStorageClass:
         {
             "default_storage_class": "original-sc",
             "storage_class_matrix": [
+                {"first-sc": {"volume_mode": "Filesystem", "access_mode": "ReadWriteOnce"}},
+                {"second-sc": {"volume_mode": "Block", "access_mode": "ReadWriteMany"}},
+            ],
+            "system_storage_class_matrix": [
                 {"first-sc": {"volume_mode": "Filesystem", "access_mode": "ReadWriteOnce"}},
                 {"second-sc": {"volume_mode": "Block", "access_mode": "ReadWriteMany"}},
             ],
@@ -309,6 +317,10 @@ class TestConfigDefaultStorageClass:
                 {"first-sc": {"volume_mode": "Filesystem", "access_mode": "ReadWriteOnce"}},
                 {"original-sc": {"volume_mode": "Block", "access_mode": "ReadWriteMany"}},
             ],
+            "system_storage_class_matrix": [
+                {"first-sc": {"volume_mode": "Filesystem", "access_mode": "ReadWriteOnce"}},
+                {"original-sc": {"volume_mode": "Block", "access_mode": "ReadWriteMany"}},
+            ],
         },
     )
     def test_config_default_storage_class_matrix_contains_default(self):
@@ -326,7 +338,13 @@ class TestConfigDefaultStorageClass:
         # Should keep original-sc since it's in the matrix
         assert py_config["default_storage_class"] == "original-sc"
 
-    @patch("utilities.pytest_utils.py_config", {"default_storage_class": "original-sc"})
+    @patch(
+        "utilities.pytest_utils.py_config",
+        {
+            "default_storage_class": "original-sc",
+            "system_storage_class_matrix": [],
+        },
+    )
     def test_config_default_storage_class_no_changes(self):
         """Test no changes when no overrides provided"""
         mock_session = MagicMock()
@@ -367,6 +385,30 @@ class TestConfigDefaultStorageClass:
         with pytest.raises(
             ValueError,
             match=r"nonexistent-sc.*Available storage classes: \['existing-sc-1', 'existing-sc-2'\]",
+        ):
+            config_default_storage_class(mock_session)
+
+    @patch(
+        "utilities.pytest_utils.py_config",
+        {
+            "default_storage_class": "original-sc",
+            "system_storage_class_matrix": [
+                {"existing-sc-1": {"volume_mode": "Filesystem", "access_mode": "ReadWriteOnce"}},
+                {"existing-sc-2": {"volume_mode": "Block", "access_mode": "ReadWriteMany"}},
+            ],
+        },
+    )
+    def test_config_default_storage_class_invalid_matrix_values_raises_error(self):
+        """Test ValueError when --storage-class-matrix contains invalid storage class names"""
+        mock_session = MagicMock()
+        mock_session.config.getoption.side_effect = lambda name: {
+            "default_storage_class": None,
+            "storage_class_matrix": "nonexistent-sc,existing-sc-1",
+        }.get(name)
+
+        with pytest.raises(
+            ValueError,
+            match=r"nonexistent-sc.*from --storage-class-matrix not found.*Available storage classes:",
         ):
             config_default_storage_class(mock_session)
 

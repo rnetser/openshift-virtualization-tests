@@ -119,11 +119,19 @@ def config_default_storage_class(session):
     global_config_default_sc = py_config["default_storage_class"]
     cmd_default_storage_class = session.config.getoption(name="default_storage_class")
     cmdline_storage_class_matrix = session.config.getoption(name="storage_class_matrix")
+    system_storage_class_matrix = py_config["system_storage_class_matrix"]
+    available_sc_names = [sc_name for sc in system_storage_class_matrix for sc_name in sc]
     updated_default_sc = None
     if cmd_default_storage_class:
         updated_default_sc = cmd_default_storage_class
     elif cmdline_storage_class_matrix:
         cmdline_storage_class_matrix = cmdline_storage_class_matrix.split(",")
+        invalid_sc_names = set(cmdline_storage_class_matrix) - set(available_sc_names)
+        if invalid_sc_names:
+            raise ValueError(
+                f"Storage class(es) {sorted(invalid_sc_names)} from --storage-class-matrix not found. "
+                f"Available storage classes: {available_sc_names}"
+            )
         updated_default_sc = (
             global_config_default_sc
             if global_config_default_sc in cmdline_storage_class_matrix
@@ -135,15 +143,14 @@ def config_default_storage_class(session):
         py_config["default_storage_class"] = updated_default_sc
         matching_configurations = [
             sc_dict
-            for sc in py_config["storage_class_matrix"]
+            for sc in system_storage_class_matrix
             for sc_name, sc_dict in sc.items()
             if sc_name == updated_default_sc
         ]
 
         if not matching_configurations:
-            available_sc_names = [sc_name for sc in py_config["system_storage_class_matrix"] for sc_name in sc]
             raise ValueError(
-                f"Storage class '{updated_default_sc}' not found in storage_class_matrix. "
+                f"Storage class '{updated_default_sc}' not found in system storage class matrix. "
                 f"Available storage classes: {available_sc_names}"
             )
 
