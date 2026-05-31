@@ -118,7 +118,7 @@ def _validate_storage_class_options(
     Args:
         cmd_default_storage_class: Value from --default-storage-class CLI option.
         cmdline_storage_class_matrix: Parsed values from --storage-class-matrix CLI option.
-        available_sc_names: Storage class names from system_storage_class_matrix.
+        available_sc_names: Storage class names from py_config["system_storage_class_matrix"].
 
     Raises:
         ValueError: If any storage class name is not found in the system matrix.
@@ -129,11 +129,13 @@ def _validate_storage_class_options(
                 f"Storage class(es) {sorted(invalid_sc_names)} from --storage-class-matrix not found. "
                 f"Available storage classes: {available_sc_names}"
             )
+
     if cmd_default_storage_class and cmd_default_storage_class not in available_sc_names:
         raise ValueError(
             f"Default storage class '{cmd_default_storage_class}' not found in system storage class matrix. "
             f"Available storage classes: {available_sc_names}"
         )
+
     if (
         cmd_default_storage_class
         and cmdline_storage_class_matrix
