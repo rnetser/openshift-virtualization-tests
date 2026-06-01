@@ -80,13 +80,11 @@ jobs:
               7. **Smoke test impact:** Intersect the affected set from step 6 with smoke-marked tests.
                  Run: `rg -l '@pytest.mark.smoke' tests/`
                  VERIFY the above command returned actual file paths before concluding False.
-                 Set True ONLY if a smoke-marked file also appears in the affected set from 6b-6e.
-                 For each smoke-marked file, ALSO check its conftest.py hierarchy (parent directory
-                 conftest.py files up to the repo root) for imports of modified utilities/libs symbols.
-                 A smoke test is affected if ANY conftest.py in its hierarchy imports a transitively
-                 modified symbol — even when the test file itself has no direct import.
-                 This includes autouse fixtures: if a conftest.py defines an autouse fixture that
-                 calls or imports a modified function, ALL tests in that directory (and below) are affected.
+                 Set True if either condition is met:
+                 - a smoke-marked file appears in the affected set from 6b-6e, OR
+                 - any conftest.py in the smoke test's parent-directory hierarchy (up to repo root)
+                   imports or calls a modified utilities/libs symbol — including autouse fixtures
+                   that depend on modified functions. ALL tests in that directory and below are affected.
                  Example check: for each smoke_file, scan dirname(smoke_file)/conftest.py,
                  dirname(dirname(smoke_file))/conftest.py, etc. for modified symbol imports
                  and autouse fixtures that depend on modified symbols.
