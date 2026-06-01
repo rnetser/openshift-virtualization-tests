@@ -7,10 +7,11 @@ from unittest.mock import MagicMock, mock_open, patch
 import pytest
 
 import utilities.constants
-from utilities.constants import AMD_64, ARM_64, CENTOS_STREAM9_PREFERENCE, OS_FLAVOR_FEDORA, RHEL9_PREFERENCE, S390X
-from utilities.exceptions import MissingEnvironmentVariableError, UnsupportedCPUArchitectureError
 
 # Circular dependencies are already mocked in conftest.py
+from utilities import pytest_utils
+from utilities.constants import AMD_64, ARM_64, CENTOS_STREAM9_PREFERENCE, OS_FLAVOR_FEDORA, RHEL9_PREFERENCE, S390X
+from utilities.exceptions import MissingEnvironmentVariableError, UnsupportedCPUArchitectureError
 from utilities.pytest_utils import (
     _validate_storage_class_options,
     assert_incremental_classes_fully_collected,
@@ -453,11 +454,9 @@ class TestConfigDefaultStorageClass:
 
         config_default_storage_class(mock_session)
 
-        from utilities.pytest_utils import py_config  # noqa: PLC0415
-
-        assert py_config["default_storage_class"] == "sc-1"
-        assert py_config["default_volume_mode"] == "Filesystem"
-        assert py_config["default_access_mode"] == "ReadWriteOnce"
+        assert pytest_utils.py_config["default_storage_class"] == "sc-1"
+        assert pytest_utils.py_config["default_volume_mode"] == "Filesystem"
+        assert pytest_utils.py_config["default_access_mode"] == "ReadWriteOnce"
 
     @patch(
         "utilities.pytest_utils.py_config",
@@ -478,9 +477,7 @@ class TestConfigDefaultStorageClass:
 
         config_default_storage_class(mock_session)
 
-        from utilities.pytest_utils import py_config  # noqa: PLC0415
-
-        assert py_config["default_storage_class"] == "original-sc"
+        assert pytest_utils.py_config["default_storage_class"] == "original-sc"
 
 
 class TestValidateStorageClassOptions:
