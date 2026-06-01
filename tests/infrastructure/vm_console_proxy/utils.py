@@ -60,7 +60,9 @@ def create_vnc_console_token(
         raise
 
 
-def get_vm_console_proxy_resource(resource_kind: type, client: DynamicClient, namespace: str | None = None) -> Resource:
+def get_vm_console_proxy_resource(
+    resource_kind: type[Resource], client: DynamicClient, namespace: str | None = None
+) -> Resource:
     if namespace:
         vm_console_proxy_resource_object = resource_kind(
             name=VM_CONSOLE_PROXY,
