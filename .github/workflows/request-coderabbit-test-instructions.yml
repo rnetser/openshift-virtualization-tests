@@ -1,5 +1,4 @@
-# description: Add comment for CodeRabbit to add tests instructions. A change-request comment will be added to the PR.
-# Triggers on the 'verified' label (post-approval) or '/test-plan' comment (on-demand during review).
+# description: Add comment for CodeRabbit to add test instructions. An inline informational test-plan comment will be added.
 
 name: Request CodeRabbit tests instructions
 
@@ -50,7 +49,8 @@ jobs:
 
               CRITICAL: You MUST post an inline review comment on the first changed line of the first file.
               The inline comment should contain the full Test Execution Plan (smoke decision, gating decision, and specific affected tests).
-              Do NOT submit a formal review - just post the inline comment directly.
+              Do NOT submit a blocking review event (REQUEST_CHANGES/APPROVE).
+              Post a single inline PR comment on Files Changed (non-blocking COMMENT flow).
 
               As an expert software testing engineer, analyze all modified files in this PR and create a targeted test execution plan.
               You will post an inline review comment with the test execution plan on the first changed file.
@@ -109,7 +109,7 @@ jobs:
               Do NOT include analysis step numbers (1-8) in your visible output.
 
               **Your deliverable:**
-              Your change request comment will be based on the following requirements:
+              Your inline informational comment will be based on the following requirements:
 
               **Test Execution Plan**
 
@@ -170,9 +170,9 @@ jobs:
 
               When responding to this test execution plan request, you MUST follow these rules EXACTLY:
 
-              1. **YOUR ONLY DELIVERABLE**: Post an inline review comment containing the test execution plan on the first changed line
+              1. **YOUR ONLY DELIVERABLE**: Post one non-blocking inline comment containing the test execution plan on the first changed line
               2. **THEN STOP IMMEDIATELY** - Do NOT generate any additional response
-              3. **FALLBACK ONLY**: If submitting the review fails after retrying, post as a regular PR comment
+              3. **FALLBACK ONLY**: If inline comment API calls fail after retrying, post as a regular PR comment
               4. **SILENCE = SUCCESS**: After successfully submitting the review, your task is complete. No confirmation needed.
 
               **ABSOLUTE PROHIBITIONS** (violating these creates empty/meaningless reviews):

@@ -95,19 +95,14 @@ jobs:
           echo "$ALL_THREADS" | jq -r '
             .[]
             | select(.isResolved == true)
-            | select(.opening_comment.nodes[0].author.login == "coderabbitai[bot]")
+            | select(.opening_comment.nodes[0].author.login == "coderabbitai")
             | select(
-                # Case 1: Resolved without ANY reply — last comment is still
-                # from coderabbitai[bot] (human just clicked "Resolve conversation")
-                (.recent_comments.nodes[-1].author.login == "coderabbitai[bot]")
-                or
-                # Case 2: Human replied but with an empty/trivial response
-                # (less than 15 chars = likely just clicked resolve without explaining)
-                (
-                  (.recent_comments.nodes[-1].author.login != "coderabbitai[bot]")
-                  and
-                  ((.recent_comments.nodes[-1].body | length) < 15)
-                )
+                # No substantive non-bot reply exists anywhere in the recent window
+                # (all comments are from coderabbitai, or human replies are < 15 chars)
+                (all(.recent_comments.nodes[];
+                  .author.login == "coderabbitai"
+                  or (.body | length) < 15
+                ))
               )
             | .id
           ' | while read -r thread_id; do
