@@ -61,13 +61,17 @@ jobs:
             | select(.isResolved == true)
             | select(.comments.nodes[0].author.login == "coderabbitai[bot]")
             | select(
-                # Check if the last comment is NOT from coderabbitai[bot]
-                # (meaning a human resolved it)
-                (.comments.nodes[-1].author.login != "coderabbitai[bot]")
-                and
-                # And the human reply is too short to be a real response
-                # (less than 20 chars = likely just clicked resolve without explaining)
-                ((.comments.nodes[-1].body | length) < 20)
+                # Case 1: Resolved without ANY reply — last comment is still
+                # from coderabbitai[bot] (human just clicked "Resolve conversation")
+                (.comments.nodes[-1].author.login == "coderabbitai[bot]")
+                or
+                # Case 2: Human replied but with an empty/trivial response
+                # (less than 15 chars = likely just clicked resolve without explaining)
+                (
+                  (.comments.nodes[-1].author.login != "coderabbitai[bot]")
+                  and
+                  ((.comments.nodes[-1].body | length) < 15)
+                )
               )
             | .id
           ' | while read -r thread_id; do
