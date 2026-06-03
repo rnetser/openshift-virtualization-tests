@@ -117,12 +117,11 @@ jobs:
               - **Run gating tests: True / False** — If True, state the dependency path. True if any gating-marked test is in the affected set.
               - **Affected tests to run** _(required when utilities/, libs/, or shared conftest changes — list concrete paths even when smoke is False)_
 
-              Format EVERY listed test as a GitHub markdown checkbox so the PR author can check them off after running.
               Use these formats:
-              - `- [ ] path/to/test_file.py` - When the entire test file needs verification
-              - `- [ ] path/to/test_file.py::TestClass::test_method` - When specific test(s) needed
-              - `- [ ] path/to/test_file.py::test_function` - When specific test(s) needed
-              - `- [ ] -m marker` - When a marker covers multiple affected tests (e.g. `-m gating` only if ALL gating tests in scope need run)
+              - `path/to/test_file.py` - When the entire test file needs verification
+              - `path/to/test_file.py::TestClass::test_method` - When specific test(s) needed
+              - `path/to/test_file.py::test_function` - When specific test(s) needed
+              - `-m marker` - When a marker covers multiple affected tests (e.g. `-m gating` only if ALL gating tests in scope need run)
               - Tag each listed test or group with its marker when not obvious, e.g. `(gating)` or `(smoke)`
 
               **Real test commands (MANDATORY when changes affect session/runtime code):**
@@ -135,20 +134,19 @@ jobs:
               - A command for the **happy path** (regression: the normal case still works)
               - Use lightweight tests (e.g., `--collect-only` for startup failures,
                 a single small test for runtime behavior)
-              - Format each command as a checkbox too
-
               If the PR only changes test logic (not utilities/libs/conftest), the affected test
               paths themselves serve as the real test commands — no separate section needed.
 
               Example output for a session-startup fix:
               ```
               **Real tests (cluster required)**
-              - [ ] Error path (the fix):
-                `pytest tests/storage/.../test_foo.py --storage-class-matrix=nonexistent-sc --collect-only`
-                Expected: ValueError with clear message, not IndexError
-              - [ ] Happy path (regression):
-                `pytest tests/storage/.../test_foo.py --storage-class-matrix=<valid-sc> -k test_bar`
-                Expected: session starts normally
+              Error path (the fix):
+              `pytest tests/storage/.../test_foo.py --storage-class-matrix=nonexistent-sc --collect-only`
+              Expected: ValueError with clear message, not IndexError
+
+              Happy path (regression):
+              `pytest tests/storage/.../test_foo.py --storage-class-matrix=<valid-sc> -k test_bar`
+              Expected: session starts normally
               ```
 
               **Guidelines:**
