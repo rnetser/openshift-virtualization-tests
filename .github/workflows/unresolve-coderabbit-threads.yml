@@ -12,7 +12,12 @@ on:
   pull_request_target:
     types: [synchronize]
 
+concurrency:
+  group: unresolve-threads-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
 permissions:
+  # Required to unresolve review threads and add comments
   pull-requests: write
   contents: read
 
@@ -40,7 +45,7 @@ jobs:
                     nodes {
                       id
                       isResolved
-                      comments(first: 20) {
+                      comments(last: 5) {
                         nodes {
                           author {
                             login

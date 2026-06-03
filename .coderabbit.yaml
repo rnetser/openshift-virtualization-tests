@@ -46,7 +46,11 @@ reviews:
 
         ## Approval Policy
         You may approve the PR when ALL of the following are true:
-        - All your review comments have been addressed (resolved or fixed), OR you had no review comments.
+        - All your review comments have been addressed with either:
+          - a code/doc change that fixes the issue, or
+          - a substantive author response that justifies no code change.
+          Thread "resolved" state alone is not sufficient.
+          OR you had no review comments.
         - If you posted a test execution plan comment requesting tests, and the PR author replied
           with a comment explaining why the requested tests are not needed or were already covered,
           treat that as an acceptable response — do not block approval on the test plan alone.
