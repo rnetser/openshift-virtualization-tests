@@ -36,46 +36,77 @@ jobs:
         run: |
           set -euo pipefail
 
-          # Fetch all resolved review threads from CodeRabbit
-          THREADS=$(gh api graphql -f query='
-            query($owner: String!, $repo: String!, $pr: Int!) {
-              repository(owner: $owner, name: $repo) {
-                pullRequest(number: $pr) {
-                  reviewThreads(first: 100) {
-                    nodes {
-                      id
-                      isResolved
-                      comments(last: 5) {
-                        nodes {
-                          author {
-                            login
+          # Fetch resolved review threads with pagination
+          ALL_THREADS="[]"
+          CURSOR=""
+          while true; do
+            if [ -n "$CURSOR" ]; then
+              AFTER_ARG="-f after=$CURSOR"
+            else
+              AFTER_ARG=""
+            fi
+            PAGE=$(gh api graphql -f query='
+              query($owner: String!, $repo: String!, $pr: Int!, $after: String) {
+                repository(owner: $owner, name: $repo) {
+                  pullRequest(number: $pr) {
+                    reviewThreads(first: 100, after: $after) {
+                      nodes {
+                        id
+                        isResolved
+                        opening_comment: comments(first: 1) {
+                          nodes {
+                            author {
+                              login
+                            }
                           }
-                          body
                         }
+                        recent_comments: comments(last: 5) {
+                          nodes {
+                            author {
+                              login
+                            }
+                            body
+                          }
+                        }
+                      }
+                      pageInfo {
+                        hasNextPage
+                        endCursor
                       }
                     }
                   }
                 }
               }
-            }
-          ' -f owner="${REPO%%/*}" -f repo="${REPO##*/}" -F pr="$PR_NUMBER")
+            ' -f owner="${REPO%%/*}" -f repo="${REPO##*/}" -F pr="$PR_NUMBER" $AFTER_ARG)
+
+            # Append nodes to accumulated list
+            NODES=$(echo "$PAGE" | jq '.data.repository.pullRequest.reviewThreads.nodes')
+            ALL_THREADS=$(echo "$ALL_THREADS $NODES" | jq -s 'add')
+
+            # Check for next page
+            HAS_NEXT=$(echo "$PAGE" | jq -r '.data.repository.pullRequest.reviewThreads.pageInfo.hasNextPage')
+            if [ "$HAS_NEXT" != "true" ]; then
+              break
+            fi
+            CURSOR=$(echo "$PAGE" | jq -r '.data.repository.pullRequest.reviewThreads.pageInfo.endCursor')
+          done
 
           # Process each resolved thread
-          echo "$THREADS" | jq -r '
-            .data.repository.pullRequest.reviewThreads.nodes[]
+          echo "$ALL_THREADS" | jq -r '
+            .[]
             | select(.isResolved == true)
-            | select(.comments.nodes[0].author.login == "coderabbitai[bot]")
+            | select(.opening_comment.nodes[0].author.login == "coderabbitai[bot]")
             | select(
                 # Case 1: Resolved without ANY reply — last comment is still
                 # from coderabbitai[bot] (human just clicked "Resolve conversation")
-                (.comments.nodes[-1].author.login == "coderabbitai[bot]")
+                (.recent_comments.nodes[-1].author.login == "coderabbitai[bot]")
                 or
                 # Case 2: Human replied but with an empty/trivial response
                 # (less than 15 chars = likely just clicked resolve without explaining)
                 (
-                  (.comments.nodes[-1].author.login != "coderabbitai[bot]")
+                  (.recent_comments.nodes[-1].author.login != "coderabbitai[bot]")
                   and
-                  ((.comments.nodes[-1].body | length) < 15)
+                  ((.recent_comments.nodes[-1].body | length) < 15)
                 )
               )
             | .id
