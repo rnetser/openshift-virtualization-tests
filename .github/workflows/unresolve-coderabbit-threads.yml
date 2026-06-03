@@ -1,0 +1,100 @@
+# description: Unresolve CodeRabbit review threads that were resolved by the PR author
+# without addressing them. Runs on every push to a PR.
+#
+# Logic: If a CodeRabbit review thread was resolved by someone other than
+# coderabbitai[bot], and the resolver's last reply does NOT contain a substantive
+# response (e.g., "fixed", "addressed", code snippet, or explanation), the thread
+# is unresolved so CodeRabbit can re-evaluate it.
+
+name: Unresolve unaddressed CodeRabbit threads
+
+on:
+  pull_request_target:
+    types: [synchronize]
+
+permissions:
+  pull-requests: write
+  contents: read
+
+jobs:
+  unresolve-threads:
+    if: "!endsWith(github.event.pull_request.user.login, '[bot]')"
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Unresolve prematurely resolved CodeRabbit threads
+        env:
+          GH_TOKEN: ${{ secrets.BOT3_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          # Fetch all resolved review threads from CodeRabbit
+          THREADS=$(gh api graphql -f query='
+            query($owner: String!, $repo: String!, $pr: Int!) {
+              repository(owner: $owner, name: $repo) {
+                pullRequest(number: $pr) {
+                  reviewThreads(first: 100) {
+                    nodes {
+                      id
+                      isResolved
+                      comments(first: 20) {
+                        nodes {
+                          author {
+                            login
+                          }
+                          body
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          ' -f owner="${REPO%%/*}" -f repo="${REPO##*/}" -F pr="$PR_NUMBER")
+
+          # Process each resolved thread
+          echo "$THREADS" | jq -r '
+            .data.repository.pullRequest.reviewThreads.nodes[]
+            | select(.isResolved == true)
+            | select(.comments.nodes[0].author.login == "coderabbitai[bot]")
+            | select(
+                # Check if the last comment is NOT from coderabbitai[bot]
+                # (meaning a human resolved it)
+                (.comments.nodes[-1].author.login != "coderabbitai[bot]")
+                and
+                # And the human reply is too short to be a real response
+                # (less than 20 chars = likely just clicked resolve without explaining)
+                ((.comments.nodes[-1].body | length) < 20)
+              )
+            | .id
+          ' | while read -r thread_id; do
+            if [ -n "$thread_id" ]; then
+              echo "Unresolving thread: $thread_id"
+              gh api graphql -f query="
+                mutation {
+                  unresolveReviewThread(input: {threadId: \"$thread_id\"}) {
+                    thread {
+                      id
+                      isResolved
+                    }
+                  }
+                }
+              " || echo "  Warning: failed to unresolve $thread_id"
+
+              # Add a comment to the thread explaining why it was unresolved
+              gh api graphql -f query="
+                mutation {
+                  addPullRequestReviewThreadReply(input: {pullRequestReviewThreadId: \"$thread_id\", body: \"\u26a0\ufe0f This thread was automatically unresolved because it was resolved without a substantive response. Please address the review comment and explain how it was resolved before resolving this thread again.\"}) {
+                    comment {
+                      id
+                    }
+                  }
+                }
+              " || echo "  Warning: failed to add comment to $thread_id"
+            fi
+          done
+
+          echo "Done checking CodeRabbit threads."

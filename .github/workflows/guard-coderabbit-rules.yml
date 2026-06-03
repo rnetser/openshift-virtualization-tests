@@ -1,0 +1,157 @@
+# description: Detect and flag attempts to teach CodeRabbit rules that contradict
+# the repository's coding standards (AGENTS.md, .coderabbit.yaml).
+#
+# Triggers on PR comments and review comments that mention @coderabbitai with
+# instructions to ignore, skip, or override repo rules.
+
+name: Guard CodeRabbit rules
+
+on:
+  issue_comment:
+    types: [created]
+  pull_request_review_comment:
+    types: [created]
+
+permissions:
+  pull-requests: write
+  contents: read
+
+jobs:
+  guard-rules:
+    # Only run on PR comments (not issue comments) that mention coderabbitai
+    if: |
+      (github.event.issue.pull_request || github.event.pull_request) &&
+      contains(github.event.comment.body, '@coderabbitai') &&
+      !endsWith(github.event.comment.user.login, '[bot]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Check for rule override attempts
+        env:
+          GH_TOKEN: ${{ secrets.BOT3_TOKEN }}
+          COMMENT_BODY: ${{ github.event.comment.body }}
+          COMMENT_AUTHOR: ${{ github.event.comment.user.login }}
+          COMMENT_ID: ${{ github.event.comment.id }}
+          COMMENT_URL: ${{ github.event.comment.html_url }}
+          PR_NUMBER: ${{ github.event.issue.number || github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+          IS_REVIEW_COMMENT: ${{ github.event_name == 'pull_request_review_comment' }}
+          # Maintainers from OWNERS file — approvers who can override rules
+          MAINTAINERS: "rnetser,myakove,dshchedr,vsibirsk"
+        run: |
+          set -euo pipefail
+
+          # Skip if the comment author is a maintainer
+          if echo "$MAINTAINERS" | tr ',' '\n' | grep -qx "$COMMENT_AUTHOR"; then
+            echo "Comment author $COMMENT_AUTHOR is a maintainer — skipping check."
+            exit 0
+          fi
+
+          BODY_LOWER=$(echo "$COMMENT_BODY" | tr '[:upper:]' '[:lower:]')
+
+          # Patterns that indicate rule override attempts
+          # These match instructions to CodeRabbit to ignore/skip/disable repo rules
+          OVERRIDE_PATTERNS=(
+            "ignore.*rule"
+            "ignore.*check"
+            "ignore.*guideline"
+            "skip.*rule"
+            "skip.*check"
+            "skip.*guideline"
+            "disable.*rule"
+            "disable.*check"
+            "don.t check"
+            "don.t enforce"
+            "don.t flag"
+            "don.t require"
+            "stop checking"
+            "stop enforcing"
+            "stop flagging"
+            "stop requiring"
+            "never flag"
+            "never check"
+            "never enforce"
+            "never require"
+            "always allow"
+            "always accept"
+            "always approve"
+            "no.?qa"
+            "type.?ignore"
+            "pylint.?disable"
+          )
+
+          MATCHED=false
+          MATCHED_PATTERN=""
+          for pattern in "${OVERRIDE_PATTERNS[@]}"; do
+            if echo "$BODY_LOWER" | grep -qP "$pattern"; then
+              MATCHED=true
+              MATCHED_PATTERN="$pattern"
+              break
+            fi
+          done
+
+          if [ "$MATCHED" = "false" ]; then
+            echo "No rule override attempt detected."
+            exit 0
+          fi
+
+          echo "⚠️ Detected rule override attempt by $COMMENT_AUTHOR (pattern: $MATCHED_PATTERN)"
+
+          # Build maintainer mentions
+          MENTIONS=""
+          IFS=',' read -ra MAINT_ARRAY <<< "$MAINTAINERS"
+          for m in "${MAINT_ARRAY[@]}"; do
+            MENTIONS="$MENTIONS @$m"
+          done
+
+          WARNING_BODY="⚠️ **Rule override attempt detected**
+
+          A comment by @$COMMENT_AUTHOR appears to instruct CodeRabbit to ignore or override repository coding standards.
+
+          **Comment:** $COMMENT_URL
+          **Pattern detected:** \`$MATCHED_PATTERN\`
+
+          Repository rules are defined in \`AGENTS.md\` and \`.coderabbit.yaml\` and cannot be overridden via PR comments. Only repo maintainers can modify these rules.
+
+          cc $MENTIONS — please review this comment."
+
+          # Post warning as a PR comment
+          gh pr comment "$PR_NUMBER" --repo "$REPO" --body "$WARNING_BODY"
+
+          # If it's a review comment that's part of a thread, unresolve it
+          if [ "$IS_REVIEW_COMMENT" = "true" ]; then
+            THREAD_ID=$(gh api graphql -f query='
+              query($owner: String!, $repo: String!, $pr: Int!) {
+                repository(owner: $owner, name: $repo) {
+                  pullRequest(number: $pr) {
+                    reviewThreads(first: 100) {
+                      nodes {
+                        id
+                        isResolved
+                        comments(first: 20) {
+                          nodes {
+                            databaseId
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            ' -f owner="${REPO%%/*}" -f repo="${REPO##*/}" -F pr="$PR_NUMBER" \
+              --jq ".data.repository.pullRequest.reviewThreads.nodes[]
+                | select(.comments.nodes[].databaseId == $COMMENT_ID)
+                | .id" 2>/dev/null || true)
+
+            if [ -n "$THREAD_ID" ]; then
+              echo "Unresolving thread $THREAD_ID"
+              gh api graphql -f query="
+                mutation {
+                  unresolveReviewThread(input: {threadId: \"$THREAD_ID\"}) {
+                    thread { id isResolved }
+                  }
+                }
+              " || echo "Warning: failed to unresolve thread"
+            fi
+          fi
