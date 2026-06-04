@@ -100,8 +100,11 @@ SSL verification can be disabled via the `POLARION_DISABLE_SSL_VERIFY=1` environ
 
 ### Jira
 
-- `JIRA_TOKEN` — API token (required for requirement resolution)
-- `JIRA_SERVER` — Server URL (default: `https://redhat.atlassian.net`)
+- `PYTEST_JIRA_URL` — Jira server URL (e.g., `https://redhat.atlassian.net`)
+- `PYTEST_JIRA_USERNAME` — Jira user email (e.g., `user@redhat.com`)
+- `PYTEST_JIRA_TOKEN` — Jira API token
+
+All three are required for requirement resolution. The client authenticates via `basic_auth=(email, token)`.
 
 ### Git / GitHub
 
@@ -113,8 +116,9 @@ SSL verification can be disabled via the `POLARION_DISABLE_SSL_VERIFY=1` environ
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `JIRA_TOKEN` | Yes (for Jira) | Jira API token |
-| `JIRA_SERVER` | No | Jira server URL (default: `https://redhat.atlassian.net`) |
+| `PYTEST_JIRA_URL` | Yes (for Jira) | Jira server URL (e.g., `https://redhat.atlassian.net`) |
+| `PYTEST_JIRA_USERNAME` | Yes (for Jira) | Jira user email |
+| `PYTEST_JIRA_TOKEN` | Yes (for Jira) | Jira API token |
 | `GITHUB_TOKEN` | Yes (for PRs) | GitHub token for PR creation |
 | `POLARION_DISABLE_SSL_VERIFY` | No | Set to `1` to disable SSL verification |
 
