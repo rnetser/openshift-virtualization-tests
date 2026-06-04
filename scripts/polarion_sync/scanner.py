@@ -192,6 +192,12 @@ def _collect_sibling_polarion_ids(tree: ast.Module) -> list[str]:
 def scan_file(file: Path, repo_root: Path) -> list[UnlinkedTest]:
     """Parse *file* and return tests that lack a Polarion marker."""
     source = file.read_text()
+
+    # Skip files that explicitly opt out of Polarion ID enforcement
+    if "noqa: PID001" in source:
+        LOGGER.info(f"  Skipping {file.relative_to(repo_root)} — has noqa: PID001")
+        return []
+
     tree = ast.parse(source=source, filename=str(file))
     mod_path = _module_path(file=file, repo_root=repo_root)
     results: list[UnlinkedTest] = []
