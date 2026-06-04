@@ -98,10 +98,18 @@ def _humanize_test_name(test_name: str) -> str:
 
 
 def _build_description(test: UnlinkedTest) -> str:
-    """Build a Polarion description from the test docstring."""
+    """Build a Polarion description from the test docstring and parametrize info."""
+    parts: list[str] = []
     if test.docstring:
-        return f"<pre>{test.docstring}</pre>"
-    return f"Auto-generated from {test.node_id}"
+        parts.append(f"<pre>{test.docstring}</pre>")
+    else:
+        parts.append(f"Auto-generated from {test.node_id}")
+    if test.parametrize_info:
+        parts.append("<br/><b>Parameters:</b><ul>")
+        for info in test.parametrize_info:
+            parts.append(f"<li>{info}</li>")
+        parts.append("</ul>")
+    return "\n".join(parts)
 
 
 def create_test_cases(

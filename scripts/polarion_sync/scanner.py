@@ -37,6 +37,8 @@ class UnlinkedTest:
     jira_ids: list[str] = field(default_factory=list)
     # Polarion IDs from other tests in the same file (for requirement fallback)
     sibling_polarion_ids: list[str] = field(default_factory=list)
+    # Human-readable parametrize info extracted from decorators
+    parametrize_info: list[str] = field(default_factory=list)
 
 
 def _changed_test_files(repo_root: Path) -> list[Path]:
@@ -104,6 +106,56 @@ def _extract_markers(decorators: list[ast.expr]) -> list[str]:
         elif isinstance(decorator, ast.Call) and isinstance(decorator.func, ast.Attribute):
             markers.append(decorator.func.attr)
     return markers
+
+
+def _extract_parametrize_info(decorators: list[ast.expr]) -> list[str]:
+    """Extract human-readable parametrize info from test decorators.
+
+    For each ``@pytest.mark.parametrize(...)`` decorator, builds a string
+    like ``"Parametrized: param1, param2 [case1, case2]"``.
+
+    Args:
+        decorators: the decorator_list from an AST function node.
+
+    Returns:
+        One entry per parametrize decorator found.
+    """
+    results: list[str] = []
+    for decorator in decorators:
+        if not isinstance(decorator, ast.Call):
+            continue
+        func = decorator.func
+        if not (isinstance(func, ast.Attribute) and func.attr == "parametrize"):
+            continue
+        if not decorator.args:
+            continue
+
+        # First arg is the parameter names string
+        first_arg = decorator.args[0]
+        if not (isinstance(first_arg, ast.Constant) and isinstance(first_arg.value, str)):
+            continue
+        param_names = first_arg.value
+
+        # Second arg is the values list/tuple
+        ids: list[str] = []
+        if len(decorator.args) >= 2:
+            values_arg = decorator.args[1]
+            if isinstance(values_arg, (ast.List, ast.Tuple)):
+                for elt in values_arg.elts:
+                    # Check for pytest.param(..., id="...")
+                    if isinstance(elt, ast.Call) and isinstance(elt.func, ast.Attribute) and elt.func.attr == "param":
+                        for kw in elt.keywords:
+                            if kw.arg == "id" and isinstance(kw.value, ast.Constant):
+                                ids.append(str(kw.value.value))
+                                break
+                    elif isinstance(elt, ast.Constant):
+                        ids.append(str(elt.value))
+
+        if ids:
+            results.append(f"Parametrized: {param_names} [{', '.join(ids)}]")
+        else:
+            results.append(f"Parametrized: {param_names}")
+    return results
 
 
 def _module_path(file: Path, repo_root: Path) -> str:
@@ -251,6 +303,7 @@ def scan_file(file: Path, repo_root: Path) -> list[UnlinkedTest]:
                             markers=_extract_markers(decorators=item.decorator_list),
                             jira_ids=jira_ids,
                             sibling_polarion_ids=sibling_polarion_ids,
+                            parametrize_info=_extract_parametrize_info(decorators=item.decorator_list),
                         )
                     )
 
@@ -278,6 +331,7 @@ def scan_file(file: Path, repo_root: Path) -> list[UnlinkedTest]:
                     markers=_extract_markers(decorators=node.decorator_list),
                     jira_ids=jira_ids,
                     sibling_polarion_ids=sibling_polarion_ids,
+                    parametrize_info=_extract_parametrize_info(decorators=node.decorator_list),
                 )
             )
 
