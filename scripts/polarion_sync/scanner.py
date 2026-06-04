@@ -56,14 +56,42 @@ def _changed_test_files(repo_root: Path) -> list[Path]:
     ]
 
 
-def _pr_changed_test_files(repo_root: Path, pr_number: int, gh_repo: str | None = None) -> list[Path]:
-    """Return ``test_*.py`` files added or modified in a GitHub PR.
+def _pr_head_sha(pr_number: int, gh_repo: str | None, repo_root: Path) -> str | None:
+    """Return the HEAD SHA of a GitHub PR."""
+    cmd = ["gh", "pr", "view", str(pr_number), "--json", "headRefOid", "--jq", ".headRefOid"]
+    if gh_repo:
+        cmd.extend(["--repo", gh_repo])
+    result = subprocess.run(cmd, capture_output=True, text=True, cwd=repo_root)
+    if result.returncode != 0:
+        LOGGER.warning(f"Failed to get HEAD SHA for PR #{pr_number}: {result.stderr}")
+        return None
+    return result.stdout.strip()
+
+
+def _git_show(repo_root: Path, ref: str, path: str) -> str | None:
+    """Read file content from a git ref without checking it out."""
+    result = subprocess.run(
+        ["git", "show", f"{ref}:{path}"],
+        capture_output=True,
+        text=True,
+        cwd=repo_root,
+    )
+    if result.returncode != 0:
+        return None
+    return result.stdout
+
+
+def _pr_changed_test_files(repo_root: Path, pr_number: int, gh_repo: str | None = None) -> list[str]:
+    """Return relative paths of ``test_*.py`` files added or modified in a GitHub PR.
 
     Args:
         repo_root: path to the repository root.
         pr_number: GitHub PR number.
         gh_repo: GitHub repo in ``owner/name`` format (e.g. ``RedHatQE/openshift-virtualization-tests``).
             When None, ``gh`` auto-detects from the current repo.
+
+    Returns:
+        List of relative path strings (not Path objects) for changed test files.
     """
     cmd = ["gh", "pr", "diff", str(pr_number), "--name-only"]
     if gh_repo:
@@ -78,7 +106,7 @@ def _pr_changed_test_files(repo_root: Path, pr_number: int, gh_repo: str | None 
         LOGGER.warning(f"Failed to fetch PR #{pr_number} diff: {result.stderr}")
         return []
     return [
-        repo_root / path
+        path
         for path in result.stdout.splitlines()
         if path.startswith("tests/") and path.endswith(".py") and "/test_" in path
     ]
@@ -269,9 +297,16 @@ def _collect_sibling_polarion_ids(tree: ast.Module) -> list[str]:
     return polarion_ids
 
 
-def scan_file(file: Path, repo_root: Path) -> list[UnlinkedTest]:
-    """Parse *file* and return tests that lack a Polarion marker."""
-    source = file.read_text()
+def scan_file(file: Path, repo_root: Path, source: str | None = None) -> list[UnlinkedTest]:
+    """Parse *file* and return tests that lack a Polarion marker.
+
+    Args:
+        file: path to the test file (used for node_id generation).
+        repo_root: repository root path.
+        source: file content. When None, reads from disk.
+    """
+    if source is None:
+        source = file.read_text()
 
     # Skip files that explicitly opt out of Polarion ID enforcement
     if "noqa: PID001" in source:
@@ -373,12 +408,35 @@ def scan_changed(
 ) -> list[UnlinkedTest]:
     """Scan files changed in the last commit or a specific PR for unlinked tests."""
     if pr_number:
-        changed_files = _pr_changed_test_files(repo_root=repo_root, pr_number=pr_number, gh_repo=gh_repo)
-        LOGGER.info(f"Scanning {len(changed_files)} changed test file(s) from PR #{pr_number}")
-    else:
-        changed_files = _changed_test_files(repo_root=repo_root)
-        LOGGER.info(f"Scanning {len(changed_files)} changed test file(s)")
-    unlinked: list[UnlinkedTest] = []
+        changed_paths = _pr_changed_test_files(repo_root=repo_root, pr_number=pr_number, gh_repo=gh_repo)
+        LOGGER.info(f"Scanning {len(changed_paths)} changed test file(s) from PR #{pr_number}")
+        head_sha = _pr_head_sha(pr_number=pr_number, gh_repo=gh_repo, repo_root=repo_root)
+        if not head_sha:
+            LOGGER.error(f"Could not determine HEAD SHA for PR #{pr_number}")
+            return []
+        # Fetch the PR head so git-show can read files from it
+        subprocess.run(
+            ["git", "fetch", "origin", head_sha],
+            capture_output=True,
+            text=True,
+            cwd=repo_root,
+        )
+        unlinked: list[UnlinkedTest] = []
+        for rel_path in changed_paths:
+            file = repo_root / rel_path
+            source = _git_show(repo_root=repo_root, ref=head_sha, path=rel_path)
+            if source is None:
+                LOGGER.warning(f"  Could not read {rel_path} from ref {head_sha[:12]}")
+                continue
+            found = scan_file(file=file, repo_root=repo_root, source=source)
+            if found:
+                LOGGER.info(f"  {rel_path}: {len(found)} test(s) without Polarion ID")
+            unlinked.extend(found)
+        return unlinked
+
+    changed_files = _changed_test_files(repo_root=repo_root)
+    LOGGER.info(f"Scanning {len(changed_files)} changed test file(s)")
+    unlinked = []
     for file in changed_files:
         if file.exists():
             found = scan_file(file=file, repo_root=repo_root)
