@@ -56,6 +56,34 @@ def _changed_test_files(repo_root: Path) -> list[Path]:
     ]
 
 
+def _pr_changed_test_files(repo_root: Path, pr_number: int, gh_repo: str | None = None) -> list[Path]:
+    """Return ``test_*.py`` files added or modified in a GitHub PR.
+
+    Args:
+        repo_root: path to the repository root.
+        pr_number: GitHub PR number.
+        gh_repo: GitHub repo in ``owner/name`` format (e.g. ``RedHatQE/openshift-virtualization-tests``).
+            When None, ``gh`` auto-detects from the current repo.
+    """
+    cmd = ["gh", "pr", "diff", str(pr_number), "--name-only"]
+    if gh_repo:
+        cmd.extend(["--repo", gh_repo])
+    result = subprocess.run(
+        cmd,
+        capture_output=True,
+        text=True,
+        cwd=repo_root,
+    )
+    if result.returncode != 0:
+        LOGGER.warning(f"Failed to fetch PR #{pr_number} diff: {result.stderr}")
+        return []
+    return [
+        repo_root / path
+        for path in result.stdout.splitlines()
+        if path.startswith("tests/") and path.endswith(".py") and "/test_" in path
+    ]
+
+
 def _contains_polarion_call(node: ast.AST) -> bool:
     """Walk *node* looking for a ``pytest.mark.polarion(...)`` call anywhere."""
     for child in ast.walk(node):
@@ -338,10 +366,18 @@ def scan_file(file: Path, repo_root: Path) -> list[UnlinkedTest]:
     return results
 
 
-def scan_changed(repo_root: Path) -> list[UnlinkedTest]:
-    """Scan only files changed in the last commit for unlinked tests."""
-    changed_files = _changed_test_files(repo_root=repo_root)
-    LOGGER.info(f"Scanning {len(changed_files)} changed test file(s)")
+def scan_changed(
+    repo_root: Path,
+    pr_number: int | None = None,
+    gh_repo: str | None = None,
+) -> list[UnlinkedTest]:
+    """Scan files changed in the last commit or a specific PR for unlinked tests."""
+    if pr_number:
+        changed_files = _pr_changed_test_files(repo_root=repo_root, pr_number=pr_number, gh_repo=gh_repo)
+        LOGGER.info(f"Scanning {len(changed_files)} changed test file(s) from PR #{pr_number}")
+    else:
+        changed_files = _changed_test_files(repo_root=repo_root)
+        LOGGER.info(f"Scanning {len(changed_files)} changed test file(s)")
     unlinked: list[UnlinkedTest] = []
     for file in changed_files:
         if file.exists():

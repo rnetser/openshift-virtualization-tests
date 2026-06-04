@@ -56,7 +56,11 @@ def main() -> int:
         "--repo-root", type=Path, default=Path.cwd(), help="Repository root (default: current directory)"
     )
     parser.add_argument("--pr-author", help="GitHub username of the PR author (for follow-up PRs)")
-    parser.add_argument("--pr-number", type=int, help="Original PR number that triggered the sync")
+    parser.add_argument("--pr-number", type=int, help="PR number — used for scanning changed files and follow-up PRs")
+    parser.add_argument(
+        "--gh-repo",
+        help="GitHub repo in owner/name format (e.g. RedHatQE/openshift-virtualization-tests)",
+    )
     args = parser.parse_args()
 
     logging.basicConfig(
@@ -74,7 +78,7 @@ def main() -> int:
     if args.scan_all:
         unlinked = scan_all(repo_root=repo_root)
     else:
-        unlinked = scan_changed(repo_root=repo_root)
+        unlinked = scan_changed(repo_root=repo_root, pr_number=args.pr_number, gh_repo=args.gh_repo)
 
     if not unlinked:
         LOGGER.info("No unlinked tests found — nothing to do")
