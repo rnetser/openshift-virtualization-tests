@@ -154,6 +154,19 @@ uv run python -m scripts.polarion_sync.main --scan-all --scan-only
 uv run python -m scripts.polarion_sync.main
 ```
 
+### Local testing against a PR (no checkout needed)
+
+Scan files from a specific PR without switching branches — reads files
+directly from the PR's HEAD via `git show`:
+
+```bash
+uv run python -m scripts.polarion_sync.main \
+  --pr-number 5129 \
+  --gh-repo RedHatQE/openshift-virtualization-tests \
+  --pr-author rnetser \
+  --dry-run
+```
+
 ### Jenkins CI run with PR metadata
 
 Enables follow-up PR creation assigned to the original PR author:
@@ -180,7 +193,8 @@ uv run python -m scripts.polarion_sync.main \
 | `--project-id` | Polarion project ID (default: `CNV`) |
 | `--repo-root` | Repository root path (default: current directory) |
 | `--pr-author` | GitHub username of PR author (for follow-up PRs) |
-| `--pr-number` | Original PR number (for follow-up PRs) |
+| `--pr-number` | PR number — used for scanning changed files and follow-up PRs |
+| `--gh-repo` | GitHub repo in `owner/name` format (e.g., `RedHatQE/openshift-virtualization-tests`) |
 
 ## Running Tests
 
@@ -189,6 +203,10 @@ uv run pytest scripts/polarion_sync/tests/ -v
 ```
 
 25 unit tests covering scanner, injector, client, and push gate logic.
+
+## Skipping Files
+
+Files with `# flake8: noqa: PID001` are automatically skipped by the scanner — they opt out of Polarion ID enforcement.
 
 ## Implementation Notes
 
