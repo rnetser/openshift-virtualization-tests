@@ -33,6 +33,7 @@ jobs:
           GH_TOKEN: ${{ secrets.BOT3_TOKEN }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           REPO: ${{ github.repository }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
         run: |
           set -euo pipefail
 
@@ -92,23 +93,22 @@ jobs:
           done
 
           # Process each resolved thread
-          echo "$ALL_THREADS" | jq -r '
+          echo "$ALL_THREADS" | jq -r --arg pr_author "$PR_AUTHOR" '
             .[]
             | select(.isResolved == true)
             | select(.opening_comment.nodes[0].author.login == "coderabbitai")
             | select(
-                # No substantive non-bot reply exists anywhere in the recent window
-                # (all comments are from coderabbitai, or human replies are < 15 chars)
-                (all(.recent_comments.nodes[];
-                  .author.login == "coderabbitai"
-                  or (.body | length) < 15
-                ))
+                # No substantive PR-author reply exists in the recent window
+                (any(.recent_comments.nodes[];
+                  .author.login == $pr_author
+                  and ((.body // "") | length) >= 15
+                ) | not)
               )
             | .id
           ' | while read -r thread_id; do
             if [ -n "$thread_id" ]; then
               echo "Unresolving thread: $thread_id"
-              gh api graphql -f query="
+              if gh api graphql -f query="
                 mutation {
                   unresolveReviewThread(input: {threadId: \"$thread_id\"}) {
                     thread {
@@ -117,18 +117,20 @@ jobs:
                     }
                   }
                 }
-              " || echo "  Warning: failed to unresolve $thread_id"
-
-              # Add a comment to the thread explaining why it was unresolved
-              gh api graphql -f query="
-                mutation {
-                  addPullRequestReviewThreadReply(input: {pullRequestReviewThreadId: \"$thread_id\", body: \"\u26a0\ufe0f This thread was automatically unresolved because it was resolved without a substantive response. Please address the review comment and explain how it was resolved before resolving this thread again.\"}) {
-                    comment {
-                      id
+              "; then
+                # Add a comment to the thread explaining why it was unresolved
+                gh api graphql -f query="
+                  mutation {
+                    addPullRequestReviewThreadReply(input: {pullRequestReviewThreadId: \"$thread_id\", body: \"\u26a0\ufe0f This thread was automatically unresolved because it was resolved without a substantive response. Please address the review comment and explain how it was resolved before resolving this thread again.\"}) {
+                      comment {
+                        id
+                      }
                     }
                   }
-                }
-              " || echo "  Warning: failed to add comment to $thread_id"
+                " || echo "  Warning: failed to add comment to $thread_id"
+              else
+                echo "  Warning: failed to unresolve $thread_id"
+              fi
             fi
           done
 
