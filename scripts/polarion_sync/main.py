@@ -111,6 +111,11 @@ def main() -> int:
     LOGGER.info("Stage 3: Injecting IDs and pushing")
     LOGGER.info("=" * 60)
 
+    if args.dry_run:
+        LOGGER.info("[dry-run] Skipping injection and push")
+        LOGGER.info("Done \u2705")
+        return 0
+
     modified = inject_polarion_ids(results=results)
     LOGGER.info(f"Modified {len(modified)} file(s)")
 
