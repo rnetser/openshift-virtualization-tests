@@ -22,6 +22,8 @@ from scripts.polarion_sync.scanner import UnlinkedTest, scan_file
 @pytest.fixture(autouse=True)
 def _clear_polarion_caches():
     """Clear module-level caches between tests to ensure isolation."""
+    clear_jira_caches()
+    clear_sibling_cache()
     yield
     clear_jira_caches()
     clear_sibling_cache()
