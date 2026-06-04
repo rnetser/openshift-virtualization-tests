@@ -199,6 +199,5 @@ uv run pytest scripts/polarion_sync/tests/ -v
 
 ## Related Documentation
 
-- [Polarion Sync Skill](../../.pi/skills/polarion-sync/SKILL.md) — Agent skill for post-merge Polarion workflows
 - [pylero documentation](https://github.com/RedHatQE/pylero)
 - [Jira Python library](https://jira.readthedocs.io/)
