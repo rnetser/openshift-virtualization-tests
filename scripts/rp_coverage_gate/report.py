@@ -226,13 +226,35 @@ def format_text_report(
 
     if report.failed:
         lines.append("-" * TERMINAL_WIDTH)
-        lines.append("FAILED TESTS:")
+        lines.append(f"FAILED TESTS ({len(report.failed)}):")
         lines.append("-" * TERMINAL_WIDTH)
+
+        # Group by defect type
+        defect_groups: dict[str, list[tuple[str, ItemResult]]] = {}
         for node_id, result in sorted(report.failed, key=lambda entry: entry[0]):
-            polarion = f" [{result.polarion_id}]" if result.polarion_id else ""
-            lines.append(
-                f"  {node_id}  bundle={result.bundle}  date={result.last_executed}  source={result.source}{polarion}"
-            )
+            group_key = result.defect_type or "Unclassified"
+            defect_groups.setdefault(group_key, []).append((node_id, result))
+
+        # Display order: Product Bug, Automation Bug, System Issue, To Investigate, then rest
+        display_order = ["Product Bug", "Automation Bug", "System Issue", "To Investigate", "No Defect", "Not Issue"]
+        sorted_groups = []
+        for group_name in display_order:
+            if group_name in defect_groups:
+                sorted_groups.append((group_name, defect_groups.pop(group_name)))
+        for group_name in sorted(defect_groups):
+            sorted_groups.append((group_name, defect_groups[group_name]))
+
+        max_comment_len = 60
+        for group_name, group_items in sorted_groups:
+            lines.append(f"  {group_name} ({len(group_items)}):")
+            for node_id, result in group_items:
+                comment = ""
+                if result.defect_comment:
+                    truncated = result.defect_comment[:max_comment_len]
+                    if len(result.defect_comment) > max_comment_len:
+                        truncated += "..."
+                    comment = f"  [{truncated}]"
+                lines.append(f"    {node_id}  bundle={result.bundle}{comment}")
         lines.append("")
 
     if full:
@@ -304,7 +326,7 @@ def format_json_report(
     """
 
     def _result_to_dict(node_id: str, result: ItemResult) -> dict[str, Any]:
-        return {
+        entry: dict[str, Any] = {
             "node_id": node_id,
             "rp_name": result.name,
             "status": result.status,
@@ -314,6 +336,11 @@ def format_json_report(
             "polarion_id": result.polarion_id,
             "source": result.source,
         }
+        if result.defect_type:
+            entry["defect_type"] = result.defect_type
+        if result.defect_comment:
+            entry["defect_comment"] = result.defect_comment
+        return entry
 
     executed_count = len(report.passed) + len(report.failed) + len(report.skipped)
     coverage_pct = (executed_count / report.total_tests * 100) if report.total_tests > 0 else 0.0

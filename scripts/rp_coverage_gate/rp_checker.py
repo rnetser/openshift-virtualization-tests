@@ -27,6 +27,8 @@ class ItemResult:
         launch_name: Name of the launch.
         polarion_id: Polarion test case ID if present.
         source: "manual" if MANUAL=true in launch, else "automated".
+        defect_type: Classified defect type for failed/skipped items.
+        defect_comment: Defect comment from RP issue field.
     """
 
     name: str
@@ -36,6 +38,40 @@ class ItemResult:
     launch_name: str
     polarion_id: str | None = None
     source: str = "automated"
+    defect_type: str | None = None
+    defect_comment: str | None = None
+
+
+_DEFECT_TYPE_PREFIXES: dict[str, str] = {
+    "pb": "Product Bug",
+    "ab": "Automation Bug",
+    "si": "System Issue",
+    "ti": "To Investigate",
+    "nd": "No Defect",
+}
+
+
+def _classify_defect(issue_type: str) -> str:
+    """Classify a ReportPortal issue type locator into a human-readable label.
+
+    Matches by prefix since custom defect types may have different numeric
+    suffixes (e.g., ``pb001``, ``pb_custom_123``).
+
+    Args:
+        issue_type: RP issue type locator (e.g., ``pb001``, ``ab002``).
+
+    Returns:
+        Human-readable defect classification.
+    """
+    if issue_type == "NOT_ISSUE":
+        return "Not Issue"
+
+    lower_type = issue_type.lower()
+    for prefix, label in _DEFECT_TYPE_PREFIXES.items():
+        if lower_type.startswith(prefix):
+            return label
+
+    return "Unknown"
 
 
 def _extract_attribute(attributes: list[dict[str, Any]], key: str) -> str | None:
@@ -90,6 +126,14 @@ def check_coverage(rp_client: RPClient, bundle_prefix: str) -> dict[str, ItemRes
 
             polarion_id = _extract_attribute(attributes=item_attributes, key="polarion-testcase-id")
 
+            issue = item.get("issue")
+            defect_type = None
+            defect_comment = None
+            if issue:
+                raw_issue_type = issue.get("issueType", "")
+                defect_type = _classify_defect(issue_type=raw_issue_type)
+                defect_comment = issue.get("comment")
+
             result_map[item_name] = ItemResult(
                 name=item_name,
                 status=item_status,
@@ -98,6 +142,8 @@ def check_coverage(rp_client: RPClient, bundle_prefix: str) -> dict[str, ItemRes
                 launch_name=launch_name,
                 polarion_id=polarion_id,
                 source=source,
+                defect_type=defect_type,
+                defect_comment=defect_comment,
             )
 
     LOGGER.info(f"Found results for {len(result_map)} unique tests across {len(launches)} launches")

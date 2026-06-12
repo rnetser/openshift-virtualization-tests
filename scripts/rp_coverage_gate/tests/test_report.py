@@ -421,5 +421,69 @@ class TestFailedTestsAlwaysShown:
 
         text = format_text_report(report=report, bundle_prefix="v4.22.0", stale_days=30, full=False)
 
-        assert "FAILED TESTS:" in text
+        assert "FAILED TESTS" in text
         assert "test_broken" in text
+
+    def test_failed_tests_grouped_by_defect_type(self) -> None:
+        """Verify FAILED TESTS section groups tests by defect type."""
+        recent = _recent_iso()
+        report = CoverageReport(
+            total_tests=5,
+            automated_count=5,
+            unautomated_count=0,
+            passed=[],
+            failed=[
+                (
+                    "tests/net/test_a.py::TestA::test_pb",
+                    _make_result(
+                        name="t_pb",
+                        status="FAILED",
+                        last_executed=recent,
+                        bundle="v4.22.0",
+                    ),
+                ),
+                (
+                    "tests/net/test_a.py::TestA::test_ab",
+                    _make_result(
+                        name="t_ab",
+                        status="FAILED",
+                        last_executed=recent,
+                        bundle="v4.22.0",
+                    ),
+                ),
+                (
+                    "tests/net/test_a.py::TestA::test_ti",
+                    _make_result(
+                        name="t_ti",
+                        status="FAILED",
+                        last_executed=recent,
+                        bundle="v4.22.0",
+                    ),
+                ),
+            ],
+            skipped=[],
+            never_executed=[],
+            stale=[],
+            gate_passed=False,
+            gating_never_executed=[],
+            gating_stale=[],
+        )
+        # Set defect types directly on results
+        report.failed[0][1].defect_type = "Product Bug"
+        report.failed[0][1].defect_comment = "CNV-12345: VM migration fails on SRIOV"
+        report.failed[1][1].defect_type = "Automation Bug"
+        report.failed[1][1].defect_comment = "Framework timeout in teardown"
+        report.failed[2][1].defect_type = "To Investigate"
+
+        text = format_text_report(report=report, bundle_prefix="v4.22.0", stale_days=30, full=False)
+
+        assert "FAILED TESTS (3):" in text
+        assert "Product Bug (1):" in text
+        assert "Automation Bug (1):" in text
+        assert "To Investigate (1):" in text
+        assert "CNV-12345: VM migration fails on SRIOV" in text
+        assert "Framework timeout in teardown" in text
+        # Verify Product Bug appears before Automation Bug in output
+        pb_pos = text.index("Product Bug")
+        ab_pos = text.index("Automation Bug")
+        assert pb_pos < ab_pos
