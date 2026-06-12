@@ -34,6 +34,8 @@ class CoverageReport:
         never_executed: List of node_ids with no RP results.
         stale: List of (node_id, ItemResult) for stale tests.
         gate_passed: Whether the gate check passed.
+        gating_never_executed: List of gating node_ids with no RP results.
+        gating_stale: List of (node_id, ItemResult) for stale gating tests.
     """
 
     total_tests: int
@@ -45,6 +47,8 @@ class CoverageReport:
     never_executed: list[str]
     stale: list[tuple[str, ItemResult]]
     gate_passed: bool
+    gating_never_executed: list[str]
+    gating_stale: list[tuple[str, ItemResult]]
 
 
 def _get_team_from_node_id(node_id: str) -> str:
@@ -72,6 +76,7 @@ def analyze_coverage(
     stale_days: int = 30,
     team_filter: str | None = None,
     fail_on_stale: bool = True,
+    gating_ids: set[str] | None = None,
 ) -> CoverageReport:
     """Analyze test coverage by cross-referencing repo tests with RP results.
 
@@ -82,6 +87,7 @@ def analyze_coverage(
         stale_days: Threshold for stale tests.
         team_filter: Optional team name to filter results.
         fail_on_stale: Whether stale tests cause gate failure.
+        gating_ids: Optional set of gating-marked test node IDs.
 
     Returns:
         CoverageReport with categorized results.
@@ -138,6 +144,13 @@ def analyze_coverage(
         elif status_upper == "SKIPPED":
             skipped.append((node_id, result))
 
+    gating_never_executed: list[str] = []
+    gating_stale: list[tuple[str, ItemResult]] = []
+
+    if gating_ids:
+        gating_never_executed = [nid for nid in never_executed if nid in gating_ids]
+        gating_stale = [(nid, res) for nid, res in stale if nid in gating_ids]
+
     gate_passed = len(never_executed) == 0
     if fail_on_stale and len(stale) > 0:
         gate_passed = False
@@ -152,6 +165,8 @@ def analyze_coverage(
         never_executed=never_executed,
         stale=stale,
         gate_passed=gate_passed,
+        gating_never_executed=gating_never_executed,
+        gating_stale=gating_stale,
     )
 
 
@@ -196,6 +211,18 @@ def format_text_report(
     lines.append(f"Never executed:          {len(report.never_executed):,}")
     lines.append(f"Coverage:                {coverage_pct:.1f}%")
     lines.append("")
+
+    gating_gap_count = len(report.gating_never_executed) + len(report.gating_stale)
+    if gating_gap_count > 0:
+        lines.append("-" * TERMINAL_WIDTH)
+        lines.append(f"GATING — never executed or stale ({gating_gap_count}):")
+        lines.append("-" * TERMINAL_WIDTH)
+        for node_id in sorted(report.gating_never_executed):
+            lines.append(f"  ⚠ {node_id} [NEVER EXECUTED]")
+        for node_id, result in sorted(report.gating_stale, key=lambda entry: entry[0]):
+            date_str = result.last_executed[:10] if result.last_executed else "unknown"
+            lines.append(f"  ⚠ {node_id} [STALE: {date_str}]")
+        lines.append("")
 
     if full:
         if report.never_executed:
@@ -325,6 +352,13 @@ def format_json_report(
             for node_id, result in sorted(report.stale, key=lambda entry: entry[0])
         ],
         "never_executed": sorted(report.never_executed),
+        "gating": {
+            "never_executed": sorted(report.gating_never_executed),
+            "stale": [
+                _result_to_dict(node_id=node_id, result=result)
+                for node_id, result in sorted(report.gating_stale, key=lambda entry: entry[0])
+            ],
+        },
     }
 
     return json.dumps(obj=data, indent=2)

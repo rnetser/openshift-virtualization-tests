@@ -62,11 +62,12 @@ def _parse_pytest_collect_output(stdout: str) -> list[str]:
     return node_ids
 
 
-def collect_all_tests(tests_dir: Path) -> tuple[list[str], list[str]]:
+def collect_all_tests(tests_dir: Path) -> tuple[list[str], list[str], set[str]]:
     """Collect both automated and unautomated test node IDs.
 
     Automated tests are collected via ``pytest --collect-only``.
     Unautomated tests are collected via std_placeholder_stats AST scanning.
+    Gating tests are collected via a second ``pytest --collect-only -m gating`` run.
 
     The OPENSHIFT_VIRTUALIZATION_TEST_IMAGES_ARCH env var is set to 'amd64'
     to allow collection without a cluster connection.
@@ -75,7 +76,7 @@ def collect_all_tests(tests_dir: Path) -> tuple[list[str], list[str]]:
         tests_dir: Path to the tests directory to scan.
 
     Returns:
-        Tuple of (automated_node_ids, unautomated_node_ids).
+        Tuple of (automated_node_ids, unautomated_node_ids, gating_node_ids).
     """
     env = os.environ.copy()
     env["OPENSHIFT_VIRTUALIZATION_TEST_IMAGES_ARCH"] = "amd64"
@@ -103,4 +104,14 @@ def collect_all_tests(tests_dir: Path) -> tuple[list[str], list[str]]:
 
     LOGGER.info(f"Collected {len(unautomated_ids)} unautomated placeholder tests")
 
-    return automated_ids, unautomated_ids
+    # Collect gating-marked tests
+    gating_result = subprocess.run(
+        ["uv", "run", "pytest", "--collect-only", "-q", str(tests_dir), "-m", "gating"],
+        capture_output=True,
+        text=True,
+        env=env,
+    )
+    gating_ids = set(_parse_pytest_collect_output(stdout=gating_result.stdout))
+    LOGGER.info(f"Collected {len(gating_ids)} gating-marked tests")
+
+    return automated_ids, unautomated_ids, gating_ids

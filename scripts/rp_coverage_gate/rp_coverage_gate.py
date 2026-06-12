@@ -85,7 +85,7 @@ def main(
     dry_run: bool,
 ) -> None:
     """Run the coverage gate check."""
-    automated_ids, unautomated_ids = collect_all_tests(tests_dir=tests_dir)
+    automated_ids, unautomated_ids, gating_ids = collect_all_tests(tests_dir=tests_dir)
     LOGGER.info(f"Collected {len(automated_ids)} automated and {len(unautomated_ids)} unautomated test IDs")
 
     if dry_run:
@@ -94,6 +94,7 @@ def main(
         click.echo(message=f"  Total:        {total_count}")
         click.echo(message=f"  Automated:    {len(automated_ids)}")
         click.echo(message=f"  Unautomated:  {len(unautomated_ids)}")
+        click.echo(message=f"  Gating:       {len(gating_ids)}")
         if team:
             filtered_automated = {test_id for test_id in automated_ids if team.lower() in test_id.lower()}
             filtered_unautomated = {test_id for test_id in unautomated_ids if team.lower() in test_id.lower()}
@@ -115,6 +116,7 @@ def main(
             stale_days=stale_days,
             team_filter=team,
             fail_on_stale=fail_on_stale,
+            gating_ids=gating_ids,
         )
 
         if output_format == "json":

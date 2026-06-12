@@ -216,6 +216,8 @@ class TestFormatTextReport:
             never_executed=["tests/net/test_a.py::TestA::test_three"],
             stale=[],
             gate_passed=False,
+            gating_never_executed=[],
+            gating_stale=[],
         )
 
         text = format_text_report(
@@ -245,6 +247,8 @@ class TestFormatJsonReport:
             never_executed=[],
             stale=[],
             gate_passed=True,
+            gating_never_executed=[],
+            gating_stale=[],
         )
 
         json_str = format_json_report(
@@ -262,3 +266,131 @@ class TestFormatJsonReport:
         assert "passed" in data
         assert "failed" in data
         assert "never_executed" in data
+
+
+class TestGatingCoverage:
+    def test_analyze_coverage_gating_never_executed(self) -> None:
+        """Verify gating tests are tracked separately when never executed."""
+        recent = _recent_iso()
+        automated_ids = [
+            "tests/network/test_a.py::TestA::test_gated",
+            "tests/network/test_a.py::TestA::test_normal",
+        ]
+        gating_ids = {"tests/network/test_a.py::TestA::test_gated"}
+        rp_results = {
+            "tests.network.test_a.TestA.test_normal": _make_result(
+                name="tests.network.test_a.TestA.test_normal",
+                status="PASSED",
+                last_executed=recent,
+            ),
+        }
+
+        report = analyze_coverage(
+            automated_ids=automated_ids,
+            unautomated_ids=[],
+            rp_results=rp_results,
+            gating_ids=gating_ids,
+        )
+
+        assert len(report.never_executed) == 1  # only test_gated is missing
+        assert len(report.gating_never_executed) == 1
+        assert "test_gated" in report.gating_never_executed[0]
+
+    def test_analyze_coverage_gating_stale(self) -> None:
+        """Verify gating tests are tracked separately when stale."""
+        old = _old_iso(days=60)
+        automated_ids = [
+            "tests/network/test_a.py::TestA::test_gated",
+        ]
+        gating_ids = {"tests/network/test_a.py::TestA::test_gated"}
+        rp_results = {
+            "tests.network.test_a.TestA.test_gated": _make_result(
+                name="tests.network.test_a.TestA.test_gated",
+                status="PASSED",
+                last_executed=old,
+            ),
+        }
+
+        report = analyze_coverage(
+            automated_ids=automated_ids,
+            unautomated_ids=[],
+            rp_results=rp_results,
+            stale_days=30,
+            gating_ids=gating_ids,
+        )
+
+        assert len(report.gating_stale) == 1
+        assert "test_gated" in report.gating_stale[0][0]
+
+    def test_gating_section_in_text_report(self) -> None:
+        """Verify GATING section appears in text report when there are gating gaps."""
+        report = CoverageReport(
+            total_tests=5,
+            automated_count=5,
+            unautomated_count=0,
+            passed=[],
+            failed=[],
+            skipped=[],
+            never_executed=["tests/net/test_a.py::TestA::test_gated", "tests/net/test_a.py::TestA::test_other"],
+            stale=[],
+            gate_passed=False,
+            gating_never_executed=["tests/net/test_a.py::TestA::test_gated"],
+            gating_stale=[],
+        )
+
+        text = format_text_report(report=report, bundle_prefix="v4.22.0", stale_days=30)
+
+        assert "GATING" in text
+        assert "⚠" in text
+        assert "NEVER EXECUTED" in text
+        assert "test_gated" in text
+
+    def test_gating_in_json_report(self) -> None:
+        """Verify gating field present in JSON report."""
+        report = CoverageReport(
+            total_tests=2,
+            automated_count=2,
+            unautomated_count=0,
+            passed=[],
+            failed=[],
+            skipped=[],
+            never_executed=["tests/net/test_a.py::TestA::test_gated"],
+            stale=[],
+            gate_passed=False,
+            gating_never_executed=["tests/net/test_a.py::TestA::test_gated"],
+            gating_stale=[],
+        )
+
+        json_str = format_json_report(report=report, bundle_prefix="v4.22.0", stale_days=30)
+        data = json.loads(json_str)
+
+        assert "gating" in data
+        assert len(data["gating"]["never_executed"]) == 1
+
+    def test_no_gating_section_when_all_gating_covered(self) -> None:
+        """Verify GATING section does not appear when all gating tests are covered."""
+        recent = _recent_iso()
+        automated_ids = [
+            "tests/network/test_a.py::TestA::test_gated",
+        ]
+        gating_ids = {"tests/network/test_a.py::TestA::test_gated"}
+        rp_results = {
+            "tests.network.test_a.TestA.test_gated": _make_result(
+                name="tests.network.test_a.TestA.test_gated",
+                status="PASSED",
+                last_executed=recent,
+            ),
+        }
+
+        report = analyze_coverage(
+            automated_ids=automated_ids,
+            unautomated_ids=[],
+            rp_results=rp_results,
+            gating_ids=gating_ids,
+        )
+
+        assert len(report.gating_never_executed) == 0
+        assert len(report.gating_stale) == 0
+
+        text = format_text_report(report=report, bundle_prefix="v4.22.0", stale_days=30)
+        assert "GATING" not in text
