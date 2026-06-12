@@ -394,3 +394,32 @@ class TestGatingCoverage:
 
         text = format_text_report(report=report, bundle_prefix="v4.22.0", stale_days=30)
         assert "GATING" not in text
+
+
+class TestFailedTestsAlwaysShown:
+    def test_failed_tests_shown_without_full_flag(self) -> None:
+        """Verify FAILED TESTS section appears in default (non-full) mode."""
+        recent = _recent_iso()
+        report = CoverageReport(
+            total_tests=3,
+            automated_count=3,
+            unautomated_count=0,
+            passed=[("tests/net/test_a.py::TestA::test_ok", _make_result(name="t1", last_executed=recent))],
+            failed=[
+                (
+                    "tests/net/test_a.py::TestA::test_broken",
+                    _make_result(name="t2", status="FAILED", last_executed=recent, bundle="v4.22.0"),
+                )
+            ],
+            skipped=[],
+            never_executed=[],
+            stale=[],
+            gate_passed=True,
+            gating_never_executed=[],
+            gating_stale=[],
+        )
+
+        text = format_text_report(report=report, bundle_prefix="v4.22.0", stale_days=30, full=False)
+
+        assert "FAILED TESTS:" in text
+        assert "test_broken" in text

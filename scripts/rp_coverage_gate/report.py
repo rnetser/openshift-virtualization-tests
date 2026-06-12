@@ -224,6 +224,17 @@ def format_text_report(
             lines.append(f"  ⚠ {node_id} [STALE: {date_str}]")
         lines.append("")
 
+    if report.failed:
+        lines.append("-" * TERMINAL_WIDTH)
+        lines.append("FAILED TESTS:")
+        lines.append("-" * TERMINAL_WIDTH)
+        for node_id, result in sorted(report.failed, key=lambda entry: entry[0]):
+            polarion = f" [{result.polarion_id}]" if result.polarion_id else ""
+            lines.append(
+                f"  {node_id}  bundle={result.bundle}  date={result.last_executed}  source={result.source}{polarion}"
+            )
+        lines.append("")
+
     if full:
         if report.never_executed:
             lines.append("-" * TERMINAL_WIDTH)
@@ -241,18 +252,6 @@ def format_text_report(
                 polarion = f" [{result.polarion_id}]" if result.polarion_id else ""
                 lines.append(
                     f"  {node_id}  status={result.status}  bundle={result.bundle}"
-                    f"  date={result.last_executed}  source={result.source}{polarion}"
-                )
-            lines.append("")
-
-        if report.failed:
-            lines.append("-" * TERMINAL_WIDTH)
-            lines.append("FAILED TESTS:")
-            lines.append("-" * TERMINAL_WIDTH)
-            for node_id, result in sorted(report.failed, key=lambda entry: entry[0]):
-                polarion = f" [{result.polarion_id}]" if result.polarion_id else ""
-                lines.append(
-                    f"  {node_id}  bundle={result.bundle}"
                     f"  date={result.last_executed}  source={result.source}{polarion}"
                 )
             lines.append("")
