@@ -1,3 +1,4 @@
+# Co-authored-by: Claude <noreply@anthropic.com>
 """Safety gate: verify diff is only Polarion marker additions, then push.
 
 This module ensures that the only changes in the working tree are

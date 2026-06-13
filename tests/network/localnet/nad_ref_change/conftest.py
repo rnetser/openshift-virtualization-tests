@@ -1,3 +1,4 @@
+# Co-authored-by: Claude <noreply@anthropic.com>
 from collections.abc import Generator
 from typing import Final
 

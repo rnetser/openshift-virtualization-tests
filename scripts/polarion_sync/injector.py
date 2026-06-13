@@ -1,3 +1,4 @@
+# Co-authored-by: Claude <noreply@anthropic.com>
 """Inject Polarion IDs as pytest markers on test functions.
 
 Adds a ``@pytest.mark.polarion("CNV-XXXXX")`` decorator before each

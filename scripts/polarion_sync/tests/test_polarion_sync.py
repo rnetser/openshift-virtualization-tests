@@ -1,3 +1,4 @@
+# Co-authored-by: Claude <noreply@anthropic.com>
 """Unit tests for scripts.polarion_sync package."""
 
 from __future__ import annotations

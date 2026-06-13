@@ -1,3 +1,4 @@
+# Co-authored-by: Claude <noreply@anthropic.com>
 """Resolve Jira references to Polarion requirement IDs.
 
 Walks the Jira hierarchy from a ticket to its Epic, then searches

@@ -1,3 +1,4 @@
+# Co-authored-by: Claude <noreply@anthropic.com>
 """Polarion Sync — main entry point.
 
 Orchestrates the three stages:

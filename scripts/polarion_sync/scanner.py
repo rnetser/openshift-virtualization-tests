@@ -1,3 +1,4 @@
+# Co-authored-by: Claude <noreply@anthropic.com>
 """Scan test files for new tests missing Polarion markers.
 
 Detects test functions/methods that lack a ``@pytest.mark.polarion()``

@@ -1,3 +1,4 @@
+# Co-authored-by: Claude <noreply@anthropic.com>
 from copy import deepcopy
 
 from libs.net.vmspec import wait_for_no_vmi_condition, wait_for_vmi_condition_status

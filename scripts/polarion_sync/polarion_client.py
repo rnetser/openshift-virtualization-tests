@@ -1,3 +1,4 @@
+# Co-authored-by: Claude <noreply@anthropic.com>
 """Create Polarion test cases for unlinked tests.
 
 Uses ``pylero`` (the same library already used by ``python-utility-scripts``)
