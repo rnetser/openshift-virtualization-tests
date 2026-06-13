@@ -1,3 +1,4 @@
+<!-- Co-authored-by: Claude <noreply@anthropic.com> -->
 # Manual Test Reporter for ReportPortal
 
 Push manual test results for unautomated STD (Standard Test Design) placeholder tests

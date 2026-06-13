@@ -1,3 +1,4 @@
+# Co-authored-by: Claude <noreply@anthropic.com>
 """ReportPortal results checker.
 
 Queries ReportPortal for test execution results across launches

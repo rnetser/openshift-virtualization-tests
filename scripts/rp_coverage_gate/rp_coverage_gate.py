@@ -1,3 +1,4 @@
+# Co-authored-by: Claude <noreply@anthropic.com>
 """CI Coverage Gate for ReportPortal.
 
 Collects all tests from the repository, checks ReportPortal for execution

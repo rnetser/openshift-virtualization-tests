@@ -1,3 +1,4 @@
+# Co-authored-by: Claude <noreply@anthropic.com>
 """Tests for scripts.rp_coverage_gate.rp_checker module."""
 
 from __future__ import annotations

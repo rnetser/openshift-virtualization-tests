@@ -1,3 +1,4 @@
+# Co-authored-by: Claude <noreply@anthropic.com>
 """Test collector for coverage gate.
 
 Collects all tests from the repository — both automated (via pytest --collect-only)

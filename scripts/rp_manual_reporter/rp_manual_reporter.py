@@ -1,3 +1,4 @@
+# Co-authored-by: Claude <noreply@anthropic.com>
 """Manual Test Reporter for ReportPortal.
 
 Interactive CLI that collects __test__ = False placeholder tests,
@@ -229,11 +230,14 @@ def _run_interactive_mode(tests: list[PlaceholderTestDetail]) -> tuple[list[dict
     return results, skipped_count
 
 
-def _load_batch_file(batch_path: Path) -> list[dict[str, Any]]:
-    """Load test results from a batch YAML file.
+def _load_batch_file(batch_path: Path) -> tuple[list[dict[str, Any]], dict[str, str]]:
+    """Load test results and metadata from a batch YAML file.
 
     Expected format::
 
+        metadata:
+            team: NETWORK
+            bundle: v4.22.0
         results:
           - test: "tests/foo/test_bar.py::TestClass::test_method"
             status: passed
@@ -243,7 +247,8 @@ def _load_batch_file(batch_path: Path) -> list[dict[str, Any]]:
         batch_path: Path to the YAML file.
 
     Returns:
-        List of result dicts with test, status, and optional comment.
+        Tuple of (results list, metadata dict). Metadata may contain
+        ``team`` and ``bundle`` from a previous session's saved file.
 
     Raises:
         click.ClickException: If the file format is invalid or a status
@@ -271,8 +276,15 @@ def _load_batch_file(batch_path: Path) -> list[dict[str, Any]]:
             "comment": entry.get("comment", ""),
         })
 
+    metadata: dict[str, str] = {}
+    raw_metadata = raw.get("metadata", {})
+    if isinstance(raw_metadata, dict):
+        for key in ("team", "bundle"):
+            if raw_metadata.get(key):
+                metadata[key] = str(raw_metadata[key])
+
     LOGGER.info(f"Loaded {len(results)} results from batch file {batch_path}")
-    return results
+    return results, metadata
 
 
 def _save_results_for_retry(results: list[dict[str, Any]], team: str, bundle: str | None) -> Path:
@@ -488,7 +500,7 @@ def main(
         "STORAGE_CLASS": "--sc",
         "CHANNEL": "--channel",
     }
-    if not dry_run:
+    if not dry_run and not batch_file:
         present_keys = {attr["key"] for attr in attributes}
         missing = {key: flag for key, flag in required_attr_keys.items() if key not in present_keys}
         if missing:
@@ -505,8 +517,31 @@ def main(
     skipped_count = 0
 
     if batch_file:
-        results = _load_batch_file(batch_path=batch_file)
+        results, batch_metadata = _load_batch_file(batch_path=batch_file)
         collected_count = len(results)
+        # Fill team/bundle from batch metadata if not provided via CLI
+        batch_team = batch_metadata.get("team")
+        batch_bundle = batch_metadata.get("bundle")
+        if not team and batch_team:
+            team = batch_team
+            click.echo(message=f"Using team from batch file: {team}")
+        if not bundle and batch_bundle:
+            bundle = batch_bundle
+            click.echo(message=f"Using bundle from batch file: {bundle}")
+        # Rebuild attributes with batch metadata merged in
+        attributes = _build_launch_attributes(
+            team=team,
+            bundle=bundle,
+            cnv_version=cnv_version,
+            arch=arch,
+            ocp_version=ocp_version,
+            cluster_name=cluster_name,
+            cluster_domain=cluster_domain,
+            storage_class=sc,
+            channel=channel,
+            tier=tier,
+            cluster_attrs=cluster_attrs,
+        )
     else:
         filter_parts = []
         if marker:

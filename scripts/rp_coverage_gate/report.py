@@ -1,3 +1,4 @@
+# Co-authored-by: Claude <noreply@anthropic.com>
 """Coverage report generator.
 
 Produces text or JSON reports showing test coverage status against

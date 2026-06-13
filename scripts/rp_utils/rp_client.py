@@ -1,3 +1,4 @@
+# Co-authored-by: Claude <noreply@anthropic.com>
 """ReportPortal API client for CNV test coverage tools.
 
 Provides authenticated access to the ReportPortal REST API with

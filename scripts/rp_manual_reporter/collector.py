@@ -1,3 +1,4 @@
+# Co-authored-by: Claude <noreply@anthropic.com>
 """Collector for STD placeholder tests with full context.
 
 Extends std_placeholder_stats test discovery to extract docstrings,

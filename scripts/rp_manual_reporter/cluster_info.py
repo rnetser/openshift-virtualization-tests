@@ -1,3 +1,4 @@
+# Co-authored-by: Claude <noreply@anthropic.com>
 """Auto-fill ReportPortal launch attributes from a connected cluster.
 
 Queries the OpenShift cluster for architecture, versions, storage class,
