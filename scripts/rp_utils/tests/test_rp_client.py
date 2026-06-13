@@ -38,9 +38,9 @@ class TestApiUrl:
 
 class TestCreateLaunch:
     def test_create_launch(self, rp_client: RPClient) -> None:
-        """Verify create_launch sends correct POST body and returns launch ID."""
+        """Verify create_launch sends correct POST body and returns launch UUID."""
         mock_response = MagicMock()
-        mock_response.json.return_value = {"id": 42}
+        mock_response.json.return_value = {"id": "abc-123-uuid"}
         mock_response.raise_for_status = MagicMock()
 
         with patch.object(rp_client.session, "post", return_value=mock_response) as mock_post:
@@ -50,7 +50,7 @@ class TestCreateLaunch:
                 description="my desc",
             )
 
-        assert result == 42
+        assert result == "abc-123-uuid"
         call_kwargs = mock_post.call_args
         body = call_kwargs.kwargs["json"]
         assert body["name"] == "test-launch"
@@ -78,40 +78,41 @@ class TestFinishLaunch:
         mock_response.raise_for_status = MagicMock()
 
         with patch.object(rp_client.session, "put", return_value=mock_response) as mock_put:
-            rp_client.finish_launch(launch_id=99)
+            rp_client.finish_launch(launch_uuid="uuid-99")
 
         call_kwargs = mock_put.call_args
         url = call_kwargs.kwargs["url"]
-        assert url.endswith("/launch/99/finish")
+        assert url.endswith("/launch/uuid-99/finish")
 
 
 class TestCreateTestItem:
     def test_create_test_item_without_attributes(self, rp_client: RPClient) -> None:
         """Verify create_test_item omits attributes key when not provided."""
         mock_response = MagicMock()
-        mock_response.json.return_value = {"id": 7}
+        mock_response.json.return_value = {"id": "item-7"}
         mock_response.raise_for_status = MagicMock()
 
         with patch.object(rp_client.session, "post", return_value=mock_response) as mock_post:
             rp_client.create_test_item(
-                launch_id=1,
+                launch_uuid="uuid-1",
                 name="test_foo",
                 status="passed",
             )
 
         body = mock_post.call_args.kwargs["json"]
         assert "attributes" not in body
+        assert body["launchUuid"] == "uuid-1"
 
     def test_create_test_item_with_attributes(self, rp_client: RPClient) -> None:
         """Verify create_test_item includes attributes when provided."""
         mock_response = MagicMock()
-        mock_response.json.return_value = {"id": 8}
+        mock_response.json.return_value = {"id": "item-8"}
         mock_response.raise_for_status = MagicMock()
 
         attrs = [{"key": "polarion-testcase-id", "value": "CNV-1234"}]
         with patch.object(rp_client.session, "post", return_value=mock_response) as mock_post:
             rp_client.create_test_item(
-                launch_id=1,
+                launch_uuid="uuid-1",
                 name="test_bar",
                 status="failed",
                 attributes=attrs,
@@ -120,6 +121,7 @@ class TestCreateTestItem:
         body = mock_post.call_args.kwargs["json"]
         assert body["attributes"] == attrs
         assert body["status"] == "FAILED"
+        assert body["launchUuid"] == "uuid-1"
 
 
 class TestGetLaunches:

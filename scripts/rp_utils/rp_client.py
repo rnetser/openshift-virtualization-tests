@@ -89,7 +89,7 @@ class RPClient:
 
         return all_items
 
-    def create_launch(self, name: str, attributes: list[dict[str, str]], description: str = "") -> int:
+    def create_launch(self, name: str, attributes: list[dict[str, str]], description: str = "") -> str:
         """Creates a new launch in ReportPortal.
 
         Args:
@@ -98,7 +98,7 @@ class RPClient:
             description: Optional launch description.
 
         Returns:
-            The created launch ID.
+            The created launch UUID.
 
         Raises:
             requests.HTTPError: If the request fails.
@@ -113,37 +113,37 @@ class RPClient:
         }
         response = self.session.post(url=url, json=body)
         response.raise_for_status()
-        launch_id = response.json()["id"]
-        LOGGER.info(f"Created launch '{name}' with ID {launch_id}")
-        return launch_id
+        launch_uuid = response.json()["id"]
+        LOGGER.info(f"Created launch '{name}' with UUID {launch_uuid}")
+        return launch_uuid
 
-    def finish_launch(self, launch_id: int) -> None:
+    def finish_launch(self, launch_uuid: str) -> None:
         """Finishes an existing launch.
 
         Args:
-            launch_id: ID of the launch to finish.
+            launch_uuid: UUID of the launch to finish.
 
         Raises:
             requests.HTTPError: If the request fails.
         """
-        url = self._api_url(path=f"launch/{launch_id}/finish")
+        url = self._api_url(path=f"launch/{launch_uuid}/finish")
         body = {"endTime": _utc_now_iso()}
         response = self.session.put(url=url, json=body)
         response.raise_for_status()
-        LOGGER.info(f"Finished launch {launch_id}")
+        LOGGER.info(f"Finished launch {launch_uuid}")
 
     def create_test_item(
         self,
-        launch_id: int,
+        launch_uuid: str,
         name: str,
         status: str,
         description: str = "",
         attributes: list[dict[str, str]] | None = None,
-    ) -> int:
+    ) -> str:
         """Creates a test item (step) within a launch.
 
         Args:
-            launch_id: Parent launch ID.
+            launch_uuid: Parent launch UUID.
             name: Test item name.
             status: Test status (e.g., "PASSED", "FAILED", "SKIPPED").
             description: Optional item description.
@@ -159,7 +159,7 @@ class RPClient:
         timestamp = _utc_now_iso()
         normalized_status = status.upper()
         body: dict[str, Any] = {
-            "launchId": launch_id,
+            "launchUuid": launch_uuid,
             "name": name,
             "type": "STEP",
             "status": normalized_status,

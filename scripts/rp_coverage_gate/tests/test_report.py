@@ -215,6 +215,8 @@ class TestFormatTextReport:
             failed=[("tests/net/test_a.py::TestA::test_two", _make_result(name="t2", status="FAILED"))],
             skipped=[],
             never_executed=["tests/net/test_a.py::TestA::test_three"],
+            never_executed_automated=["tests/net/test_a.py::TestA::test_three"],
+            never_executed_manual=[],
             stale=[],
             gate_passed=False,
             gating_never_executed=[],
@@ -246,6 +248,8 @@ class TestFormatJsonReport:
             failed=[],
             skipped=[],
             never_executed=[],
+            never_executed_automated=[],
+            never_executed_manual=[],
             stale=[],
             gate_passed=True,
             gating_never_executed=[],
@@ -333,6 +337,11 @@ class TestGatingCoverage:
             failed=[],
             skipped=[],
             never_executed=["tests/net/test_a.py::TestA::test_gated", "tests/net/test_a.py::TestA::test_other"],
+            never_executed_automated=[
+                "tests/net/test_a.py::TestA::test_gated",
+                "tests/net/test_a.py::TestA::test_other",
+            ],
+            never_executed_manual=[],
             stale=[],
             gate_passed=False,
             gating_never_executed=["tests/net/test_a.py::TestA::test_gated"],
@@ -356,6 +365,8 @@ class TestGatingCoverage:
             failed=[],
             skipped=[],
             never_executed=["tests/net/test_a.py::TestA::test_gated"],
+            never_executed_automated=["tests/net/test_a.py::TestA::test_gated"],
+            never_executed_manual=[],
             stale=[],
             gate_passed=False,
             gating_never_executed=["tests/net/test_a.py::TestA::test_gated"],
@@ -414,6 +425,8 @@ class TestFailedTestsAlwaysShown:
             ],
             skipped=[],
             never_executed=[],
+            never_executed_automated=[],
+            never_executed_manual=[],
             stale=[],
             gate_passed=True,
             gating_never_executed=[],
@@ -464,6 +477,8 @@ class TestFailedTestsAlwaysShown:
             ],
             skipped=[],
             never_executed=[],
+            never_executed_automated=[],
+            never_executed_manual=[],
             stale=[],
             gate_passed=False,
             gating_never_executed=[],
@@ -488,3 +503,153 @@ class TestFailedTestsAlwaysShown:
         pb_pos = text.index("Product Bug")
         ab_pos = text.index("Automation Bug")
         assert pb_pos < ab_pos
+
+
+class TestNeverExecutedSplit:
+    def test_analyze_splits_never_executed_by_type(self) -> None:
+        """Verify never-executed tests are split into automated and manual."""
+        automated_ids = [
+            "tests/network/test_a.py::TestA::test_auto_missing",
+        ]
+        unautomated_ids = [
+            "tests/network/test_a.py::TestA::test_manual_missing",
+        ]
+
+        report = analyze_coverage(
+            automated_ids=automated_ids,
+            unautomated_ids=unautomated_ids,
+            rp_results={},
+        )
+
+        assert len(report.never_executed) == 2
+        assert len(report.never_executed_automated) == 1
+        assert len(report.never_executed_manual) == 1
+        assert "test_auto_missing" in report.never_executed_automated[0]
+        assert "test_manual_missing" in report.never_executed_manual[0]
+
+    def test_manual_section_in_text_report(self) -> None:
+        """Verify MANUAL TESTS section appears in default mode."""
+        report = CoverageReport(
+            total_tests=3,
+            automated_count=2,
+            unautomated_count=1,
+            passed=[],
+            failed=[],
+            skipped=[],
+            never_executed=[
+                "tests/net/test_a.py::TestA::test_auto",
+                "tests/net/test_a.py::TestA::test_manual",
+            ],
+            never_executed_automated=["tests/net/test_a.py::TestA::test_auto"],
+            never_executed_manual=["tests/net/test_a.py::TestA::test_manual"],
+            stale=[],
+            gate_passed=False,
+            gating_never_executed=[],
+            gating_stale=[],
+        )
+
+        text = format_text_report(report=report, bundle_prefix="v4.22", stale_days=30, full=False)
+
+        assert "MANUAL TESTS" in text
+        assert "test_manual" in text
+        # Automated never-executed should NOT appear in default mode
+        assert "NEVER EXECUTED:" not in text
+
+    def test_full_mode_labels_manual(self) -> None:
+        """Verify full mode labels manual tests with [MANUAL] tag."""
+        report = CoverageReport(
+            total_tests=3,
+            automated_count=2,
+            unautomated_count=1,
+            passed=[],
+            failed=[],
+            skipped=[],
+            never_executed=[
+                "tests/net/test_a.py::TestA::test_auto",
+                "tests/net/test_a.py::TestA::test_manual",
+            ],
+            never_executed_automated=["tests/net/test_a.py::TestA::test_auto"],
+            never_executed_manual=["tests/net/test_a.py::TestA::test_manual"],
+            stale=[],
+            gate_passed=False,
+            gating_never_executed=[],
+            gating_stale=[],
+        )
+
+        text = format_text_report(report=report, bundle_prefix="v4.22", stale_days=30, full=True)
+
+        assert "NEVER EXECUTED:" in text
+        assert "[MANUAL]" in text
+        # Auto test should not have [MANUAL] label
+        auto_line = [line for line in text.split("\n") if "test_auto" in line and "MANUAL TESTS" not in line][0]
+        assert "[MANUAL]" not in auto_line
+
+    def test_summary_shows_split_counts(self) -> None:
+        """Verify summary section shows automated and manual never-executed counts."""
+        report = CoverageReport(
+            total_tests=10,
+            automated_count=8,
+            unautomated_count=2,
+            passed=[],
+            failed=[],
+            skipped=[],
+            never_executed=["a", "b", "c", "d", "e"],
+            never_executed_automated=["a", "b", "c"],
+            never_executed_manual=["d", "e"],
+            stale=[],
+            gate_passed=False,
+            gating_never_executed=[],
+            gating_stale=[],
+        )
+
+        text = format_text_report(report=report, bundle_prefix="v4.22", stale_days=30)
+
+        assert "Never executed:          5" in text
+        assert "Automated:             3" in text
+        assert "Manual (STD):          2" in text
+
+    def test_json_report_includes_split(self) -> None:
+        """Verify JSON report contains never_executed_automated and never_executed_manual."""
+        report = CoverageReport(
+            total_tests=3,
+            automated_count=2,
+            unautomated_count=1,
+            passed=[],
+            failed=[],
+            skipped=[],
+            never_executed=["auto_test", "manual_test"],
+            never_executed_automated=["auto_test"],
+            never_executed_manual=["manual_test"],
+            stale=[],
+            gate_passed=False,
+            gating_never_executed=[],
+            gating_stale=[],
+        )
+
+        json_str = format_json_report(report=report, bundle_prefix="v4.22", stale_days=30)
+        data = json.loads(json_str)
+
+        assert data["never_executed_automated"] == ["auto_test"]
+        assert data["never_executed_manual"] == ["manual_test"]
+
+    def test_no_manual_section_when_empty(self) -> None:
+        """Verify MANUAL TESTS section does not appear when no manual tests are missing."""
+        report = CoverageReport(
+            total_tests=5,
+            automated_count=5,
+            unautomated_count=0,
+            passed=[],
+            failed=[],
+            skipped=[],
+            never_executed=["tests/net/test_a.py::test_auto"],
+            never_executed_automated=["tests/net/test_a.py::test_auto"],
+            never_executed_manual=[],
+            stale=[],
+            gate_passed=False,
+            gating_never_executed=[],
+            gating_stale=[],
+        )
+
+        text = format_text_report(report=report, bundle_prefix="v4.22", stale_days=30)
+
+        assert "MANUAL TESTS" not in text

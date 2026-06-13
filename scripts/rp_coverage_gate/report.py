@@ -46,6 +46,8 @@ class CoverageReport:
     failed: list[tuple[str, ItemResult]]
     skipped: list[tuple[str, ItemResult]]
     never_executed: list[str]
+    never_executed_automated: list[str]
+    never_executed_manual: list[str]
     stale: list[tuple[str, ItemResult]]
     gate_passed: bool
     gating_never_executed: list[str]
@@ -103,7 +105,11 @@ def analyze_coverage(
     failed: list[tuple[str, ItemResult]] = []
     skipped: list[tuple[str, ItemResult]] = []
     never_executed: list[str] = []
+    never_executed_automated: list[str] = []
+    never_executed_manual: list[str] = []
     stale: list[tuple[str, ItemResult]] = []
+
+    unautomated_id_set = set(unautomated_ids)
 
     filtered_automated_count = len([
         node_id
@@ -122,6 +128,10 @@ def analyze_coverage(
 
         if result is None:
             never_executed.append(node_id)
+            if node_id in unautomated_id_set:
+                never_executed_manual.append(node_id)
+            else:
+                never_executed_automated.append(node_id)
             continue
 
         # Check staleness
@@ -164,6 +174,8 @@ def analyze_coverage(
         failed=failed,
         skipped=skipped,
         never_executed=never_executed,
+        never_executed_automated=never_executed_automated,
+        never_executed_manual=never_executed_manual,
         stale=stale,
         gate_passed=gate_passed,
         gating_never_executed=gating_never_executed,
@@ -210,6 +222,8 @@ def format_text_report(
     lines.append(f"  Stale (>{stale_days}d):          {len(report.stale):,}")
     lines.append("")
     lines.append(f"Never executed:          {len(report.never_executed):,}")
+    lines.append(f"  Automated:             {len(report.never_executed_automated):,}")
+    lines.append(f"  Manual (STD):          {len(report.never_executed_manual):,}")
     lines.append(f"Coverage:                {coverage_pct:.1f}%")
     lines.append("")
 
@@ -258,13 +272,22 @@ def format_text_report(
                 lines.append(f"    {node_id}  bundle={result.bundle}{comment}")
         lines.append("")
 
+    if report.never_executed_manual:
+        lines.append("-" * TERMINAL_WIDTH)
+        lines.append(f"MANUAL TESTS \u2014 never executed ({len(report.never_executed_manual)}):")
+        lines.append("-" * TERMINAL_WIDTH)
+        for node_id in sorted(report.never_executed_manual):
+            lines.append(f"  {node_id}")
+        lines.append("")
+
     if full:
         if report.never_executed:
             lines.append("-" * TERMINAL_WIDTH)
             lines.append("NEVER EXECUTED:")
             lines.append("-" * TERMINAL_WIDTH)
             for node_id in sorted(report.never_executed):
-                lines.append(f"  {node_id}")
+                label = " [MANUAL]" if node_id in set(report.never_executed_manual) else ""
+                lines.append(f"  {node_id}{label}")
             lines.append("")
 
         if report.stale:
@@ -379,6 +402,8 @@ def format_json_report(
             for node_id, result in sorted(report.stale, key=lambda entry: entry[0])
         ],
         "never_executed": sorted(report.never_executed),
+        "never_executed_automated": sorted(report.never_executed_automated),
+        "never_executed_manual": sorted(report.never_executed_manual),
         "gating": {
             "never_executed": sorted(report.gating_never_executed),
             "stale": [

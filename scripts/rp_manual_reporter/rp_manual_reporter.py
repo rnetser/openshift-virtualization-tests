@@ -327,7 +327,7 @@ def _push_results_to_rp(
     attributes: list[dict[str, str]],
     tests: list[PlaceholderTestDetail] | None = None,
     description: str = "",
-) -> int:
+) -> str:
     """Push test results to ReportPortal.
 
     Creates a launch, populates it with test items (one per result),
@@ -344,7 +344,7 @@ def _push_results_to_rp(
         description: Launch description.
 
     Returns:
-        The launch ID.
+        The launch UUID.
     """
     # Build a node_id → polarion_id lookup from collected tests
     polarion_lookup: dict[str, str] = {}
@@ -353,7 +353,7 @@ def _push_results_to_rp(
             if test.polarion_id:
                 polarion_lookup[test.node_id] = test.polarion_id
 
-    launch_id = rp_client.create_launch(name=launch_name, attributes=attributes, description=description)
+    launch_uuid = rp_client.create_launch(name=launch_name, attributes=attributes, description=description)
 
     for result in results:
         item_name = node_id_to_rp_name(node_id=result["test"])
@@ -364,16 +364,16 @@ def _push_results_to_rp(
             item_attrs = [{"key": "polarion-testcase-id", "value": polarion_id}]
 
         rp_client.create_test_item(
-            launch_id=launch_id,
+            launch_uuid=launch_uuid,
             name=item_name,
             status=result["status"],
             description=result.get("comment", ""),
             attributes=item_attrs,
         )
 
-    rp_client.finish_launch(launch_id=launch_id)
-    LOGGER.info(f"Pushed {len(results)} results to launch {launch_id}")
-    return launch_id
+    rp_client.finish_launch(launch_uuid=launch_uuid)
+    LOGGER.info(f"Pushed {len(results)} results to launch {launch_uuid}")
+    return launch_uuid
 
 
 @click.command(
@@ -601,7 +601,7 @@ def main(
 
     try:
         client = RPClient(base_url=rp_url, project=rp_project, token=rp_token)
-        launch_id = _push_results_to_rp(
+        launch_uuid = _push_results_to_rp(
             rp_client=client,
             results=results,
             launch_name=launch_name,
@@ -609,7 +609,7 @@ def main(
             tests=collected_tests,
             description=f"Manual test results for {team_label}",
         )
-        launch_url = f"{rp_url}/ui/#{rp_project}/launches/all/{launch_id}"
+        launch_url = f"{rp_url}/ui/#{rp_project}/launches/all/{launch_uuid}"
         click.echo(message=f"\n✓ Launch created: {launch_url}")
 
     except Exception as exc:
