@@ -179,7 +179,7 @@ def _display_test_detail(test: PlaceholderTestDetail, index: int, total: int) ->
     click.echo(message=separator_line)
 
 
-def _run_interactive_mode(tests: list[PlaceholderTestDetail]) -> list[dict[str, Any]]:
+def _run_interactive_mode(tests: list[PlaceholderTestDetail]) -> tuple[list[dict[str, Any]], int]:
     """Run interactive test result collection.
 
     Presents each placeholder test one-by-one and collects a verdict
@@ -189,10 +189,11 @@ def _run_interactive_mode(tests: list[PlaceholderTestDetail]) -> list[dict[str, 
         tests: List of placeholder tests to present.
 
     Returns:
-        List of result dicts:
-        ``[{"test": node_id, "status": "PASSED"/"FAILED", "comment": ""}]``
+        Tuple of (results list, skipped count). Results contain only
+        PASSED/FAILED entries; skipped tests are counted but not recorded.
     """
     results: list[dict[str, Any]] = []
+    skipped_count = 0
     total = len(tests)
 
     for index, test in enumerate(tests, start=1):
@@ -217,14 +218,15 @@ def _run_interactive_mode(tests: list[PlaceholderTestDetail]) -> list[dict[str, 
                 results.append({"test": test.node_id, "status": "FAILED", "comment": comment})
                 break
             elif choice == "s":
+                skipped_count += 1
                 break
             elif choice == "q":
                 click.echo(message="Quitting — returning results collected so far.")
-                return results
+                return results, skipped_count
             else:
                 click.echo(message="Invalid choice. Use p/f/s/q.")
 
-    return results
+    return results, skipped_count
 
 
 def _load_batch_file(batch_path: Path) -> list[dict[str, Any]]:
@@ -475,16 +477,36 @@ def main(
         cluster_attrs=cluster_attrs,
     )
 
-    # ── 3. Validate: bundle must be present ──
-    has_bundle = any(attr["key"] == "BUNDLE" for attr in attributes)
-    if not has_bundle and not from_cluster:
-        raise click.ClickException("No BUNDLE attribute found. Provide --bundle or use --from-cluster to auto-detect.")
+    # ── 3. Validate required launch attributes (skip in dry-run) ──
+    required_attr_keys = {
+        "BUNDLE": "--bundle",
+        "OCP_VERSION": "--ocp-version",
+        "CNV_VERSION": "--cnv-version",
+        "ARCHITECTURE": "--arch",
+        "CLUSTER_NAME": "--cluster-name",
+        "CLUSTER_DOMAIN": "--cluster-domain",
+        "STORAGE_CLASS": "--sc",
+        "CHANNEL": "--channel",
+    }
+    if not dry_run:
+        present_keys = {attr["key"] for attr in attributes}
+        missing = {key: flag for key, flag in required_attr_keys.items() if key not in present_keys}
+        if missing:
+            missing_names = ", ".join(sorted(missing.keys()))
+            missing_flags = ", ".join(sorted(missing.values()))
+            raise click.ClickException(
+                f"Missing required launch attributes: {missing_names}\n"
+                f"Provide them via CLI flags ({missing_flags}) or use --from-cluster."
+            )
 
     # ── 4. Collect results ──
     collected_tests: list[PlaceholderTestDetail] | None = None
+    collected_count = 0
+    skipped_count = 0
 
     if batch_file:
         results = _load_batch_file(batch_path=batch_file)
+        collected_count = len(results)
     else:
         filter_parts = []
         if marker:
@@ -503,23 +525,25 @@ def main(
             click.echo(message="No placeholder tests found.")
             sys.exit(0)
 
-        click.echo(message=f"Found {len(collected_tests)} placeholder tests.\n")
-        results = _run_interactive_mode(tests=collected_tests)
+        collected_count = len(collected_tests)
+        click.echo(message=f"Found {collected_count} placeholder tests.\n")
+        results, skipped_count = _run_interactive_mode(tests=collected_tests)
 
-    # ── 5. Check for results ──
+    # ── 5. Print summary ──
+    pass_count = sum(1 for result in results if result["status"] == "PASSED")
+    fail_count = sum(1 for result in results if result["status"] == "FAILED")
+    click.echo(message="\n── Summary ──")
+    click.echo(message=f"Collected: {collected_count} tests")
+    click.echo(message=f"  PASSED:  {pass_count}")
+    click.echo(message=f"  FAILED:  {fail_count}")
+    click.echo(message=f"  Skipped: {skipped_count}")
+
     if not results:
-        click.echo(message="No results to push.")
+        click.echo(message="\nNo results to push.")
         sys.exit(0)
 
     # ── 6. Dry-run summary ──
     if dry_run:
-        click.echo(message="\n── Dry-run summary ──")
-        click.echo(message=f"Results: {len(results)} tests")
-        status_counts: dict[str, int] = {}
-        for result in results:
-            status_counts[result["status"]] = status_counts.get(result["status"], 0) + 1
-        for status, count in sorted(status_counts.items()):
-            click.echo(message=f"  {status}: {count}")
         click.echo(message="\nAttributes:")
         for attr in attributes:
             click.echo(message=f"  {attr['key']} = {attr['value']}")

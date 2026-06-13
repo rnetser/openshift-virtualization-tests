@@ -79,21 +79,23 @@ and populates these attributes automatically:
 
 ### Manual override (no cluster access)
 
-If you don't have access to the cluster, you can pass all attributes as CLI flags:
+If you don't have access to the cluster, provide all required attributes as CLI flags:
 
 ```bash
 uv run python -m scripts.rp_manual_reporter.rp_manual_reporter \
-    --team VIRT \
-    --bundle v4.22.0.rhel9-102 \
+    --bundle v4.22.0-test \
+    --ocp-version 4.19.0 \
     --cnv-version 4.22 \
     --arch amd64 \
-    --ocp-version 4.22.0-ec.4 \
-    --cluster-name bm15a-tlv2 \
-    --cluster-domain abi.cnv-qe.rhood.us \
-    --sc OCS \
-    --channel candidate \
-    --tier TIER-2
+    --cluster-name my-cluster \
+    --cluster-domain apps.my-cluster.example.com \
+    --sc ocs-storagecluster-ceph-rbd \
+    --channel stable \
+    --tests-dir tests/network/
 ```
+
+> **Note:** All 8 attributes above are mandatory. The tool will refuse to push
+> if any are missing (unless running with `--dry-run`).
 
 ---
 
@@ -101,12 +103,14 @@ uv run python -m scripts.rp_manual_reporter.rp_manual_reporter \
 
 ### Interactive mode (with cluster)
 
-Auto-fill environment attributes from the connected cluster and interactively
-mark each STORAGE team placeholder test:
+Auto-fill environment attributes from the connected cluster. Team is
+auto-inferred from `--tests-dir`:
 
 ```bash
 uv run python -m scripts.rp_manual_reporter.rp_manual_reporter \
-    --team STORAGE --from-cluster
+    --from-cluster \
+    --bundle v4.22.0-test \
+    --tests-dir tests/network/
 ```
 
 ### Interactive mode (manual attributes)
@@ -115,7 +119,15 @@ Provide environment attributes manually when no cluster is connected:
 
 ```bash
 uv run python -m scripts.rp_manual_reporter.rp_manual_reporter \
-    --team NETWORK --bundle v4.22.0.rhel9-102 --cnv-version 4.22
+    --bundle v4.22.0-test \
+    --ocp-version 4.19.0 \
+    --cnv-version 4.22 \
+    --arch amd64 \
+    --cluster-name my-cluster \
+    --cluster-domain apps.my-cluster.example.com \
+    --sc ocs-storagecluster-ceph-rbd \
+    --channel stable \
+    --tests-dir tests/network/
 ```
 
 ### Batch mode (from YAML)
