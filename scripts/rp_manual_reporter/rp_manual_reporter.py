@@ -34,6 +34,14 @@ TERMINAL_WIDTH = 80
 
 _VALID_STATUSES = {"PASSED", "FAILED", "SKIPPED"}
 
+_DEFECT_TYPES: dict[str, tuple[str, str]] = {
+    "1": ("pb001", "Product Bug"),
+    "2": ("ab001", "Automation Bug"),
+    "3": ("si001", "System Issue"),
+    "4": ("ti001", "To Investigate"),
+    "5": ("nd001", "No Defect"),
+}
+
 
 def _build_launch_attributes(
     team: str | None = None,
@@ -215,8 +223,26 @@ def _run_interactive_mode(tests: list[PlaceholderTestDetail]) -> tuple[list[dict
                 results.append({"test": test.node_id, "status": "PASSED", "comment": ""})
                 break
             elif choice == "f":
-                comment = click.prompt("Failure comment (optional)", default="", show_default=False)
-                results.append({"test": test.node_id, "status": "FAILED", "comment": comment})
+                click.echo(message="Defect type:")
+                for key, (_, label) in _DEFECT_TYPES.items():
+                    click.echo(message=f"  {key}. {label}")
+                defect_choice = click.prompt(
+                    "Choose (1-5, default=4)",
+                    type=str,
+                    default="4",
+                    show_default=False,
+                ).strip()
+                if defect_choice not in _DEFECT_TYPES:
+                    defect_choice = "4"
+                issue_type, issue_type_label = _DEFECT_TYPES[defect_choice]
+                comment = click.prompt("Comment (optional)", default="", show_default=False)
+                results.append({
+                    "test": test.node_id,
+                    "status": "FAILED",
+                    "comment": comment,
+                    "issue_type": issue_type,
+                    "issue_type_label": issue_type_label,
+                })
                 break
             elif choice == "s":
                 skipped_count += 1
@@ -270,11 +296,15 @@ def _load_batch_file(batch_path: Path) -> tuple[list[dict[str, Any]], dict[str, 
                 f"Invalid status '{entry.get('status')}' for test '{entry.get('test')}'. "
                 f"Must be one of: {', '.join(sorted(_VALID_STATUSES))}"
             )
-        results.append({
+        result_entry: dict[str, Any] = {
             "test": entry["test"],
             "status": status,
             "comment": entry.get("comment", ""),
-        })
+        }
+        if entry.get("issue_type"):
+            result_entry["issue_type"] = entry["issue_type"]
+            result_entry["issue_type_label"] = entry.get("issue_type_label", "")
+        results.append(result_entry)
 
     metadata: dict[str, str] = {}
     raw_metadata = raw.get("metadata", {})
@@ -369,7 +399,10 @@ def _push_results_to_rp(
             description=result.get("comment", ""),
             attributes=item_attrs,
         )
-        rp_client.finish_test_item(item_uuid=item_uuid, status=result["status"])
+        issue: dict[str, str] | None = None
+        if result.get("issue_type"):
+            issue = {"issueType": result["issue_type"], "comment": result.get("comment", "")}
+        rp_client.finish_test_item(item_uuid=item_uuid, status=result["status"], issue=issue)
 
     rp_client.finish_launch(launch_uuid=launch_uuid)
     LOGGER.info(f"Pushed {len(results)} results to launch {launch_uuid}")
@@ -566,11 +599,19 @@ def main(
 
     # ── 5. Print summary ──
     pass_count = sum(1 for result in results if result["status"] == "PASSED")
-    fail_count = sum(1 for result in results if result["status"] == "FAILED")
+    failed_results = [result for result in results if result["status"] == "FAILED"]
+    fail_count = len(failed_results)
     click.echo(message="\n── Summary ──")
     click.echo(message=f"Collected: {collected_count} tests")
     click.echo(message=f"  PASSED:  {pass_count}")
     click.echo(message=f"  FAILED:  {fail_count}")
+    if failed_results:
+        defect_counts: dict[str, int] = {}
+        for result in failed_results:
+            label = result.get("issue_type_label", "Unclassified")
+            defect_counts[label] = defect_counts.get(label, 0) + 1
+        for label, count in sorted(defect_counts.items()):
+            click.echo(message=f"    {label}: {count}")
     click.echo(message=f"  Skipped: {skipped_count}")
 
     if not results:
