@@ -26,7 +26,6 @@ class ItemResult:
         last_executed: ISO timestamp of last execution.
         bundle: Bundle version from the launch attributes.
         launch_name: Name of the launch.
-        polarion_id: Polarion test case ID if present.
         source: "manual" if MANUAL=true in launch, else "automated".
         defect_type: Classified defect type for failed/skipped items.
         defect_comment: Defect comment from RP issue field.
@@ -37,7 +36,6 @@ class ItemResult:
     last_executed: str
     bundle: str
     launch_name: str
-    polarion_id: str | None = None
     source: str = "automated"
     defect_type: str | None = None
     defect_comment: str | None = None
@@ -123,9 +121,7 @@ def check_coverage(rp_client: RPClient, bundle_prefix: str) -> dict[str, ItemRes
             item_name = item.get("name", "")
             item_status = item.get("status", "")
             item_end_time = item.get("endTime", "")
-            item_attributes = item.get("attributes", [])
-
-            polarion_id = _extract_attribute(attributes=item_attributes, key="polarion-testcase-id")
+            item.get("attributes", [])
 
             issue = item.get("issue")
             defect_type = None
@@ -141,7 +137,6 @@ def check_coverage(rp_client: RPClient, bundle_prefix: str) -> dict[str, ItemRes
                 last_executed=str(item_end_time),
                 bundle=bundle_value,
                 launch_name=launch_name,
-                polarion_id=polarion_id,
                 source=source,
                 defect_type=defect_type,
                 defect_comment=defect_comment,

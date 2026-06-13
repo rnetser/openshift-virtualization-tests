@@ -22,6 +22,59 @@ LOGGER = logging.getLogger(__name__)
 TERMINAL_WIDTH = 100
 
 
+def _split_params(node_id: str) -> tuple[str, str]:
+    """Split a node ID into base test name and parameter suffix.
+
+    Args:
+        node_id: Pytest node ID, possibly with ``[params]`` suffix.
+
+    Returns:
+        Tuple of (base_name, params). Params is the bracketed part
+        including ``[`` and ``]``, or empty string if not parametrized.
+    """
+    bracket_idx = node_id.find("[")
+    if bracket_idx == -1:
+        return node_id, ""
+    return node_id[:bracket_idx], node_id[bracket_idx:]
+
+
+def _group_by_base(
+    items: list[str],
+) -> list[tuple[str, list[str]]]:
+    """Group node IDs by base test name, preserving sorted order.
+
+    Args:
+        items: List of node IDs.
+
+    Returns:
+        List of (base_name, [params...]) tuples. Single-variant tests
+        have a one-element params list (possibly empty string).
+    """
+    groups: dict[str, list[str]] = {}
+    for node_id in sorted(items):
+        base, params = _split_params(node_id=node_id)
+        groups.setdefault(base, []).append(params)
+    return [(base, params) for base, params in groups.items()]
+
+
+def _group_results_by_base(
+    items: list[tuple[str, ItemResult]],
+) -> list[tuple[str, list[tuple[str, ItemResult]]]]:
+    """Group (node_id, result) tuples by base test name.
+
+    Args:
+        items: List of (node_id, ItemResult) tuples.
+
+    Returns:
+        List of (base_name, [(params, result)...]) tuples.
+    """
+    groups: dict[str, list[tuple[str, ItemResult]]] = {}
+    for node_id, result in sorted(items, key=lambda entry: entry[0]):
+        base, params = _split_params(node_id=node_id)
+        groups.setdefault(base, []).append((params, result))
+    return list(groups.items())
+
+
 @dataclass
 class CoverageReport:
     """Test coverage analysis results.
@@ -81,6 +134,7 @@ def analyze_coverage(
     team_filter: str | None = None,
     fail_on_stale: bool = True,
     gating_ids: set[str] | None = None,
+    exclude_teams: tuple[str, ...] | None = None,
 ) -> CoverageReport:
     """Analyze test coverage by cross-referencing repo tests with RP results.
 
@@ -92,6 +146,7 @@ def analyze_coverage(
         team_filter: Optional team name to filter results.
         fail_on_stale: Whether stale tests cause gate failure.
         gating_ids: Optional set of gating-marked test node IDs.
+        exclude_teams: Optional teams to exclude from the report.
 
     Returns:
         CoverageReport with categorized results.
@@ -100,6 +155,10 @@ def analyze_coverage(
 
     if team_filter:
         all_ids = [node_id for node_id in all_ids if _get_team_from_node_id(node_id=node_id) == team_filter]
+
+    exclude_set = set(exclude_teams) if exclude_teams else set()
+    if exclude_set:
+        all_ids = [node_id for node_id in all_ids if _get_team_from_node_id(node_id=node_id) not in exclude_set]
 
     now = datetime.now(tz=UTC)
     passed: list[tuple[str, ItemResult]] = []
@@ -112,16 +171,14 @@ def analyze_coverage(
 
     unautomated_id_set = set(unautomated_ids)
 
-    filtered_automated_count = len([
-        node_id
-        for node_id in automated_ids
-        if not team_filter or _get_team_from_node_id(node_id=node_id) == team_filter
-    ])
-    filtered_unautomated_count = len([
-        node_id
-        for node_id in unautomated_ids
-        if not team_filter or _get_team_from_node_id(node_id=node_id) == team_filter
-    ])
+    def _id_passes_filters(node_id: str) -> bool:
+        team = _get_team_from_node_id(node_id=node_id)
+        if team_filter and team != team_filter:
+            return False
+        return team not in exclude_set
+
+    filtered_automated_count = sum(1 for node_id in automated_ids if _id_passes_filters(node_id=node_id))
+    filtered_unautomated_count = sum(1 for node_id in unautomated_ids if _id_passes_filters(node_id=node_id))
 
     for node_id in all_ids:
         rp_name = node_id_to_rp_name(node_id=node_id)
@@ -277,8 +334,15 @@ def format_text_report(
         lines.append("-" * TERMINAL_WIDTH)
         lines.append(f"MANUAL TESTS \u2014 never executed ({len(report.never_executed_manual)}):")
         lines.append("-" * TERMINAL_WIDTH)
-        for node_id in sorted(report.never_executed_manual):
-            lines.append(f"  {node_id}")
+        for base, params_list in _group_by_base(items=report.never_executed_manual):
+            if len(params_list) == 1 and not params_list[0]:
+                lines.append(f"  {base}")
+            elif len(params_list) == 1:
+                lines.append(f"  {base}{params_list[0]}")
+            else:
+                lines.append(f"  {base} ({len(params_list)} variants)")
+                for params in params_list:
+                    lines.append(f"    {params}")
         lines.append("")
 
     if full:
@@ -286,45 +350,88 @@ def format_text_report(
             lines.append("-" * TERMINAL_WIDTH)
             lines.append("NEVER EXECUTED:")
             lines.append("-" * TERMINAL_WIDTH)
-            for node_id in sorted(report.never_executed):
-                label = " [MANUAL]" if node_id in set(report.never_executed_manual) else ""
-                lines.append(f"  {node_id}{label}")
+            manual_set = set(report.never_executed_manual)
+            for base, params_list in _group_by_base(items=report.never_executed):
+                if len(params_list) == 1 and not params_list[0]:
+                    label = " [MANUAL]" if base in manual_set else ""
+                    lines.append(f"  {base}{label}")
+                elif len(params_list) == 1:
+                    full_id = f"{base}{params_list[0]}"
+                    label = " [MANUAL]" if full_id in manual_set else ""
+                    lines.append(f"  {full_id}{label}")
+                else:
+                    lines.append(f"  {base} ({len(params_list)} variants)")
+                    for params in params_list:
+                        full_id = f"{base}{params}"
+                        label = " [MANUAL]" if full_id in manual_set else ""
+                        lines.append(f"    {params}{label}")
             lines.append("")
 
         if report.stale:
             lines.append("-" * TERMINAL_WIDTH)
             lines.append("STALE TESTS:")
             lines.append("-" * TERMINAL_WIDTH)
-            for node_id, result in sorted(report.stale, key=lambda entry: entry[0]):
-                polarion = f" [{result.polarion_id}]" if result.polarion_id else ""
-                lines.append(
-                    f"  {node_id}  status={result.status}  bundle={result.bundle}"
-                    f"  date={result.last_executed}  source={result.source}{polarion}"
-                )
+            for base, variants in _group_results_by_base(items=report.stale):
+                if len(variants) == 1 and not variants[0][0]:
+                    result = variants[0][1]
+                    lines.append(
+                        f"  {base}  status={result.status}  bundle={result.bundle}"
+                        f"  date={result.last_executed}  source={result.source}"
+                    )
+                elif len(variants) == 1:
+                    params, result = variants[0]
+                    lines.append(
+                        f"  {base}{params}  status={result.status}  bundle={result.bundle}"
+                        f"  date={result.last_executed}  source={result.source}"
+                    )
+                else:
+                    lines.append(f"  {base} ({len(variants)} variants)")
+                    for params, result in variants:
+                        lines.append(
+                            f"    {params}  status={result.status}  bundle={result.bundle}  date={result.last_executed}"
+                        )
             lines.append("")
 
         if report.passed:
             lines.append("-" * TERMINAL_WIDTH)
             lines.append("PASSED TESTS:")
             lines.append("-" * TERMINAL_WIDTH)
-            for node_id, result in sorted(report.passed, key=lambda entry: entry[0]):
-                polarion = f" [{result.polarion_id}]" if result.polarion_id else ""
-                lines.append(
-                    f"  {node_id}  bundle={result.bundle}"
-                    f"  date={result.last_executed}  source={result.source}{polarion}"
-                )
+            for base, variants in _group_results_by_base(items=report.passed):
+                if len(variants) == 1 and not variants[0][0]:
+                    result = variants[0][1]
+                    lines.append(
+                        f"  {base}  bundle={result.bundle}  date={result.last_executed}  source={result.source}"
+                    )
+                elif len(variants) == 1:
+                    params, result = variants[0]
+                    lines.append(
+                        f"  {base}{params}  bundle={result.bundle}  date={result.last_executed}  source={result.source}"
+                    )
+                else:
+                    lines.append(f"  {base} ({len(variants)} variants)")
+                    for params, result in variants:
+                        lines.append(f"    {params}  bundle={result.bundle}  date={result.last_executed}")
             lines.append("")
 
         if report.skipped:
             lines.append("-" * TERMINAL_WIDTH)
             lines.append("SKIPPED TESTS:")
             lines.append("-" * TERMINAL_WIDTH)
-            for node_id, result in sorted(report.skipped, key=lambda entry: entry[0]):
-                polarion = f" [{result.polarion_id}]" if result.polarion_id else ""
-                lines.append(
-                    f"  {node_id}  bundle={result.bundle}"
-                    f"  date={result.last_executed}  source={result.source}{polarion}"
-                )
+            for base, variants in _group_results_by_base(items=report.skipped):
+                if len(variants) == 1 and not variants[0][0]:
+                    result = variants[0][1]
+                    lines.append(
+                        f"  {base}  bundle={result.bundle}  date={result.last_executed}  source={result.source}"
+                    )
+                elif len(variants) == 1:
+                    params, result = variants[0]
+                    lines.append(
+                        f"  {base}{params}  bundle={result.bundle}  date={result.last_executed}  source={result.source}"
+                    )
+                else:
+                    lines.append(f"  {base} ({len(variants)} variants)")
+                    for params, result in variants:
+                        lines.append(f"    {params}  bundle={result.bundle}  date={result.last_executed}")
             lines.append("")
 
     gate_status = "PASSED" if report.gate_passed else "FAILED"
@@ -358,7 +465,6 @@ def format_json_report(
             "last_executed": result.last_executed,
             "bundle": result.bundle,
             "launch_name": result.launch_name,
-            "polarion_id": result.polarion_id,
             "source": result.source,
         }
         if result.defect_type:
@@ -414,6 +520,34 @@ def format_json_report(
         },
     }
 
+    # Add grouped view for parametrized tests
+    def _build_grouped(items: list[tuple[str, ItemResult]]) -> list[dict[str, Any]]:
+        grouped: list[dict[str, Any]] = []
+        for base, variants in _group_results_by_base(items=items):
+            if len(variants) == 1 and not variants[0][0]:
+                grouped.append(_result_to_dict(node_id=base, result=variants[0][1]))
+            else:
+                grouped.append({
+                    "base_test": base,
+                    "variant_count": len(variants),
+                    "variants": [
+                        {"params": params, **_result_to_dict(node_id=f"{base}{params}", result=result)}
+                        for params, result in variants
+                    ],
+                })
+        return grouped
+
+    data["grouped"] = {
+        "passed": _build_grouped(items=report.passed),
+        "failed": _build_grouped(items=report.failed),
+        "skipped": _build_grouped(items=report.skipped),
+        "stale": _build_grouped(items=report.stale),
+        "never_executed": [
+            {"base_test": base, "variant_count": len(params), "variants": params}
+            for base, params in _group_by_base(items=report.never_executed)
+        ],
+    }
+
     return json.dumps(obj=data, indent=2)
 
 
@@ -440,14 +574,12 @@ def format_html_report(
     gate_label = "PASSED" if report.gate_passed else "FAILED"
 
     def _result_row(node_id: str, result: ItemResult, extra_col: str = "") -> str:
-        polarion = esc(result.polarion_id) if result.polarion_id else ""
         date = esc(result.last_executed[:10]) if result.last_executed else ""
         return (
             f"<tr><td class='mono'>{esc(node_id)}</td>"
             f"<td>{esc(result.bundle)}</td>"
             f"<td>{date}</td>"
             f"<td>{esc(result.source)}</td>"
-            f"<td>{polarion}</td>"
             f"{extra_col}</tr>"
         )
 
@@ -542,10 +674,7 @@ summary:hover { opacity: 0.85; }
 
         for group_name, group_items in sorted_groups:
             parts.append(f"<div class='defect-group'>{esc(group_name)} ({len(group_items)}):</div>")
-            parts.append(
-                "<table><tr><th>Test</th><th>Bundle</th><th>Date</th>"
-                "<th>Source</th><th>Polarion</th><th>Comment</th></tr>"
-            )
+            parts.append("<table><tr><th>Test</th><th>Bundle</th><th>Date</th><th>Source</th><th>Comment</th></tr>")
             for node_id, result in group_items:
                 raw_comment = result.defect_comment or ""
                 comment = html_mod.escape(s=raw_comment)
@@ -558,8 +687,15 @@ summary:hover { opacity: 0.85; }
         parts.append("<details open class='section-manual'>")
         parts.append(f"<summary>MANUAL TESTS — never executed ({len(report.never_executed_manual)})</summary>")
         parts.append("<table><tr><th>Test</th></tr>")
-        for node_id in sorted(report.never_executed_manual):
-            parts.append(f"<tr><td class='mono'>{esc(node_id)}</td></tr>")
+        for base, params_list in _group_by_base(items=report.never_executed_manual):
+            if len(params_list) == 1 and not params_list[0]:
+                parts.append(f"<tr><td class='mono'>{esc(base)}</td></tr>")
+            elif len(params_list) == 1:
+                parts.append(f"<tr><td class='mono'>{esc(base)}{esc(params_list[0])}</td></tr>")
+            else:
+                parts.append(f"<tr><td class='mono'><b>{esc(base)}</b> ({len(params_list)} variants)</td></tr>")
+                for params in params_list:
+                    parts.append(f"<tr><td class='mono'>&nbsp;&nbsp;{esc(params)}</td></tr>")
         parts.append("</table></details>")
 
     # ── NEVER EXECUTED section ──
@@ -568,37 +704,58 @@ summary:hover { opacity: 0.85; }
         parts.append(f"<summary>NEVER EXECUTED ({len(report.never_executed)})</summary>")
         parts.append("<table><tr><th>Test</th><th>Type</th></tr>")
         manual_set = set(report.never_executed_manual)
-        for node_id in sorted(report.never_executed):
-            label = "Manual" if node_id in manual_set else "Automated"
-            parts.append(f"<tr><td class='mono'>{esc(node_id)}</td><td>{label}</td></tr>")
+        for base, params_list in _group_by_base(items=report.never_executed):
+            if len(params_list) == 1 and not params_list[0]:
+                label = "Manual" if base in manual_set else "Automated"
+                parts.append(f"<tr><td class='mono'>{esc(base)}</td><td>{label}</td></tr>")
+            elif len(params_list) == 1:
+                full_id = f"{base}{params_list[0]}"
+                label = "Manual" if full_id in manual_set else "Automated"
+                parts.append(f"<tr><td class='mono'>{esc(full_id)}</td><td>{label}</td></tr>")
+            else:
+                parts.append(
+                    f"<tr><td class='mono' colspan='2'><b>{esc(base)}</b> ({len(params_list)} variants)</td></tr>"
+                )
+                for params in params_list:
+                    full_id = f"{base}{params}"
+                    label = "Manual" if full_id in manual_set else "Automated"
+                    parts.append(f"<tr><td class='mono'>&nbsp;&nbsp;{esc(params)}</td><td>{label}</td></tr>")
+        parts.append("</table></details>")
+
+    def _html_grouped_result_section(
+        items: list[tuple[str, ItemResult]],
+        section_class: str,
+        title: str,
+        is_open: bool = False,
+    ) -> None:
+        open_attr = " open" if is_open else ""
+        parts.append(f"<details{open_attr} class='{section_class}'>")
+        parts.append(f"<summary>{title} ({len(items)})</summary>")
+        parts.append("<table><tr><th>Test</th><th>Bundle</th><th>Date</th><th>Source</th></tr>")
+        for base, variants in _group_results_by_base(items=items):
+            if len(variants) == 1 and not variants[0][0]:
+                parts.append(_result_row(node_id=base, result=variants[0][1]))
+            elif len(variants) == 1:
+                parts.append(_result_row(node_id=f"{base}{variants[0][0]}", result=variants[0][1]))
+            else:
+                parts.append(
+                    f"<tr><td class='mono' colspan='4'><b>{esc(base)}</b> ({len(variants)} variants)</td></tr>"
+                )
+                for params, result in variants:
+                    parts.append(_result_row(node_id=f"&nbsp;&nbsp;{esc(params)}", result=result))
         parts.append("</table></details>")
 
     # ── STALE TESTS section ──
     if report.stale:
-        parts.append("<details class='section-stale'>")
-        parts.append(f"<summary>STALE TESTS ({len(report.stale)})</summary>")
-        parts.append("<table><tr><th>Test</th><th>Bundle</th><th>Date</th><th>Source</th><th>Polarion</th></tr>")
-        for node_id, result in sorted(report.stale, key=lambda entry: entry[0]):
-            parts.append(_result_row(node_id=node_id, result=result))
-        parts.append("</table></details>")
+        _html_grouped_result_section(items=report.stale, section_class="section-stale", title="STALE TESTS")
 
     # ── PASSED TESTS section (collapsed) ──
     if report.passed:
-        parts.append("<details class='section-passed'>")
-        parts.append(f"<summary>PASSED TESTS ({len(report.passed)})</summary>")
-        parts.append("<table><tr><th>Test</th><th>Bundle</th><th>Date</th><th>Source</th><th>Polarion</th></tr>")
-        for node_id, result in sorted(report.passed, key=lambda entry: entry[0]):
-            parts.append(_result_row(node_id=node_id, result=result))
-        parts.append("</table></details>")
+        _html_grouped_result_section(items=report.passed, section_class="section-passed", title="PASSED TESTS")
 
     # ── SKIPPED TESTS section (collapsed) ──
     if report.skipped:
-        parts.append("<details class='section-skipped'>")
-        parts.append(f"<summary>SKIPPED TESTS ({len(report.skipped)})</summary>")
-        parts.append("<table><tr><th>Test</th><th>Bundle</th><th>Date</th><th>Source</th><th>Polarion</th></tr>")
-        for node_id, result in sorted(report.skipped, key=lambda entry: entry[0]):
-            parts.append(_result_row(node_id=node_id, result=result))
-        parts.append("</table></details>")
+        _html_grouped_result_section(items=report.skipped, section_class="section-skipped", title="SKIPPED TESTS")
 
     parts.append(f"<div class='footer'>Generated by rp_coverage_gate · {generated_at}</div>")
     parts.append("</body></html>")

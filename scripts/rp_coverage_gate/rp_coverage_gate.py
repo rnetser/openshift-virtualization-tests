@@ -88,6 +88,7 @@ def main(
     rp_token: str | None,
     output_format: str,
     team: str | None,
+    exclude_team: tuple[str, ...],
     fail_on_stale: bool,
     full: bool,
     dry_run: bool,
@@ -131,6 +132,7 @@ def main(
             team_filter=team,
             fail_on_stale=fail_on_stale,
             gating_ids=gating_ids,
+            exclude_teams=exclude_team if exclude_team else None,
         )
 
         if output_format == "json":

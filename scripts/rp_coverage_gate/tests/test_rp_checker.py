@@ -162,34 +162,6 @@ class TestCheckCoverage:
 
         assert result_map["tests.storage.test_s.TestS.test_manual"].source == "manual"
 
-    def test_check_coverage_polarion_id(self, mock_rp_client: MagicMock) -> None:
-        """Verify polarion_id is extracted from test item attributes."""
-        mock_rp_client.get_launches.return_value = [
-            {
-                "id": 1,
-                "name": "launch-1",
-                "startTime": 1000,
-                "attributes": [{"key": "BUNDLE", "value": "4.19.0"}],
-            },
-        ]
-        mock_rp_client.get_test_items.return_value = [
-            {
-                "name": "tests.net.test_p.TestP.test_polarion",
-                "status": "PASSED",
-                "endTime": "2025-01-01T00:00:00Z",
-                "attributes": [
-                    {"key": "polarion-testcase-id", "value": "CNV-5678"},
-                ],
-            },
-        ]
-
-        result_map = check_coverage(
-            rp_client=mock_rp_client,
-            bundle_prefix="4.19",
-        )
-
-        assert result_map["tests.net.test_p.TestP.test_polarion"].polarion_id == "CNV-5678"
-
     def test_check_coverage_defect_extraction(self, mock_rp_client: MagicMock) -> None:
         """Verify defect type and comment extracted from item issue field."""
         mock_rp_client.get_launches.return_value = [

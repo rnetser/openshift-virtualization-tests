@@ -11,6 +11,7 @@ import pytest
 from scripts.rp_coverage_gate.report import (
     CoverageReport,
     _get_team_from_node_id,
+    _group_by_base,
     analyze_coverage,
     format_html_report,
     format_json_report,
@@ -26,7 +27,6 @@ def _make_result(
     last_executed: str = "",
     bundle: str = "4.19.0",
     launch_name: str = "launch-1",
-    polarion_id: str | None = None,
     source: str = "automated",
 ) -> ItemResult:
     """Helper to create an ItemResult with sensible defaults."""
@@ -36,7 +36,6 @@ def _make_result(
         last_executed=last_executed,
         bundle=bundle,
         launch_name=launch_name,
-        polarion_id=polarion_id,
         source=source,
     )
 
@@ -791,3 +790,143 @@ class TestParseCollectOutput:
         result = _parse_pytest_collect_output(stdout=stdout)
 
         assert result == ["tests/net/test_a.py::test_one"]
+
+
+class TestParametrizedGrouping:
+    def test_group_by_base_parametrized(self) -> None:
+        """Verify parametrized tests are grouped by base name."""
+
+        items = [
+            "tests/infra/test_rhel.py::TestVM::test_create[rhel10-hcb]",
+            "tests/infra/test_rhel.py::TestVM::test_create[rhel10-ocs]",
+            "tests/infra/test_rhel.py::TestVM::test_create[rhel8-hcb]",
+            "tests/infra/test_rhel.py::TestVM::test_delete",
+        ]
+        grouped = _group_by_base(items=items)
+
+        assert len(grouped) == 2
+        base_create, params_create = grouped[0]
+        assert base_create == "tests/infra/test_rhel.py::TestVM::test_create"
+        assert len(params_create) == 3
+        base_delete, params_delete = grouped[1]
+        assert base_delete == "tests/infra/test_rhel.py::TestVM::test_delete"
+        assert params_delete == [""]
+
+    def test_text_report_groups_never_executed(self) -> None:
+        """Verify text report groups parametrized never-executed tests."""
+        report = CoverageReport(
+            total_tests=4,
+            automated_count=4,
+            unautomated_count=0,
+            passed=[],
+            failed=[],
+            skipped=[],
+            never_executed=[
+                "tests/net/test_a.py::TestA::test_one[param1]",
+                "tests/net/test_a.py::TestA::test_one[param2]",
+                "tests/net/test_a.py::TestA::test_one[param3]",
+                "tests/net/test_a.py::TestA::test_two",
+            ],
+            never_executed_automated=[
+                "tests/net/test_a.py::TestA::test_one[param1]",
+                "tests/net/test_a.py::TestA::test_one[param2]",
+                "tests/net/test_a.py::TestA::test_one[param3]",
+                "tests/net/test_a.py::TestA::test_two",
+            ],
+            never_executed_manual=[],
+            stale=[],
+            gate_passed=False,
+            gating_never_executed=[],
+            gating_stale=[],
+        )
+
+        text = format_text_report(report=report, bundle_prefix="v4.22", stale_days=30, full=True)
+
+        assert "test_one (3 variants)" in text
+        assert "[param1]" in text
+        assert "[param2]" in text
+        assert "test_two" in text
+
+    def test_json_report_has_grouped_key(self) -> None:
+        """Verify JSON report contains grouped view."""
+        recent = _recent_iso()
+        report = CoverageReport(
+            total_tests=3,
+            automated_count=3,
+            unautomated_count=0,
+            passed=[
+                ("tests/net/test_a.py::TestA::test_one[p1]", _make_result(name="t1", last_executed=recent)),
+                ("tests/net/test_a.py::TestA::test_one[p2]", _make_result(name="t2", last_executed=recent)),
+            ],
+            failed=[],
+            skipped=[],
+            never_executed=[],
+            never_executed_automated=[],
+            never_executed_manual=[],
+            stale=[],
+            gate_passed=True,
+            gating_never_executed=[],
+            gating_stale=[],
+        )
+
+        json_str = format_json_report(report=report, bundle_prefix="v4.22", stale_days=30)
+        data = json.loads(json_str)
+
+        assert "grouped" in data
+        grouped_passed = data["grouped"]["passed"]
+        assert len(grouped_passed) == 1
+        assert grouped_passed[0]["base_test"] == "tests/net/test_a.py::TestA::test_one"
+        assert grouped_passed[0]["variant_count"] == 2
+
+
+class TestExcludeTeam:
+    def test_exclude_team_filters_out_tests(self) -> None:
+        """Verify exclude_teams removes tests from excluded teams."""
+        recent = _recent_iso()
+        automated_ids = [
+            "tests/network/test_a.py::TestA::test_net",
+            "tests/chaos/test_b.py::TestB::test_chaos",
+            "tests/storage/test_c.py::TestC::test_stor",
+        ]
+        rp_results = {
+            "tests.network.test_a.TestA.test_net": _make_result(
+                name="tests.network.test_a.TestA.test_net", status="PASSED", last_executed=recent
+            ),
+            "tests.chaos.test_b.TestB.test_chaos": _make_result(
+                name="tests.chaos.test_b.TestB.test_chaos", status="PASSED", last_executed=recent
+            ),
+            "tests.storage.test_c.TestC.test_stor": _make_result(
+                name="tests.storage.test_c.TestC.test_stor", status="PASSED", last_executed=recent
+            ),
+        }
+
+        report = analyze_coverage(
+            automated_ids=automated_ids,
+            unautomated_ids=[],
+            rp_results=rp_results,
+            exclude_teams=("chaos",),
+        )
+
+        assert report.total_tests == 2
+        assert len(report.passed) == 2
+        node_ids = [nid for nid, _ in report.passed]
+        assert all("chaos" not in nid for nid in node_ids)
+
+    def test_exclude_multiple_teams(self) -> None:
+        """Verify multiple teams can be excluded."""
+        automated_ids = [
+            "tests/network/test_a.py::test_net",
+            "tests/chaos/test_b.py::test_chaos",
+            "tests/deprecated_api/test_c.py::test_dep",
+            "tests/storage/test_d.py::test_stor",
+        ]
+
+        report = analyze_coverage(
+            automated_ids=automated_ids,
+            unautomated_ids=[],
+            rp_results={},
+            exclude_teams=("chaos", "deprecated_api"),
+        )
+
+        assert report.total_tests == 2
+        assert len(report.never_executed) == 2
