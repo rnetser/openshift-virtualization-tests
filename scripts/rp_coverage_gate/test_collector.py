@@ -46,8 +46,8 @@ def node_id_to_rp_name(node_id: str) -> str:
 def _parse_pytest_collect_output(stdout: str) -> list[str]:
     """Parse pytest ``--collect-only -q`` output to extract test node IDs.
 
-    Each line containing ``::`` is treated as a test node ID. Summary lines
-    (e.g., ``X tests collected in Ys``) and empty lines are skipped.
+    Filters out non-test lines such as WARNING/ERROR/HINT messages from
+    plugins (e.g., pytest-order) that may contain ``::`` separators.
 
     Args:
         stdout: Raw stdout from ``pytest --collect-only -q``.
@@ -58,8 +58,17 @@ def _parse_pytest_collect_output(stdout: str) -> list[str]:
     node_ids: list[str] = []
     for line in stdout.splitlines():
         stripped = line.strip()
-        if "::" in stripped:
-            node_ids.append(stripped)
+        if not stripped:
+            continue
+        if stripped.startswith(("WARNING", "ERROR", "HINT")):
+            continue
+        if "::" not in stripped:
+            continue
+        # Real paths don't contain spaces before the first ::
+        path_part = stripped.split("::")[0]
+        if " " in path_part:
+            continue
+        node_ids.append(stripped)
     return node_ids
 
 

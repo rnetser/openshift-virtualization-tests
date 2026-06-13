@@ -17,6 +17,7 @@ from scripts.rp_coverage_gate.report import (
     format_text_report,
 )
 from scripts.rp_coverage_gate.rp_checker import ItemResult
+from scripts.rp_coverage_gate.test_collector import _parse_pytest_collect_output
 
 
 def _make_result(
@@ -745,3 +746,48 @@ class TestFormatHtmlReport:
         assert "GATING" in html
         assert "test_gated" in html
         assert "section-gating" in html
+
+
+class TestParseCollectOutput:
+    """Tests for _parse_pytest_collect_output in test_collector module."""
+
+    def test_filters_warning_lines(self) -> None:
+        """Verify WARNING lines from pytest-order are filtered out."""
+
+        stdout = (
+            "tests/network/test_a.py::TestA::test_one\n"
+            "WARNING: cannot execute test relative to others: "
+            "tests/network/test_a.py::TestA::test_one tests/network/test_a.py::TestA::test_two\n"
+            "tests/network/test_a.py::TestA::test_two\n"
+        )
+        result = _parse_pytest_collect_output(stdout=stdout)
+
+        assert len(result) == 2
+        assert "tests/network/test_a.py::TestA::test_one" in result
+        assert "tests/network/test_a.py::TestA::test_two" in result
+
+    def test_filters_error_and_hint_lines(self) -> None:
+        """Verify ERROR and HINT lines are filtered out."""
+
+        stdout = (
+            "tests/virt/test_b.py::test_func\nERROR: some plugin error with :: in it\nHINT: try fixing :: something\n"
+        )
+        result = _parse_pytest_collect_output(stdout=stdout)
+
+        assert result == ["tests/virt/test_b.py::test_func"]
+
+    def test_filters_lines_with_spaces_in_path(self) -> None:
+        """Verify lines with spaces before :: are filtered out."""
+
+        stdout = "tests/network/test_a.py::TestA::test_one\nsome random text tests/foo.py::test_bar\n"
+        result = _parse_pytest_collect_output(stdout=stdout)
+
+        assert result == ["tests/network/test_a.py::TestA::test_one"]
+
+    def test_skips_empty_and_summary_lines(self) -> None:
+        """Verify empty and summary lines (no ::) are skipped."""
+
+        stdout = "tests/net/test_a.py::test_one\n\n  \n3 tests collected in 0.5s\n"
+        result = _parse_pytest_collect_output(stdout=stdout)
+
+        assert result == ["tests/net/test_a.py::test_one"]
