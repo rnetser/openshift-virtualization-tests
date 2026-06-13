@@ -76,6 +76,13 @@ Examples:
     help="Output format (html writes to file)",
 )
 @click.option("--team", type=str, default=None, help="Filter report to specific team")
+@click.option(
+    "--exclude-team",
+    type=str,
+    multiple=True,
+    help="Exclude team(s) from report (repeatable, e.g., --exclude-team chaos --exclude-team deprecated_api)",
+)
+@click.option("--max-launches", type=int, default=50, help="Max recent launches to query (default: 50)")
 @click.option("--fail-on-stale/--no-fail-on-stale", default=True, help="Whether stale tests fail the gate")
 @click.option("--full", is_flag=True, default=False, help="Show per-test details including bundle")
 @click.option("--dry-run", is_flag=True, default=False, help="Collect tests only, skip RP query")
@@ -89,6 +96,7 @@ def main(
     output_format: str,
     team: str | None,
     exclude_team: tuple[str, ...],
+    max_launches: int,
     fail_on_stale: bool,
     full: bool,
     dry_run: bool,
@@ -123,7 +131,18 @@ def main(
 
     try:
         rp_client = RPClient(base_url=rp_url, project=rp_project, token=rp_token)
-        rp_results = check_coverage(rp_client=rp_client, bundle_prefix=bundle)
+
+        def _progress(current: int, total: int) -> None:
+            click.echo(message=f"\rFetching items from launch {current}/{total}...", nl=False)
+            if current == total:
+                click.echo(message="")
+
+        rp_results = check_coverage(
+            rp_client=rp_client,
+            bundle_prefix=bundle,
+            max_launches=max_launches,
+            progress_callback=_progress,
+        )
         report = analyze_coverage(
             automated_ids=automated_ids,
             unautomated_ids=unautomated_ids,

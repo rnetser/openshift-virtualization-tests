@@ -8,6 +8,7 @@ matching a bundle prefix and builds a result map.
 from __future__ import annotations
 
 import logging
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from typing import Any
 
@@ -89,49 +90,38 @@ def _extract_attribute(attributes: list[dict[str, Any]], key: str) -> str | None
     return None
 
 
-def check_coverage(rp_client: RPClient, bundle_prefix: str) -> dict[str, ItemResult]:
-    """Query ReportPortal for test results matching the bundle prefix.
-
-    Iterates all launches with matching BUNDLE attribute, fetches their
-    test items, and builds a result map. When a test appears in multiple
-    launches, the most recent result wins.
+def _process_launch_items(launch: dict[str, Any], items: list[dict[str, Any]]) -> list[ItemResult]:
+    """Process items from a single launch into ItemResult objects.
 
     Args:
-        rp_client: Authenticated RPClient instance.
-        bundle_prefix: Bundle version prefix to match.
+        launch: Launch dict with attributes, name, etc.
+        items: List of test item dicts from RP API.
 
     Returns:
-        Dict mapping RP test name to its most recent ItemResult.
+        List of ItemResult objects for this launch.
     """
-    launches = rp_client.get_launches(bundle_prefix=bundle_prefix)
-    launches.sort(key=lambda launch: launch.get("startTime", 0))
+    launch_attributes = launch.get("attributes", [])
+    bundle_value = _extract_attribute(attributes=launch_attributes, key="BUNDLE") or ""
+    manual_value = _extract_attribute(attributes=launch_attributes, key="MANUAL")
+    source = "manual" if manual_value and manual_value.lower() == "true" else "automated"
+    launch_name = launch.get("name", "")
 
-    result_map: dict[str, ItemResult] = {}
+    results: list[ItemResult] = []
+    for item in items:
+        item_name = item.get("name", "")
+        item_status = item.get("status", "")
+        item_end_time = item.get("endTime", "")
 
-    for launch in launches:
-        launch_attributes = launch.get("attributes", [])
-        bundle_value = _extract_attribute(attributes=launch_attributes, key="BUNDLE") or ""
-        manual_value = _extract_attribute(attributes=launch_attributes, key="MANUAL")
-        source = "manual" if manual_value and manual_value.lower() == "true" else "automated"
-        launch_name = launch.get("name", "")
+        issue = item.get("issue")
+        defect_type = None
+        defect_comment = None
+        if issue:
+            raw_issue_type = issue.get("issueType", "")
+            defect_type = _classify_defect(issue_type=raw_issue_type)
+            defect_comment = issue.get("comment")
 
-        items = rp_client.get_test_items(launch_id=launch["id"])
-
-        for item in items:
-            item_name = item.get("name", "")
-            item_status = item.get("status", "")
-            item_end_time = item.get("endTime", "")
-            item.get("attributes", [])
-
-            issue = item.get("issue")
-            defect_type = None
-            defect_comment = None
-            if issue:
-                raw_issue_type = issue.get("issueType", "")
-                defect_type = _classify_defect(issue_type=raw_issue_type)
-                defect_comment = issue.get("comment")
-
-            result_map[item_name] = ItemResult(
+        results.append(
+            ItemResult(
                 name=item_name,
                 status=item_status,
                 last_executed=str(item_end_time),
@@ -141,6 +131,62 @@ def check_coverage(rp_client: RPClient, bundle_prefix: str) -> dict[str, ItemRes
                 defect_type=defect_type,
                 defect_comment=defect_comment,
             )
+        )
+    return results
 
-    LOGGER.info(f"Found results for {len(result_map)} unique tests across {len(launches)} launches")
+
+def check_coverage(
+    rp_client: RPClient,
+    bundle_prefix: str,
+    max_launches: int = 50,
+    max_workers: int = 10,
+    progress_callback: Any | None = None,
+) -> dict[str, ItemResult]:
+    """Query ReportPortal for test results matching the bundle prefix.
+
+    Fetches launches matching the bundle, keeps the most recent
+    ``max_launches`` to avoid redundant work, then fetches test items
+    in parallel using a thread pool.
+
+    When a test appears in multiple launches, the most recent result
+    wins (launches are processed in chronological order).
+
+    Args:
+        rp_client: Authenticated RPClient instance.
+        bundle_prefix: Bundle version prefix to match.
+        max_launches: Maximum number of recent launches to process.
+        max_workers: Thread pool size for parallel item fetching.
+        progress_callback: Optional callable(current, total) for progress.
+
+    Returns:
+        Dict mapping RP test name to its most recent ItemResult.
+    """
+    launches = rp_client.get_launches(bundle_prefix=bundle_prefix)
+    launches.sort(key=lambda launch: launch.get("startTime", 0))
+
+    total_launches = len(launches)
+    if total_launches > max_launches:
+        LOGGER.info(f"Using {max_launches} most recent launches out of {total_launches}")
+        launches = launches[-max_launches:]
+
+    result_map: dict[str, ItemResult] = {}
+
+    def _fetch_launch_items(launch: dict[str, Any]) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+        items = rp_client.get_test_items(launch_id=launch["id"])
+        return launch, items
+
+    completed = 0
+    launch_count = len(launches)
+
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = {executor.submit(_fetch_launch_items, launch): launch for launch in launches}
+        for future in as_completed(futures):
+            launch, items = future.result()
+            for item_result in _process_launch_items(launch=launch, items=items):
+                result_map[item_result.name] = item_result
+            completed += 1
+            if progress_callback:
+                progress_callback(current=completed, total=launch_count)
+
+    LOGGER.info(f"Found results for {len(result_map)} unique tests across {launch_count} launches")
     return result_map

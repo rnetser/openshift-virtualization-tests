@@ -204,3 +204,62 @@ class TestCheckCoverage:
         )
 
         assert result_map == {}
+
+    def test_check_coverage_max_launches(self, mock_rp_client: MagicMock) -> None:
+        """Verify max_launches limits which launches are queried."""
+        mock_rp_client.get_launches.return_value = [
+            {
+                "id": idx,
+                "name": f"launch-{idx}",
+                "startTime": idx * 1000,
+                "attributes": [{"key": "BUNDLE", "value": "4.22.0"}],
+            }
+            for idx in range(1, 11)
+        ]
+        mock_rp_client.get_test_items.return_value = [
+            {
+                "name": "tests.net.test_a.TestA.test_one",
+                "status": "PASSED",
+                "endTime": "2025-01-01T00:00:00Z",
+                "attributes": [],
+            },
+        ]
+
+        result_map = check_coverage(
+            rp_client=mock_rp_client,
+            bundle_prefix="4.22",
+            max_launches=3,
+        )
+
+        assert len(result_map) == 1
+        assert mock_rp_client.get_test_items.call_count == 3
+        called_ids = {call.kwargs["launch_id"] for call in mock_rp_client.get_test_items.call_args_list}
+        assert called_ids == {8, 9, 10}
+
+    def test_check_coverage_progress_callback(self, mock_rp_client: MagicMock) -> None:
+        """Verify progress_callback is invoked for each launch."""
+        mock_rp_client.get_launches.return_value = [
+            {
+                "id": idx,
+                "name": f"launch-{idx}",
+                "startTime": idx * 1000,
+                "attributes": [{"key": "BUNDLE", "value": "4.22.0"}],
+            }
+            for idx in range(1, 4)
+        ]
+        mock_rp_client.get_test_items.return_value = []
+
+        progress_calls: list[tuple[int, int]] = []
+
+        def _track_progress(current: int, total: int) -> None:
+            progress_calls.append((current, total))
+
+        check_coverage(
+            rp_client=mock_rp_client,
+            bundle_prefix="4.22",
+            progress_callback=_track_progress,
+        )
+
+        assert len(progress_calls) == 3
+        assert all(total == 3 for _, total in progress_calls)
+        assert sorted(current for current, _ in progress_calls) == [1, 2, 3]
