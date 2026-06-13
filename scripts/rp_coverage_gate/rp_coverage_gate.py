@@ -14,6 +14,7 @@ Exit codes:
 from __future__ import annotations
 
 import sys
+from datetime import UTC, datetime
 from pathlib import Path
 
 import click
@@ -21,6 +22,7 @@ from simple_logger.logger import get_logger
 
 from scripts.rp_coverage_gate.report import (
     analyze_coverage,
+    format_html_report,
     format_json_report,
     format_text_report,
 )
@@ -69,9 +71,9 @@ Examples:
 @click.option("--rp-token", type=str, envvar="REPORT_PORTAL_TOKEN", default=None, help="RP API token")
 @click.option(
     "--output-format",
-    type=click.Choice(choices=["text", "json"]),
+    type=click.Choice(choices=["text", "json", "html"]),
     default="text",
-    help="Output format",
+    help="Output format (html writes to file)",
 )
 @click.option("--team", type=str, default=None, help="Filter report to specific team")
 @click.option("--fail-on-stale/--no-fail-on-stale", default=True, help="Whether stale tests fail the gate")
@@ -133,6 +135,13 @@ def main(
 
         if output_format == "json":
             click.echo(message=format_json_report(report=report, bundle_prefix=bundle, stale_days=stale_days))
+        elif output_format == "html":
+            html_content = format_html_report(report=report, bundle_prefix=bundle, stale_days=stale_days)
+            timestamp = datetime.now(tz=UTC).strftime("%Y%m%d_%H%M%S")
+            safe_bundle = bundle.replace("/", "_")
+            output_path = Path.cwd() / f"coverage_report_{safe_bundle}_{timestamp}.html"
+            output_path.write_text(data=html_content, encoding="utf-8")
+            click.echo(message=f"HTML report written to: {output_path}")
         else:
             click.echo(
                 message=format_text_report(

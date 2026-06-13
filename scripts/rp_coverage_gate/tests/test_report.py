@@ -12,6 +12,7 @@ from scripts.rp_coverage_gate.report import (
     CoverageReport,
     _get_team_from_node_id,
     analyze_coverage,
+    format_html_report,
     format_json_report,
     format_text_report,
 )
@@ -653,3 +654,94 @@ class TestNeverExecutedSplit:
         text = format_text_report(report=report, bundle_prefix="v4.22", stale_days=30)
 
         assert "MANUAL TESTS" not in text
+
+
+class TestFormatHtmlReport:
+    def test_html_report_contains_key_elements(self) -> None:
+        """Verify HTML report contains gate status, sections, and test names."""
+        recent = _recent_iso()
+        report = CoverageReport(
+            total_tests=10,
+            automated_count=8,
+            unautomated_count=2,
+            passed=[("tests/net/test_a.py::TestA::test_ok", _make_result(name="t1", last_executed=recent))],
+            failed=[
+                (
+                    "tests/net/test_a.py::TestA::test_broken",
+                    _make_result(name="t2", status="FAILED", last_executed=recent, bundle="v4.22.0"),
+                )
+            ],
+            skipped=[],
+            never_executed=["tests/net/test_a.py::TestA::test_missing", "tests/net/test_a.py::TestA::test_manual"],
+            never_executed_automated=["tests/net/test_a.py::TestA::test_missing"],
+            never_executed_manual=["tests/net/test_a.py::TestA::test_manual"],
+            stale=[],
+            gate_passed=False,
+            gating_never_executed=[],
+            gating_stale=[],
+        )
+
+        html = format_html_report(report=report, bundle_prefix="v4.22.0", stale_days=30)
+
+        assert "<!DOCTYPE html>" in html
+        assert "Test Coverage Gate" in html
+        assert "v4.22.0" in html
+        assert "GATE: FAILED" in html
+        assert "badge-fail" in html
+        assert "FAILED TESTS" in html
+        assert "test_broken" in html
+        assert "MANUAL TESTS" in html
+        assert "test_manual" in html
+        assert "NEVER EXECUTED" in html
+        assert "PASSED TESTS" in html
+        assert "test_ok" in html
+
+    def test_html_report_gate_passed(self) -> None:
+        """Verify HTML report shows PASSED badge when gate passes."""
+        recent = _recent_iso()
+        report = CoverageReport(
+            total_tests=1,
+            automated_count=1,
+            unautomated_count=0,
+            passed=[("tests/net/test_a.py::TestA::test_ok", _make_result(name="t1", last_executed=recent))],
+            failed=[],
+            skipped=[],
+            never_executed=[],
+            never_executed_automated=[],
+            never_executed_manual=[],
+            stale=[],
+            gate_passed=True,
+            gating_never_executed=[],
+            gating_stale=[],
+        )
+
+        html = format_html_report(report=report, bundle_prefix="v4.22.0", stale_days=30)
+
+        assert "GATE: PASSED" in html
+        assert "badge-pass" in html
+        assert "FAILED TESTS" not in html
+        assert "MANUAL TESTS" not in html
+
+    def test_html_report_gating_section(self) -> None:
+        """Verify GATING section appears in HTML when gating gaps exist."""
+        report = CoverageReport(
+            total_tests=2,
+            automated_count=2,
+            unautomated_count=0,
+            passed=[],
+            failed=[],
+            skipped=[],
+            never_executed=["tests/net/test_a.py::TestA::test_gated"],
+            never_executed_automated=["tests/net/test_a.py::TestA::test_gated"],
+            never_executed_manual=[],
+            stale=[],
+            gate_passed=False,
+            gating_never_executed=["tests/net/test_a.py::TestA::test_gated"],
+            gating_stale=[],
+        )
+
+        html = format_html_report(report=report, bundle_prefix="v4.22.0", stale_days=30)
+
+        assert "GATING" in html
+        assert "test_gated" in html
+        assert "section-gating" in html

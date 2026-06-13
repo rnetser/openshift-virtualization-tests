@@ -1,12 +1,13 @@
 # Co-authored-by: Claude <noreply@anthropic.com>
 """Coverage report generator.
 
-Produces text or JSON reports showing test coverage status against
-ReportPortal execution data.
+Produces text, JSON, or HTML reports showing test coverage status
+against ReportPortal execution data.
 """
 
 from __future__ import annotations
 
+import html as html_mod
 import json
 import logging
 from dataclasses import dataclass
@@ -414,3 +415,192 @@ def format_json_report(
     }
 
     return json.dumps(obj=data, indent=2)
+
+
+def format_html_report(
+    report: CoverageReport,
+    bundle_prefix: str,
+    stale_days: int,
+) -> str:
+    """Generate a self-contained HTML report of coverage results.
+
+    Args:
+        report: CoverageReport from analyze_coverage.
+        bundle_prefix: Bundle version string.
+        stale_days: Stale threshold in days.
+
+    Returns:
+        Complete HTML document as a string.
+    """
+    esc = html_mod.escape
+    generated_at = datetime.now(tz=UTC).strftime("%Y-%m-%d %H:%M:%S UTC")
+    executed_count = len(report.passed) + len(report.failed) + len(report.skipped)
+    coverage_pct = (executed_count / report.total_tests * 100) if report.total_tests > 0 else 0.0
+    gate_cls = "badge-pass" if report.gate_passed else "badge-fail"
+    gate_label = "PASSED" if report.gate_passed else "FAILED"
+
+    def _result_row(node_id: str, result: ItemResult, extra_col: str = "") -> str:
+        polarion = esc(result.polarion_id) if result.polarion_id else ""
+        date = esc(result.last_executed[:10]) if result.last_executed else ""
+        return (
+            f"<tr><td class='mono'>{esc(node_id)}</td>"
+            f"<td>{esc(result.bundle)}</td>"
+            f"<td>{date}</td>"
+            f"<td>{esc(result.source)}</td>"
+            f"<td>{polarion}</td>"
+            f"{extra_col}</tr>"
+        )
+
+    # ── CSS ──
+    css = """
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+       margin: 2rem; color: #333; background: #fafafa; }
+h1 { margin-bottom: 0.3rem; }
+.subtitle { color: #666; margin-bottom: 1.5rem; }
+table { border-collapse: collapse; width: 100%; margin-bottom: 1rem; }
+th, td { border: 1px solid #ddd; padding: 6px 10px; text-align: left; font-size: 0.9rem; }
+th { background: #f0f0f0; font-weight: 600; }
+tr:nth-child(even) { background: #f9f9f9; }
+.mono { font-family: 'SF Mono', Menlo, Monaco, monospace; font-size: 0.85rem; }
+.summary-table { width: auto; min-width: 400px; }
+.summary-table td:last-child { text-align: right; font-weight: 600; }
+details { margin-bottom: 1rem; }
+summary { cursor: pointer; font-weight: 600; font-size: 1.1rem; padding: 8px 12px;
+           border-radius: 4px; margin-bottom: 0.3rem; }
+summary:hover { opacity: 0.85; }
+.section-gating summary { background: #fff3cd; color: #856404; }
+.section-failed summary { background: #f8d7da; color: #842029; }
+.section-manual summary { background: #ffe0b2; color: #7c4d0f; }
+.section-never summary { background: #e2e3e5; color: #41464b; }
+.section-stale summary { background: #e2e3e5; color: #41464b; }
+.section-passed summary { background: #d1e7dd; color: #0f5132; }
+.section-skipped summary { background: #cff4fc; color: #055160; }
+.badge { display: inline-block; padding: 6px 18px; border-radius: 4px;
+         font-weight: bold; font-size: 1.2rem; margin: 0.5rem 0 1.5rem; }
+.badge-pass { background: #198754; color: white; }
+.badge-fail { background: #dc3545; color: white; }
+.defect-group { font-weight: 600; padding: 4px 0; margin-top: 0.5rem; }
+.footer { color: #999; font-size: 0.8rem; margin-top: 2rem; border-top: 1px solid #ddd; padding-top: 0.5rem; }
+"""
+
+    parts: list[str] = []
+    parts.append("<!DOCTYPE html><html lang='en'><head><meta charset='utf-8'>")
+    parts.append(f"<title>Coverage Gate — {esc(bundle_prefix)}</title>")
+    parts.append(f"<style>{css}</style></head><body>")
+    parts.append(f"<h1>Test Coverage Gate — {esc(bundle_prefix)}</h1>")
+    parts.append(f"<div class='subtitle'>Stale threshold: {stale_days} days · Generated: {generated_at}</div>")
+
+    # ── Gate badge ──
+    parts.append(f"<div class='badge {gate_cls}'>GATE: {gate_label}</div>")
+
+    # ── Summary table ──
+    parts.append("<table class='summary-table'>")
+    parts.append(f"<tr><td>Total tests in repo</td><td>{report.total_tests:,}</td></tr>")
+    parts.append(f"<tr><td>  Automated</td><td>{report.automated_count:,}</td></tr>")
+    parts.append(f"<tr><td>  Unautomated (STD)</td><td>{report.unautomated_count:,}</td></tr>")
+    parts.append(f"<tr><td>Executed in RP</td><td>{executed_count:,}</td></tr>")
+    parts.append(f"<tr><td>  Passed</td><td>{len(report.passed):,}</td></tr>")
+    parts.append(f"<tr><td>  Failed</td><td>{len(report.failed):,}</td></tr>")
+    parts.append(f"<tr><td>  Skipped</td><td>{len(report.skipped):,}</td></tr>")
+    parts.append(f"<tr><td>  Stale (&gt;{stale_days}d)</td><td>{len(report.stale):,}</td></tr>")
+    parts.append(f"<tr><td>Never executed</td><td>{len(report.never_executed):,}</td></tr>")
+    parts.append(f"<tr><td>  Automated</td><td>{len(report.never_executed_automated):,}</td></tr>")
+    parts.append(f"<tr><td>  Manual (STD)</td><td>{len(report.never_executed_manual):,}</td></tr>")
+    parts.append(f"<tr><td>Coverage</td><td>{coverage_pct:.1f}%</td></tr>")
+    parts.append("</table>")
+
+    # ── GATING section ──
+    gating_gap_count = len(report.gating_never_executed) + len(report.gating_stale)
+    if gating_gap_count > 0:
+        parts.append("<details open class='section-gating'>")
+        parts.append(f"<summary>⚠ GATING — never executed or stale ({gating_gap_count})</summary>")
+        parts.append("<table><tr><th>Test</th><th>Status</th></tr>")
+        for node_id in sorted(report.gating_never_executed):
+            parts.append(f"<tr><td class='mono'>{esc(node_id)}</td><td>NEVER EXECUTED</td></tr>")
+        for node_id, result in sorted(report.gating_stale, key=lambda entry: entry[0]):
+            date_str = result.last_executed[:10] if result.last_executed else "unknown"
+            parts.append(f"<tr><td class='mono'>{esc(node_id)}</td><td>STALE: {esc(date_str)}</td></tr>")
+        parts.append("</table></details>")
+
+    # ── FAILED TESTS section ──
+    if report.failed:
+        parts.append("<details open class='section-failed'>")
+        parts.append(f"<summary>FAILED TESTS ({len(report.failed)})</summary>")
+
+        defect_groups: dict[str, list[tuple[str, ItemResult]]] = {}
+        for node_id, result in sorted(report.failed, key=lambda entry: entry[0]):
+            group_key = result.defect_type or "Unclassified"
+            defect_groups.setdefault(group_key, []).append((node_id, result))
+
+        display_order = ["Product Bug", "Automation Bug", "System Issue", "To Investigate", "No Defect", "Not Issue"]
+        sorted_groups: list[tuple[str, list[tuple[str, ItemResult]]]] = []
+        for group_name in display_order:
+            if group_name in defect_groups:
+                sorted_groups.append((group_name, defect_groups.pop(group_name)))
+        for group_name in sorted(defect_groups):
+            sorted_groups.append((group_name, defect_groups[group_name]))
+
+        for group_name, group_items in sorted_groups:
+            parts.append(f"<div class='defect-group'>{esc(group_name)} ({len(group_items)}):</div>")
+            parts.append(
+                "<table><tr><th>Test</th><th>Bundle</th><th>Date</th>"
+                "<th>Source</th><th>Polarion</th><th>Comment</th></tr>"
+            )
+            for node_id, result in group_items:
+                raw_comment = result.defect_comment or ""
+                comment = html_mod.escape(s=raw_comment)
+                parts.append(_result_row(node_id=node_id, result=result, extra_col=f"<td>{comment}</td>"))
+            parts.append("</table>")
+        parts.append("</details>")
+
+    # ── MANUAL TESTS section ──
+    if report.never_executed_manual:
+        parts.append("<details open class='section-manual'>")
+        parts.append(f"<summary>MANUAL TESTS — never executed ({len(report.never_executed_manual)})</summary>")
+        parts.append("<table><tr><th>Test</th></tr>")
+        for node_id in sorted(report.never_executed_manual):
+            parts.append(f"<tr><td class='mono'>{esc(node_id)}</td></tr>")
+        parts.append("</table></details>")
+
+    # ── NEVER EXECUTED section ──
+    if report.never_executed:
+        parts.append("<details class='section-never'>")
+        parts.append(f"<summary>NEVER EXECUTED ({len(report.never_executed)})</summary>")
+        parts.append("<table><tr><th>Test</th><th>Type</th></tr>")
+        manual_set = set(report.never_executed_manual)
+        for node_id in sorted(report.never_executed):
+            label = "Manual" if node_id in manual_set else "Automated"
+            parts.append(f"<tr><td class='mono'>{esc(node_id)}</td><td>{label}</td></tr>")
+        parts.append("</table></details>")
+
+    # ── STALE TESTS section ──
+    if report.stale:
+        parts.append("<details class='section-stale'>")
+        parts.append(f"<summary>STALE TESTS ({len(report.stale)})</summary>")
+        parts.append("<table><tr><th>Test</th><th>Bundle</th><th>Date</th><th>Source</th><th>Polarion</th></tr>")
+        for node_id, result in sorted(report.stale, key=lambda entry: entry[0]):
+            parts.append(_result_row(node_id=node_id, result=result))
+        parts.append("</table></details>")
+
+    # ── PASSED TESTS section (collapsed) ──
+    if report.passed:
+        parts.append("<details class='section-passed'>")
+        parts.append(f"<summary>PASSED TESTS ({len(report.passed)})</summary>")
+        parts.append("<table><tr><th>Test</th><th>Bundle</th><th>Date</th><th>Source</th><th>Polarion</th></tr>")
+        for node_id, result in sorted(report.passed, key=lambda entry: entry[0]):
+            parts.append(_result_row(node_id=node_id, result=result))
+        parts.append("</table></details>")
+
+    # ── SKIPPED TESTS section (collapsed) ──
+    if report.skipped:
+        parts.append("<details class='section-skipped'>")
+        parts.append(f"<summary>SKIPPED TESTS ({len(report.skipped)})</summary>")
+        parts.append("<table><tr><th>Test</th><th>Bundle</th><th>Date</th><th>Source</th><th>Polarion</th></tr>")
+        for node_id, result in sorted(report.skipped, key=lambda entry: entry[0]):
+            parts.append(_result_row(node_id=node_id, result=result))
+        parts.append("</table></details>")
+
+    parts.append(f"<div class='footer'>Generated by rp_coverage_gate · {generated_at}</div>")
+    parts.append("</body></html>")
+
+    return "\n".join(parts)
