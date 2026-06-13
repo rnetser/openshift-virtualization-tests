@@ -930,3 +930,105 @@ class TestExcludeTeam:
 
         assert report.total_tests == 2
         assert len(report.never_executed) == 2
+
+
+class TestTeamGrouping:
+    def test_text_report_shows_team_headers(self) -> None:
+        """Verify text report groups tests by team within sections."""
+        report = CoverageReport(
+            total_tests=3,
+            automated_count=3,
+            unautomated_count=0,
+            passed=[],
+            failed=[],
+            skipped=[],
+            never_executed=[
+                "tests/network/test_a.py::TestA::test_net",
+                "tests/storage/test_b.py::TestB::test_stor",
+                "tests/network/test_c.py::TestC::test_net2",
+            ],
+            never_executed_automated=[
+                "tests/network/test_a.py::TestA::test_net",
+                "tests/storage/test_b.py::TestB::test_stor",
+                "tests/network/test_c.py::TestC::test_net2",
+            ],
+            never_executed_manual=[],
+            stale=[],
+            gate_passed=False,
+            gating_never_executed=[],
+            gating_stale=[],
+        )
+
+        text = format_text_report(report=report, bundle_prefix="v4.22", stale_days=30, full=True)
+
+        assert "\u2500\u2500 network (2) \u2500\u2500" in text
+        assert "\u2500\u2500 storage (1) \u2500\u2500" in text
+
+    def test_json_report_has_by_team_key(self) -> None:
+        """Verify JSON report contains by_team grouping."""
+        recent = _recent_iso()
+        report = CoverageReport(
+            total_tests=2,
+            automated_count=2,
+            unautomated_count=0,
+            passed=[
+                ("tests/network/test_a.py::TestA::test_one", _make_result(name="t1", last_executed=recent)),
+                ("tests/storage/test_b.py::TestB::test_two", _make_result(name="t2", last_executed=recent)),
+            ],
+            failed=[],
+            skipped=[],
+            never_executed=[],
+            never_executed_automated=[],
+            never_executed_manual=[],
+            stale=[],
+            gate_passed=True,
+            gating_never_executed=[],
+            gating_stale=[],
+        )
+
+        json_str = format_json_report(report=report, bundle_prefix="v4.22", stale_days=30)
+        data = json.loads(json_str)
+
+        assert "by_team" in data
+        assert "network" in data["by_team"]["passed"]
+        assert "storage" in data["by_team"]["passed"]
+        assert len(data["by_team"]["passed"]["network"]) == 1
+        assert len(data["by_team"]["passed"]["storage"]) == 1
+
+    def test_gating_groups_parametrized(self) -> None:
+        """Verify gating section groups parametrized tests."""
+        report = CoverageReport(
+            total_tests=4,
+            automated_count=4,
+            unautomated_count=0,
+            passed=[],
+            failed=[],
+            skipped=[],
+            never_executed=[
+                "tests/network/test_a.py::TestA::test_gating[p1]",
+                "tests/network/test_a.py::TestA::test_gating[p2]",
+                "tests/network/test_a.py::TestA::test_gating[p3]",
+                "tests/network/test_a.py::TestA::test_other",
+            ],
+            never_executed_automated=[
+                "tests/network/test_a.py::TestA::test_gating[p1]",
+                "tests/network/test_a.py::TestA::test_gating[p2]",
+                "tests/network/test_a.py::TestA::test_gating[p3]",
+                "tests/network/test_a.py::TestA::test_other",
+            ],
+            never_executed_manual=[],
+            stale=[],
+            gate_passed=False,
+            gating_never_executed=[
+                "tests/network/test_a.py::TestA::test_gating[p1]",
+                "tests/network/test_a.py::TestA::test_gating[p2]",
+                "tests/network/test_a.py::TestA::test_gating[p3]",
+            ],
+            gating_stale=[],
+        )
+
+        text = format_text_report(report=report, bundle_prefix="v4.22", stale_days=30)
+
+        assert "test_gating (3 variants) [NEVER EXECUTED]" in text
+        assert "[p1]" in text
+        assert "[p2]" in text

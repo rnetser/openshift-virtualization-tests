@@ -16,6 +16,7 @@ from __future__ import annotations
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 import click
 from simple_logger.logger import get_logger
@@ -154,10 +155,25 @@ def main(
             exclude_teams=exclude_team if exclude_team else None,
         )
 
+        report_filters: dict[str, Any] = {
+            "bundle": bundle,
+            "team": team,
+            "exclude_teams": list(exclude_team),
+            "max_launches": max_launches,
+            "stale_days": stale_days,
+            "tests_dir": str(tests_dir),
+        }
+
         if output_format == "json":
-            click.echo(message=format_json_report(report=report, bundle_prefix=bundle, stale_days=stale_days))
+            click.echo(
+                message=format_json_report(
+                    report=report, bundle_prefix=bundle, stale_days=stale_days, filters=report_filters
+                )
+            )
         elif output_format == "html":
-            html_content = format_html_report(report=report, bundle_prefix=bundle, stale_days=stale_days)
+            html_content = format_html_report(
+                report=report, bundle_prefix=bundle, stale_days=stale_days, filters=report_filters
+            )
             timestamp = datetime.now(tz=UTC).strftime("%Y%m%d_%H%M%S")
             safe_bundle = bundle.replace("/", "_")
             output_path = Path.cwd() / f"coverage_report_{safe_bundle}_{timestamp}.html"
@@ -170,6 +186,7 @@ def main(
                     bundle_prefix=bundle,
                     stale_days=stale_days,
                     full=full,
+                    filters=report_filters,
                 )
             )
 

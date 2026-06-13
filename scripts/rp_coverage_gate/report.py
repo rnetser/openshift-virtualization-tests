@@ -75,6 +75,40 @@ def _group_results_by_base(
     return list(groups.items())
 
 
+def _group_ids_by_team(items: list[str]) -> list[tuple[str, list[str]]]:
+    """Group node IDs by team, sorted alphabetically.
+
+    Args:
+        items: List of pytest node IDs.
+
+    Returns:
+        List of (team_name, [node_ids...]) sorted by team.
+    """
+    teams: dict[str, list[str]] = {}
+    for node_id in items:
+        team = _get_team_from_node_id(node_id=node_id)
+        teams.setdefault(team or "other", []).append(node_id)
+    return sorted(teams.items())
+
+
+def _group_results_by_team(
+    items: list[tuple[str, ItemResult]],
+) -> list[tuple[str, list[tuple[str, ItemResult]]]]:
+    """Group (node_id, result) tuples by team, sorted alphabetically.
+
+    Args:
+        items: List of (node_id, ItemResult) tuples.
+
+    Returns:
+        List of (team_name, [(node_id, result)...]) sorted by team.
+    """
+    teams: dict[str, list[tuple[str, ItemResult]]] = {}
+    for node_id, result in items:
+        team = _get_team_from_node_id(node_id=node_id)
+        teams.setdefault(team or "other", []).append((node_id, result))
+    return sorted(teams.items())
+
+
 @dataclass
 class CoverageReport:
     """Test coverage analysis results.
@@ -241,11 +275,35 @@ def analyze_coverage(
     )
 
 
+def _format_text_filters(filters: dict[str, Any]) -> list[str]:
+    """Format active filters as indented text lines.
+
+    Only includes filters that differ from their defaults.
+
+    Args:
+        filters: Dict of filter name to value.
+
+    Returns:
+        List of formatted lines (may be empty if no non-default filters).
+    """
+    lines: list[str] = []
+    if filters.get("team"):
+        lines.append(f"  Team:             {filters['team']}")
+    if filters.get("exclude_teams"):
+        lines.append(f"  Excluded teams:   {', '.join(filters['exclude_teams'])}")
+    if filters.get("max_launches", 50) != 50:
+        lines.append(f"  Max launches:     {filters['max_launches']}")
+    if str(filters.get("tests_dir", "tests")) != "tests":
+        lines.append(f"  Tests dir:        {filters['tests_dir']}")
+    return lines
+
+
 def format_text_report(
     report: CoverageReport,
     bundle_prefix: str,
     stale_days: int,
     full: bool = False,
+    filters: dict[str, Any] | None = None,
 ) -> str:
     """Generate a human-readable text report of coverage results.
 
@@ -254,6 +312,7 @@ def format_text_report(
         bundle_prefix: Bundle version string for the header.
         stale_days: Stale threshold in days for the header.
         full: If True, include per-test detail lines.
+        filters: Optional dict of active filters for the header.
 
     Returns:
         Formatted text report string.
@@ -264,6 +323,13 @@ def format_text_report(
     lines.append(separator)
     lines.append(f"Test Coverage Gate — {bundle_prefix} (stale threshold: {stale_days} days)")
     lines.append(separator)
+
+    if filters:
+        filter_lines = _format_text_filters(filters=filters)
+        if filter_lines:
+            lines.append("Filters:")
+            lines.extend(filter_lines)
+
     lines.append("")
 
     executed_count = len(report.passed) + len(report.failed) + len(report.skipped)
@@ -290,11 +356,22 @@ def format_text_report(
         lines.append("-" * TERMINAL_WIDTH)
         lines.append(f"GATING — never executed or stale ({gating_gap_count}):")
         lines.append("-" * TERMINAL_WIDTH)
-        for node_id in sorted(report.gating_never_executed):
-            lines.append(f"  ⚠ {node_id} [NEVER EXECUTED]")
-        for node_id, result in sorted(report.gating_stale, key=lambda entry: entry[0]):
-            date_str = result.last_executed[:10] if result.last_executed else "unknown"
-            lines.append(f"  ⚠ {node_id} [STALE: {date_str}]")
+        for team, team_ids in _group_ids_by_team(items=report.gating_never_executed):
+            lines.append(f"  ── {team} ({len(team_ids)}) ──")
+            for base, params_list in _group_by_base(items=team_ids):
+                if len(params_list) == 1 and not params_list[0]:
+                    lines.append(f"    ⚠ {base} [NEVER EXECUTED]")
+                elif len(params_list) == 1:
+                    lines.append(f"    ⚠ {base}{params_list[0]} [NEVER EXECUTED]")
+                else:
+                    lines.append(f"    ⚠ {base} ({len(params_list)} variants) [NEVER EXECUTED]")
+                    for params in params_list:
+                        lines.append(f"        {params}")
+        for team, team_items in _group_results_by_team(items=report.gating_stale):
+            lines.append(f"  ── {team} ({len(team_items)}) ──")
+            for node_id, result in sorted(team_items, key=lambda entry: entry[0]):
+                date_str = result.last_executed[:10] if result.last_executed else "unknown"
+                lines.append(f"    ⚠ {node_id} [STALE: {date_str}]")
         lines.append("")
 
     if report.failed:
@@ -320,14 +397,16 @@ def format_text_report(
         max_comment_len = 60
         for group_name, group_items in sorted_groups:
             lines.append(f"  {group_name} ({len(group_items)}):")
-            for node_id, result in group_items:
-                comment = ""
-                if result.defect_comment:
-                    truncated = result.defect_comment[:max_comment_len]
-                    if len(result.defect_comment) > max_comment_len:
-                        truncated += "..."
-                    comment = f"  [{truncated}]"
-                lines.append(f"    {node_id}  bundle={result.bundle}{comment}")
+            for team, team_items in _group_results_by_team(items=group_items):
+                lines.append(f"    ── {team} ({len(team_items)}) ──")
+                for node_id, result in team_items:
+                    comment = ""
+                    if result.defect_comment:
+                        truncated = result.defect_comment[:max_comment_len]
+                        if len(result.defect_comment) > max_comment_len:
+                            truncated += "..."
+                        comment = f"  [{truncated}]"
+                    lines.append(f"      {node_id}  bundle={result.bundle}{comment}")
         lines.append("")
 
     if report.never_executed_manual:
@@ -351,87 +430,98 @@ def format_text_report(
             lines.append("NEVER EXECUTED:")
             lines.append("-" * TERMINAL_WIDTH)
             manual_set = set(report.never_executed_manual)
-            for base, params_list in _group_by_base(items=report.never_executed):
-                if len(params_list) == 1 and not params_list[0]:
-                    label = " [MANUAL]" if base in manual_set else ""
-                    lines.append(f"  {base}{label}")
-                elif len(params_list) == 1:
-                    full_id = f"{base}{params_list[0]}"
-                    label = " [MANUAL]" if full_id in manual_set else ""
-                    lines.append(f"  {full_id}{label}")
-                else:
-                    lines.append(f"  {base} ({len(params_list)} variants)")
-                    for params in params_list:
-                        full_id = f"{base}{params}"
+            for team, team_ids in _group_ids_by_team(items=report.never_executed):
+                lines.append(f"  ── {team} ({len(team_ids)}) ──")
+                for base, params_list in _group_by_base(items=team_ids):
+                    if len(params_list) == 1 and not params_list[0]:
+                        label = " [MANUAL]" if base in manual_set else ""
+                        lines.append(f"    {base}{label}")
+                    elif len(params_list) == 1:
+                        full_id = f"{base}{params_list[0]}"
                         label = " [MANUAL]" if full_id in manual_set else ""
-                        lines.append(f"    {params}{label}")
+                        lines.append(f"    {full_id}{label}")
+                    else:
+                        lines.append(f"    {base} ({len(params_list)} variants)")
+                        for params in params_list:
+                            full_id = f"{base}{params}"
+                            label = " [MANUAL]" if full_id in manual_set else ""
+                            lines.append(f"      {params}{label}")
             lines.append("")
 
         if report.stale:
             lines.append("-" * TERMINAL_WIDTH)
             lines.append("STALE TESTS:")
             lines.append("-" * TERMINAL_WIDTH)
-            for base, variants in _group_results_by_base(items=report.stale):
-                if len(variants) == 1 and not variants[0][0]:
-                    result = variants[0][1]
-                    lines.append(
-                        f"  {base}  status={result.status}  bundle={result.bundle}"
-                        f"  date={result.last_executed}  source={result.source}"
-                    )
-                elif len(variants) == 1:
-                    params, result = variants[0]
-                    lines.append(
-                        f"  {base}{params}  status={result.status}  bundle={result.bundle}"
-                        f"  date={result.last_executed}  source={result.source}"
-                    )
-                else:
-                    lines.append(f"  {base} ({len(variants)} variants)")
-                    for params, result in variants:
+            for team, team_items in _group_results_by_team(items=report.stale):
+                lines.append(f"  ── {team} ({len(team_items)}) ──")
+                for base, variants in _group_results_by_base(items=team_items):
+                    if len(variants) == 1 and not variants[0][0]:
+                        result = variants[0][1]
                         lines.append(
-                            f"    {params}  status={result.status}  bundle={result.bundle}  date={result.last_executed}"
+                            f"    {base}  status={result.status}  bundle={result.bundle}"
+                            f"  date={result.last_executed}  source={result.source}"
                         )
+                    elif len(variants) == 1:
+                        params, result = variants[0]
+                        lines.append(
+                            f"    {base}{params}  status={result.status}  bundle={result.bundle}"
+                            f"  date={result.last_executed}  source={result.source}"
+                        )
+                    else:
+                        lines.append(f"    {base} ({len(variants)} variants)")
+                        for params, result in variants:
+                            lines.append(
+                                f"      {params}  status={result.status}  bundle={result.bundle}"
+                                f"  date={result.last_executed}"
+                            )
             lines.append("")
 
         if report.passed:
             lines.append("-" * TERMINAL_WIDTH)
             lines.append("PASSED TESTS:")
             lines.append("-" * TERMINAL_WIDTH)
-            for base, variants in _group_results_by_base(items=report.passed):
-                if len(variants) == 1 and not variants[0][0]:
-                    result = variants[0][1]
-                    lines.append(
-                        f"  {base}  bundle={result.bundle}  date={result.last_executed}  source={result.source}"
-                    )
-                elif len(variants) == 1:
-                    params, result = variants[0]
-                    lines.append(
-                        f"  {base}{params}  bundle={result.bundle}  date={result.last_executed}  source={result.source}"
-                    )
-                else:
-                    lines.append(f"  {base} ({len(variants)} variants)")
-                    for params, result in variants:
-                        lines.append(f"    {params}  bundle={result.bundle}  date={result.last_executed}")
+            for team, team_items in _group_results_by_team(items=report.passed):
+                lines.append(f"  ── {team} ({len(team_items)}) ──")
+                for base, variants in _group_results_by_base(items=team_items):
+                    if len(variants) == 1 and not variants[0][0]:
+                        result = variants[0][1]
+                        lines.append(
+                            f"    {base}  bundle={result.bundle}  date={result.last_executed}  source={result.source}"
+                        )
+                    elif len(variants) == 1:
+                        params, result = variants[0]
+                        lines.append(
+                            f"    {base}{params}  bundle={result.bundle}  date={result.last_executed}"
+                            f"  source={result.source}"
+                        )
+                    else:
+                        lines.append(f"    {base} ({len(variants)} variants)")
+                        for params, result in variants:
+                            lines.append(f"      {params}  bundle={result.bundle}  date={result.last_executed}")
             lines.append("")
 
         if report.skipped:
             lines.append("-" * TERMINAL_WIDTH)
             lines.append("SKIPPED TESTS:")
             lines.append("-" * TERMINAL_WIDTH)
-            for base, variants in _group_results_by_base(items=report.skipped):
-                if len(variants) == 1 and not variants[0][0]:
-                    result = variants[0][1]
-                    lines.append(
-                        f"  {base}  bundle={result.bundle}  date={result.last_executed}  source={result.source}"
-                    )
-                elif len(variants) == 1:
-                    params, result = variants[0]
-                    lines.append(
-                        f"  {base}{params}  bundle={result.bundle}  date={result.last_executed}  source={result.source}"
-                    )
-                else:
-                    lines.append(f"  {base} ({len(variants)} variants)")
-                    for params, result in variants:
-                        lines.append(f"    {params}  bundle={result.bundle}  date={result.last_executed}")
+            for team, team_items in _group_results_by_team(items=report.skipped):
+                lines.append(f"  ── {team} ({len(team_items)}) ──")
+                for base, variants in _group_results_by_base(items=team_items):
+                    if len(variants) == 1 and not variants[0][0]:
+                        result = variants[0][1]
+                        lines.append(
+                            f"    {base}  bundle={result.bundle}  date={result.last_executed}  source={result.source}"
+                        )
+                    elif len(variants) == 1:
+                        params, result = variants[0]
+                        lines.append(
+                            f"    {base}{params}  bundle={result.bundle}  date={result.last_executed}"
+                            f"  source={result.source}"
+                        )
+                    else:
+                        lines.append(f"    {base} ({len(variants)} variants)")
+                        for params, result in variants:
+                            lines.append(f"      {params}  bundle={result.bundle}  date={result.last_executed}")
             lines.append("")
 
     gate_status = "PASSED" if report.gate_passed else "FAILED"
@@ -445,6 +535,7 @@ def format_json_report(
     report: CoverageReport,
     bundle_prefix: str,
     stale_days: int,
+    filters: dict[str, Any] | None = None,
 ) -> str:
     """Generate a JSON report of coverage results.
 
@@ -452,6 +543,7 @@ def format_json_report(
         report: CoverageReport from analyze_coverage.
         bundle_prefix: Bundle version string.
         stale_days: Stale threshold in days.
+        filters: Optional dict of active filters.
 
     Returns:
         JSON-formatted string with all report data.
@@ -479,6 +571,7 @@ def format_json_report(
     data: dict[str, Any] = {
         "bundle_prefix": bundle_prefix,
         "stale_days": stale_days,
+        "filters": filters or {},
         "gate_passed": report.gate_passed,
         "summary": {
             "total_tests": report.total_tests,
@@ -548,6 +641,27 @@ def format_json_report(
         ],
     }
 
+    def _build_team_results(items: list[tuple[str, Any]]) -> dict[str, list[dict[str, Any]]]:
+        by_team: dict[str, list[dict[str, Any]]] = {}
+        for team, team_items in _group_results_by_team(items=items):
+            by_team[team] = [_result_to_dict(node_id=nid, result=res) for nid, res in team_items]
+        return by_team
+
+    def _build_team_ids(items: list[str]) -> dict[str, list[str]]:
+        by_team: dict[str, list[str]] = {}
+        for team, team_ids in _group_ids_by_team(items=items):
+            by_team[team] = sorted(team_ids)
+        return by_team
+
+    data["by_team"] = {
+        "passed": _build_team_results(items=report.passed),
+        "failed": _build_team_results(items=report.failed),
+        "skipped": _build_team_results(items=report.skipped),
+        "stale": _build_team_results(items=report.stale),
+        "never_executed": _build_team_ids(items=report.never_executed),
+        "never_executed_manual": _build_team_ids(items=report.never_executed_manual),
+    }
+
     return json.dumps(obj=data, indent=2)
 
 
@@ -555,6 +669,7 @@ def format_html_report(
     report: CoverageReport,
     bundle_prefix: str,
     stale_days: int,
+    filters: dict[str, Any] | None = None,
 ) -> str:
     """Generate a self-contained HTML report of coverage results.
 
@@ -562,6 +677,7 @@ def format_html_report(
         report: CoverageReport from analyze_coverage.
         bundle_prefix: Bundle version string.
         stale_days: Stale threshold in days.
+        filters: Optional dict of active filters.
 
     Returns:
         Complete HTML document as a string.
@@ -613,6 +729,7 @@ summary:hover { opacity: 0.85; }
 .badge-fail { background: #dc3545; color: white; }
 .defect-group { font-weight: 600; padding: 4px 0; margin-top: 0.5rem; }
 .footer { color: #999; font-size: 0.8rem; margin-top: 2rem; border-top: 1px solid #ddd; padding-top: 0.5rem; }
+.team-header { font-weight: 600; color: #444; padding: 6px 0 2px; margin-top: 0.8rem; border-bottom: 1px solid #e0e0e0; }
 """
 
     parts: list[str] = []
@@ -620,7 +737,19 @@ summary:hover { opacity: 0.85; }
     parts.append(f"<title>Coverage Gate — {esc(bundle_prefix)}</title>")
     parts.append(f"<style>{css}</style></head><body>")
     parts.append(f"<h1>Test Coverage Gate — {esc(bundle_prefix)}</h1>")
-    parts.append(f"<div class='subtitle'>Stale threshold: {stale_days} days · Generated: {generated_at}</div>")
+    subtitle_parts = [f"Bundle: {esc(bundle_prefix)}"]
+    if filters:
+        if filters.get("team"):
+            subtitle_parts.append(f"Team: {esc(filters['team'])}")
+        if filters.get("exclude_teams"):
+            subtitle_parts.append(f"Excluded: {esc(', '.join(filters['exclude_teams']))}")
+        if filters.get("max_launches", 50) != 50:
+            subtitle_parts.append(f"Max launches: {filters['max_launches']}")
+        if str(filters.get("tests_dir", "tests")) != "tests":
+            subtitle_parts.append(f"Tests dir: {esc(str(filters['tests_dir']))}")
+    subtitle_parts.append(f"Stale: {stale_days} days")
+    subtitle_parts.append(f"Generated: {generated_at}")
+    parts.append(f"<div class='subtitle'>{' \u00b7 '.join(subtitle_parts)}</div>")
 
     # ── Gate badge ──
     parts.append(f"<div class='badge {gate_cls}'>GATE: {gate_label}</div>")
@@ -646,13 +775,48 @@ summary:hover { opacity: 0.85; }
     if gating_gap_count > 0:
         parts.append("<details open class='section-gating'>")
         parts.append(f"<summary>⚠ GATING — never executed or stale ({gating_gap_count})</summary>")
-        parts.append("<table><tr><th>Test</th><th>Status</th></tr>")
-        for node_id in sorted(report.gating_never_executed):
-            parts.append(f"<tr><td class='mono'>{esc(node_id)}</td><td>NEVER EXECUTED</td></tr>")
-        for node_id, result in sorted(report.gating_stale, key=lambda entry: entry[0]):
-            date_str = result.last_executed[:10] if result.last_executed else "unknown"
-            parts.append(f"<tr><td class='mono'>{esc(node_id)}</td><td>STALE: {esc(date_str)}</td></tr>")
-        parts.append("</table></details>")
+        all_gating_ids = list(report.gating_never_executed) + [nid for nid, _ in report.gating_stale]
+        gating_stale_map = dict(report.gating_stale)
+        gating_ne_set = set(report.gating_never_executed)
+        for team, team_ids in _group_ids_by_team(items=all_gating_ids):
+            parts.append(f"<div class='team-header'>{esc(team)} ({len(team_ids)})</div>")
+            parts.append("<table><tr><th>Test</th><th>Status</th></tr>")
+            for base, params_list in _group_by_base(items=team_ids):
+                if len(params_list) == 1 and not params_list[0]:
+                    full_id = base
+                    if full_id in gating_ne_set:
+                        parts.append(f"<tr><td class='mono'>{esc(full_id)}</td><td>NEVER EXECUTED</td></tr>")
+                    else:
+                        stale_r = gating_stale_map[full_id]
+                        date_str = stale_r.last_executed[:10] if stale_r.last_executed else "unknown"
+                        parts.append(f"<tr><td class='mono'>{esc(full_id)}</td><td>STALE: {esc(date_str)}</td></tr>")
+                elif len(params_list) == 1:
+                    full_id = f"{base}{params_list[0]}"
+                    if full_id in gating_ne_set:
+                        parts.append(f"<tr><td class='mono'>{esc(full_id)}</td><td>NEVER EXECUTED</td></tr>")
+                    else:
+                        stale_r = gating_stale_map[full_id]
+                        date_str = stale_r.last_executed[:10] if stale_r.last_executed else "unknown"
+                        parts.append(f"<tr><td class='mono'>{esc(full_id)}</td><td>STALE: {esc(date_str)}</td></tr>")
+                else:
+                    parts.append(
+                        f"<tr><td class='mono' colspan='2'><b>{esc(base)}</b> ({len(params_list)} variants)</td></tr>"
+                    )
+                    for params in params_list:
+                        full_id = f"{base}{params}"
+                        if full_id in gating_ne_set:
+                            parts.append(
+                                f"<tr><td class='mono'>&nbsp;&nbsp;{esc(params)}</td><td>NEVER EXECUTED</td></tr>"
+                            )
+                        else:
+                            stale_r = gating_stale_map[full_id]
+                            date_str = stale_r.last_executed[:10] if stale_r.last_executed else "unknown"
+                            parts.append(
+                                f"<tr><td class='mono'>&nbsp;&nbsp;{esc(params)}</td>"
+                                f"<td>STALE: {esc(date_str)}</td></tr>"
+                            )
+            parts.append("</table>")
+        parts.append("</details>")
 
     # ── FAILED TESTS section ──
     if report.failed:
@@ -674,53 +838,61 @@ summary:hover { opacity: 0.85; }
 
         for group_name, group_items in sorted_groups:
             parts.append(f"<div class='defect-group'>{esc(group_name)} ({len(group_items)}):</div>")
-            parts.append("<table><tr><th>Test</th><th>Bundle</th><th>Date</th><th>Source</th><th>Comment</th></tr>")
-            for node_id, result in group_items:
-                raw_comment = result.defect_comment or ""
-                comment = html_mod.escape(s=raw_comment)
-                parts.append(_result_row(node_id=node_id, result=result, extra_col=f"<td>{comment}</td>"))
-            parts.append("</table>")
+            for team, team_items in _group_results_by_team(items=group_items):
+                parts.append(f"<div class='team-header'>{esc(team)} ({len(team_items)})</div>")
+                parts.append("<table><tr><th>Test</th><th>Bundle</th><th>Date</th><th>Source</th><th>Comment</th></tr>")
+                for node_id, result in team_items:
+                    raw_comment = result.defect_comment or ""
+                    comment = html_mod.escape(s=raw_comment)
+                    parts.append(_result_row(node_id=node_id, result=result, extra_col=f"<td>{comment}</td>"))
+                parts.append("</table>")
         parts.append("</details>")
 
     # ── MANUAL TESTS section ──
     if report.never_executed_manual:
         parts.append("<details open class='section-manual'>")
         parts.append(f"<summary>MANUAL TESTS — never executed ({len(report.never_executed_manual)})</summary>")
-        parts.append("<table><tr><th>Test</th></tr>")
-        for base, params_list in _group_by_base(items=report.never_executed_manual):
-            if len(params_list) == 1 and not params_list[0]:
-                parts.append(f"<tr><td class='mono'>{esc(base)}</td></tr>")
-            elif len(params_list) == 1:
-                parts.append(f"<tr><td class='mono'>{esc(base)}{esc(params_list[0])}</td></tr>")
-            else:
-                parts.append(f"<tr><td class='mono'><b>{esc(base)}</b> ({len(params_list)} variants)</td></tr>")
-                for params in params_list:
-                    parts.append(f"<tr><td class='mono'>&nbsp;&nbsp;{esc(params)}</td></tr>")
-        parts.append("</table></details>")
+        for team, team_ids in _group_ids_by_team(items=report.never_executed_manual):
+            parts.append(f"<div class='team-header'>{esc(team)} ({len(team_ids)})</div>")
+            parts.append("<table><tr><th>Test</th></tr>")
+            for base, params_list in _group_by_base(items=team_ids):
+                if len(params_list) == 1 and not params_list[0]:
+                    parts.append(f"<tr><td class='mono'>{esc(base)}</td></tr>")
+                elif len(params_list) == 1:
+                    parts.append(f"<tr><td class='mono'>{esc(base)}{esc(params_list[0])}</td></tr>")
+                else:
+                    parts.append(f"<tr><td class='mono'><b>{esc(base)}</b> ({len(params_list)} variants)</td></tr>")
+                    for params in params_list:
+                        parts.append(f"<tr><td class='mono'>&nbsp;&nbsp;{esc(params)}</td></tr>")
+            parts.append("</table>")
+        parts.append("</details>")
 
     # ── NEVER EXECUTED section ──
     if report.never_executed:
         parts.append("<details class='section-never'>")
         parts.append(f"<summary>NEVER EXECUTED ({len(report.never_executed)})</summary>")
-        parts.append("<table><tr><th>Test</th><th>Type</th></tr>")
         manual_set = set(report.never_executed_manual)
-        for base, params_list in _group_by_base(items=report.never_executed):
-            if len(params_list) == 1 and not params_list[0]:
-                label = "Manual" if base in manual_set else "Automated"
-                parts.append(f"<tr><td class='mono'>{esc(base)}</td><td>{label}</td></tr>")
-            elif len(params_list) == 1:
-                full_id = f"{base}{params_list[0]}"
-                label = "Manual" if full_id in manual_set else "Automated"
-                parts.append(f"<tr><td class='mono'>{esc(full_id)}</td><td>{label}</td></tr>")
-            else:
-                parts.append(
-                    f"<tr><td class='mono' colspan='2'><b>{esc(base)}</b> ({len(params_list)} variants)</td></tr>"
-                )
-                for params in params_list:
-                    full_id = f"{base}{params}"
+        for team, team_ids in _group_ids_by_team(items=report.never_executed):
+            parts.append(f"<div class='team-header'>{esc(team)} ({len(team_ids)})</div>")
+            parts.append("<table><tr><th>Test</th><th>Type</th></tr>")
+            for base, params_list in _group_by_base(items=team_ids):
+                if len(params_list) == 1 and not params_list[0]:
+                    label = "Manual" if base in manual_set else "Automated"
+                    parts.append(f"<tr><td class='mono'>{esc(base)}</td><td>{label}</td></tr>")
+                elif len(params_list) == 1:
+                    full_id = f"{base}{params_list[0]}"
                     label = "Manual" if full_id in manual_set else "Automated"
-                    parts.append(f"<tr><td class='mono'>&nbsp;&nbsp;{esc(params)}</td><td>{label}</td></tr>")
-        parts.append("</table></details>")
+                    parts.append(f"<tr><td class='mono'>{esc(full_id)}</td><td>{label}</td></tr>")
+                else:
+                    parts.append(
+                        f"<tr><td class='mono' colspan='2'><b>{esc(base)}</b> ({len(params_list)} variants)</td></tr>"
+                    )
+                    for params in params_list:
+                        full_id = f"{base}{params}"
+                        label = "Manual" if full_id in manual_set else "Automated"
+                        parts.append(f"<tr><td class='mono'>&nbsp;&nbsp;{esc(params)}</td><td>{label}</td></tr>")
+            parts.append("</table>")
+        parts.append("</details>")
 
     def _html_grouped_result_section(
         items: list[tuple[str, ItemResult]],
@@ -731,19 +903,22 @@ summary:hover { opacity: 0.85; }
         open_attr = " open" if is_open else ""
         parts.append(f"<details{open_attr} class='{section_class}'>")
         parts.append(f"<summary>{title} ({len(items)})</summary>")
-        parts.append("<table><tr><th>Test</th><th>Bundle</th><th>Date</th><th>Source</th></tr>")
-        for base, variants in _group_results_by_base(items=items):
-            if len(variants) == 1 and not variants[0][0]:
-                parts.append(_result_row(node_id=base, result=variants[0][1]))
-            elif len(variants) == 1:
-                parts.append(_result_row(node_id=f"{base}{variants[0][0]}", result=variants[0][1]))
-            else:
-                parts.append(
-                    f"<tr><td class='mono' colspan='4'><b>{esc(base)}</b> ({len(variants)} variants)</td></tr>"
-                )
-                for params, result in variants:
-                    parts.append(_result_row(node_id=f"&nbsp;&nbsp;{esc(params)}", result=result))
-        parts.append("</table></details>")
+        for team, team_items in _group_results_by_team(items=items):
+            parts.append(f"<div class='team-header'>{esc(team)} ({len(team_items)})</div>")
+            parts.append("<table><tr><th>Test</th><th>Bundle</th><th>Date</th><th>Source</th></tr>")
+            for base, variants in _group_results_by_base(items=team_items):
+                if len(variants) == 1 and not variants[0][0]:
+                    parts.append(_result_row(node_id=base, result=variants[0][1]))
+                elif len(variants) == 1:
+                    parts.append(_result_row(node_id=f"{base}{variants[0][0]}", result=variants[0][1]))
+                else:
+                    parts.append(
+                        f"<tr><td class='mono' colspan='4'><b>{esc(base)}</b> ({len(variants)} variants)</td></tr>"
+                    )
+                    for params, result in variants:
+                        parts.append(_result_row(node_id=f"&nbsp;&nbsp;{esc(params)}", result=result))
+            parts.append("</table>")
+        parts.append("</details>")
 
     # ── STALE TESTS section ──
     if report.stale:
