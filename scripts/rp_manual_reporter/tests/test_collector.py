@@ -15,6 +15,8 @@ from scripts.rp_manual_reporter.collector import (
     _extract_module_markers,
     _extract_polarion_id,
     _extract_usefixtures,
+    _matches_keyword_filter,
+    _matches_marker_filter,
     collect_placeholder_details,
     node_id_to_rp_name,
 )
@@ -227,3 +229,86 @@ class TestCollectPlaceholderDetails:
         assert detail.polarion_id == "CNV-9999"
         assert detail.node_id == "tests/network/test_example.py::TestMyFeature::test_my_case"
         assert detail.rp_name == "tests.network.test_example.TestMyFeature.test_my_case"
+
+
+def _make_detail(
+    node_id: str = "tests/net/test_a.py::TestA::test_one",
+    module_markers: list[str] | None = None,
+    class_markers: list[str] | None = None,
+    test_markers: list[str] | None = None,
+) -> PlaceholderTestDetail:
+    """Helper to create a PlaceholderTestDetail with minimal fields."""
+    return PlaceholderTestDetail(
+        file_path="tests/net/test_a.py",
+        class_name="TestA",
+        method_name="test_one",
+        node_id=node_id,
+        rp_name=node_id_to_rp_name(node_id=node_id),
+        module_markers=module_markers or [],
+        class_markers=class_markers or [],
+        test_markers=test_markers or [],
+    )
+
+
+class TestMatchesMarkerFilter:
+    def test_simple_marker_match(self) -> None:
+        """Verify simple marker name matches."""
+        detail = _make_detail(test_markers=["gating"])
+        assert _matches_marker_filter(detail=detail, marker_filter="gating") is True
+
+    def test_simple_marker_no_match(self) -> None:
+        """Verify non-matching marker returns False."""
+        detail = _make_detail(test_markers=["tier1"])
+        assert _matches_marker_filter(detail=detail, marker_filter="gating") is False
+
+    def test_marker_in_module_markers(self) -> None:
+        """Verify marker found in module-level markers."""
+        detail = _make_detail(module_markers=["gating"])
+        assert _matches_marker_filter(detail=detail, marker_filter="gating") is True
+
+    def test_marker_in_class_markers(self) -> None:
+        """Verify marker found in class-level markers."""
+        detail = _make_detail(class_markers=["smoke"])
+        assert _matches_marker_filter(detail=detail, marker_filter="smoke") is True
+
+    def test_boolean_and_expression(self) -> None:
+        """Verify 'and' boolean expression matches when both markers present."""
+        detail = _make_detail(test_markers=["gating", "tier1"])
+        assert _matches_marker_filter(detail=detail, marker_filter="gating and tier1") is True
+
+    def test_boolean_and_expression_partial(self) -> None:
+        """Verify 'and' expression fails when only one marker present."""
+        detail = _make_detail(test_markers=["gating"])
+        assert _matches_marker_filter(detail=detail, marker_filter="gating and tier1") is False
+
+    def test_boolean_not_expression(self) -> None:
+        """Verify 'not' expression excludes tests with the marker."""
+        detail = _make_detail(test_markers=["gating"])
+        assert _matches_marker_filter(detail=detail, marker_filter="gating and not tier3") is True
+
+    def test_marker_with_args_stripped(self) -> None:
+        """Verify markers with args like 'parametrize(...)' are stripped to bare name."""
+        detail = _make_detail(test_markers=["parametrize('x', [1, 2])"])
+        assert _matches_marker_filter(detail=detail, marker_filter="parametrize") is True
+
+
+class TestMatchesKeywordFilter:
+    def test_keyword_match(self) -> None:
+        """Verify keyword substring matches node ID."""
+        detail = _make_detail(node_id="tests/network/test_bridge.py::TestBridge::test_connectivity")
+        assert _matches_keyword_filter(detail=detail, keyword_filter="test_connectivity") is True
+
+    def test_keyword_no_match(self) -> None:
+        """Verify non-matching keyword returns False."""
+        detail = _make_detail(node_id="tests/network/test_bridge.py::TestBridge::test_connectivity")
+        assert _matches_keyword_filter(detail=detail, keyword_filter="test_migration") is False
+
+    def test_keyword_case_insensitive(self) -> None:
+        """Verify keyword matching is case-insensitive."""
+        detail = _make_detail(node_id="tests/network/test_bridge.py::TestBridge::test_connectivity")
+        assert _matches_keyword_filter(detail=detail, keyword_filter="TestBridge") is True
+
+    def test_keyword_partial_match(self) -> None:
+        """Verify partial keyword matches."""
+        detail = _make_detail(node_id="tests/network/test_bridge.py::TestBridge::test_connectivity")
+        assert _matches_keyword_filter(detail=detail, keyword_filter="bridge") is True

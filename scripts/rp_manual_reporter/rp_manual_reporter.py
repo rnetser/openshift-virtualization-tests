@@ -28,15 +28,14 @@ from scripts.rp_utils.rp_client import RPClient
 
 LOGGER = get_logger(name=__name__)
 
-RP_DEFAULT_URL = "https://reportportal-cnv.apps.dno.ocp-hub.prod.psi.redhat.com"
-RP_DEFAULT_PROJECT = "cnv"
+
 TERMINAL_WIDTH = 80
 
 _VALID_STATUSES = {"PASSED", "FAILED", "SKIPPED"}
 
 
 def _build_launch_attributes(
-    team: str,
+    team: str | None = None,
     bundle: str | None = None,
     cnv_version: str | None = None,
     arch: str | None = None,
@@ -92,7 +91,8 @@ def _build_launch_attributes(
             attrs_by_key[key] = value
 
     # Mandatory attributes
-    attrs_by_key["TEAM"] = team.upper()
+    if team:
+        attrs_by_key["TEAM"] = team.upper()
     attrs_by_key["MANUAL"] = "true"
 
     if tier is not None:
@@ -190,7 +190,7 @@ def _run_interactive_mode(tests: list[PlaceholderTestDetail]) -> list[dict[str, 
 
     Returns:
         List of result dicts:
-        ``[{"test": node_id, "status": "PASSED"/"FAILED"/"SKIPPED", "comment": ""}]``
+        ``[{"test": node_id, "status": "PASSED"/"FAILED", "comment": ""}]``
     """
     results: list[dict[str, Any]] = []
     total = len(tests)
@@ -202,7 +202,7 @@ def _run_interactive_mode(tests: list[PlaceholderTestDetail]) -> list[dict[str, 
             choice = (
                 click
                 .prompt(
-                    "Result (p=pass, f=fail, s=skip, n=next, q=quit)",
+                    "Result (p=pass, f=fail, s=skip, q=quit)",
                     type=str,
                 )
                 .strip()
@@ -217,15 +217,12 @@ def _run_interactive_mode(tests: list[PlaceholderTestDetail]) -> list[dict[str, 
                 results.append({"test": test.node_id, "status": "FAILED", "comment": comment})
                 break
             elif choice == "s":
-                results.append({"test": test.node_id, "status": "SKIPPED", "comment": ""})
-                break
-            elif choice == "n":
                 break
             elif choice == "q":
                 click.echo(message="Quitting — returning results collected so far.")
                 return results
             else:
-                click.echo(message="Invalid choice. Use p/f/s/n/q.")
+                click.echo(message="Invalid choice. Use p/f/s/q.")
 
     return results
 
@@ -370,13 +367,24 @@ def _push_results_to_rp(
     epilog="Collects manual test results for __test__ = False STD placeholder tests and pushes to ReportPortal.",
 )
 @click.option("--bundle", type=str, default=None, help="Bundle version prefix (e.g., v4.22.0.rhel9-102)")
-@click.option("--team", type=str, required=True, help="Team name (e.g., NETWORK, STORAGE, VIRT)")
+@click.option(
+    "--team",
+    type=str,
+    default=None,
+    help="Team name (e.g., NETWORK, STORAGE, VIRT). Auto-inferred from --tests-dir if not set.",
+)
 @click.option("--tier", type=str, default=None, help="Tier label (e.g., TIER-2)")
 @click.option(
     "--tests-dir",
     type=click.Path(exists=True, path_type=Path),
     default=Path("tests"),
-    help="Tests directory",
+    help="Tests directory to scan (e.g., tests/network/)",
+)
+@click.option(
+    "-m", "--marker", type=str, default=None, help="Pytest marker expression (e.g., 'gating', 'smoke and not tier3')"
+)
+@click.option(
+    "-k", "--keyword", type=str, default=None, help="Keyword filter on test node IDs (e.g., 'test_connectivity')"
 )
 @click.option("--from-cluster", is_flag=True, default=False, help="Auto-fill attributes from connected cluster")
 @click.option("--arch", type=str, default=None, help="Override architecture")
@@ -386,8 +394,16 @@ def _push_results_to_rp(
 @click.option("--cluster-domain", type=str, default=None, help="Override cluster domain")
 @click.option("--sc", type=str, default=None, help="Override storage class label")
 @click.option("--channel", type=str, default=None, help="Override channel")
-@click.option("--rp-url", type=str, default=RP_DEFAULT_URL, help="ReportPortal URL")
-@click.option("--rp-project", type=str, default=RP_DEFAULT_PROJECT, help="RP project name")
+@click.option(
+    "--rp-url", type=str, envvar="REPORT_PORTAL_URL", default=None, help="ReportPortal URL (env: REPORT_PORTAL_URL)"
+)
+@click.option(
+    "--rp-project",
+    type=str,
+    envvar="REPORT_PORTAL_PROJECT",
+    default=None,
+    help="RP project name (env: REPORT_PORTAL_PROJECT)",
+)
 @click.option("--rp-token", type=str, envvar="REPORT_PORTAL_TOKEN", default=None, help="RP API token")
 @click.option(
     "--batch-file",
@@ -398,9 +414,11 @@ def _push_results_to_rp(
 @click.option("--dry-run", is_flag=True, default=False, help="Show what would be pushed without pushing")
 def main(
     bundle: str | None,
-    team: str,
+    team: str | None,
     tier: str | None,
     tests_dir: Path,
+    marker: str | None,
+    keyword: str | None,
     from_cluster: bool,
     arch: str | None,
     ocp_version: str | None,
@@ -409,8 +427,8 @@ def main(
     cluster_domain: str | None,
     sc: str | None,
     channel: str | None,
-    rp_url: str,
-    rp_project: str,
+    rp_url: str | None,
+    rp_project: str | None,
     rp_token: str | None,
     batch_file: Path | None,
     dry_run: bool,
@@ -421,6 +439,15 @@ def main(
     context and the tester marks it pass/fail/skip.  In batch mode a
     YAML file supplies pre-filled verdicts.
     """
+    # ── 0. Infer team from tests_dir if not provided ──
+    if not team:
+        tests_dir_str = str(tests_dir)
+        parts = Path(tests_dir_str).parts
+        # If path is like tests/network/... , infer "network"
+        if len(parts) >= 2 and parts[0] == "tests":
+            team = parts[1].upper()
+            click.echo(message=f"Inferred team: {team} (from {tests_dir})")
+
     # ── 1. Resolve cluster attributes ──
     cluster_attrs: list[dict[str, str]] | None = None
     if from_cluster:
@@ -459,8 +486,18 @@ def main(
     if batch_file:
         results = _load_batch_file(batch_path=batch_file)
     else:
-        click.echo(message=f"Scanning {tests_dir} for placeholder tests...")
-        collected_tests = collect_placeholder_details(tests_dir=tests_dir)
+        filter_parts = []
+        if marker:
+            filter_parts.append(f"-m '{marker}'")
+        if keyword:
+            filter_parts.append(f"-k '{keyword}'")
+        filter_msg = f" (filters: {', '.join(filter_parts)})" if filter_parts else ""
+        click.echo(message=f"Scanning {tests_dir} for placeholder tests{filter_msg}...")
+        collected_tests = collect_placeholder_details(
+            tests_dir=tests_dir,
+            marker_filter=marker,
+            keyword_filter=keyword,
+        )
 
         if not collected_tests:
             click.echo(message="No placeholder tests found.")
@@ -489,12 +526,17 @@ def main(
         click.echo(message="\nNo data was pushed to ReportPortal.")
         sys.exit(0)
 
-    # ── 7. Validate token ──
+    # ── 7. Validate RP connection settings ──
+    if not rp_url:
+        raise click.ClickException("REPORT_PORTAL_URL env var or --rp-url required.")
+    if not rp_project:
+        raise click.ClickException("REPORT_PORTAL_PROJECT env var or --rp-project required.")
     if not rp_token:
         raise click.ClickException("REPORT_PORTAL_TOKEN env var or --rp-token required.")
 
     # ── 8. Push to ReportPortal ──
-    launch_name = f"Manual - {team.upper()}"
+    team_label = team.upper() if team else "ALL"
+    launch_name = f"Manual - {team_label}"
     if bundle:
         launch_name = f"{launch_name} - {bundle}"
 
@@ -506,14 +548,14 @@ def main(
             launch_name=launch_name,
             attributes=attributes,
             tests=collected_tests,
-            description=f"Manual test results for {team.upper()}",
+            description=f"Manual test results for {team_label}",
         )
         launch_url = f"{rp_url}/ui/#{rp_project}/launches/all/{launch_id}"
         click.echo(message=f"\n✓ Launch created: {launch_url}")
 
     except Exception as exc:
         LOGGER.error(f"Failed to push results to ReportPortal: {exc}")
-        saved_path = _save_results_for_retry(results=results, team=team, bundle=bundle)
+        saved_path = _save_results_for_retry(results=results, team=team_label, bundle=bundle)
         click.echo(message=f"\n✗ Push failed: {exc}", err=True)
         click.echo(message=f"  Results saved to: {saved_path}", err=True)
         click.echo(message=f"  Retry with: --batch-file {saved_path}", err=True)

@@ -285,14 +285,78 @@ def _extract_module_markers(tree: ast.Module) -> list[str]:
     return markers
 
 
-def collect_placeholder_details(tests_dir: Path) -> list[PlaceholderTestDetail]:
-    """Collect all placeholder tests with full context from a tests directory.
+def _matches_marker_filter(detail: PlaceholderTestDetail, marker_filter: str) -> bool:
+    """Check if a placeholder test matches a marker filter expression.
+
+    Supports simple marker names and ``and``/``or``/``not`` boolean expressions.
+    Markers are matched against module, class, and test-level markers.
+
+    Args:
+        detail: The placeholder test to check.
+        marker_filter: Pytest-style marker expression (e.g., ``"gating"``,
+            ``"smoke and not tier3"``).
+
+    Returns:
+        True if the test matches the expression.
+    """
+    all_markers = set()
+    for marker_str in detail.module_markers + detail.class_markers + detail.test_markers:
+        # Strip args: "parametrize(...)" → "parametrize"
+        paren_idx = marker_str.find("(")
+        bare_name = marker_str[:paren_idx] if paren_idx != -1 else marker_str
+        all_markers.add(bare_name.lower())
+
+    # Evaluate boolean expression: replace marker names with True/False
+    expr = marker_filter
+    # Sort by length descending to avoid partial replacements
+    for marker_name in sorted(all_markers, key=len, reverse=True):
+        expr = expr.replace(marker_name, "True")
+
+    # Replace remaining words (not `and`/`or`/`not`/`True`/`False`) with False
+    import re  # noqa: PLC0415
+
+    expr = re.sub(
+        pattern=r"\b(?!and\b|or\b|not\b|True\b|False\b)[a-zA-Z_][a-zA-Z0-9_]*\b",
+        repl="False",
+        string=expr,
+    )
+
+    try:
+        return bool(eval(expr))
+    except SyntaxError, NameError:
+        LOGGER.warning(f"Could not evaluate marker expression: {marker_filter!r}")
+        return False
+
+
+def _matches_keyword_filter(detail: PlaceholderTestDetail, keyword_filter: str) -> bool:
+    """Check if a placeholder test matches a keyword filter.
+
+    Matches the keyword against the test's node ID (case-insensitive).
+
+    Args:
+        detail: The placeholder test to check.
+        keyword_filter: Keyword substring to match.
+
+    Returns:
+        True if the keyword is found in the node ID.
+    """
+    return keyword_filter.lower() in detail.node_id.lower()
+
+
+def collect_placeholder_details(
+    tests_dir: Path,
+    marker_filter: str | None = None,
+    keyword_filter: str | None = None,
+) -> list[PlaceholderTestDetail]:
+    """Collect placeholder tests with full context, optionally filtered.
 
     Re-parses each file discovered by ``scan_placeholder_tests`` to extract
     docstrings, markers, fixtures, and Polarion IDs for every placeholder test.
 
     Args:
         tests_dir: Path to the tests directory to scan.
+        marker_filter: Optional pytest-style marker expression to filter by.
+        keyword_filter: Optional keyword substring to match against node IDs.
 
     Returns:
         List of ``PlaceholderTestDetail`` objects sorted by ``node_id``.
@@ -399,4 +463,15 @@ def collect_placeholder_details(tests_dir: Path) -> list[PlaceholderTestDetail]:
             )
 
     LOGGER.info(f"Collected {len(details)} placeholder tests from {tests_dir}")
+
+    if marker_filter:
+        details = [detail for detail in details if _matches_marker_filter(detail=detail, marker_filter=marker_filter)]
+        LOGGER.info(f"After marker filter '{marker_filter}': {len(details)} tests")
+
+    if keyword_filter:
+        details = [
+            detail for detail in details if _matches_keyword_filter(detail=detail, keyword_filter=keyword_filter)
+        ]
+        LOGGER.info(f"After keyword filter '{keyword_filter}': {len(details)} tests")
+
     return sorted(details, key=lambda detail: detail.node_id)

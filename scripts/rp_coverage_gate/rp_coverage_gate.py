@@ -29,9 +29,6 @@ from scripts.rp_utils.rp_client import RPClient
 
 LOGGER = get_logger(name=__name__)
 
-RP_DEFAULT_URL = "https://reportportal-cnv.apps.dno.ocp-hub.prod.psi.redhat.com"
-RP_DEFAULT_PROJECT = "cnv"
-
 
 @click.command(
     help="CI Coverage Gate for ReportPortal",
@@ -58,8 +55,16 @@ Examples:
     default=Path("tests"),
     help="Tests directory",
 )
-@click.option("--rp-url", type=str, default=RP_DEFAULT_URL, help="ReportPortal URL")
-@click.option("--rp-project", type=str, default=RP_DEFAULT_PROJECT, help="RP project name")
+@click.option(
+    "--rp-url", type=str, envvar="REPORT_PORTAL_URL", default=None, help="ReportPortal URL (env: REPORT_PORTAL_URL)"
+)
+@click.option(
+    "--rp-project",
+    type=str,
+    envvar="REPORT_PORTAL_PROJECT",
+    default=None,
+    help="RP project name (env: REPORT_PORTAL_PROJECT)",
+)
 @click.option("--rp-token", type=str, envvar="REPORT_PORTAL_TOKEN", default=None, help="RP API token")
 @click.option(
     "--output-format",
@@ -75,8 +80,8 @@ def main(
     bundle: str,
     stale_days: int,
     tests_dir: Path,
-    rp_url: str,
-    rp_project: str,
+    rp_url: str | None,
+    rp_project: str | None,
     rp_token: str | None,
     output_format: str,
     team: str | None,
@@ -102,6 +107,12 @@ def main(
             click.echo(message=f"  Filtered ({team}): {filtered_count}")
         sys.exit(0)
 
+    if not rp_url:
+        click.echo(message="Error: REPORT_PORTAL_URL env var or --rp-url required", err=True)
+        sys.exit(2)
+    if not rp_project:
+        click.echo(message="Error: REPORT_PORTAL_PROJECT env var or --rp-project required", err=True)
+        sys.exit(2)
     if not rp_token:
         click.echo(message="Error: REPORT_PORTAL_TOKEN env var or --rp-token required", err=True)
         sys.exit(2)

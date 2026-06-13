@@ -1,8 +1,7 @@
 # Manual Test Reporter for ReportPortal
 
 Push manual test results for unautomated STD (Standard Test Design) placeholder tests
-to [ReportPortal](https://reportportal-cnv.apps.dno.ocp-hub.prod.psi.redhat.com).
-These are tests marked with `__test__ = False` that are not yet automated.
+to ReportPortal. These are tests marked with `__test__ = False` that are not yet automated.
 
 ---
 
@@ -22,17 +21,19 @@ These are tests marked with `__test__ = False` that are not yet automated.
 
 The reporter authenticates with ReportPortal using an API token.
 
-1. Log in to [ReportPortal](https://reportportal-cnv.apps.dno.ocp-hub.prod.psi.redhat.com).
+1. Log in to your ReportPortal instance.
 2. Click your avatar (top-right) → **API Keys**.
 3. Generate a new key or copy an existing one.
-4. Export it as an environment variable:
+4. Export the connection settings as environment variables:
 
 ```bash
+export REPORT_PORTAL_URL="https://your-reportportal-instance.example.com"
+export REPORT_PORTAL_PROJECT="your-project"
 export REPORT_PORTAL_TOKEN="your-api-key-here"
 ```
 
-> **Tip:** Add the export to your shell profile (`~/.bashrc`, `~/.zshrc`) so you
-> don't have to set it every session.
+> **Tip:** Add the exports to your shell profile (`~/.bashrc`, `~/.zshrc`) so you
+> don't have to set them every session.
 
 ---
 
@@ -58,11 +59,11 @@ and populates these attributes automatically:
 | `SC`             | Default storage class                          | `OCS`                            |
 | `CHANNEL`        | HCO subscription channel                       | `candidate`                      |
 
-### User-provided (required)
+### User-provided (optional)
 
 | Attribute | Description                          | Examples                            |
 |-----------|--------------------------------------|-------------------------------------|
-| `TEAM`    | QE team that owns the test results   | `NETWORK`, `STORAGE`, `VIRT`, `IUO` |
+| `TEAM`    | QE team that owns the test results. Auto-inferred from `--tests-dir` if not set. | `NETWORK`, `STORAGE`, `VIRT`, `IUO` |
 
 ### User-provided (optional)
 
@@ -127,13 +128,40 @@ uv run python -m scripts.rp_manual_reporter.rp_manual_reporter \
     --team NETWORK --bundle v4.22.0 --batch-file results.yaml
 ```
 
+### Filter by directory
+
+Scan only a specific team's tests (team is auto-inferred from path):
+
+```bash
+uv run python -m scripts.rp_manual_reporter.rp_manual_reporter \
+    --tests-dir tests/network/ --bundle v4.22.0
+```
+
+### Filter by marker
+
+Collect only gating-marked placeholder tests:
+
+```bash
+uv run python -m scripts.rp_manual_reporter.rp_manual_reporter \
+    --bundle v4.22.0 -m gating
+```
+
+### Filter by keyword
+
+Collect only tests matching a keyword in the node ID:
+
+```bash
+uv run python -m scripts.rp_manual_reporter.rp_manual_reporter \
+    --bundle v4.22.0 -k test_connectivity
+```
+
 ### Dry run
 
 Preview what would be reported without pushing anything to ReportPortal:
 
 ```bash
 uv run python -m scripts.rp_manual_reporter.rp_manual_reporter \
-    --team STORAGE --bundle v4.22.0 --dry-run
+    --bundle v4.22.0 --dry-run
 ```
 
 ---
@@ -142,8 +170,8 @@ uv run python -m scripts.rp_manual_reporter.rp_manual_reporter \
 
 When no `--batch-file` is provided, the tool enters interactive mode:
 
-1. **Test discovery** — Scans the repo for STD placeholder tests (`__test__ = False`)
-   filtered to the specified `--team`.
+1. **Test discovery** — Scans the repo for STD placeholder tests (`__test__ = False`),
+   optionally filtered by `--tests-dir`, `-m` (marker), or `-k` (keyword).
 
 2. **One-by-one review** — Each test is displayed with full context:
    - Module and class docstrings (STP links, preconditions)
@@ -153,13 +181,12 @@ When no `--batch-file` is provided, the tool enters interactive mode:
 
 3. **Verdict prompt** — For each test, enter one of:
 
-   | Key | Action                                          |
-   |-----|-------------------------------------------------|
-   | `p` | **Pass** — mark the test as passed              |
-   | `f` | **Fail** — mark the test as failed               |
-   | `s` | **Skip** — skip this test (not reported)         |
-   | `n` | **Next** — move to the next test without marking |
-   | `q` | **Quit** — stop and push results collected so far|
+   | Key | Action                                                       |
+   |-----|--------------------------------------------------------------|
+   | `p` | **Pass** — mark the test as passed (pushed to RP)            |
+   | `f` | **Fail** — mark the test as failed (pushed to RP)            |
+   | `s` | **Skip** — move to the next test without recording anything  |
+   | `q` | **Quit** — stop and push results collected so far            |
 
 4. **Failure comment** — When you mark a test as **failed**, the tool prompts for
    an optional comment (e.g., a bug ID like `CNV-12345` or a brief description).

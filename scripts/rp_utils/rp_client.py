@@ -29,7 +29,7 @@ class RPClient:
     """ReportPortal REST API client with pagination support.
 
     Args:
-        base_url: ReportPortal instance URL (e.g., "https://reportportal-cnv.apps...")
+        base_url: ReportPortal instance URL (e.g., "https://reportportal.example.com").
         project: RP project name (e.g., "cnv")
         token: Bearer token for authentication
     """
