@@ -85,43 +85,76 @@ class TestFinishLaunch:
         assert url.endswith("/launch/uuid-99/finish")
 
 
-class TestCreateTestItem:
-    def test_create_test_item_without_attributes(self, rp_client: RPClient) -> None:
-        """Verify create_test_item omits attributes key when not provided."""
+class TestStartTestItem:
+    def test_start_test_item_without_attributes(self, rp_client: RPClient) -> None:
+        """Verify start_test_item omits attributes key when not provided."""
         mock_response = MagicMock()
         mock_response.json.return_value = {"id": "item-7"}
         mock_response.raise_for_status = MagicMock()
 
         with patch.object(rp_client.session, "post", return_value=mock_response) as mock_post:
-            rp_client.create_test_item(
+            result = rp_client.start_test_item(
                 launch_uuid="uuid-1",
                 name="test_foo",
-                status="passed",
             )
 
+        assert result == "item-7"
         body = mock_post.call_args.kwargs["json"]
         assert "attributes" not in body
+        assert "status" not in body
         assert body["launchUuid"] == "uuid-1"
+        assert body["type"] == "STEP"
+        assert body["hasStats"] is True
 
-    def test_create_test_item_with_attributes(self, rp_client: RPClient) -> None:
-        """Verify create_test_item includes attributes when provided."""
+    def test_start_test_item_with_attributes(self, rp_client: RPClient) -> None:
+        """Verify start_test_item includes attributes when provided."""
         mock_response = MagicMock()
         mock_response.json.return_value = {"id": "item-8"}
         mock_response.raise_for_status = MagicMock()
 
         attrs = [{"key": "polarion-testcase-id", "value": "CNV-1234"}]
         with patch.object(rp_client.session, "post", return_value=mock_response) as mock_post:
-            rp_client.create_test_item(
+            result = rp_client.start_test_item(
                 launch_uuid="uuid-1",
                 name="test_bar",
-                status="failed",
                 attributes=attrs,
             )
 
+        assert result == "item-8"
         body = mock_post.call_args.kwargs["json"]
         assert body["attributes"] == attrs
-        assert body["status"] == "FAILED"
         assert body["launchUuid"] == "uuid-1"
+
+
+class TestFinishTestItem:
+    def test_finish_test_item(self, rp_client: RPClient) -> None:
+        """Verify finish_test_item sends PUT with status and endTime."""
+        mock_response = MagicMock()
+        mock_response.raise_for_status = MagicMock()
+
+        with patch.object(rp_client.session, "put", return_value=mock_response) as mock_put:
+            rp_client.finish_test_item(item_uuid="item-7", status="passed")
+
+        call_kwargs = mock_put.call_args
+        url = call_kwargs.kwargs["url"]
+        assert url.endswith("/item/item-7")
+        body = call_kwargs.kwargs["json"]
+        assert body["status"] == "PASSED"
+        assert "endTime" in body
+        assert "issue" not in body
+
+    def test_finish_test_item_with_issue(self, rp_client: RPClient) -> None:
+        """Verify finish_test_item includes issue when provided."""
+        mock_response = MagicMock()
+        mock_response.raise_for_status = MagicMock()
+
+        issue = {"issueType": "pb001", "comment": "CNV-12345"}
+        with patch.object(rp_client.session, "put", return_value=mock_response) as mock_put:
+            rp_client.finish_test_item(item_uuid="item-8", status="failed", issue=issue)
+
+        body = mock_put.call_args.kwargs["json"]
+        assert body["status"] == "FAILED"
+        assert body["issue"] == issue
 
 
 class TestGetLaunches:

@@ -132,39 +132,36 @@ class RPClient:
         response.raise_for_status()
         LOGGER.info(f"Finished launch {launch_uuid}")
 
-    def create_test_item(
+    def start_test_item(
         self,
         launch_uuid: str,
         name: str,
-        status: str,
         description: str = "",
         attributes: list[dict[str, str]] | None = None,
     ) -> str:
-        """Creates a test item (step) within a launch.
+        """Start a test item (step) within a launch.
+
+        The item is created in an "in progress" state. Call
+        ``finish_test_item`` to set the final status and end time.
 
         Args:
             launch_uuid: Parent launch UUID.
             name: Test item name.
-            status: Test status (e.g., "PASSED", "FAILED", "SKIPPED").
             description: Optional item description.
             attributes: Optional list of attribute dicts.
 
         Returns:
-            The created test item ID.
+            The created test item UUID.
 
         Raises:
             requests.HTTPError: If the request fails.
         """
         url = self._api_url(path="item")
-        timestamp = _utc_now_iso()
-        normalized_status = status.upper()
         body: dict[str, Any] = {
             "launchUuid": launch_uuid,
             "name": name,
             "type": "STEP",
-            "status": normalized_status,
-            "startTime": timestamp,
-            "endTime": timestamp,
+            "startTime": _utc_now_iso(),
             "hasStats": True,
             "description": description,
         }
@@ -173,9 +170,37 @@ class RPClient:
 
         response = self.session.post(url=url, json=body)
         response.raise_for_status()
-        item_id = response.json()["id"]
-        LOGGER.info(f"Created test item '{name}' with status {normalized_status}")
-        return item_id
+        item_uuid = response.json()["id"]
+        LOGGER.info(f"Started test item '{name}'")
+        return item_uuid
+
+    def finish_test_item(
+        self,
+        item_uuid: str,
+        status: str,
+        issue: dict[str, str] | None = None,
+    ) -> None:
+        """Finish a test item with a final status.
+
+        Args:
+            item_uuid: UUID of the item to finish.
+            status: Final test status (e.g., ``PASSED``, ``FAILED``).
+            issue: Optional issue dict for defect linking.
+
+        Raises:
+            requests.HTTPError: If the request fails.
+        """
+        url = self._api_url(path=f"item/{item_uuid}")
+        body: dict[str, Any] = {
+            "endTime": _utc_now_iso(),
+            "status": status.upper(),
+        }
+        if issue is not None:
+            body["issue"] = issue
+
+        response = self.session.put(url=url, json=body)
+        response.raise_for_status()
+        LOGGER.info(f"Finished test item {item_uuid} with status {status.upper()}")
 
     def get_launches(self, bundle_prefix: str, page_size: int = 300) -> list[dict[str, Any]]:
         """Fetches launches filtered by BUNDLE attribute prefix.

@@ -363,13 +363,13 @@ def _push_results_to_rp(
         if polarion_id:
             item_attrs = [{"key": "polarion-testcase-id", "value": polarion_id}]
 
-        rp_client.create_test_item(
+        item_uuid = rp_client.start_test_item(
             launch_uuid=launch_uuid,
             name=item_name,
-            status=result["status"],
             description=result.get("comment", ""),
             attributes=item_attrs,
         )
+        rp_client.finish_test_item(item_uuid=item_uuid, status=result["status"])
 
     rp_client.finish_launch(launch_uuid=launch_uuid)
     LOGGER.info(f"Pushed {len(results)} results to launch {launch_uuid}")
