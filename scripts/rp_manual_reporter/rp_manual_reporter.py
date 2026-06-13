@@ -223,17 +223,19 @@ def _run_interactive_mode(tests: list[PlaceholderTestDetail]) -> tuple[list[dict
                 results.append({"test": test.node_id, "status": "PASSED", "comment": ""})
                 break
             elif choice == "f":
-                click.echo(message="Defect type:")
-                for key, (_, label) in _DEFECT_TYPES.items():
-                    click.echo(message=f"  {key}. {label}")
-                defect_choice = click.prompt(
-                    "Choose (1-5, default=4)",
-                    type=str,
-                    default="4",
-                    show_default=False,
-                ).strip()
-                if defect_choice not in _DEFECT_TYPES:
-                    defect_choice = "4"
+                while True:
+                    click.echo(message="Defect type:")
+                    for key, (_, label) in _DEFECT_TYPES.items():
+                        click.echo(message=f"  {key}. {label}")
+                    defect_choice = click.prompt(
+                        "Choose (1-5, default=4)",
+                        type=str,
+                        default="4",
+                        show_default=False,
+                    ).strip()
+                    if defect_choice in _DEFECT_TYPES:
+                        break
+                    click.echo(message=f"Invalid choice '{defect_choice}'. Use 1-5.")
                 issue_type, issue_type_label = _DEFECT_TYPES[defect_choice]
                 comment = click.prompt("Comment (optional)", default="", show_default=False)
                 results.append({
