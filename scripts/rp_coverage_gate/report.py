@@ -1312,7 +1312,7 @@ function openTab(evt, tabName) {
         if team_failed:
             parts.append("<details open class='section-failed'>")
             parts.append(
-                f"<summary>FAILED TESTS ({len(team_failed)}) <small class='section-desc'>— Tests that ran and failed in the most recent execution</small></summary>"
+                f"<summary>FAILED TESTS ({len(team_failed)}) <small class='section-desc'>— Tests whose most recent result across all launches is FAILED</small></summary>"
             )
 
             defect_groups: dict[str, list[tuple[str, ItemResult]]] = {}
@@ -1383,7 +1383,7 @@ function openTab(evt, tabName) {
         if team_manual:
             parts.append("<details open class='section-manual'>")
             parts.append(
-                f"<summary>MANUAL TESTS ({len(team_manual)}) <small class='section-desc'>— STD placeholder tests awaiting implementation</small></summary>"
+                f"<summary>MANUAL TESTS ({len(team_manual)}) <small class='section-desc'>— Unimplemented test designs (__test__ = False) with no results in RP</small></summary>"
             )
             parts.append("<table><tr><th>Test</th></tr>")
             for base, params_list in _group_by_base(items=team_manual):
@@ -1460,7 +1460,7 @@ function openTab(evt, tabName) {
         if team_passed:
             parts.append("<details class='section-passed'>")
             parts.append(
-                f"<summary>PASSED TESTS ({len(team_passed)}) <small class='section-desc'>— Tests that passed in their most recent execution</small></summary>"
+                f"<summary>PASSED TESTS ({len(team_passed)}) <small class='section-desc'>— Tests whose most recent result across all launches is PASSED</small></summary>"
             )
             parts.append("<table><tr><th>Test</th><th>Bundle</th><th>Date</th><th>Source</th></tr>")
             for base, variants in _group_results_by_base(items=team_passed):
@@ -1488,7 +1488,7 @@ function openTab(evt, tabName) {
         if team_skipped:
             parts.append("<details class='section-skipped'>")
             parts.append(
-                f"<summary>SKIPPED TESTS ({len(team_skipped)}) <small class='section-desc'>— Tests skipped (not quarantined) in their most recent run</small></summary>"
+                f"<summary>SKIPPED TESTS ({len(team_skipped)}) <small class='section-desc'>— Tests whose most recent result across all launches is SKIPPED</small></summary>"
             )
             parts.append("<table><tr><th>Test</th><th>Bundle</th><th>Date</th><th>Source</th></tr>")
             for base, variants in _group_results_by_base(items=team_skipped):
