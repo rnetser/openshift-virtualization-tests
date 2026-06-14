@@ -100,6 +100,14 @@ def _build_launch_attributes(
         if value is not None:
             attrs_by_key[key] = value
 
+    # Auto-derive CNV_VERSION from BUNDLE if not set
+    # e.g., "v4.22.0.rhel9-102" → "4.22"
+    if "CNV_VERSION" not in attrs_by_key and "BUNDLE" in attrs_by_key:
+        bundle_val = attrs_by_key["BUNDLE"].lstrip("v")
+        parts = bundle_val.split(".")
+        if len(parts) >= 2:
+            attrs_by_key["CNV_VERSION"] = f"{parts[0]}.{parts[1]}"
+
     # Mandatory attributes
     if team:
         attrs_by_key["TEAM"] = team.upper()

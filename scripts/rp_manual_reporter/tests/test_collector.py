@@ -28,6 +28,7 @@ from scripts.rp_manual_reporter.collector import (
     collect_placeholder_details,
     node_id_to_rp_name,
 )
+from scripts.rp_manual_reporter.rp_manual_reporter import _build_launch_attributes
 
 
 class TestNodeIdToRpName:
@@ -389,3 +390,26 @@ class TestSafeEvalBoolExpr:
         """Verify numeric constants are rejected."""
         with pytest.raises(TypeError, match="Disallowed constant"):
             _safe_eval_bool_expr(expr="42")
+
+
+class TestBuildLaunchAttributes:
+    def test_cnv_version_derived_from_bundle(self) -> None:
+        """Verify CNV_VERSION is auto-derived from BUNDLE when not explicitly set."""
+        result = _build_launch_attributes(bundle="v4.22.0.rhel9-102")
+        attrs_by_key = {attr["key"]: attr["value"] for attr in result}
+        assert attrs_by_key["CNV_VERSION"] == "4.22"
+
+    def test_cnv_version_not_overridden_when_set(self) -> None:
+        """Verify explicit CNV_VERSION is not overridden by BUNDLE derivation."""
+        result = _build_launch_attributes(
+            bundle="v4.22.0",
+            cnv_version="4.21",
+        )
+        attrs_by_key = {attr["key"]: attr["value"] for attr in result}
+        assert attrs_by_key["CNV_VERSION"] == "4.21"
+
+    def test_cnv_version_not_derived_without_bundle(self) -> None:
+        """Verify CNV_VERSION is not set when BUNDLE is missing."""
+        result = _build_launch_attributes()
+        attrs_by_key = {attr["key"]: attr["value"] for attr in result}
+        assert "CNV_VERSION" not in attrs_by_key
