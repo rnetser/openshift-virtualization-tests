@@ -1323,6 +1323,8 @@ class TestLegendAndDeduplication:
         assert "Product Bug" in html
         assert "status-passed" in html
         assert "status-quarantined" in html
+        # Legend is outside tab-content (collapsible, always visible)
+        assert "<details>" in html
 
     def test_matrix_deduplicates_list(self) -> None:
         """Verify tests in matrix don't also appear in list view."""

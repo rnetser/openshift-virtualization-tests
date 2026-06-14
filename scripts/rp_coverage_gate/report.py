@@ -104,10 +104,10 @@ _DEFECT_ABBREVS: dict[str, str] = {
 _STATUS_SYMBOLS: dict[str, str] = {
     "PASSED": "✅",
     "FAILED": "❌",
-    "NEVER_EXECUTED": "⬜",
-    "STALE": "⏳",
-    "SKIPPED": "⏭",
-    "QUARANTINED": "⏸",
+    "NEVER_EXECUTED": "\u2014",
+    "STALE": "\u26a0\ufe0f",
+    "SKIPPED": "SKIP",
+    "QUARANTINED": "Q",
 }
 
 _STATUS_CSS: dict[str, str] = {
@@ -1063,7 +1063,8 @@ summary:hover { opacity: 0.85; }
 .matrix-table th { background: #f5f5f5; font-size: 0.85em; }
 .matrix-cell { font-size: 1.1em; min-width: 30px; }
 .legend { margin: 1rem 0; padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px; background: #fafafa; }
-.legend h3 { margin: 0 0 0.5rem; font-size: 1rem; }
+.legend summary { cursor: pointer; }
+.legend th { text-align: left; padding: 2px 8px; }
 .legend table { border-collapse: collapse; }
 .legend td { padding: 2px 8px; }
 .status-passed { background: #d4edda; }
@@ -1136,6 +1137,37 @@ function openTab(evt, tabName) {
         )
     parts.append("</div>")
 
+    # Legend (always visible, outside tabs)
+    parts.append("<div class='legend'>")
+    parts.append("<details>")
+    parts.append("<summary><strong>Legend</strong></summary>")
+    parts.append("<table>")
+    parts.append("<tr><th>Matrix</th><th>Meaning</th><th>Failed Analysis</th><th>Meaning</th></tr>")
+    parts.append(
+        "<tr><td class='matrix-cell status-passed'>\u2705</td><td>Passed</td>"
+        "<td class='matrix-cell status-failed'>PB</td><td>Product Bug</td></tr>"
+    )
+    parts.append(
+        "<tr><td class='matrix-cell status-failed'>\u274c</td><td>Failed</td>"
+        "<td class='matrix-cell status-failed'>AB</td><td>Automation Bug</td></tr>"
+    )
+    parts.append(
+        "<tr><td class='matrix-cell status-never'>\u2014</td><td>Never Executed</td>"
+        "<td class='matrix-cell status-failed'>SI</td><td>System Issue</td></tr>"
+    )
+    parts.append(
+        "<tr><td class='matrix-cell status-stale'>\u26a0\ufe0f</td><td>Stale</td>"
+        "<td class='matrix-cell status-failed'>TI</td><td>To Investigate (not yet analyzed)</td></tr>"
+    )
+    parts.append(
+        "<tr><td class='matrix-cell'>SKIP</td><td>Skipped</td>"
+        "<td class='matrix-cell status-failed'>NI</td><td>Not Issue / No Defect</td></tr>"
+    )
+    parts.append("<tr><td class='matrix-cell status-quarantined'>Q</td><td>Quarantined</td><td></td><td></td></tr>")
+    parts.append("</table>")
+    parts.append("</details>")
+    parts.append("</div>")
+
     # ==================== SUMMARY TAB ====================
     parts.append("<div id='summary' class='tab-content active'>")
 
@@ -1177,23 +1209,6 @@ function openTab(evt, tabName) {
             f"<td>{coverage_pct:.1f}%</td></tr>"
         )
         parts.append("</table>")
-
-    # Legend
-    parts.append("<div class='legend'>")
-    parts.append("<h3>Legend</h3>")
-    parts.append("<table>")
-    parts.append("<tr><td class='matrix-cell status-passed'>✅</td><td>Passed</td></tr>")
-    parts.append("<tr><td class='matrix-cell status-failed'>❌</td><td>Failed (no defect classification)</td></tr>")
-    parts.append("<tr><td class='matrix-cell status-failed'>PB</td><td>Product Bug</td></tr>")
-    parts.append("<tr><td class='matrix-cell status-failed'>AB</td><td>Automation Bug</td></tr>")
-    parts.append("<tr><td class='matrix-cell status-failed'>SI</td><td>System Issue</td></tr>")
-    parts.append("<tr><td class='matrix-cell status-failed'>TI</td><td>To Investigate (not yet analyzed)</td></tr>")
-    parts.append("<tr><td class='matrix-cell status-never'>⬜</td><td>Never Executed</td></tr>")
-    parts.append("<tr><td class='matrix-cell status-stale'>⏳</td><td>Stale (older than threshold)</td></tr>")
-    parts.append("<tr><td class='matrix-cell status-skipped'>⏭</td><td>Skipped</td></tr>")
-    parts.append("<tr><td class='matrix-cell status-quarantined'>⏸</td><td>Quarantined</td></tr>")
-    parts.append("</table>")
-    parts.append("</div>")
 
     parts.append("</div>")  # end summary tab
 
