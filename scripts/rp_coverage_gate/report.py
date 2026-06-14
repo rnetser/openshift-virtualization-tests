@@ -39,6 +39,87 @@ def _split_params(node_id: str) -> tuple[str, str]:
     return node_id[:bracket_idx], node_id[bracket_idx:]
 
 
+def _parse_two_axis_params(params: str) -> tuple[str, str] | None:
+    """Parse ``[#val1#-#val2#]`` into ``(val1, val2)``.
+
+    Args:
+        params: Parameter suffix string, e.g. ``[#rhel.10#-#hostpath-csi-basic#]``.
+
+    Returns:
+        Tuple of (axis1_value, axis2_value) if 2-axis format, None otherwise.
+    """
+    inner = params.strip("[]")
+    parts = inner.split("#-#")
+    if len(parts) == 2:
+        return (parts[0].strip("#"), parts[1].strip("#"))
+    return None
+
+
+@dataclass
+class VariantStatus:
+    """Status of a single parametrized variant.
+
+    Attributes:
+        params: Parameter suffix (e.g., ``[#rhel.10#-#hostpath#]``).
+        status: One of PASSED, FAILED, NEVER_EXECUTED, STALE, SKIPPED, QUARANTINED.
+        result: ItemResult for executed tests, None for never-executed/quarantined.
+        defect_type: Defect classification for FAILED tests.
+    """
+
+    params: str
+    status: str
+    result: ItemResult | None
+    defect_type: str | None = None
+
+
+@dataclass
+class ParametrizedTestSummary:
+    """Summary of all variants for a parametrized test.
+
+    Attributes:
+        base_test: Base test name without parameters.
+        variants: All variant statuses.
+        is_two_axis: True if all variants match 2-axis format.
+        axis1_values: Row header values (sorted).
+        axis2_values: Column header values (sorted).
+    """
+
+    base_test: str
+    variants: list[VariantStatus]
+    is_two_axis: bool
+    axis1_values: list[str]
+    axis2_values: list[str]
+
+
+_DEFECT_ABBREVS: dict[str, str] = {
+    "Product Bug": "PB",
+    "Automation Bug": "AB",
+    "System Issue": "SI",
+    "To Investigate": "TI",
+    "No Defect": "ND",
+    "Not Issue": "NI",
+}
+
+
+_STATUS_SYMBOLS: dict[str, str] = {
+    "PASSED": "✅",
+    "FAILED": "❌",
+    "NEVER_EXECUTED": "⬜",
+    "STALE": "⏳",
+    "SKIPPED": "⏭",
+    "QUARANTINED": "⏸",
+}
+
+_STATUS_CSS: dict[str, str] = {
+    "PASSED": "status-passed",
+    "FAILED": "status-failed",
+    "NEVER_EXECUTED": "status-never",
+    "STALE": "status-stale",
+    "SKIPPED": "status-skipped",
+    "QUARANTINED": "status-quarantined",
+}
+
+
 def _group_by_base(
     items: list[str],
 ) -> list[tuple[str, list[str]]]:
@@ -142,6 +223,7 @@ class CoverageReport:
     gating_never_executed: list[str]
     gating_stale: list[tuple[str, ItemResult]]
     quarantined: list[QuarantinedTest]
+    parametrized_summaries: dict[str, list[ParametrizedTestSummary]] | None = None
     team_stats: dict[str, TeamStats] | None = None
 
 
@@ -362,6 +444,63 @@ def analyze_coverage(
             coverage_pct=round(pct, 1),
         )
 
+    # Build parametrized test summaries per team
+    all_node_ids_with_status: dict[str, tuple[str, ItemResult | None, str | None]] = {}
+    for node_id, result in passed:
+        all_node_ids_with_status[node_id] = ("PASSED", result, None)
+    for node_id, result in failed:
+        all_node_ids_with_status[node_id] = ("FAILED", result, result.defect_type)
+    for node_id, result in skipped:
+        all_node_ids_with_status[node_id] = ("SKIPPED", result, None)
+    for node_id, result in stale:
+        all_node_ids_with_status[node_id] = ("STALE", result, None)
+    for node_id in never_executed:
+        all_node_ids_with_status[node_id] = ("NEVER_EXECUTED", None, None)
+    for qt in filtered_quarantined:
+        all_node_ids_with_status[qt.node_id] = ("QUARANTINED", None, None)
+
+    # Group by base test name
+    base_test_variants: dict[str, list[tuple[str, str]]] = {}
+    for node_id in list(all_node_ids_with_status):
+        base, params = _split_params(node_id=node_id)
+        if params:
+            base_test_variants.setdefault(base, []).append((node_id, params))
+
+    parametrized_summaries: dict[str, list[ParametrizedTestSummary]] = {}
+    for base, variant_list in base_test_variants.items():
+        if len(variant_list) < 2:
+            continue
+        variants: list[VariantStatus] = []
+        for node_id, params in variant_list:
+            status, result, defect = all_node_ids_with_status.get(node_id, ("NEVER_EXECUTED", None, None))
+            variants.append(VariantStatus(params=params, status=status, result=result, defect_type=defect))
+
+        # Check if all variants are 2-axis
+        parsed = [_parse_two_axis_params(params=v.params) for v in variants]
+        is_two_axis = all(p is not None for p in parsed)
+
+        axis1_values: list[str] = []
+        axis2_values: list[str] = []
+        if is_two_axis:
+            axis1_set: set[str] = set()
+            axis2_set: set[str] = set()
+            for p in parsed:
+                if p:
+                    axis1_set.add(p[0])
+                    axis2_set.add(p[1])
+            axis1_values = sorted(axis1_set)
+            axis2_values = sorted(axis2_set)
+
+        summary = ParametrizedTestSummary(
+            base_test=base,
+            variants=variants,
+            is_two_axis=is_two_axis,
+            axis1_values=axis1_values,
+            axis2_values=axis2_values,
+        )
+        team = _get_team_from_node_id(node_id=base) or "other"
+        parametrized_summaries.setdefault(team, []).append(summary)
+
     return CoverageReport(
         total_tests=len(all_ids),
         automated_count=filtered_automated_count,
@@ -377,6 +516,7 @@ def analyze_coverage(
         gating_never_executed=gating_never_executed,
         gating_stale=gating_stale,
         quarantined=filtered_quarantined,
+        parametrized_summaries=parametrized_summaries if parametrized_summaries else None,
         team_stats=team_stats,
     )
 
@@ -795,6 +935,62 @@ def format_json_report(
     return json.dumps(obj=data, indent=2)
 
 
+def _render_html_matrix(summary: ParametrizedTestSummary, esc: Any) -> list[str]:
+    """Render a 2-axis parametrized test as an HTML matrix table.
+
+    Args:
+        summary: ParametrizedTestSummary with is_two_axis=True.
+        esc: HTML escape function.
+
+    Returns:
+        List of HTML strings forming the matrix table.
+    """
+    parts: list[str] = []
+    parts.append(
+        f"<div class='mono' style='margin: 0.5rem 0;'><b>{esc(summary.base_test)}</b>"
+        f" ({len(summary.variants)} variants)</div>"
+    )
+
+    # Build lookup: (axis1, axis2) -> VariantStatus
+    variant_map: dict[tuple[str, str], VariantStatus] = {}
+    for variant in summary.variants:
+        parsed = _parse_two_axis_params(params=variant.params)
+        if parsed:
+            variant_map[parsed] = variant
+
+    parts.append("<table class='matrix-table'>")
+    # Header row
+    header = "<tr><th></th>"
+    for col in summary.axis2_values:
+        header += f"<th>{esc(s=col)}</th>"
+    header += "</tr>"
+    parts.append(header)
+
+    # Data rows
+    for row_val in summary.axis1_values:
+        row = f"<tr><th>{esc(s=row_val)}</th>"
+        for col_val in summary.axis2_values:
+            cell_variant = variant_map.get((row_val, col_val))
+            if cell_variant:
+                css_class = _STATUS_CSS.get(cell_variant.status, "")
+                if cell_variant.status == "FAILED" and cell_variant.defect_type:
+                    abbrev = _DEFECT_ABBREVS.get(cell_variant.defect_type, "❌")
+                    tooltip = esc(s=cell_variant.defect_type)
+                    if cell_variant.result and cell_variant.result.defect_comment:
+                        tooltip += f": {esc(s=cell_variant.result.defect_comment[:80])}"
+                    row += f"<td class='matrix-cell {css_class}' title='{tooltip}'>{abbrev}</td>"
+                else:
+                    symbol = _STATUS_SYMBOLS.get(cell_variant.status, "?")
+                    row += f"<td class='matrix-cell {css_class}'>{symbol}</td>"
+            else:
+                row += f"<td class='matrix-cell status-never'>{_STATUS_SYMBOLS['NEVER_EXECUTED']}</td>"
+        row += "</tr>"
+        parts.append(row)
+
+    parts.append("</table>")
+    return parts
+
+
 def format_html_report(
     report: CoverageReport,
     bundle_prefix: str,
@@ -862,6 +1058,16 @@ summary:hover { opacity: 0.85; }
 .section-skipped summary { background: #cff4fc; color: #055160; }
 .section-quarantined summary { background: #e8d5f5; color: #5b2d8e; }
 .section-desc { font-weight: normal; color: #666; font-size: 0.85em; }
+.matrix-table { border-collapse: collapse; margin: 0.5rem 0 1rem 1.5rem; }
+.matrix-table th, .matrix-table td { border: 1px solid #ddd; padding: 4px 8px; text-align: center; }
+.matrix-table th { background: #f5f5f5; font-size: 0.85em; }
+.matrix-cell { font-size: 1.1em; min-width: 30px; }
+.status-passed { background: #d4edda; }
+.status-failed { background: #f8d7da; }
+.status-never { background: #e9ecef; }
+.status-stale { background: #fff3cd; }
+.status-skipped { background: #cff4fc; }
+.status-quarantined { background: #e8daef; }
 .badge { display: inline-block; padding: 6px 18px; border-radius: 4px;
          font-weight: bold; font-size: 1.2rem; margin: 0.5rem 0 1.5rem; }
 .badge-pass { background: #198754; color: white; }
@@ -1007,6 +1213,9 @@ function openTab(evt, tabName) {
         team = _get_team_from_node_id(node_id=qt.node_id) or "other"
         quarantine_by_team.setdefault(team, []).append(qt)
 
+    # Pre-compute parametrized summaries by team
+    param_summaries_by_team = report.parametrized_summaries or {}
+
     gating_ne_set = set(report.gating_never_executed)
     gating_stale_map = dict(report.gating_stale)
     all_gating_ids = list(report.gating_never_executed) + [nid for nid, _ in report.gating_stale]
@@ -1019,6 +1228,7 @@ function openTab(evt, tabName) {
 
     for team in all_teams:
         team_stat = (report.team_stats or {}).get(team)
+        team_summaries = param_summaries_by_team.get(team, [])
         parts.append(f"<div id='{esc(team)}' class='tab-content'>")
 
         # Team summary bar
@@ -1107,6 +1317,13 @@ function openTab(evt, tabName) {
                     comment = html_mod.escape(s=raw_comment)
                     parts.append(_result_row(node_id=node_id, result=result, extra_col=f"<td>{comment}</td>"))
                 parts.append("</table>")
+            # Render 2-axis matrices for failed parametrized tests
+            for summary in team_summaries:
+                if summary.is_two_axis:
+                    team_failed_set = {nid for nid, _ in team_failed}
+                    has_failed = any(f"{summary.base_test}{v.params}" in team_failed_set for v in summary.variants)
+                    if has_failed:
+                        parts.extend(_render_html_matrix(summary=summary, esc=esc))
             parts.append("</details>")
 
         # QUARANTINED section for this team
@@ -1152,6 +1369,12 @@ function openTab(evt, tabName) {
 
         # NEVER EXECUTED section for this team
         team_never = never_by_team.get(team, [])
+        # Collect base tests that have 2-axis matrices
+        matrix_bases: set[str] = set()
+        for summary in team_summaries:
+            if summary.is_two_axis:
+                matrix_bases.add(summary.base_test)
+
         if team_never:
             parts.append("<details class='section-never'>")
             parts.append(
@@ -1174,7 +1397,16 @@ function openTab(evt, tabName) {
                         full_id = f"{base}{params}"
                         label = "Manual" if full_id in manual_set else "Automated"
                         parts.append(f"<tr><td class='mono'>  {esc(params)}</td><td>{label}</td></tr>")
-            parts.append("</table></details>")
+            parts.append("</table>")
+            # Render 2-axis matrices for parametrized tests in this section
+            for summary in team_summaries:
+                if summary.is_two_axis:
+                    # Check if any variant is in the never-executed set
+                    team_never_set = set(team_never)
+                    has_never = any(f"{summary.base_test}{v.params}" in team_never_set for v in summary.variants)
+                    if has_never:
+                        parts.extend(_render_html_matrix(summary=summary, esc=esc))
+            parts.append("</details>")
 
         # STALE section for this team
         team_stale = stale_by_team.get(team, [])
@@ -1216,7 +1448,14 @@ function openTab(evt, tabName) {
                     )
                     for params, result in variants:
                         parts.append(_result_row(node_id=f"  {esc(params)}", result=result))
-            parts.append("</table></details>")
+            parts.append("</table>")
+            for summary in team_summaries:
+                if summary.is_two_axis:
+                    team_passed_set = {nid for nid, _ in team_passed}
+                    has_passed = any(f"{summary.base_test}{v.params}" in team_passed_set for v in summary.variants)
+                    if has_passed:
+                        parts.extend(_render_html_matrix(summary=summary, esc=esc))
+            parts.append("</details>")
 
         # SKIPPED section for this team
         team_skipped = skipped_by_team.get(team, [])

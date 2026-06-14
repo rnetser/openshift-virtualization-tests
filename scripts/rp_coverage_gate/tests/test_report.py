@@ -10,9 +10,12 @@ import pytest
 
 from scripts.rp_coverage_gate.report import (
     CoverageReport,
+    ParametrizedTestSummary,
     TeamStats,
+    VariantStatus,
     _get_team_from_node_id,
     _group_by_base,
+    _parse_two_axis_params,
     analyze_coverage,
     format_html_report,
     format_json_report,
@@ -1198,3 +1201,97 @@ class TestQuarantineReporting:
         assert data["summary"]["quarantined_count"] == 1
         assert len(data["quarantined"]) == 1
         assert data["quarantined"][0]["jira"] == "CNV-99999"
+
+
+class TestMatrixRendering:
+    def test_parse_two_axis_params(self) -> None:
+        """Verify 2-axis parameter parsing."""
+        result = _parse_two_axis_params(params="[#rhel.10#-#hostpath-csi-basic#]")
+        assert result == ("rhel.10", "hostpath-csi-basic")
+
+    def test_parse_two_axis_params_single_axis(self) -> None:
+        """Verify single-axis params return None."""
+        result = _parse_two_axis_params(params="[simple_param]")
+        assert result is None
+
+    def test_parametrized_summaries_built(self) -> None:
+        """Verify parametrized summaries are built in analyze_coverage."""
+        recent = _recent_iso()
+        result_passed = _make_result(name="t1", last_executed=recent)
+        result_failed = _make_result(name="t2", status="FAILED", last_executed=recent)
+
+        report = analyze_coverage(
+            automated_ids=[
+                "tests/net/test_a.py::TestA::test_vm[#rhel.10#-#hostpath#]",
+                "tests/net/test_a.py::TestA::test_vm[#rhel.10#-#ocs-rbd#]",
+                "tests/net/test_a.py::TestA::test_vm[#rhel.8#-#hostpath#]",
+                "tests/net/test_a.py::TestA::test_vm[#rhel.8#-#ocs-rbd#]",
+            ],
+            unautomated_ids=[],
+            rp_results={
+                "tests.net.test_a.TestA.test_vm[#rhel.10#-#hostpath#]": result_passed,
+                "tests.net.test_a.TestA.test_vm[#rhel.10#-#ocs-rbd#]": result_failed,
+                "tests.net.test_a.TestA.test_vm[#rhel.8#-#hostpath#]": result_passed,
+            },
+        )
+
+        assert report.parametrized_summaries is not None
+        assert "net" in report.parametrized_summaries
+        summaries = report.parametrized_summaries["net"]
+        assert len(summaries) == 1
+        summary = summaries[0]
+        assert summary.is_two_axis is True
+        assert set(summary.axis1_values) == {"rhel.10", "rhel.8"}
+        assert set(summary.axis2_values) == {"hostpath", "ocs-rbd"}
+        assert len(summary.variants) == 4
+
+    def test_matrix_in_html_report(self) -> None:
+        """Verify matrix table appears in HTML for 2-axis parametrized tests."""
+        summary = ParametrizedTestSummary(
+            base_test="tests/net/test_a.py::TestA::test_vm",
+            variants=[
+                VariantStatus(params="[#rhel.10#-#hostpath#]", status="PASSED", result=None),
+                VariantStatus(params="[#rhel.10#-#ocs-rbd#]", status="FAILED", result=None, defect_type="Product Bug"),
+                VariantStatus(params="[#rhel.8#-#hostpath#]", status="NEVER_EXECUTED", result=None),
+            ],
+            is_two_axis=True,
+            axis1_values=["rhel.10", "rhel.8"],
+            axis2_values=["hostpath", "ocs-rbd"],
+        )
+
+        report = CoverageReport(
+            total_tests=3,
+            automated_count=3,
+            unautomated_count=0,
+            passed=[("tests/net/test_a.py::TestA::test_vm[#rhel.10#-#hostpath#]", _make_result(name="t1"))],
+            failed=[],
+            skipped=[],
+            never_executed=["tests/net/test_a.py::TestA::test_vm[#rhel.8#-#hostpath#]"],
+            never_executed_automated=["tests/net/test_a.py::TestA::test_vm[#rhel.8#-#hostpath#]"],
+            never_executed_manual=[],
+            stale=[],
+            gate_passed=False,
+            gating_never_executed=[],
+            gating_stale=[],
+            quarantined=[],
+            parametrized_summaries={"net": [summary]},
+            team_stats={
+                "net": TeamStats(
+                    total=3,
+                    passed=1,
+                    failed=0,
+                    skipped=0,
+                    never_executed=1,
+                    stale=0,
+                    quarantined=0,
+                    coverage_pct=33.3,
+                ),
+            },
+        )
+
+        html = format_html_report(report=report, bundle_prefix="v4.22.0", stale_days=30)
+        assert "matrix-table" in html
+        assert "rhel.10" in html
+        assert "hostpath" in html
+        assert "status-passed" in html
+        assert "status-never" in html
