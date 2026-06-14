@@ -234,3 +234,10 @@ class TestUpdateLaunch:
         assert body["attributes"] == attrs
         assert body["description"] == "updated"
         assert body["mode"] == "DEFAULT"
+
+
+class TestThreadSafety:
+    def test_rp_client_has_lock(self) -> None:
+        """Verify RPClient has a threading lock for session safety."""
+        client = RPClient(base_url="https://rp.example.com", project="test", token="tok")
+        assert hasattr(client, "_lock")

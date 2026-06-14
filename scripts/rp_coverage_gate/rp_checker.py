@@ -178,15 +178,22 @@ def check_coverage(
     completed = 0
     launch_count = len(launches)
 
+    # Fetch all items in parallel, then merge in chronological order
+    launch_results: list[tuple[dict[str, Any], list[ItemResult]]] = []
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         futures = {executor.submit(_fetch_launch_items, launch): launch for launch in launches}
         for future in as_completed(futures):
-            launch, items = future.result()
-            for item_result in _process_launch_items(launch=launch, items=items):
-                result_map[item_result.name] = item_result
+            launch, raw_items = future.result()
+            launch_results.append((launch, _process_launch_items(launch=launch, items=raw_items)))
             completed += 1
             if progress_callback:
                 progress_callback(current=completed, total=launch_count)
+
+    # Sort by startTime so most recent overwrites older — "most recent wins"
+    launch_results.sort(key=lambda lr: lr[0].get("startTime", 0))
+    for _launch, items in launch_results:
+        for item_result in items:
+            result_map[item_result.name] = item_result
 
     LOGGER.info(f"Found results for {len(result_map)} unique tests across {launch_count} launches")
     return result_map

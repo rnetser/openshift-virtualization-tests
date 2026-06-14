@@ -15,34 +15,6 @@ from pathlib import Path
 LOGGER = logging.getLogger(__name__)
 
 
-def node_id_to_rp_name(node_id: str) -> str:
-    """Convert a pytest node ID to ReportPortal dotted name format.
-
-    Transforms path separators and pytest delimiters into dots while
-    preserving parametrize suffixes.
-
-    Args:
-        node_id: Pytest-style node ID, e.g.
-            ``tests/foo/test_bar.py::TestClass::test_method[param]``.
-
-    Returns:
-        Dotted ReportPortal name, e.g.
-            ``tests.foo.test_bar.TestClass.test_method[param]``.
-    """
-    param_suffix = ""
-    base = node_id
-    bracket_index = node_id.find("[")
-    if bracket_index != -1:
-        param_suffix = node_id[bracket_index:]
-        base = node_id[:bracket_index]
-
-    base = base.replace(".py", "")
-    base = base.replace("/", ".")
-    base = base.replace("::", ".")
-
-    return base + param_suffix
-
-
 def _parse_pytest_collect_output(stdout: str) -> list[str]:
     """Parse pytest ``--collect-only -q`` output to extract test node IDs.
 
@@ -97,6 +69,10 @@ def collect_all_tests(tests_dir: Path) -> tuple[list[str], list[str], set[str]]:
         text=True,
         env=env,
     )
+    if result.returncode != 0:
+        LOGGER.warning(f"pytest collection exited with code {result.returncode}")
+        if result.stderr:
+            LOGGER.warning(f"pytest stderr: {result.stderr[:500]}")
     automated_ids = _parse_pytest_collect_output(stdout=result.stdout)
     LOGGER.info(f"Collected {len(automated_ids)} automated tests via pytest")
 
@@ -121,6 +97,10 @@ def collect_all_tests(tests_dir: Path) -> tuple[list[str], list[str], set[str]]:
         text=True,
         env=env,
     )
+    if gating_result.returncode != 0:
+        LOGGER.warning(f"pytest gating collection exited with code {gating_result.returncode}")
+        if gating_result.stderr:
+            LOGGER.warning(f"pytest gating stderr: {gating_result.stderr[:500]}")
     gating_ids = set(_parse_pytest_collect_output(stdout=gating_result.stdout))
     LOGGER.info(f"Collected {len(gating_ids)} gating-marked tests")
 

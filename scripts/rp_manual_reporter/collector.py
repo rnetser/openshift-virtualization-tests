@@ -9,8 +9,11 @@ from __future__ import annotations
 
 import ast
 import logging
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
+
+from scripts.rp_utils.naming import node_id_to_rp_name
 
 LOGGER = logging.getLogger(__name__)
 
@@ -48,34 +51,6 @@ class PlaceholderTestDetail:
     polarion_id: str | None = None
     node_id: str = ""
     rp_name: str = ""
-
-
-def node_id_to_rp_name(node_id: str) -> str:
-    """Convert a pytest node ID to ReportPortal dotted name format.
-
-    Transforms path separators and pytest delimiters into dots while
-    preserving parametrize suffixes.
-
-    Args:
-        node_id: Pytest-style node ID, e.g.
-            ``tests/foo/test_bar.py::TestClass::test_method[param]``.
-
-    Returns:
-        Dotted ReportPortal name, e.g.
-            ``tests.foo.test_bar.TestClass.test_method[param]``.
-    """
-    param_suffix = ""
-    base = node_id
-    bracket_index = node_id.find("[")
-    if bracket_index != -1:
-        param_suffix = node_id[bracket_index:]
-        base = node_id[:bracket_index]
-
-    base = base.replace(".py", "")
-    base = base.replace("/", ".")
-    base = base.replace("::", ".")
-
-    return base + param_suffix
 
 
 def _extract_docstring(node: ast.AST) -> str | None:
@@ -314,13 +289,17 @@ def _matches_marker_filter(detail: PlaceholderTestDetail, marker_filter: str) ->
         expr = expr.replace(marker_name, "True")
 
     # Replace remaining words (not `and`/`or`/`not`/`True`/`False`) with False
-    import re  # noqa: PLC0415
-
     expr = re.sub(
         pattern=r"\b(?!and\b|or\b|not\b|True\b|False\b)[a-zA-Z_][a-zA-Z0-9_]*\b",
         repl="False",
         string=expr,
     )
+
+    # Validate expression contains only safe tokens before evaluating
+    safe_eval_pattern = re.compile(pattern=r"^[\s()]*(?:True|False|and|or|not|[\s()])*$")
+    if not safe_eval_pattern.match(string=expr):
+        LOGGER.warning(f"Unsupported marker expression: {marker_filter!r}")
+        return False
 
     try:
         return bool(eval(expr))

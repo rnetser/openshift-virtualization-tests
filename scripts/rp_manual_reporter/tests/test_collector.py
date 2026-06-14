@@ -9,6 +9,10 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from unittest.mock import patch
 
+from scripts.rp_manual_reporter.cluster_info import (
+    ClusterAttributes,
+    cluster_attributes_to_launch_attrs,
+)
 from scripts.rp_manual_reporter.collector import (
     PlaceholderTestDetail,
     _extract_docstring,
@@ -313,3 +317,30 @@ class TestMatchesKeywordFilter:
         """Verify partial keyword matches."""
         detail = _make_detail(node_id="tests/network/test_bridge.py::TestBridge::test_connectivity")
         assert _matches_keyword_filter(detail=detail, keyword_filter="bridge") is True
+
+
+class TestClusterInfoKeyNames:
+    def test_cluster_attributes_emit_long_keys(self) -> None:
+        """Verify cluster_attributes_to_launch_attrs uses validation-matching keys."""
+        attrs = ClusterAttributes(
+            arch="amd64",
+            ocp_version="4.22.0",
+            cnv_xy_version="4.22",
+            bundle="v4.22.0",
+            cluster_name="bm15a",
+            cluster_domain="bm15a.example.com",
+            storage_class="ocs-storagecluster-ceph-rbd",
+            channel="candidate",
+        )
+
+        launch_attrs = cluster_attributes_to_launch_attrs(cluster_attrs=attrs)
+        keys = {attr["key"] for attr in launch_attrs}
+
+        assert "ARCHITECTURE" in keys
+        assert "OCP_VERSION" in keys
+        assert "CNV_VERSION" in keys
+        assert "STORAGE_CLASS" in keys
+        assert "ARCH" not in keys
+        assert "OCP" not in keys
+        assert "CNV_XY_VER" not in keys
+        assert "SC" not in keys

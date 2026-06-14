@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
@@ -263,3 +264,41 @@ class TestCheckCoverage:
         assert len(progress_calls) == 3
         assert all(total == 3 for _, total in progress_calls)
         assert sorted(current for current, _ in progress_calls) == [1, 2, 3]
+
+    def test_check_coverage_merge_order_with_threads(self, mock_rp_client: MagicMock) -> None:
+        """Verify chronological merge order is maintained despite thread completion order."""
+        mock_rp_client.get_launches.return_value = [
+            {
+                "id": 1,
+                "name": "older-launch",
+                "startTime": 1000,
+                "attributes": [{"key": "BUNDLE", "value": "4.22.0"}],
+            },
+            {
+                "id": 2,
+                "name": "newer-launch",
+                "startTime": 2000,
+                "attributes": [{"key": "BUNDLE", "value": "4.22.0"}],
+            },
+        ]
+
+        def _side_effect(launch_id: int) -> list[dict[str, Any]]:
+            return [
+                {
+                    "name": "tests.net.test_a.TestA.test_one",
+                    "status": "FAILED" if launch_id == 1 else "PASSED",
+                    "endTime": "2025-01-01T00:00:00Z" if launch_id == 1 else "2025-02-01T00:00:00Z",
+                    "attributes": [],
+                },
+            ]
+
+        mock_rp_client.get_test_items.side_effect = _side_effect
+
+        result_map = check_coverage(
+            rp_client=mock_rp_client,
+            bundle_prefix="4.22",
+            max_workers=2,
+        )
+
+        assert result_map["tests.net.test_a.TestA.test_one"].status == "PASSED"
+        assert result_map["tests.net.test_a.TestA.test_one"].launch_name == "newer-launch"

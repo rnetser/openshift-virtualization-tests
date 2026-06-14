@@ -15,7 +15,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from scripts.rp_coverage_gate.rp_checker import ItemResult
-from scripts.rp_coverage_gate.test_collector import node_id_to_rp_name
+from scripts.rp_utils.naming import node_id_to_rp_name
 
 LOGGER = logging.getLogger(__name__)
 
@@ -805,15 +805,12 @@ summary:hover { opacity: 0.85; }
                     for params in params_list:
                         full_id = f"{base}{params}"
                         if full_id in gating_ne_set:
-                            parts.append(
-                                f"<tr><td class='mono'>&nbsp;&nbsp;{esc(params)}</td><td>NEVER EXECUTED</td></tr>"
-                            )
+                            parts.append(f"<tr><td class='mono'>  {esc(params)}</td><td>NEVER EXECUTED</td></tr>")
                         else:
                             stale_r = gating_stale_map[full_id]
                             date_str = stale_r.last_executed[:10] if stale_r.last_executed else "unknown"
                             parts.append(
-                                f"<tr><td class='mono'>&nbsp;&nbsp;{esc(params)}</td>"
-                                f"<td>STALE: {esc(date_str)}</td></tr>"
+                                f"<tr><td class='mono'>  {esc(params)}</td><td>STALE: {esc(date_str)}</td></tr>"
                             )
             parts.append("</table>")
         parts.append("</details>")
@@ -863,7 +860,7 @@ summary:hover { opacity: 0.85; }
                 else:
                     parts.append(f"<tr><td class='mono'><b>{esc(base)}</b> ({len(params_list)} variants)</td></tr>")
                     for params in params_list:
-                        parts.append(f"<tr><td class='mono'>&nbsp;&nbsp;{esc(params)}</td></tr>")
+                        parts.append(f"<tr><td class='mono'>  {esc(params)}</td></tr>")
             parts.append("</table>")
         parts.append("</details>")
 
@@ -890,7 +887,7 @@ summary:hover { opacity: 0.85; }
                     for params in params_list:
                         full_id = f"{base}{params}"
                         label = "Manual" if full_id in manual_set else "Automated"
-                        parts.append(f"<tr><td class='mono'>&nbsp;&nbsp;{esc(params)}</td><td>{label}</td></tr>")
+                        parts.append(f"<tr><td class='mono'>  {esc(params)}</td><td>{label}</td></tr>")
             parts.append("</table>")
         parts.append("</details>")
 
@@ -916,7 +913,7 @@ summary:hover { opacity: 0.85; }
                         f"<tr><td class='mono' colspan='4'><b>{esc(base)}</b> ({len(variants)} variants)</td></tr>"
                     )
                     for params, result in variants:
-                        parts.append(_result_row(node_id=f"&nbsp;&nbsp;{esc(params)}", result=result))
+                        parts.append(_result_row(node_id=f"  {esc(params)}", result=result))
             parts.append("</table>")
         parts.append("</details>")
 

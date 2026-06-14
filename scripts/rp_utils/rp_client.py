@@ -9,6 +9,7 @@ and the CI Coverage Gate tools.
 from __future__ import annotations
 
 import logging
+import threading
 from datetime import UTC, datetime
 from typing import Any
 
@@ -39,6 +40,7 @@ class RPClient:
         self.base_url = base_url.rstrip("/")
         self.project = project
         self.token = token
+        self._lock = threading.Lock()
         self.session = requests.Session()
         self.session.headers.update({
             "Authorization": f"Bearer {token}",
@@ -77,7 +79,8 @@ class RPClient:
 
         while page_num <= total_pages:
             paginated_params = {**params, "page.size": page_size, "page.page": page_num}
-            response = self.session.get(url=url, params=paginated_params)
+            with self._lock:
+                response = self.session.get(url=url, params=paginated_params)
             response.raise_for_status()
             data = response.json()
 
