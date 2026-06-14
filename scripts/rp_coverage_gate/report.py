@@ -935,6 +935,29 @@ def format_json_report(
     return json.dumps(obj=data, indent=2)
 
 
+def _matrix_primary_section(summary: ParametrizedTestSummary) -> str:
+    """Determine which section a matrix test belongs to based on worst status.
+
+    Priority order: failed > stale > never_executed > skipped > passed.
+
+    Args:
+        summary: ParametrizedTestSummary with variant statuses.
+
+    Returns:
+        Section name: "failed", "stale", "never_executed", "skipped", or "passed".
+    """
+    statuses = {v.status for v in summary.variants}
+    if "FAILED" in statuses:
+        return "failed"
+    if "STALE" in statuses:
+        return "stale"
+    if "NEVER_EXECUTED" in statuses:
+        return "never_executed"
+    if "SKIPPED" in statuses:
+        return "skipped"
+    return "passed"
+
+
 def _render_html_matrix(summary: ParametrizedTestSummary, esc: Any) -> list[str]:
     """Render a 2-axis parametrized test as an HTML matrix table.
 
@@ -1265,11 +1288,13 @@ function openTab(evt, tabName) {
     for team in all_teams:
         team_stat = (report.team_stats or {}).get(team)
         team_summaries = param_summaries_by_team.get(team, [])
-        # Collect base tests that have 2-axis matrices (used to skip list duplicates)
+        # Map each 2-axis matrix test to its primary section and collect all matrix bases
         matrix_bases: set[str] = set()
+        matrix_section_map: dict[str, str] = {}
         for summary in team_summaries:
             if summary.is_two_axis:
                 matrix_bases.add(summary.base_test)
+                matrix_section_map[summary.base_test] = _matrix_primary_section(summary=summary)
 
         parts.append(f"<div id='{esc(team)}' class='tab-content'>")
 
@@ -1362,13 +1387,10 @@ function openTab(evt, tabName) {
                     comment = html_mod.escape(s=raw_comment)
                     parts.append(_result_row(node_id=node_id, result=result, extra_col=f"<td>{comment}</td>"))
                 parts.append("</table>")
-            # Render 2-axis matrices for failed parametrized tests
+            # Render full matrices whose primary section is "failed"
             for summary in team_summaries:
-                if summary.is_two_axis:
-                    team_failed_set = {nid for nid, _ in team_failed}
-                    has_failed = any(f"{summary.base_test}{v.params}" in team_failed_set for v in summary.variants)
-                    if has_failed:
-                        parts.extend(_render_html_matrix(summary=summary, esc=esc))
+                if summary.is_two_axis and matrix_section_map.get(summary.base_test) == "failed":
+                    parts.extend(_render_html_matrix(summary=summary, esc=esc))
             parts.append("</details>")
 
         # QUARANTINED section for this team
@@ -1439,14 +1461,10 @@ function openTab(evt, tabName) {
                         label = "Manual" if full_id in manual_set else "Automated"
                         parts.append(f"<tr><td class='mono'>  {esc(params)}</td><td>{label}</td></tr>")
             parts.append("</table>")
-            # Render 2-axis matrices for parametrized tests in this section
+            # Render full matrices whose primary section is "never_executed"
             for summary in team_summaries:
-                if summary.is_two_axis:
-                    # Check if any variant is in the never-executed set
-                    team_never_set = set(team_never)
-                    has_never = any(f"{summary.base_test}{v.params}" in team_never_set for v in summary.variants)
-                    if has_never:
-                        parts.extend(_render_html_matrix(summary=summary, esc=esc))
+                if summary.is_two_axis and matrix_section_map.get(summary.base_test) == "never_executed":
+                    parts.extend(_render_html_matrix(summary=summary, esc=esc))
             parts.append("</details>")
 
         # STALE section for this team
@@ -1458,6 +1476,8 @@ function openTab(evt, tabName) {
             )
             parts.append("<table><tr><th>Test</th><th>Bundle</th><th>Date</th><th>Source</th></tr>")
             for base, variants in _group_results_by_base(items=team_stale):
+                if base in matrix_bases:
+                    continue
                 if len(variants) == 1 and not variants[0][0]:
                     parts.append(_result_row(node_id=base, result=variants[0][1]))
                 elif len(variants) == 1:
@@ -1468,6 +1488,10 @@ function openTab(evt, tabName) {
                     )
                     for params, result in variants:
                         parts.append(_result_row(node_id=f"  {esc(params)}", result=result))
+            # Render full matrices whose primary section is "stale"
+            for summary in team_summaries:
+                if summary.is_two_axis and matrix_section_map.get(summary.base_test) == "stale":
+                    parts.extend(_render_html_matrix(summary=summary, esc=esc))
             parts.append("</table></details>")
 
         # PASSED section for this team
@@ -1490,12 +1514,10 @@ function openTab(evt, tabName) {
                     for params, result in variants:
                         parts.append(_result_row(node_id=f"  {esc(params)}", result=result))
             parts.append("</table>")
+            # Render full matrices whose primary section is "passed"
             for summary in team_summaries:
-                if summary.is_two_axis:
-                    team_passed_set = {nid for nid, _ in team_passed}
-                    has_passed = any(f"{summary.base_test}{v.params}" in team_passed_set for v in summary.variants)
-                    if has_passed:
-                        parts.extend(_render_html_matrix(summary=summary, esc=esc))
+                if summary.is_two_axis and matrix_section_map.get(summary.base_test) == "passed":
+                    parts.extend(_render_html_matrix(summary=summary, esc=esc))
             parts.append("</details>")
 
         # SKIPPED section for this team
@@ -1517,6 +1539,10 @@ function openTab(evt, tabName) {
                     )
                     for params, result in variants:
                         parts.append(_result_row(node_id=f"  {esc(params)}", result=result))
+            # Render full matrices whose primary section is "skipped"
+            for summary in team_summaries:
+                if summary.is_two_axis and matrix_section_map.get(summary.base_test) == "skipped":
+                    parts.extend(_render_html_matrix(summary=summary, esc=esc))
             parts.append("</table></details>")
 
         parts.append("</div>")  # end team tab

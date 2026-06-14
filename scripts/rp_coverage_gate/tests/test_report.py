@@ -16,6 +16,7 @@ from scripts.rp_coverage_gate.report import (
     VariantStatus,
     _get_team_from_node_id,
     _group_by_base,
+    _matrix_primary_section,
     _parse_two_axis_params,
     analyze_coverage,
     format_html_report,
@@ -1386,3 +1387,100 @@ class TestLegendAndDeduplication:
         # The matrix header has the base_test, but no individual <tr><td> for each variant
         list_rows = re.findall(r"<tr><td class='mono'>[^<]*test_vm\[", html)
         assert len(list_rows) == 0, f"Found {len(list_rows)} list rows for matrix test: {list_rows}"
+
+
+class TestMatrixPrimarySection:
+    def test_matrix_appears_in_worst_section_only(self) -> None:
+        """Verify matrix with mixed statuses appears only in the worst section."""
+        summary = ParametrizedTestSummary(
+            base_test="tests/net/test_a.py::TestA::test_vm",
+            variants=[
+                VariantStatus(params="[#rhel.10#-#hostpath#]", status="PASSED", result=None),
+                VariantStatus(params="[#rhel.10#-#ocs#]", status="NEVER_EXECUTED", result=None),
+                VariantStatus(params="[#rhel.8#-#hostpath#]", status="PASSED", result=None),
+                VariantStatus(params="[#rhel.8#-#ocs#]", status="PASSED", result=None),
+            ],
+            is_two_axis=True,
+            axis1_values=["rhel.10", "rhel.8"],
+            axis2_values=["hostpath", "ocs"],
+        )
+        assert _matrix_primary_section(summary=summary) == "never_executed"
+
+    def test_failed_takes_priority(self) -> None:
+        """Verify FAILED status takes priority over never-executed."""
+        summary = ParametrizedTestSummary(
+            base_test="tests/net/test_a.py::TestA::test_vm",
+            variants=[
+                VariantStatus(params="[#a#-#b#]", status="FAILED", result=None),
+                VariantStatus(params="[#a#-#c#]", status="NEVER_EXECUTED", result=None),
+                VariantStatus(params="[#d#-#b#]", status="PASSED", result=None),
+            ],
+            is_two_axis=True,
+            axis1_values=["a", "d"],
+            axis2_values=["b", "c"],
+        )
+        assert _matrix_primary_section(summary=summary) == "failed"
+
+    def test_all_passed_goes_to_passed_section(self) -> None:
+        """Verify all-passed matrix goes to passed section."""
+        summary = ParametrizedTestSummary(
+            base_test="tests/net/test_a.py::TestA::test_vm",
+            variants=[
+                VariantStatus(params="[#a#-#b#]", status="PASSED", result=None),
+                VariantStatus(params="[#a#-#c#]", status="PASSED", result=None),
+            ],
+            is_two_axis=True,
+            axis1_values=["a"],
+            axis2_values=["b", "c"],
+        )
+        assert _matrix_primary_section(summary=summary) == "passed"
+
+    def test_matrix_not_duplicated_across_sections(self) -> None:
+        """Verify a matrix test does not appear in both NEVER EXECUTED and PASSED."""
+        summary = ParametrizedTestSummary(
+            base_test="tests/net/test_a.py::TestA::test_vm",
+            variants=[
+                VariantStatus(params="[#rhel.10#-#hostpath#]", status="PASSED", result=None),
+                VariantStatus(params="[#rhel.10#-#ocs#]", status="NEVER_EXECUTED", result=None),
+            ],
+            is_two_axis=True,
+            axis1_values=["rhel.10"],
+            axis2_values=["hostpath", "ocs"],
+        )
+        report = CoverageReport(
+            total_tests=2,
+            automated_count=2,
+            unautomated_count=0,
+            passed=[("tests/net/test_a.py::TestA::test_vm[#rhel.10#-#hostpath#]", _make_result(name="t1"))],
+            failed=[],
+            skipped=[],
+            never_executed=["tests/net/test_a.py::TestA::test_vm[#rhel.10#-#ocs#]"],
+            never_executed_automated=["tests/net/test_a.py::TestA::test_vm[#rhel.10#-#ocs#]"],
+            never_executed_manual=[],
+            stale=[],
+            gate_passed=False,
+            gating_never_executed=[],
+            gating_stale=[],
+            quarantined=[],
+            parametrized_summaries={"net": [summary]},
+            team_stats={
+                "net": TeamStats(
+                    total=2,
+                    passed=1,
+                    failed=0,
+                    skipped=0,
+                    never_executed=1,
+                    stale=0,
+                    quarantined=0,
+                    coverage_pct=50.0,
+                ),
+            },
+        )
+        html = format_html_report(report=report, bundle_prefix="v4.22.0", stale_days=30)
+        # Matrix table element should appear exactly once (excludes CSS/legend mentions)
+        matrix_count = html.count("<table class='matrix-table'>")
+        assert matrix_count == 1, f"Expected 1 matrix-table element, found {matrix_count}"
+        # It should be in NEVER EXECUTED section (worst status)
+        ne_sections = [i for i, c in enumerate(html) if html[i : i + 14] == "NEVER EXECUTED"]
+        matrix_pos = html.index("<table class='matrix-table'>")
+        assert any(matrix_pos > s for s in ne_sections), "Matrix should be in NEVER EXECUTED section"
