@@ -102,13 +102,19 @@ def get_cluster_attributes() -> ClusterAttributes:
 
     # CNV version (HCO)
     try:
-        from utilities.hco import get_hco_version  # noqa: PLC0415
+        from ocp_resources.hyperconverged import HyperConverged  # noqa: PLC0415
 
-        hco_version = get_hco_version(client=client, hco_ns_name="openshift-cnv")
-        attrs.bundle = f"v{hco_version}"
-        version_parts = hco_version.split(".")
-        if len(version_parts) >= 2:
-            attrs.cnv_xy_version = f"{version_parts[0]}.{version_parts[1]}"
+        hco = HyperConverged(
+            client=client,
+            namespace="openshift-cnv",
+            name="kubevirt-hyperconverged",
+        )
+        if hco.exists:
+            hco_version = hco.instance.status.versions[0].version
+            attrs.bundle = f"v{hco_version}"
+            version_parts = hco_version.split(".")
+            if len(version_parts) >= 2:
+                attrs.cnv_xy_version = f"{version_parts[0]}.{version_parts[1]}"
     except Exception as exc:
         LOGGER.warning(f"Failed to get CNV/HCO version: {exc}")
 
