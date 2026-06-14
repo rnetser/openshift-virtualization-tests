@@ -935,17 +935,26 @@ def format_json_report(
     return json.dumps(obj=data, indent=2)
 
 
-def _matrix_primary_section(summary: ParametrizedTestSummary) -> str:
+def _matrix_primary_section(
+    summary: ParametrizedTestSummary,
+    gating_ids: set[str] | None = None,
+) -> str:
     """Determine which section a matrix test belongs to based on worst status.
 
-    Priority order: failed > stale > never_executed > skipped > passed.
+    Priority order: gating > failed > stale > never_executed > skipped > passed.
 
     Args:
         summary: ParametrizedTestSummary with variant statuses.
+        gating_ids: Set of gating test node IDs (if any variant is gating, returns "gating").
 
     Returns:
-        Section name: "failed", "stale", "never_executed", "skipped", or "passed".
+        Section name: "gating", "failed", "stale", "never_executed", "skipped", or "passed".
     """
+    if gating_ids:
+        for variant in summary.variants:
+            node_id = f"{summary.base_test}{variant.params}"
+            if node_id in gating_ids:
+                return "gating"
     statuses = {v.status for v in summary.variants}
     if "FAILED" in statuses:
         return "failed"
@@ -1291,10 +1300,14 @@ function openTab(evt, tabName) {
         # Map each 2-axis matrix test to its primary section and collect all matrix bases
         matrix_bases: set[str] = set()
         matrix_section_map: dict[str, str] = {}
+        team_gating_set = set(gating_by_team.get(team, []))
         for summary in team_summaries:
             if summary.is_two_axis:
                 matrix_bases.add(summary.base_test)
-                matrix_section_map[summary.base_test] = _matrix_primary_section(summary=summary)
+                matrix_section_map[summary.base_test] = _matrix_primary_section(
+                    summary=summary,
+                    gating_ids=team_gating_set or None,
+                )
 
         parts.append(f"<div id='{esc(team)}' class='tab-content'>")
 
@@ -1315,6 +1328,8 @@ function openTab(evt, tabName) {
             )
             parts.append("<table><tr><th>Test</th><th>Status</th></tr>")
             for base, params_list in _group_by_base(items=team_gating):
+                if base in matrix_bases:
+                    continue
                 if len(params_list) == 1 and not params_list[0]:
                     full_id = base
                     if full_id in gating_ne_set:
@@ -1345,7 +1360,11 @@ function openTab(evt, tabName) {
                             parts.append(
                                 f"<tr><td class='mono'>  {esc(params)}</td><td>STALE: {esc(date_str)}</td></tr>"
                             )
-            parts.append("</table></details>")
+            parts.append("</table>")
+            for summary in team_summaries:
+                if summary.is_two_axis and matrix_section_map.get(summary.base_test) == "gating":
+                    parts.extend(_render_html_matrix(summary=summary, esc=esc))
+            parts.append("</details>")
 
         # FAILED section for this team
         team_failed = failed_by_team.get(team, [])
@@ -1503,6 +1522,8 @@ function openTab(evt, tabName) {
             )
             parts.append("<table><tr><th>Test</th><th>Bundle</th><th>Date</th><th>Source</th></tr>")
             for base, variants in _group_results_by_base(items=team_passed):
+                if base in matrix_bases:
+                    continue
                 if len(variants) == 1 and not variants[0][0]:
                     parts.append(_result_row(node_id=base, result=variants[0][1]))
                 elif len(variants) == 1:
@@ -1529,6 +1550,8 @@ function openTab(evt, tabName) {
             )
             parts.append("<table><tr><th>Test</th><th>Bundle</th><th>Date</th><th>Source</th></tr>")
             for base, variants in _group_results_by_base(items=team_skipped):
+                if base in matrix_bases:
+                    continue
                 if len(variants) == 1 and not variants[0][0]:
                     parts.append(_result_row(node_id=base, result=variants[0][1]))
                 elif len(variants) == 1:

@@ -1253,7 +1253,7 @@ class TestMatrixRendering:
             base_test="tests/net/test_a.py::TestA::test_vm",
             variants=[
                 VariantStatus(params="[#rhel.10#-#hostpath#]", status="PASSED", result=None),
-                VariantStatus(params="[#rhel.10#-#ocs-rbd#]", status="FAILED", result=None, defect_type="Product Bug"),
+                VariantStatus(params="[#rhel.10#-#ocs-rbd#]", status="NEVER_EXECUTED", result=None),
                 VariantStatus(params="[#rhel.8#-#hostpath#]", status="NEVER_EXECUTED", result=None),
             ],
             is_two_axis=True,
@@ -1484,3 +1484,31 @@ class TestMatrixPrimarySection:
         ne_sections = [i for i, c in enumerate(html) if html[i : i + 14] == "NEVER EXECUTED"]
         matrix_pos = html.index("<table class='matrix-table'>")
         assert any(matrix_pos > s for s in ne_sections), "Matrix should be in NEVER EXECUTED section"
+
+    def test_gating_takes_priority(self) -> None:
+        """Verify gating status takes priority over other statuses."""
+        summary = ParametrizedTestSummary(
+            base_test="tests/net/test_a.py::TestA::test_vm",
+            variants=[
+                VariantStatus(params="[#a#-#b#]", status="NEVER_EXECUTED", result=None),
+                VariantStatus(params="[#a#-#c#]", status="PASSED", result=None),
+            ],
+            is_two_axis=True,
+            axis1_values=["a"],
+            axis2_values=["b", "c"],
+        )
+        gating = {"tests/net/test_a.py::TestA::test_vm[#a#-#b#]"}
+        assert _matrix_primary_section(summary=summary, gating_ids=gating) == "gating"
+
+    def test_no_gating_ids_falls_through(self) -> None:
+        """Verify without gating_ids, normal priority applies."""
+        summary = ParametrizedTestSummary(
+            base_test="tests/net/test_a.py::TestA::test_vm",
+            variants=[
+                VariantStatus(params="[#a#-#b#]", status="NEVER_EXECUTED", result=None),
+            ],
+            is_two_axis=True,
+            axis1_values=["a"],
+            axis2_values=["b"],
+        )
+        assert _matrix_primary_section(summary=summary) == "never_executed"
