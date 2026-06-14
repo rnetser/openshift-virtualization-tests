@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import Any
 
 import click
+import requests
 import yaml
 from simple_logger.logger import get_logger
 
@@ -655,7 +656,7 @@ def main(
         launch_url = f"{rp_url}/ui/#{rp_project}/launches/all/{launch_uuid}"
         click.echo(message=f"\n✓ Launch created: {launch_url}")
 
-    except Exception as exc:
+    except requests.RequestException as exc:
         LOGGER.error(f"Failed to push results to ReportPortal: {exc}")
         saved_path = _save_results_for_retry(results=results, team=team_label, bundle=bundle)
         click.echo(message=f"\n✗ Push failed: {exc}", err=True)
