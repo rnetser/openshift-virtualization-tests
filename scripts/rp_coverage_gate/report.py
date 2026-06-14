@@ -140,6 +140,30 @@ class CoverageReport:
     gate_passed: bool
     gating_never_executed: list[str]
     gating_stale: list[tuple[str, ItemResult]]
+    team_stats: dict[str, TeamStats] | None = None
+
+
+@dataclass
+class TeamStats:
+    """Per-team coverage statistics.
+
+    Attributes:
+        total: Total tests for this team.
+        passed: Number of passed tests.
+        failed: Number of failed tests.
+        skipped: Number of skipped tests.
+        never_executed: Number of never-executed tests.
+        stale: Number of stale tests.
+        coverage_pct: Percentage of tests with RP results.
+    """
+
+    total: int
+    passed: int
+    failed: int
+    skipped: int
+    never_executed: int
+    stale: int
+    coverage_pct: float
 
 
 def _get_team_from_node_id(node_id: str) -> str:
@@ -258,6 +282,57 @@ def analyze_coverage(
     if fail_on_stale and len(stale) > 0:
         gate_passed = False
 
+    # Compute per-team stats
+    team_stats: dict[str, TeamStats] = {}
+    team_total: dict[str, int] = {}
+    team_passed: dict[str, int] = {}
+    team_failed: dict[str, int] = {}
+    team_skipped: dict[str, int] = {}
+    team_never: dict[str, int] = {}
+    team_stale_count: dict[str, int] = {}
+
+    for node_id in all_ids:
+        team = _get_team_from_node_id(node_id=node_id) or "other"
+        team_total[team] = team_total.get(team, 0) + 1
+
+    for node_id, _result in passed:
+        team = _get_team_from_node_id(node_id=node_id) or "other"
+        team_passed[team] = team_passed.get(team, 0) + 1
+
+    for node_id, _result in failed:
+        team = _get_team_from_node_id(node_id=node_id) or "other"
+        team_failed[team] = team_failed.get(team, 0) + 1
+
+    for node_id, _result in skipped:
+        team = _get_team_from_node_id(node_id=node_id) or "other"
+        team_skipped[team] = team_skipped.get(team, 0) + 1
+
+    for node_id in never_executed:
+        team = _get_team_from_node_id(node_id=node_id) or "other"
+        team_never[team] = team_never.get(team, 0) + 1
+
+    for node_id, _result in stale:
+        team = _get_team_from_node_id(node_id=node_id) or "other"
+        team_stale_count[team] = team_stale_count.get(team, 0) + 1
+
+    for team, total in team_total.items():
+        p_count = team_passed.get(team, 0)
+        f_count = team_failed.get(team, 0)
+        s_count = team_skipped.get(team, 0)
+        ne_count = team_never.get(team, 0)
+        st_count = team_stale_count.get(team, 0)
+        executed = p_count + f_count + s_count
+        pct = (executed / total * 100) if total > 0 else 0.0
+        team_stats[team] = TeamStats(
+            total=total,
+            passed=p_count,
+            failed=f_count,
+            skipped=s_count,
+            never_executed=ne_count,
+            stale=st_count,
+            coverage_pct=round(pct, 1),
+        )
+
     return CoverageReport(
         total_tests=len(all_ids),
         automated_count=filtered_automated_count,
@@ -272,6 +347,7 @@ def analyze_coverage(
         gate_passed=gate_passed,
         gating_never_executed=gating_never_executed,
         gating_stale=gating_stale,
+        team_stats=team_stats,
     )
 
 
@@ -291,7 +367,7 @@ def _format_text_filters(filters: dict[str, Any]) -> list[str]:
         lines.append(f"  Team:             {filters['team']}")
     if filters.get("exclude_teams"):
         lines.append(f"  Excluded teams:   {', '.join(filters['exclude_teams'])}")
-    if filters.get("max_launches", 50) != 50:
+    if filters.get("max_launches", 0) != 0:
         lines.append(f"  Max launches:     {filters['max_launches']}")
     if str(filters.get("tests_dir", "tests")) != "tests":
         lines.append(f"  Tests dir:        {filters['tests_dir']}")
@@ -411,7 +487,7 @@ def format_text_report(
 
     if report.never_executed_manual:
         lines.append("-" * TERMINAL_WIDTH)
-        lines.append(f"MANUAL TESTS \u2014 never executed ({len(report.never_executed_manual)}):")
+        lines.append(f"MANUAL TESTS — never executed ({len(report.never_executed_manual)}):")
         lines.append("-" * TERMINAL_WIDTH)
         for base, params_list in _group_by_base(items=report.never_executed_manual):
             if len(params_list) == 1 and not params_list[0]:
@@ -671,7 +747,11 @@ def format_html_report(
     stale_days: int,
     filters: dict[str, Any] | None = None,
 ) -> str:
-    """Generate a self-contained HTML report of coverage results.
+    """Generate a self-contained HTML report with tabbed per-team layout.
+
+    Produces a Summary tab with overall stats and per-team table, plus
+    one tab per team showing that team's sections (gating, failed, manual,
+    never-executed, stale, passed, skipped).
 
     Args:
         report: CoverageReport from analyze_coverage.
@@ -698,6 +778,9 @@ def format_html_report(
             f"<td>{esc(result.source)}</td>"
             f"{extra_col}</tr>"
         )
+
+    # Collect all team names sorted
+    all_teams = sorted((report.team_stats or {}).keys())
 
     # ── CSS ──
     css = """
@@ -730,12 +813,33 @@ summary:hover { opacity: 0.85; }
 .defect-group { font-weight: 600; padding: 4px 0; margin-top: 0.5rem; }
 .footer { color: #999; font-size: 0.8rem; margin-top: 2rem; border-top: 1px solid #ddd; padding-top: 0.5rem; }
 .team-header { font-weight: 600; color: #444; padding: 6px 0 2px; margin-top: 0.8rem; border-bottom: 1px solid #e0e0e0; }
+.tabs { display: flex; flex-wrap: wrap; gap: 4px; border-bottom: 2px solid #ddd; margin-bottom: 1rem; }
+.tab-btn { padding: 8px 16px; border: 1px solid #ddd; border-bottom: none; border-radius: 4px 4px 0 0;
+           background: #f0f0f0; cursor: pointer; font-size: 0.9rem; font-weight: 500; }
+.tab-btn:hover { background: #e0e0e0; }
+.tab-btn.active { background: white; border-bottom: 2px solid white; margin-bottom: -2px; font-weight: 700; }
+.tab-content { display: none; }
+.tab-content.active { display: block; }
+.team-summary-table { width: 100%; margin-bottom: 1.5rem; }
+.team-summary-table td:not(:first-child) { text-align: right; }
+.team-summary-table tr.total-row { font-weight: 700; border-top: 2px solid #333; }
+.team-bar { font-size: 1rem; color: #555; margin-bottom: 1rem; padding: 8px 12px; background: #f0f0f0; border-radius: 4px; }
+"""
+
+    js = """
+function openTab(evt, tabName) {
+  document.querySelectorAll('.tab-content').forEach(function(t) { t.classList.remove('active'); });
+  document.querySelectorAll('.tab-btn').forEach(function(b) { b.classList.remove('active'); });
+  document.getElementById(tabName).classList.add('active');
+  evt.currentTarget.classList.add('active');
+}
 """
 
     parts: list[str] = []
     parts.append("<!DOCTYPE html><html lang='en'><head><meta charset='utf-8'>")
     parts.append(f"<title>Coverage Gate — {esc(bundle_prefix)}</title>")
-    parts.append(f"<style>{css}</style></head><body>")
+    parts.append(f"<style>{css}</style>")
+    parts.append(f"<script>{js}</script></head><body>")
     parts.append(f"<h1>Test Coverage Gate — {esc(bundle_prefix)}</h1>")
     subtitle_parts = [f"Bundle: {esc(bundle_prefix)}"]
     if filters:
@@ -743,45 +847,132 @@ summary:hover { opacity: 0.85; }
             subtitle_parts.append(f"Team: {esc(filters['team'])}")
         if filters.get("exclude_teams"):
             subtitle_parts.append(f"Excluded: {esc(', '.join(filters['exclude_teams']))}")
-        if filters.get("max_launches", 50) != 50:
+        if filters.get("max_launches", 0) != 0:
             subtitle_parts.append(f"Max launches: {filters['max_launches']}")
         if str(filters.get("tests_dir", "tests")) != "tests":
             subtitle_parts.append(f"Tests dir: {esc(str(filters['tests_dir']))}")
     subtitle_parts.append(f"Stale: {stale_days} days")
     subtitle_parts.append(f"Generated: {generated_at}")
-    parts.append(f"<div class='subtitle'>{' \u00b7 '.join(subtitle_parts)}</div>")
+    parts.append(f"<div class='subtitle'>{'  ·  '.join(subtitle_parts)}</div>")
 
-    # ── Gate badge ──
+    # Gate badge
     parts.append(f"<div class='badge {gate_cls}'>GATE: {gate_label}</div>")
 
-    # ── Summary table ──
+    # Tab buttons
+    parts.append("<div class='tabs'>")
+    parts.append("<button class='tab-btn active' onclick='openTab(event, \"summary\")'>Summary</button>")
+    for team in all_teams:
+        team_total = (report.team_stats or {}).get(team)
+        count_label = f" ({team_total.total})" if team_total else ""
+        parts.append(
+            f"<button class='tab-btn' onclick='openTab(event, \"{esc(team)}\")'>{esc(team)}{count_label}</button>"
+        )
+    parts.append("</div>")
+
+    # ==================== SUMMARY TAB ====================
+    parts.append("<div id='summary' class='tab-content active'>")
+
+    # Overall summary table
+    parts.append("<h2>Overall Summary</h2>")
     parts.append("<table class='summary-table'>")
     parts.append(f"<tr><td>Total tests in repo</td><td>{report.total_tests:,}</td></tr>")
-    parts.append(f"<tr><td>  Automated</td><td>{report.automated_count:,}</td></tr>")
-    parts.append(f"<tr><td>  Unautomated (STD)</td><td>{report.unautomated_count:,}</td></tr>")
+    parts.append(f"<tr><td>  Automated</td><td>{report.automated_count:,}</td></tr>")
+    parts.append(f"<tr><td>  Unautomated (STD)</td><td>{report.unautomated_count:,}</td></tr>")
     parts.append(f"<tr><td>Executed in RP</td><td>{executed_count:,}</td></tr>")
-    parts.append(f"<tr><td>  Passed</td><td>{len(report.passed):,}</td></tr>")
-    parts.append(f"<tr><td>  Failed</td><td>{len(report.failed):,}</td></tr>")
-    parts.append(f"<tr><td>  Skipped</td><td>{len(report.skipped):,}</td></tr>")
-    parts.append(f"<tr><td>  Stale (&gt;{stale_days}d)</td><td>{len(report.stale):,}</td></tr>")
+    parts.append(f"<tr><td>  Passed</td><td>{len(report.passed):,}</td></tr>")
+    parts.append(f"<tr><td>  Failed</td><td>{len(report.failed):,}</td></tr>")
+    parts.append(f"<tr><td>  Skipped</td><td>{len(report.skipped):,}</td></tr>")
+    parts.append(f"<tr><td>  Stale (&gt;{stale_days}d)</td><td>{len(report.stale):,}</td></tr>")
     parts.append(f"<tr><td>Never executed</td><td>{len(report.never_executed):,}</td></tr>")
-    parts.append(f"<tr><td>  Automated</td><td>{len(report.never_executed_automated):,}</td></tr>")
-    parts.append(f"<tr><td>  Manual (STD)</td><td>{len(report.never_executed_manual):,}</td></tr>")
     parts.append(f"<tr><td>Coverage</td><td>{coverage_pct:.1f}%</td></tr>")
     parts.append("</table>")
 
-    # ── GATING section ──
-    gating_gap_count = len(report.gating_never_executed) + len(report.gating_stale)
-    if gating_gap_count > 0:
-        parts.append("<details open class='section-gating'>")
-        parts.append(f"<summary>⚠ GATING — never executed or stale ({gating_gap_count})</summary>")
-        all_gating_ids = list(report.gating_never_executed) + [nid for nid, _ in report.gating_stale]
-        gating_stale_map = dict(report.gating_stale)
-        gating_ne_set = set(report.gating_never_executed)
-        for team, team_ids in _group_ids_by_team(items=all_gating_ids):
-            parts.append(f"<div class='team-header'>{esc(team)} ({len(team_ids)})</div>")
+    # Per-team breakdown table
+    if report.team_stats:
+        parts.append("<h2>Per-Team Breakdown</h2>")
+        parts.append("<table class='team-summary-table'>")
+        parts.append(
+            "<tr><th>Team</th><th>Total</th><th>Passed</th><th>Failed</th>"
+            "<th>Never Executed</th><th>Stale</th><th>Coverage</th></tr>"
+        )
+        for team in all_teams:
+            stats = report.team_stats[team]
+            parts.append(
+                f"<tr><td>{esc(team)}</td><td>{stats.total:,}</td><td>{stats.passed:,}</td>"
+                f"<td>{stats.failed:,}</td><td>{stats.never_executed:,}</td>"
+                f"<td>{stats.stale:,}</td><td>{stats.coverage_pct:.1f}%</td></tr>"
+            )
+        parts.append(
+            f"<tr class='total-row'><td>TOTAL</td><td>{report.total_tests:,}</td>"
+            f"<td>{len(report.passed):,}</td><td>{len(report.failed):,}</td>"
+            f"<td>{len(report.never_executed):,}</td><td>{len(report.stale):,}</td>"
+            f"<td>{coverage_pct:.1f}%</td></tr>"
+        )
+        parts.append("</table>")
+
+    parts.append("</div>")  # end summary tab
+
+    # ==================== PER-TEAM TABS ====================
+    # Pre-group data by team for efficient tab rendering
+    failed_by_team: dict[str, list[tuple[str, ItemResult]]] = {}
+    for node_id, result in report.failed:
+        team = _get_team_from_node_id(node_id=node_id) or "other"
+        failed_by_team.setdefault(team, []).append((node_id, result))
+
+    passed_by_team: dict[str, list[tuple[str, ItemResult]]] = {}
+    for node_id, result in report.passed:
+        team = _get_team_from_node_id(node_id=node_id) or "other"
+        passed_by_team.setdefault(team, []).append((node_id, result))
+
+    skipped_by_team: dict[str, list[tuple[str, ItemResult]]] = {}
+    for node_id, result in report.skipped:
+        team = _get_team_from_node_id(node_id=node_id) or "other"
+        skipped_by_team.setdefault(team, []).append((node_id, result))
+
+    stale_by_team: dict[str, list[tuple[str, ItemResult]]] = {}
+    for node_id, result in report.stale:
+        team = _get_team_from_node_id(node_id=node_id) or "other"
+        stale_by_team.setdefault(team, []).append((node_id, result))
+
+    never_by_team: dict[str, list[str]] = {}
+    for node_id in report.never_executed:
+        team = _get_team_from_node_id(node_id=node_id) or "other"
+        never_by_team.setdefault(team, []).append(node_id)
+
+    manual_by_team: dict[str, list[str]] = {}
+    for node_id in report.never_executed_manual:
+        team = _get_team_from_node_id(node_id=node_id) or "other"
+        manual_by_team.setdefault(team, []).append(node_id)
+
+    gating_ne_set = set(report.gating_never_executed)
+    gating_stale_map = dict(report.gating_stale)
+    all_gating_ids = list(report.gating_never_executed) + [nid for nid, _ in report.gating_stale]
+    gating_by_team: dict[str, list[str]] = {}
+    for node_id in all_gating_ids:
+        team = _get_team_from_node_id(node_id=node_id) or "other"
+        gating_by_team.setdefault(team, []).append(node_id)
+
+    manual_set = set(report.never_executed_manual)
+
+    for team in all_teams:
+        team_stat = (report.team_stats or {}).get(team)
+        parts.append(f"<div id='{esc(team)}' class='tab-content'>")
+
+        # Team summary bar
+        if team_stat:
+            parts.append(
+                f"<div class='team-bar'><b>{esc(team)}</b> — "
+                f"{team_stat.total:,} tests, {team_stat.coverage_pct:.1f}% coverage, "
+                f"{team_stat.failed:,} failed, {team_stat.never_executed:,} never executed</div>"
+            )
+
+        # GATING section for this team
+        team_gating = gating_by_team.get(team, [])
+        if team_gating:
+            parts.append("<details open class='section-gating'>")
+            parts.append(f"<summary>⚠ GATING ({len(team_gating)})</summary>")
             parts.append("<table><tr><th>Test</th><th>Status</th></tr>")
-            for base, params_list in _group_by_base(items=team_ids):
+            for base, params_list in _group_by_base(items=team_gating):
                 if len(params_list) == 1 and not params_list[0]:
                     full_id = base
                     if full_id in gating_ne_set:
@@ -812,47 +1003,52 @@ summary:hover { opacity: 0.85; }
                             parts.append(
                                 f"<tr><td class='mono'>  {esc(params)}</td><td>STALE: {esc(date_str)}</td></tr>"
                             )
-            parts.append("</table>")
-        parts.append("</details>")
+            parts.append("</table></details>")
 
-    # ── FAILED TESTS section ──
-    if report.failed:
-        parts.append("<details open class='section-failed'>")
-        parts.append(f"<summary>FAILED TESTS ({len(report.failed)})</summary>")
+        # FAILED section for this team
+        team_failed = failed_by_team.get(team, [])
+        if team_failed:
+            parts.append("<details open class='section-failed'>")
+            parts.append(f"<summary>FAILED TESTS ({len(team_failed)})</summary>")
 
-        defect_groups: dict[str, list[tuple[str, ItemResult]]] = {}
-        for node_id, result in sorted(report.failed, key=lambda entry: entry[0]):
-            group_key = result.defect_type or "Unclassified"
-            defect_groups.setdefault(group_key, []).append((node_id, result))
+            defect_groups: dict[str, list[tuple[str, ItemResult]]] = {}
+            for node_id, result in sorted(team_failed, key=lambda entry: entry[0]):
+                group_key = result.defect_type or "Unclassified"
+                defect_groups.setdefault(group_key, []).append((node_id, result))
 
-        display_order = ["Product Bug", "Automation Bug", "System Issue", "To Investigate", "No Defect", "Not Issue"]
-        sorted_groups: list[tuple[str, list[tuple[str, ItemResult]]]] = []
-        for group_name in display_order:
-            if group_name in defect_groups:
-                sorted_groups.append((group_name, defect_groups.pop(group_name)))
-        for group_name in sorted(defect_groups):
-            sorted_groups.append((group_name, defect_groups[group_name]))
+            display_order = [
+                "Product Bug",
+                "Automation Bug",
+                "System Issue",
+                "To Investigate",
+                "No Defect",
+                "Not Issue",
+            ]
+            sorted_groups: list[tuple[str, list[tuple[str, ItemResult]]]] = []
+            remaining = dict(defect_groups)
+            for group_name in display_order:
+                if group_name in remaining:
+                    sorted_groups.append((group_name, remaining.pop(group_name)))
+            for group_name in sorted(remaining):
+                sorted_groups.append((group_name, remaining[group_name]))
 
-        for group_name, group_items in sorted_groups:
-            parts.append(f"<div class='defect-group'>{esc(group_name)} ({len(group_items)}):</div>")
-            for team, team_items in _group_results_by_team(items=group_items):
-                parts.append(f"<div class='team-header'>{esc(team)} ({len(team_items)})</div>")
+            for group_name, group_items in sorted_groups:
+                parts.append(f"<div class='defect-group'>{esc(group_name)} ({len(group_items)}):</div>")
                 parts.append("<table><tr><th>Test</th><th>Bundle</th><th>Date</th><th>Source</th><th>Comment</th></tr>")
-                for node_id, result in team_items:
+                for node_id, result in group_items:
                     raw_comment = result.defect_comment or ""
                     comment = html_mod.escape(s=raw_comment)
                     parts.append(_result_row(node_id=node_id, result=result, extra_col=f"<td>{comment}</td>"))
                 parts.append("</table>")
-        parts.append("</details>")
+            parts.append("</details>")
 
-    # ── MANUAL TESTS section ──
-    if report.never_executed_manual:
-        parts.append("<details open class='section-manual'>")
-        parts.append(f"<summary>MANUAL TESTS — never executed ({len(report.never_executed_manual)})</summary>")
-        for team, team_ids in _group_ids_by_team(items=report.never_executed_manual):
-            parts.append(f"<div class='team-header'>{esc(team)} ({len(team_ids)})</div>")
+        # MANUAL section for this team
+        team_manual = manual_by_team.get(team, [])
+        if team_manual:
+            parts.append("<details open class='section-manual'>")
+            parts.append(f"<summary>MANUAL TESTS — never executed ({len(team_manual)})</summary>")
             parts.append("<table><tr><th>Test</th></tr>")
-            for base, params_list in _group_by_base(items=team_ids):
+            for base, params_list in _group_by_base(items=team_manual):
                 if len(params_list) == 1 and not params_list[0]:
                     parts.append(f"<tr><td class='mono'>{esc(base)}</td></tr>")
                 elif len(params_list) == 1:
@@ -861,18 +1057,15 @@ summary:hover { opacity: 0.85; }
                     parts.append(f"<tr><td class='mono'><b>{esc(base)}</b> ({len(params_list)} variants)</td></tr>")
                     for params in params_list:
                         parts.append(f"<tr><td class='mono'>  {esc(params)}</td></tr>")
-            parts.append("</table>")
-        parts.append("</details>")
+            parts.append("</table></details>")
 
-    # ── NEVER EXECUTED section ──
-    if report.never_executed:
-        parts.append("<details class='section-never'>")
-        parts.append(f"<summary>NEVER EXECUTED ({len(report.never_executed)})</summary>")
-        manual_set = set(report.never_executed_manual)
-        for team, team_ids in _group_ids_by_team(items=report.never_executed):
-            parts.append(f"<div class='team-header'>{esc(team)} ({len(team_ids)})</div>")
+        # NEVER EXECUTED section for this team
+        team_never = never_by_team.get(team, [])
+        if team_never:
+            parts.append("<details class='section-never'>")
+            parts.append(f"<summary>NEVER EXECUTED ({len(team_never)})</summary>")
             parts.append("<table><tr><th>Test</th><th>Type</th></tr>")
-            for base, params_list in _group_by_base(items=team_ids):
+            for base, params_list in _group_by_base(items=team_never):
                 if len(params_list) == 1 and not params_list[0]:
                     label = "Manual" if base in manual_set else "Automated"
                     parts.append(f"<tr><td class='mono'>{esc(base)}</td><td>{label}</td></tr>")
@@ -888,22 +1081,15 @@ summary:hover { opacity: 0.85; }
                         full_id = f"{base}{params}"
                         label = "Manual" if full_id in manual_set else "Automated"
                         parts.append(f"<tr><td class='mono'>  {esc(params)}</td><td>{label}</td></tr>")
-            parts.append("</table>")
-        parts.append("</details>")
+            parts.append("</table></details>")
 
-    def _html_grouped_result_section(
-        items: list[tuple[str, ItemResult]],
-        section_class: str,
-        title: str,
-        is_open: bool = False,
-    ) -> None:
-        open_attr = " open" if is_open else ""
-        parts.append(f"<details{open_attr} class='{section_class}'>")
-        parts.append(f"<summary>{title} ({len(items)})</summary>")
-        for team, team_items in _group_results_by_team(items=items):
-            parts.append(f"<div class='team-header'>{esc(team)} ({len(team_items)})</div>")
+        # STALE section for this team
+        team_stale = stale_by_team.get(team, [])
+        if team_stale:
+            parts.append("<details class='section-stale'>")
+            parts.append(f"<summary>STALE TESTS ({len(team_stale)})</summary>")
             parts.append("<table><tr><th>Test</th><th>Bundle</th><th>Date</th><th>Source</th></tr>")
-            for base, variants in _group_results_by_base(items=team_items):
+            for base, variants in _group_results_by_base(items=team_stale):
                 if len(variants) == 1 and not variants[0][0]:
                     parts.append(_result_row(node_id=base, result=variants[0][1]))
                 elif len(variants) == 1:
@@ -914,20 +1100,47 @@ summary:hover { opacity: 0.85; }
                     )
                     for params, result in variants:
                         parts.append(_result_row(node_id=f"  {esc(params)}", result=result))
-            parts.append("</table>")
-        parts.append("</details>")
+            parts.append("</table></details>")
 
-    # ── STALE TESTS section ──
-    if report.stale:
-        _html_grouped_result_section(items=report.stale, section_class="section-stale", title="STALE TESTS")
+        # PASSED section for this team
+        team_passed = passed_by_team.get(team, [])
+        if team_passed:
+            parts.append("<details class='section-passed'>")
+            parts.append(f"<summary>PASSED TESTS ({len(team_passed)})</summary>")
+            parts.append("<table><tr><th>Test</th><th>Bundle</th><th>Date</th><th>Source</th></tr>")
+            for base, variants in _group_results_by_base(items=team_passed):
+                if len(variants) == 1 and not variants[0][0]:
+                    parts.append(_result_row(node_id=base, result=variants[0][1]))
+                elif len(variants) == 1:
+                    parts.append(_result_row(node_id=f"{base}{variants[0][0]}", result=variants[0][1]))
+                else:
+                    parts.append(
+                        f"<tr><td class='mono' colspan='4'><b>{esc(base)}</b> ({len(variants)} variants)</td></tr>"
+                    )
+                    for params, result in variants:
+                        parts.append(_result_row(node_id=f"  {esc(params)}", result=result))
+            parts.append("</table></details>")
 
-    # ── PASSED TESTS section (collapsed) ──
-    if report.passed:
-        _html_grouped_result_section(items=report.passed, section_class="section-passed", title="PASSED TESTS")
+        # SKIPPED section for this team
+        team_skipped = skipped_by_team.get(team, [])
+        if team_skipped:
+            parts.append("<details class='section-skipped'>")
+            parts.append(f"<summary>SKIPPED TESTS ({len(team_skipped)})</summary>")
+            parts.append("<table><tr><th>Test</th><th>Bundle</th><th>Date</th><th>Source</th></tr>")
+            for base, variants in _group_results_by_base(items=team_skipped):
+                if len(variants) == 1 and not variants[0][0]:
+                    parts.append(_result_row(node_id=base, result=variants[0][1]))
+                elif len(variants) == 1:
+                    parts.append(_result_row(node_id=f"{base}{variants[0][0]}", result=variants[0][1]))
+                else:
+                    parts.append(
+                        f"<tr><td class='mono' colspan='4'><b>{esc(base)}</b> ({len(variants)} variants)</td></tr>"
+                    )
+                    for params, result in variants:
+                        parts.append(_result_row(node_id=f"  {esc(params)}", result=result))
+            parts.append("</table></details>")
 
-    # ── SKIPPED TESTS section (collapsed) ──
-    if report.skipped:
-        _html_grouped_result_section(items=report.skipped, section_class="section-skipped", title="SKIPPED TESTS")
+        parts.append("</div>")  # end team tab
 
     parts.append(f"<div class='footer'>Generated by rp_coverage_gate · {generated_at}</div>")
     parts.append("</body></html>")

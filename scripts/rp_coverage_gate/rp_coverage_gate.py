@@ -83,7 +83,7 @@ Examples:
     multiple=True,
     help="Exclude team(s) from report (repeatable, e.g., --exclude-team chaos --exclude-team deprecated_api)",
 )
-@click.option("--max-launches", type=int, default=50, help="Max recent launches to query (default: 50)")
+@click.option("--max-launches", type=int, default=0, help="Max recent launches to query (0 = all, default: all)")
 @click.option("--fail-on-stale/--no-fail-on-stale", default=True, help="Whether stale tests fail the gate")
 @click.option("--full", is_flag=True, default=False, help="Show per-test details including bundle")
 @click.option("--dry-run", is_flag=True, default=False, help="Collect tests only, skip RP query")

@@ -167,7 +167,7 @@ def check_coverage(
     launches.sort(key=lambda launch: launch.get("startTime", 0))
 
     total_launches = len(launches)
-    if total_launches > max_launches:
+    if max_launches > 0 and total_launches > max_launches:
         LOGGER.info(f"Using {max_launches} most recent launches out of {total_launches}")
         launches = launches[-max_launches:]
 

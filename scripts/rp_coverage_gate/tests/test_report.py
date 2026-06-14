@@ -10,6 +10,7 @@ import pytest
 
 from scripts.rp_coverage_gate.report import (
     CoverageReport,
+    TeamStats,
     _get_team_from_node_id,
     _group_by_base,
     analyze_coverage,
@@ -679,6 +680,9 @@ class TestFormatHtmlReport:
             gate_passed=False,
             gating_never_executed=[],
             gating_stale=[],
+            team_stats={
+                "net": TeamStats(total=10, passed=1, failed=1, skipped=0, never_executed=2, stale=0, coverage_pct=20.0)
+            },
         )
 
         html = format_html_report(report=report, bundle_prefix="v4.22.0", stale_days=30)
@@ -695,6 +699,11 @@ class TestFormatHtmlReport:
         assert "NEVER EXECUTED" in html
         assert "PASSED TESTS" in html
         assert "test_ok" in html
+        # Tab structure
+        assert "tab-btn" in html
+        assert "tab-content" in html
+        assert "openTab" in html
+        assert "net" in html
 
     def test_html_report_gate_passed(self) -> None:
         """Verify HTML report shows PASSED badge when gate passes."""
@@ -713,6 +722,9 @@ class TestFormatHtmlReport:
             gate_passed=True,
             gating_never_executed=[],
             gating_stale=[],
+            team_stats={
+                "net": TeamStats(total=1, passed=1, failed=0, skipped=0, never_executed=0, stale=0, coverage_pct=100.0)
+            },
         )
 
         html = format_html_report(report=report, bundle_prefix="v4.22.0", stale_days=30)
@@ -723,7 +735,7 @@ class TestFormatHtmlReport:
         assert "MANUAL TESTS" not in html
 
     def test_html_report_gating_section(self) -> None:
-        """Verify GATING section appears in HTML when gating gaps exist."""
+        """Verify GATING section appears in team tab when gating gaps exist."""
         report = CoverageReport(
             total_tests=2,
             automated_count=2,
@@ -738,17 +750,16 @@ class TestFormatHtmlReport:
             gate_passed=False,
             gating_never_executed=["tests/net/test_a.py::TestA::test_gated"],
             gating_stale=[],
+            team_stats={
+                "net": TeamStats(total=2, passed=0, failed=0, skipped=0, never_executed=1, stale=0, coverage_pct=0.0)
+            },
         )
 
         html = format_html_report(report=report, bundle_prefix="v4.22.0", stale_days=30)
 
         assert "GATING" in html
         assert "test_gated" in html
-        assert "section-gating" in html
-
-
-class TestParseCollectOutput:
-    """Tests for _parse_pytest_collect_output in test_collector module."""
+        assert "NEVER EXECUTED" in html
 
     def test_filters_warning_lines(self) -> None:
         """Verify WARNING lines from pytest-order are filtered out."""
