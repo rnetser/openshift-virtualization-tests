@@ -9,6 +9,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
+
 from scripts.rp_manual_reporter.cluster_info import (
     ClusterAttributes,
     cluster_attributes_to_launch_attrs,
@@ -22,6 +24,7 @@ from scripts.rp_manual_reporter.collector import (
     _extract_usefixtures,
     _matches_keyword_filter,
     _matches_marker_filter,
+    _safe_eval_bool_expr,
     collect_placeholder_details,
     node_id_to_rp_name,
 )
@@ -344,3 +347,45 @@ class TestClusterInfoKeyNames:
         assert "OCP" not in keys
         assert "CNV_XY_VER" not in keys
         assert "SC" not in keys
+
+
+class TestSafeEvalBoolExpr:
+    def test_simple_true(self) -> None:
+        """Verify simple True expression evaluates correctly."""
+        assert _safe_eval_bool_expr(expr="True") is True
+
+    def test_simple_false(self) -> None:
+        """Verify simple False expression evaluates correctly."""
+        assert _safe_eval_bool_expr(expr="False") is False
+
+    def test_and_expression(self) -> None:
+        """Verify and expression evaluates correctly."""
+        assert _safe_eval_bool_expr(expr="True and False") is False
+
+    def test_not_expression(self) -> None:
+        """Verify not expression evaluates correctly."""
+        assert _safe_eval_bool_expr(expr="not False") is True
+
+    def test_complex_expression(self) -> None:
+        """Verify complex boolean expression evaluates correctly."""
+        assert _safe_eval_bool_expr(expr="True and not False or False") is True
+
+    def test_rejects_function_call(self) -> None:
+        """Verify function calls are rejected."""
+        with pytest.raises(TypeError, match="Disallowed AST node"):
+            _safe_eval_bool_expr(expr="__import__('os')")
+
+    def test_rejects_attribute_access(self) -> None:
+        """Verify attribute access is rejected."""
+        with pytest.raises(TypeError, match="Disallowed AST node"):
+            _safe_eval_bool_expr(expr="True.__class__")
+
+    def test_rejects_string_constant(self) -> None:
+        """Verify non-boolean constants are rejected."""
+        with pytest.raises(TypeError, match="Disallowed constant"):
+            _safe_eval_bool_expr(expr="'injection'")
+
+    def test_rejects_numeric_constant(self) -> None:
+        """Verify numeric constants are rejected."""
+        with pytest.raises(TypeError, match="Disallowed constant"):
+            _safe_eval_bool_expr(expr="42")

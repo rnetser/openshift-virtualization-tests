@@ -12,6 +12,8 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from typing import Any
 
+import requests
+
 from scripts.rp_utils.rp_client import RPClient
 
 LOGGER = logging.getLogger(__name__)
@@ -183,7 +185,15 @@ def check_coverage(
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         futures = {executor.submit(_fetch_launch_items, launch): launch for launch in launches}
         for future in as_completed(futures):
-            launch, raw_items = future.result()
+            try:
+                launch, raw_items = future.result()
+            except requests.RequestException:
+                failed_launch = futures[future]
+                LOGGER.warning(f"Failed to fetch items for launch {failed_launch.get('id', 'unknown')}, skipping")
+                completed += 1
+                if progress_callback:
+                    progress_callback(current=completed, total=launch_count)
+                continue
             launch_results.append((launch, _process_launch_items(launch=launch, items=raw_items)))
             completed += 1
             if progress_callback:

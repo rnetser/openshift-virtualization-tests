@@ -7,6 +7,7 @@ from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
+import requests
 
 from scripts.rp_coverage_gate.rp_checker import _classify_defect, _extract_attribute, check_coverage
 
@@ -302,3 +303,42 @@ class TestCheckCoverage:
 
         assert result_map["tests.net.test_a.TestA.test_one"].status == "PASSED"
         assert result_map["tests.net.test_a.TestA.test_one"].launch_name == "newer-launch"
+
+    def test_check_coverage_handles_fetch_failure(self, mock_rp_client: MagicMock) -> None:
+        """Verify failed launch fetches are skipped without crashing."""
+        mock_rp_client.get_launches.return_value = [
+            {
+                "id": 1,
+                "name": "good-launch",
+                "startTime": 1000,
+                "attributes": [{"key": "BUNDLE", "value": "4.22.0"}],
+            },
+            {
+                "id": 2,
+                "name": "bad-launch",
+                "startTime": 2000,
+                "attributes": [{"key": "BUNDLE", "value": "4.22.0"}],
+            },
+        ]
+
+        def _side_effect(launch_id: int) -> list[dict[str, Any]]:
+            if launch_id == 2:
+                raise requests.ConnectionError("Connection refused")
+            return [
+                {
+                    "name": "tests.net.test_a.TestA.test_one",
+                    "status": "PASSED",
+                    "endTime": "2025-01-01T00:00:00Z",
+                    "attributes": [],
+                },
+            ]
+
+        mock_rp_client.get_test_items.side_effect = _side_effect
+
+        result_map = check_coverage(
+            rp_client=mock_rp_client,
+            bundle_prefix="4.22",
+        )
+
+        assert len(result_map) == 1
+        assert result_map["tests.net.test_a.TestA.test_one"].status == "PASSED"

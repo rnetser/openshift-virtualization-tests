@@ -261,6 +261,32 @@ def _extract_module_markers(tree: ast.Module) -> list[str]:
     return markers
 
 
+def _safe_eval_bool_expr(expr: str) -> bool:
+    """Safely evaluate a boolean expression containing only True/False/and/or/not.
+
+    Uses AST parsing to validate the expression contains no unsafe nodes
+    before evaluation. Rejects function calls, attribute access, imports, etc.
+
+    Args:
+        expr: Boolean expression string (e.g., ``"True and not False"``).
+
+    Returns:
+        Result of the boolean expression.
+
+    Raises:
+        TypeError: If the expression contains disallowed AST nodes.
+    """
+    tree = ast.parse(source=expr, mode="eval")
+    safe_nodes = (ast.Expression, ast.BoolOp, ast.UnaryOp, ast.Not, ast.And, ast.Or, ast.Constant)
+    for node in ast.walk(tree):
+        if not isinstance(node, safe_nodes):
+            raise TypeError(f"Disallowed AST node in expression: {type(node).__name__}")
+        if isinstance(node, ast.Constant) and not isinstance(node.value, bool):
+            raise TypeError(f"Disallowed constant in expression: {node.value!r}")
+    compiled = compile(source=tree, filename="<marker>", mode="eval")
+    return eval(compiled)
+
+
 def _matches_marker_filter(detail: PlaceholderTestDetail, marker_filter: str) -> bool:
     """Check if a placeholder test matches a marker filter expression.
 
@@ -282,28 +308,22 @@ def _matches_marker_filter(detail: PlaceholderTestDetail, marker_filter: str) ->
         bare_name = marker_str[:paren_idx] if paren_idx != -1 else marker_str
         all_markers.add(bare_name.lower())
 
-    # Evaluate boolean expression: replace marker names with True/False
+    # Build expression: replace marker names with True/False using word boundaries
     expr = marker_filter
-    # Sort by length descending to avoid partial replacements
     for marker_name in sorted(all_markers, key=len, reverse=True):
-        expr = expr.replace(marker_name, "True")
+        if marker_name not in ("and", "or", "not"):
+            expr = re.sub(pattern=rf"\b{re.escape(marker_name)}\b", repl="True", string=expr)
 
-    # Replace remaining words (not `and`/`or`/`not`/`True`/`False`) with False
+    # Replace remaining unknown markers with False
     expr = re.sub(
         pattern=r"\b(?!and\b|or\b|not\b|True\b|False\b)[a-zA-Z_][a-zA-Z0-9_]*\b",
         repl="False",
         string=expr,
     )
 
-    # Validate expression contains only safe tokens before evaluating
-    safe_eval_pattern = re.compile(pattern=r"^[\s()]*(?:True|False|and|or|not|[\s()])*$")
-    if not safe_eval_pattern.match(string=expr):
-        LOGGER.warning(f"Unsupported marker expression: {marker_filter!r}")
-        return False
-
     try:
-        return bool(eval(expr))
-    except SyntaxError, NameError:
+        return _safe_eval_bool_expr(expr=expr)
+    except SyntaxError, ValueError:
         LOGGER.warning(f"Could not evaluate marker expression: {marker_filter!r}")
         return False
 
