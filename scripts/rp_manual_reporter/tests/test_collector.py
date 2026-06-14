@@ -399,11 +399,22 @@ class TestBuildLaunchAttributes:
         attrs_by_key = {attr["key"]: attr["value"] for attr in result}
         assert attrs_by_key["CNV_XY_VER"] == "4.22"
 
-    def test_cnv_version_not_overridden_when_set(self) -> None:
-        """Verify explicit CNV_XY_VER is not overridden by BUNDLE derivation."""
+    def test_explicit_bundle_overrides_cnv_version(self) -> None:
+        """Verify explicit --bundle always derives CNV_XY_VER from it."""
         result = _build_launch_attributes(
             bundle="v4.22.0",
             cnv_version="4.21",
+        )
+        attrs_by_key = {attr["key"]: attr["value"] for attr in result}
+        assert attrs_by_key["CNV_XY_VER"] == "4.22"
+
+    def test_cluster_cnv_version_kept_without_explicit_bundle(self) -> None:
+        """Verify cluster-derived CNV_XY_VER is kept when bundle is not explicit."""
+        result = _build_launch_attributes(
+            cluster_attrs=[
+                {"key": "BUNDLE", "value": "v4.22.0"},
+                {"key": "CNV_XY_VER", "value": "4.21"},
+            ],
         )
         attrs_by_key = {attr["key"]: attr["value"] for attr in result}
         assert attrs_by_key["CNV_XY_VER"] == "4.21"
