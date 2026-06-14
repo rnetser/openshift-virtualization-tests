@@ -340,14 +340,14 @@ class TestClusterInfoKeyNames:
         launch_attrs = cluster_attributes_to_launch_attrs(cluster_attrs=attrs)
         keys = {attr["key"] for attr in launch_attrs}
 
-        assert "ARCHITECTURE" in keys
-        assert "OCP_VERSION" in keys
-        assert "CNV_VERSION" in keys
-        assert "STORAGE_CLASS" in keys
-        assert "ARCH" not in keys
-        assert "OCP" not in keys
-        assert "CNV_XY_VER" not in keys
-        assert "SC" not in keys
+        assert "ARCH" in keys
+        assert "OCP" in keys
+        assert "CNV_XY_VER" in keys
+        assert "SC" in keys
+        assert "ARCHITECTURE" not in keys
+        assert "OCP_VERSION" not in keys
+        assert "CNV_VERSION" not in keys
+        assert "STORAGE_CLASS" not in keys
 
 
 class TestSafeEvalBoolExpr:
@@ -394,22 +394,22 @@ class TestSafeEvalBoolExpr:
 
 class TestBuildLaunchAttributes:
     def test_cnv_version_derived_from_bundle(self) -> None:
-        """Verify CNV_VERSION is auto-derived from BUNDLE when not explicitly set."""
+        """Verify CNV_XY_VER is auto-derived from BUNDLE when not explicitly set."""
         result = _build_launch_attributes(bundle="v4.22.0.rhel9-102")
         attrs_by_key = {attr["key"]: attr["value"] for attr in result}
-        assert attrs_by_key["CNV_VERSION"] == "4.22"
+        assert attrs_by_key["CNV_XY_VER"] == "4.22"
 
     def test_cnv_version_not_overridden_when_set(self) -> None:
-        """Verify explicit CNV_VERSION is not overridden by BUNDLE derivation."""
+        """Verify explicit CNV_XY_VER is not overridden by BUNDLE derivation."""
         result = _build_launch_attributes(
             bundle="v4.22.0",
             cnv_version="4.21",
         )
         attrs_by_key = {attr["key"]: attr["value"] for attr in result}
-        assert attrs_by_key["CNV_VERSION"] == "4.21"
+        assert attrs_by_key["CNV_XY_VER"] == "4.21"
 
     def test_cnv_version_not_derived_without_bundle(self) -> None:
-        """Verify CNV_VERSION is not set when BUNDLE is missing."""
+        """Verify CNV_XY_VER is not set when BUNDLE is missing."""
         result = _build_launch_attributes()
         attrs_by_key = {attr["key"]: attr["value"] for attr in result}
-        assert "CNV_VERSION" not in attrs_by_key
+        assert "CNV_XY_VER" not in attrs_by_key

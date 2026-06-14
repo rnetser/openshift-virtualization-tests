@@ -87,12 +87,12 @@ def _build_launch_attributes(
     # Map explicit CLI overrides to their RP attribute keys
     overrides: dict[str, str | None] = {
         "BUNDLE": bundle,
-        "CNV_VERSION": cnv_version,
-        "ARCHITECTURE": arch,
-        "OCP_VERSION": ocp_version,
+        "CNV_XY_VER": cnv_version,
+        "ARCH": arch,
+        "OCP": ocp_version,
         "CLUSTER_NAME": cluster_name,
         "CLUSTER_DOMAIN": cluster_domain,
-        "STORAGE_CLASS": storage_class,
+        "SC": storage_class,
         "CHANNEL": channel,
     }
 
@@ -102,11 +102,11 @@ def _build_launch_attributes(
 
     # Auto-derive CNV_VERSION from BUNDLE if not set
     # e.g., "v4.22.0.rhel9-102" → "4.22"
-    if "CNV_VERSION" not in attrs_by_key and "BUNDLE" in attrs_by_key:
+    if "CNV_XY_VER" not in attrs_by_key and "BUNDLE" in attrs_by_key:
         bundle_val = attrs_by_key["BUNDLE"].lstrip("v")
         parts = bundle_val.split(".")
         if len(parts) >= 2:
-            attrs_by_key["CNV_VERSION"] = f"{parts[0]}.{parts[1]}"
+            attrs_by_key["CNV_XY_VER"] = f"{parts[0]}.{parts[1]}"
 
     # Mandatory attributes
     if team:
@@ -536,12 +536,12 @@ def main(
     # ── 3. Validate required launch attributes (skip in dry-run) ──
     required_attr_keys = {
         "BUNDLE": "--bundle",
-        "OCP_VERSION": "--ocp-version",
-        "CNV_VERSION": "--cnv-version",
-        "ARCHITECTURE": "--arch",
+        "OCP": "--ocp-version",
+        "CNV_XY_VER": "--cnv-version",
+        "ARCH": "--arch",
         "CLUSTER_NAME": "--cluster-name",
         "CLUSTER_DOMAIN": "--cluster-domain",
-        "STORAGE_CLASS": "--sc",
+        "SC": "--sc",
         "CHANNEL": "--channel",
     }
     if not dry_run and not batch_file:

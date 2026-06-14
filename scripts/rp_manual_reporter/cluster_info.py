@@ -158,13 +158,13 @@ def cluster_attributes_to_launch_attrs(cluster_attrs: ClusterAttributes) -> list
         List of attribute dicts for RPClient, excluding None values.
     """
     mapping: dict[str, Any] = {
-        "ARCHITECTURE": cluster_attrs.arch,
-        "OCP_VERSION": cluster_attrs.ocp_version,
-        "CNV_VERSION": cluster_attrs.cnv_xy_version,
+        "ARCH": cluster_attrs.arch,
+        "OCP": cluster_attrs.ocp_version,
+        "CNV_XY_VER": cluster_attrs.cnv_xy_version,
         "BUNDLE": cluster_attrs.bundle,
         "CLUSTER_NAME": cluster_attrs.cluster_name,
         "CLUSTER_DOMAIN": cluster_attrs.cluster_domain,
-        "STORAGE_CLASS": cluster_attrs.storage_class,
+        "SC": cluster_attrs.storage_class,
         "CHANNEL": cluster_attrs.channel,
     }
     return [{"key": key, "value": value} for key, value in mapping.items() if value is not None]
