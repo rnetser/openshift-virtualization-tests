@@ -19,7 +19,7 @@ from scripts.rp_coverage_gate.report import (
     format_text_report,
 )
 from scripts.rp_coverage_gate.rp_checker import ItemResult
-from scripts.rp_coverage_gate.test_collector import _parse_pytest_collect_output
+from scripts.rp_coverage_gate.test_collector import QuarantinedTest, _parse_pytest_collect_output
 
 
 def _make_result(
@@ -223,6 +223,7 @@ class TestFormatTextReport:
             gate_passed=False,
             gating_never_executed=[],
             gating_stale=[],
+            quarantined=[],
         )
 
         text = format_text_report(
@@ -256,6 +257,7 @@ class TestFormatJsonReport:
             gate_passed=True,
             gating_never_executed=[],
             gating_stale=[],
+            quarantined=[],
         )
 
         json_str = format_json_report(
@@ -348,6 +350,7 @@ class TestGatingCoverage:
             gate_passed=False,
             gating_never_executed=["tests/net/test_a.py::TestA::test_gated"],
             gating_stale=[],
+            quarantined=[],
         )
 
         text = format_text_report(report=report, bundle_prefix="v4.22.0", stale_days=30)
@@ -373,6 +376,7 @@ class TestGatingCoverage:
             gate_passed=False,
             gating_never_executed=["tests/net/test_a.py::TestA::test_gated"],
             gating_stale=[],
+            quarantined=[],
         )
 
         json_str = format_json_report(report=report, bundle_prefix="v4.22.0", stale_days=30)
@@ -433,6 +437,7 @@ class TestFailedTestsAlwaysShown:
             gate_passed=True,
             gating_never_executed=[],
             gating_stale=[],
+            quarantined=[],
         )
 
         text = format_text_report(report=report, bundle_prefix="v4.22.0", stale_days=30, full=False)
@@ -485,6 +490,7 @@ class TestFailedTestsAlwaysShown:
             gate_passed=False,
             gating_never_executed=[],
             gating_stale=[],
+            quarantined=[],
         )
         # Set defect types directly on results
         report.failed[0][1].defect_type = "Product Bug"
@@ -548,6 +554,7 @@ class TestNeverExecutedSplit:
             gate_passed=False,
             gating_never_executed=[],
             gating_stale=[],
+            quarantined=[],
         )
 
         text = format_text_report(report=report, bundle_prefix="v4.22", stale_days=30, full=False)
@@ -576,6 +583,7 @@ class TestNeverExecutedSplit:
             gate_passed=False,
             gating_never_executed=[],
             gating_stale=[],
+            quarantined=[],
         )
 
         text = format_text_report(report=report, bundle_prefix="v4.22", stale_days=30, full=True)
@@ -602,6 +610,7 @@ class TestNeverExecutedSplit:
             gate_passed=False,
             gating_never_executed=[],
             gating_stale=[],
+            quarantined=[],
         )
 
         text = format_text_report(report=report, bundle_prefix="v4.22", stale_days=30)
@@ -626,6 +635,7 @@ class TestNeverExecutedSplit:
             gate_passed=False,
             gating_never_executed=[],
             gating_stale=[],
+            quarantined=[],
         )
 
         json_str = format_json_report(report=report, bundle_prefix="v4.22", stale_days=30)
@@ -650,6 +660,7 @@ class TestNeverExecutedSplit:
             gate_passed=False,
             gating_never_executed=[],
             gating_stale=[],
+            quarantined=[],
         )
 
         text = format_text_report(report=report, bundle_prefix="v4.22", stale_days=30)
@@ -680,8 +691,11 @@ class TestFormatHtmlReport:
             gate_passed=False,
             gating_never_executed=[],
             gating_stale=[],
+            quarantined=[],
             team_stats={
-                "net": TeamStats(total=10, passed=1, failed=1, skipped=0, never_executed=2, stale=0, coverage_pct=20.0)
+                "net": TeamStats(
+                    total=10, passed=1, failed=1, skipped=0, never_executed=2, stale=0, quarantined=0, coverage_pct=20.0
+                )
             },
         )
 
@@ -722,8 +736,11 @@ class TestFormatHtmlReport:
             gate_passed=True,
             gating_never_executed=[],
             gating_stale=[],
+            quarantined=[],
             team_stats={
-                "net": TeamStats(total=1, passed=1, failed=0, skipped=0, never_executed=0, stale=0, coverage_pct=100.0)
+                "net": TeamStats(
+                    total=1, passed=1, failed=0, skipped=0, never_executed=0, stale=0, quarantined=0, coverage_pct=100.0
+                )
             },
         )
 
@@ -750,8 +767,11 @@ class TestFormatHtmlReport:
             gate_passed=False,
             gating_never_executed=["tests/net/test_a.py::TestA::test_gated"],
             gating_stale=[],
+            quarantined=[],
             team_stats={
-                "net": TeamStats(total=2, passed=0, failed=0, skipped=0, never_executed=1, stale=0, coverage_pct=0.0)
+                "net": TeamStats(
+                    total=2, passed=0, failed=0, skipped=0, never_executed=1, stale=0, quarantined=0, coverage_pct=0.0
+                )
             },
         )
 
@@ -849,6 +869,7 @@ class TestParametrizedGrouping:
             gate_passed=False,
             gating_never_executed=[],
             gating_stale=[],
+            quarantined=[],
         )
 
         text = format_text_report(report=report, bundle_prefix="v4.22", stale_days=30, full=True)
@@ -878,6 +899,7 @@ class TestParametrizedGrouping:
             gate_passed=True,
             gating_never_executed=[],
             gating_stale=[],
+            quarantined=[],
         )
 
         json_str = format_json_report(report=report, bundle_prefix="v4.22", stale_days=30)
@@ -968,6 +990,7 @@ class TestTeamGrouping:
             gate_passed=False,
             gating_never_executed=[],
             gating_stale=[],
+            quarantined=[],
         )
 
         text = format_text_report(report=report, bundle_prefix="v4.22", stale_days=30, full=True)
@@ -995,6 +1018,7 @@ class TestTeamGrouping:
             gate_passed=True,
             gating_never_executed=[],
             gating_stale=[],
+            quarantined=[],
         )
 
         json_str = format_json_report(report=report, bundle_prefix="v4.22", stale_days=30)
@@ -1036,6 +1060,7 @@ class TestTeamGrouping:
                 "tests/network/test_a.py::TestA::test_gating[p3]",
             ],
             gating_stale=[],
+            quarantined=[],
         )
 
         text = format_text_report(report=report, bundle_prefix="v4.22", stale_days=30)
@@ -1043,3 +1068,133 @@ class TestTeamGrouping:
         assert "test_gating (3 variants) [NEVER EXECUTED]" in text
         assert "[p1]" in text
         assert "[p2]" in text
+
+
+class TestQuarantineReporting:
+    def test_quarantined_excluded_from_never_executed(self) -> None:
+        """Verify quarantined tests are not counted as never-executed."""
+        quarantined = [
+            QuarantinedTest(
+                node_id="tests/net/test_a.py::TestA::test_quarantined",
+                reason="QUARANTINED: tracked in CNV-12345",
+                jira="CNV-12345",
+            ),
+        ]
+        report = analyze_coverage(
+            automated_ids=[
+                "tests/net/test_a.py::TestA::test_ok",
+                "tests/net/test_a.py::TestA::test_quarantined",
+            ],
+            unautomated_ids=[],
+            rp_results={
+                "tests.net.test_a.TestA.test_ok": _make_result(name="tests.net.test_a.TestA.test_ok"),
+            },
+            quarantined=quarantined,
+        )
+        assert len(report.never_executed) == 0
+        assert len(report.quarantined) == 1
+        assert report.gate_passed is True
+
+    def test_quarantined_in_html_report(self) -> None:
+        """Verify quarantined section appears in HTML per-team tab."""
+        quarantined = [
+            QuarantinedTest(
+                node_id="tests/net/test_a.py::TestA::test_broken",
+                reason="QUARANTINED: flaky, tracked in CNV-99999",
+                jira="CNV-99999",
+            ),
+        ]
+        report = CoverageReport(
+            total_tests=2,
+            automated_count=2,
+            unautomated_count=0,
+            passed=[("tests/net/test_a.py::TestA::test_ok", _make_result(name="t1"))],
+            failed=[],
+            skipped=[],
+            never_executed=[],
+            never_executed_automated=[],
+            never_executed_manual=[],
+            stale=[],
+            gate_passed=True,
+            gating_never_executed=[],
+            gating_stale=[],
+            quarantined=quarantined,
+            team_stats={
+                "net": TeamStats(
+                    total=2,
+                    passed=1,
+                    failed=0,
+                    skipped=0,
+                    never_executed=0,
+                    stale=0,
+                    quarantined=1,
+                    coverage_pct=50.0,
+                ),
+            },
+        )
+        html = format_html_report(report=report, bundle_prefix="v4.22.0", stale_days=30)
+        assert "QUARANTINED" in html
+        assert "CNV-99999" in html
+        assert "issues.redhat.com/browse/CNV-99999" in html
+        assert "section-quarantined" in html
+
+    def test_quarantined_in_text_report(self) -> None:
+        """Verify quarantined section appears in text report."""
+        quarantined = [
+            QuarantinedTest(
+                node_id="tests/net/test_a.py::TestA::test_broken",
+                reason="QUARANTINED: tracked in CNV-99999",
+                jira="CNV-99999",
+            ),
+        ]
+        report = CoverageReport(
+            total_tests=2,
+            automated_count=2,
+            unautomated_count=0,
+            passed=[("tests/net/test_a.py::TestA::test_ok", _make_result(name="t1"))],
+            failed=[],
+            skipped=[],
+            never_executed=[],
+            never_executed_automated=[],
+            never_executed_manual=[],
+            stale=[],
+            gate_passed=True,
+            gating_never_executed=[],
+            gating_stale=[],
+            quarantined=quarantined,
+        )
+        text = format_text_report(report=report, bundle_prefix="v4.22.0", stale_days=30)
+        assert "QUARANTINED" in text
+        assert "CNV-99999" in text
+        assert "test_broken" in text
+
+    def test_quarantined_in_json_report(self) -> None:
+        """Verify quarantined appears in JSON report."""
+        quarantined = [
+            QuarantinedTest(
+                node_id="tests/net/test_a.py::TestA::test_broken",
+                reason="tracked in CNV-99999",
+                jira="CNV-99999",
+            ),
+        ]
+        report = CoverageReport(
+            total_tests=1,
+            automated_count=1,
+            unautomated_count=0,
+            passed=[],
+            failed=[],
+            skipped=[],
+            never_executed=[],
+            never_executed_automated=[],
+            never_executed_manual=[],
+            stale=[],
+            gate_passed=True,
+            gating_never_executed=[],
+            gating_stale=[],
+            quarantined=quarantined,
+        )
+        json_str = format_json_report(report=report, bundle_prefix="v4.22.0", stale_days=30)
+        data = json.loads(json_str)
+        assert data["summary"]["quarantined_count"] == 1
+        assert len(data["quarantined"]) == 1
+        assert data["quarantined"][0]["jira"] == "CNV-99999"

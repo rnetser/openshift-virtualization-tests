@@ -15,6 +15,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from scripts.rp_coverage_gate.rp_checker import ItemResult
+from scripts.rp_coverage_gate.test_collector import QuarantinedTest
 from scripts.rp_utils.naming import node_id_to_rp_name
 
 LOGGER = logging.getLogger(__name__)
@@ -140,6 +141,7 @@ class CoverageReport:
     gate_passed: bool
     gating_never_executed: list[str]
     gating_stale: list[tuple[str, ItemResult]]
+    quarantined: list[QuarantinedTest]
     team_stats: dict[str, TeamStats] | None = None
 
 
@@ -163,6 +165,7 @@ class TeamStats:
     skipped: int
     never_executed: int
     stale: int
+    quarantined: int
     coverage_pct: float
 
 
@@ -193,6 +196,7 @@ def analyze_coverage(
     fail_on_stale: bool = True,
     gating_ids: set[str] | None = None,
     exclude_teams: tuple[str, ...] | None = None,
+    quarantined: list[QuarantinedTest] | None = None,
 ) -> CoverageReport:
     """Analyze test coverage by cross-referencing repo tests with RP results.
 
@@ -217,6 +221,22 @@ def analyze_coverage(
     exclude_set = set(exclude_teams) if exclude_teams else set()
     if exclude_set:
         all_ids = [node_id for node_id in all_ids if _get_team_from_node_id(node_id=node_id) not in exclude_set]
+
+    # Filter quarantined tests
+    filtered_quarantined: list[QuarantinedTest] = []
+    quarantined_node_ids: set[str] = set()
+    if quarantined:
+        for qt in quarantined:
+            team = _get_team_from_node_id(node_id=qt.node_id)
+            if team_filter and team != team_filter:
+                continue
+            if team in exclude_set:
+                continue
+            filtered_quarantined.append(qt)
+            quarantined_node_ids.add(qt.node_id)
+
+    # Remove quarantined from all_ids so they don't appear as never-executed
+    all_ids = [nid for nid in all_ids if nid not in quarantined_node_ids]
 
     now = datetime.now(tz=UTC)
     passed: list[tuple[str, ItemResult]] = []
@@ -290,6 +310,7 @@ def analyze_coverage(
     team_skipped: dict[str, int] = {}
     team_never: dict[str, int] = {}
     team_stale_count: dict[str, int] = {}
+    team_quarantined: dict[str, int] = {}
 
     for node_id in all_ids:
         team = _get_team_from_node_id(node_id=node_id) or "other"
@@ -315,12 +336,19 @@ def analyze_coverage(
         team = _get_team_from_node_id(node_id=node_id) or "other"
         team_stale_count[team] = team_stale_count.get(team, 0) + 1
 
+    for qt in filtered_quarantined:
+        team = _get_team_from_node_id(node_id=qt.node_id) or "other"
+        team_quarantined[team] = team_quarantined.get(team, 0) + 1
+        # Add to team_total if not already counted (quarantined tests were removed from all_ids)
+        team_total[team] = team_total.get(team, 0) + 1
+
     for team, total in team_total.items():
         p_count = team_passed.get(team, 0)
         f_count = team_failed.get(team, 0)
         s_count = team_skipped.get(team, 0)
         ne_count = team_never.get(team, 0)
         st_count = team_stale_count.get(team, 0)
+        q_count = team_quarantined.get(team, 0)
         executed = p_count + f_count + s_count
         pct = (executed / total * 100) if total > 0 else 0.0
         team_stats[team] = TeamStats(
@@ -330,6 +358,7 @@ def analyze_coverage(
             skipped=s_count,
             never_executed=ne_count,
             stale=st_count,
+            quarantined=q_count,
             coverage_pct=round(pct, 1),
         )
 
@@ -347,6 +376,7 @@ def analyze_coverage(
         gate_passed=gate_passed,
         gating_never_executed=gating_never_executed,
         gating_stale=gating_stale,
+        quarantined=filtered_quarantined,
         team_stats=team_stats,
     )
 
@@ -424,6 +454,7 @@ def format_text_report(
     lines.append(f"Never executed:          {len(report.never_executed):,}")
     lines.append(f"  Automated:             {len(report.never_executed_automated):,}")
     lines.append(f"  Manual (STD):          {len(report.never_executed_manual):,}")
+    lines.append(f"Quarantined:             {len(report.quarantined):,}")
     lines.append(f"Coverage:                {coverage_pct:.1f}%")
     lines.append("")
 
@@ -483,6 +514,24 @@ def format_text_report(
                             truncated += "..."
                         comment = f"  [{truncated}]"
                     lines.append(f"      {node_id}  bundle={result.bundle}{comment}")
+        lines.append("")
+
+    if report.quarantined:
+        lines.append("-" * TERMINAL_WIDTH)
+        lines.append(f"QUARANTINED ({len(report.quarantined)}):")
+        lines.append("-" * TERMINAL_WIDTH)
+        quarantined_by_team: dict[str, list[QuarantinedTest]] = {}
+        for qt in report.quarantined:
+            team = _get_team_from_node_id(node_id=qt.node_id) or "other"
+            quarantined_by_team.setdefault(team, []).append(qt)
+        for team in sorted(quarantined_by_team):
+            team_qts = quarantined_by_team[team]
+            lines.append(f"  ── {team} ({len(team_qts)}) ──")
+            for qt in sorted(team_qts, key=lambda q: q.node_id):
+                jira_str = f"  [{qt.jira}]" if qt.jira else ""
+                lines.append(f"    ⏸ {qt.node_id}{jira_str}")
+                if qt.reason:
+                    lines.append(f"        {qt.reason[:80]}")
         lines.append("")
 
     if report.never_executed_manual:
@@ -660,6 +709,7 @@ def format_json_report(
             "skipped_count": len(report.skipped),
             "stale_count": len(report.stale),
             "never_executed_count": len(report.never_executed),
+            "quarantined_count": len(report.quarantined),
         },
         "passed": [
             _result_to_dict(node_id=node_id, result=result)
@@ -680,6 +730,10 @@ def format_json_report(
         "never_executed": sorted(report.never_executed),
         "never_executed_automated": sorted(report.never_executed_automated),
         "never_executed_manual": sorted(report.never_executed_manual),
+        "quarantined": [
+            {"node_id": qt.node_id, "jira": qt.jira, "reason": qt.reason}
+            for qt in sorted(report.quarantined, key=lambda q: q.node_id)
+        ],
         "gating": {
             "never_executed": sorted(report.gating_never_executed),
             "stale": [
@@ -806,6 +860,8 @@ summary:hover { opacity: 0.85; }
 .section-stale summary { background: #e2e3e5; color: #41464b; }
 .section-passed summary { background: #d1e7dd; color: #0f5132; }
 .section-skipped summary { background: #cff4fc; color: #055160; }
+.section-quarantined summary { background: #e8d5f5; color: #5b2d8e; }
+.section-desc { font-weight: normal; color: #666; font-size: 0.85em; }
 .badge { display: inline-block; padding: 6px 18px; border-radius: 4px;
          font-weight: bold; font-size: 1.2rem; margin: 0.5rem 0 1.5rem; }
 .badge-pass { background: #198754; color: white; }
@@ -832,6 +888,7 @@ function openTab(evt, tabName) {
   document.querySelectorAll('.tab-btn').forEach(function(b) { b.classList.remove('active'); });
   document.getElementById(tabName).classList.add('active');
   evt.currentTarget.classList.add('active');
+  document.getElementById(tabName).querySelectorAll('details').forEach(function(d) { d.removeAttribute('open'); });
 }
 """
 
@@ -884,6 +941,7 @@ function openTab(evt, tabName) {
     parts.append(f"<tr><td>  Skipped</td><td>{len(report.skipped):,}</td></tr>")
     parts.append(f"<tr><td>  Stale (&gt;{stale_days}d)</td><td>{len(report.stale):,}</td></tr>")
     parts.append(f"<tr><td>Never executed</td><td>{len(report.never_executed):,}</td></tr>")
+    parts.append(f"<tr><td>Quarantined</td><td>{len(report.quarantined):,}</td></tr>")
     parts.append(f"<tr><td>Coverage</td><td>{coverage_pct:.1f}%</td></tr>")
     parts.append("</table>")
 
@@ -892,19 +950,19 @@ function openTab(evt, tabName) {
         parts.append("<h2>Per-Team Breakdown</h2>")
         parts.append("<table class='team-summary-table'>")
         parts.append(
-            "<tr><th>Team</th><th>Total</th><th>Passed</th><th>Failed</th>"
+            "<tr><th>Team</th><th>Total</th><th>Passed</th><th>Failed</th><th>Quarantined</th>"
             "<th>Never Executed</th><th>Stale</th><th>Coverage</th></tr>"
         )
         for team in all_teams:
             stats = report.team_stats[team]
             parts.append(
                 f"<tr><td>{esc(team)}</td><td>{stats.total:,}</td><td>{stats.passed:,}</td>"
-                f"<td>{stats.failed:,}</td><td>{stats.never_executed:,}</td>"
+                f"<td>{stats.failed:,}</td><td>{stats.quarantined:,}</td><td>{stats.never_executed:,}</td>"
                 f"<td>{stats.stale:,}</td><td>{stats.coverage_pct:.1f}%</td></tr>"
             )
         parts.append(
             f"<tr class='total-row'><td>TOTAL</td><td>{report.total_tests:,}</td>"
-            f"<td>{len(report.passed):,}</td><td>{len(report.failed):,}</td>"
+            f"<td>{len(report.passed):,}</td><td>{len(report.failed):,}</td><td>{len(report.quarantined):,}</td>"
             f"<td>{len(report.never_executed):,}</td><td>{len(report.stale):,}</td>"
             f"<td>{coverage_pct:.1f}%</td></tr>"
         )
@@ -944,6 +1002,11 @@ function openTab(evt, tabName) {
         team = _get_team_from_node_id(node_id=node_id) or "other"
         manual_by_team.setdefault(team, []).append(node_id)
 
+    quarantine_by_team: dict[str, list[QuarantinedTest]] = {}
+    for qt in report.quarantined:
+        team = _get_team_from_node_id(node_id=qt.node_id) or "other"
+        quarantine_by_team.setdefault(team, []).append(qt)
+
     gating_ne_set = set(report.gating_never_executed)
     gating_stale_map = dict(report.gating_stale)
     all_gating_ids = list(report.gating_never_executed) + [nid for nid, _ in report.gating_stale]
@@ -970,7 +1033,9 @@ function openTab(evt, tabName) {
         team_gating = gating_by_team.get(team, [])
         if team_gating:
             parts.append("<details open class='section-gating'>")
-            parts.append(f"<summary>⚠ GATING ({len(team_gating)})</summary>")
+            parts.append(
+                f"<summary>⚠ GATING ({len(team_gating)}) <small class='section-desc'>— Tests marked as gating with no results or stale</small></summary>"
+            )
             parts.append("<table><tr><th>Test</th><th>Status</th></tr>")
             for base, params_list in _group_by_base(items=team_gating):
                 if len(params_list) == 1 and not params_list[0]:
@@ -1009,7 +1074,9 @@ function openTab(evt, tabName) {
         team_failed = failed_by_team.get(team, [])
         if team_failed:
             parts.append("<details open class='section-failed'>")
-            parts.append(f"<summary>FAILED TESTS ({len(team_failed)})</summary>")
+            parts.append(
+                f"<summary>FAILED TESTS ({len(team_failed)}) <small class='section-desc'>— Tests that ran and failed in the most recent execution</small></summary>"
+            )
 
             defect_groups: dict[str, list[tuple[str, ItemResult]]] = {}
             for node_id, result in sorted(team_failed, key=lambda entry: entry[0]):
@@ -1042,11 +1109,35 @@ function openTab(evt, tabName) {
                 parts.append("</table>")
             parts.append("</details>")
 
+        # QUARANTINED section for this team
+        team_quarantine = quarantine_by_team.get(team, [])
+        if team_quarantine:
+            parts.append("<details class='section-quarantined'>")
+            parts.append(
+                f"<summary>⏸ QUARANTINED ({len(team_quarantine)})"
+                " <small class='section-desc'>— Tests intentionally skipped"
+                " due to known bugs or automation issues</small></summary>"
+            )
+            parts.append("<table><tr><th>Test</th><th>Jira</th><th>Reason</th></tr>")
+            for qt in sorted(team_quarantine, key=lambda q: q.node_id):
+                jira_cell = ""
+                if qt.jira:
+                    jira_url = f"https://issues.redhat.com/browse/{esc(qt.jira)}"
+                    jira_cell = f"<a href='{jira_url}'>{esc(qt.jira)}</a>"
+                parts.append(
+                    f"<tr><td class='mono'>{esc(qt.node_id)}</td>"
+                    f"<td>{jira_cell}</td>"
+                    f"<td>{esc(qt.reason[:120])}</td></tr>"
+                )
+            parts.append("</table></details>")
+
         # MANUAL section for this team
         team_manual = manual_by_team.get(team, [])
         if team_manual:
             parts.append("<details open class='section-manual'>")
-            parts.append(f"<summary>MANUAL TESTS — never executed ({len(team_manual)})</summary>")
+            parts.append(
+                f"<summary>MANUAL TESTS ({len(team_manual)}) <small class='section-desc'>— STD placeholder tests awaiting implementation</small></summary>"
+            )
             parts.append("<table><tr><th>Test</th></tr>")
             for base, params_list in _group_by_base(items=team_manual):
                 if len(params_list) == 1 and not params_list[0]:
@@ -1063,7 +1154,9 @@ function openTab(evt, tabName) {
         team_never = never_by_team.get(team, [])
         if team_never:
             parts.append("<details class='section-never'>")
-            parts.append(f"<summary>NEVER EXECUTED ({len(team_never)})</summary>")
+            parts.append(
+                f"<summary>NEVER EXECUTED ({len(team_never)}) <small class='section-desc'>— Implemented tests with no results in RP for this bundle</small></summary>"
+            )
             parts.append("<table><tr><th>Test</th><th>Type</th></tr>")
             for base, params_list in _group_by_base(items=team_never):
                 if len(params_list) == 1 and not params_list[0]:
@@ -1087,7 +1180,9 @@ function openTab(evt, tabName) {
         team_stale = stale_by_team.get(team, [])
         if team_stale:
             parts.append("<details class='section-stale'>")
-            parts.append(f"<summary>STALE TESTS ({len(team_stale)})</summary>")
+            parts.append(
+                f"<summary>STALE TESTS ({len(team_stale)}) <small class='section-desc'>— Last execution older than the stale threshold</small></summary>"
+            )
             parts.append("<table><tr><th>Test</th><th>Bundle</th><th>Date</th><th>Source</th></tr>")
             for base, variants in _group_results_by_base(items=team_stale):
                 if len(variants) == 1 and not variants[0][0]:
@@ -1106,7 +1201,9 @@ function openTab(evt, tabName) {
         team_passed = passed_by_team.get(team, [])
         if team_passed:
             parts.append("<details class='section-passed'>")
-            parts.append(f"<summary>PASSED TESTS ({len(team_passed)})</summary>")
+            parts.append(
+                f"<summary>PASSED TESTS ({len(team_passed)}) <small class='section-desc'>— Tests that passed in their most recent execution</small></summary>"
+            )
             parts.append("<table><tr><th>Test</th><th>Bundle</th><th>Date</th><th>Source</th></tr>")
             for base, variants in _group_results_by_base(items=team_passed):
                 if len(variants) == 1 and not variants[0][0]:
@@ -1125,7 +1222,9 @@ function openTab(evt, tabName) {
         team_skipped = skipped_by_team.get(team, [])
         if team_skipped:
             parts.append("<details class='section-skipped'>")
-            parts.append(f"<summary>SKIPPED TESTS ({len(team_skipped)})</summary>")
+            parts.append(
+                f"<summary>SKIPPED TESTS ({len(team_skipped)}) <small class='section-desc'>— Tests skipped (not quarantined) in their most recent run</small></summary>"
+            )
             parts.append("<table><tr><th>Test</th><th>Bundle</th><th>Date</th><th>Source</th></tr>")
             for base, variants in _group_results_by_base(items=team_skipped):
                 if len(variants) == 1 and not variants[0][0]:

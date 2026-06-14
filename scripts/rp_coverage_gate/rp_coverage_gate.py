@@ -28,7 +28,7 @@ from scripts.rp_coverage_gate.report import (
     format_text_report,
 )
 from scripts.rp_coverage_gate.rp_checker import check_coverage
-from scripts.rp_coverage_gate.test_collector import collect_all_tests
+from scripts.rp_coverage_gate.test_collector import collect_all_tests, scan_quarantined_tests
 from scripts.rp_utils.rp_client import RPClient
 
 LOGGER = get_logger(name=__name__)
@@ -104,7 +104,10 @@ def main(
 ) -> None:
     """Run the coverage gate check."""
     automated_ids, unautomated_ids, gating_ids = collect_all_tests(tests_dir=tests_dir)
-    LOGGER.info(f"Collected {len(automated_ids)} automated and {len(unautomated_ids)} unautomated test IDs")
+    quarantined = scan_quarantined_tests(tests_dir=tests_dir)
+    LOGGER.info(
+        f"Collected {len(automated_ids)} automated, {len(unautomated_ids)} unautomated, {len(quarantined)} quarantined test IDs"
+    )
 
     if dry_run:
         total_count = len(automated_ids) + len(unautomated_ids)
@@ -113,6 +116,7 @@ def main(
         click.echo(message=f"  Automated:    {len(automated_ids)}")
         click.echo(message=f"  Unautomated:  {len(unautomated_ids)}")
         click.echo(message=f"  Gating:       {len(gating_ids)}")
+        click.echo(message=f"  Quarantined:  {len(quarantined)}")
         if team:
             filtered_automated = {test_id for test_id in automated_ids if team.lower() in test_id.lower()}
             filtered_unautomated = {test_id for test_id in unautomated_ids if team.lower() in test_id.lower()}
@@ -153,6 +157,7 @@ def main(
             fail_on_stale=fail_on_stale,
             gating_ids=gating_ids,
             exclude_teams=exclude_team if exclude_team else None,
+            quarantined=quarantined,
         )
 
         report_filters: dict[str, Any] = {
