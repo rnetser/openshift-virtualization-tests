@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import json
+import re
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -1295,3 +1296,91 @@ class TestMatrixRendering:
         assert "hostpath" in html
         assert "status-passed" in html
         assert "status-never" in html
+
+
+class TestLegendAndDeduplication:
+    def test_legend_in_html_report(self) -> None:
+        """Verify legend section appears in HTML summary tab."""
+        report = CoverageReport(
+            total_tests=1,
+            automated_count=1,
+            unautomated_count=0,
+            passed=[("tests/net/test_a.py::test_ok", _make_result(name="t1"))],
+            failed=[],
+            skipped=[],
+            never_executed=[],
+            never_executed_automated=[],
+            never_executed_manual=[],
+            stale=[],
+            gate_passed=True,
+            gating_never_executed=[],
+            gating_stale=[],
+            quarantined=[],
+        )
+        html = format_html_report(report=report, bundle_prefix="v4.22.0", stale_days=30)
+        assert "class='legend'" in html or 'class="legend"' in html
+        assert "Legend" in html
+        assert "Product Bug" in html
+        assert "status-passed" in html
+        assert "status-quarantined" in html
+
+    def test_matrix_deduplicates_list(self) -> None:
+        """Verify tests in matrix don't also appear in list view."""
+        summary = ParametrizedTestSummary(
+            base_test="tests/net/test_a.py::TestA::test_vm",
+            variants=[
+                VariantStatus(params="[#rhel.10#-#hostpath#]", status="NEVER_EXECUTED", result=None),
+                VariantStatus(params="[#rhel.8#-#hostpath#]", status="NEVER_EXECUTED", result=None),
+            ],
+            is_two_axis=True,
+            axis1_values=["rhel.10", "rhel.8"],
+            axis2_values=["hostpath"],
+        )
+        report = CoverageReport(
+            total_tests=3,
+            automated_count=3,
+            unautomated_count=0,
+            passed=[],
+            failed=[],
+            skipped=[],
+            never_executed=[
+                "tests/net/test_a.py::TestA::test_vm[#rhel.10#-#hostpath#]",
+                "tests/net/test_a.py::TestA::test_vm[#rhel.8#-#hostpath#]",
+                "tests/net/test_a.py::TestA::test_standalone",
+            ],
+            never_executed_automated=[
+                "tests/net/test_a.py::TestA::test_vm[#rhel.10#-#hostpath#]",
+                "tests/net/test_a.py::TestA::test_vm[#rhel.8#-#hostpath#]",
+                "tests/net/test_a.py::TestA::test_standalone",
+            ],
+            never_executed_manual=[],
+            stale=[],
+            gate_passed=False,
+            gating_never_executed=[],
+            gating_stale=[],
+            quarantined=[],
+            parametrized_summaries={"net": [summary]},
+            team_stats={
+                "net": TeamStats(
+                    total=3,
+                    passed=0,
+                    failed=0,
+                    skipped=0,
+                    never_executed=3,
+                    stale=0,
+                    quarantined=0,
+                    coverage_pct=0.0,
+                ),
+            },
+        )
+        html = format_html_report(report=report, bundle_prefix="v4.22.0", stale_days=30)
+        # Matrix should appear
+        assert "matrix-table" in html
+        # The standalone test should appear in list
+        assert "test_standalone" in html
+        # The parametrized variants should NOT appear as individual list rows
+        # (they're in the matrix instead)
+        # Count occurrences of test_vm - should only be in matrix header, not in list rows
+        # The matrix header has the base_test, but no individual <tr><td> for each variant
+        list_rows = re.findall(r"<tr><td class='mono'>[^<]*test_vm\[", html)
+        assert len(list_rows) == 0, f"Found {len(list_rows)} list rows for matrix test: {list_rows}"

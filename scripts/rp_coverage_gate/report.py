@@ -1062,6 +1062,10 @@ summary:hover { opacity: 0.85; }
 .matrix-table th, .matrix-table td { border: 1px solid #ddd; padding: 4px 8px; text-align: center; }
 .matrix-table th { background: #f5f5f5; font-size: 0.85em; }
 .matrix-cell { font-size: 1.1em; min-width: 30px; }
+.legend { margin: 1rem 0; padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px; background: #fafafa; }
+.legend h3 { margin: 0 0 0.5rem; font-size: 1rem; }
+.legend table { border-collapse: collapse; }
+.legend td { padding: 2px 8px; }
 .status-passed { background: #d4edda; }
 .status-failed { background: #f8d7da; }
 .status-never { background: #e9ecef; }
@@ -1174,6 +1178,23 @@ function openTab(evt, tabName) {
         )
         parts.append("</table>")
 
+    # Legend
+    parts.append("<div class='legend'>")
+    parts.append("<h3>Legend</h3>")
+    parts.append("<table>")
+    parts.append("<tr><td class='matrix-cell status-passed'>✅</td><td>Passed</td></tr>")
+    parts.append("<tr><td class='matrix-cell status-failed'>❌</td><td>Failed (no defect classification)</td></tr>")
+    parts.append("<tr><td class='matrix-cell status-failed'>PB</td><td>Product Bug</td></tr>")
+    parts.append("<tr><td class='matrix-cell status-failed'>AB</td><td>Automation Bug</td></tr>")
+    parts.append("<tr><td class='matrix-cell status-failed'>SI</td><td>System Issue</td></tr>")
+    parts.append("<tr><td class='matrix-cell status-failed'>TI</td><td>To Investigate (not yet analyzed)</td></tr>")
+    parts.append("<tr><td class='matrix-cell status-never'>⬜</td><td>Never Executed</td></tr>")
+    parts.append("<tr><td class='matrix-cell status-stale'>⏳</td><td>Stale (older than threshold)</td></tr>")
+    parts.append("<tr><td class='matrix-cell status-skipped'>⏭</td><td>Skipped</td></tr>")
+    parts.append("<tr><td class='matrix-cell status-quarantined'>⏸</td><td>Quarantined</td></tr>")
+    parts.append("</table>")
+    parts.append("</div>")
+
     parts.append("</div>")  # end summary tab
 
     # ==================== PER-TEAM TABS ====================
@@ -1229,6 +1250,12 @@ function openTab(evt, tabName) {
     for team in all_teams:
         team_stat = (report.team_stats or {}).get(team)
         team_summaries = param_summaries_by_team.get(team, [])
+        # Collect base tests that have 2-axis matrices (used to skip list duplicates)
+        matrix_bases: set[str] = set()
+        for summary in team_summaries:
+            if summary.is_two_axis:
+                matrix_bases.add(summary.base_test)
+
         parts.append(f"<div id='{esc(team)}' class='tab-content'>")
 
         # Team summary bar
@@ -1313,6 +1340,9 @@ function openTab(evt, tabName) {
                 parts.append(f"<div class='defect-group'>{esc(group_name)} ({len(group_items)}):</div>")
                 parts.append("<table><tr><th>Test</th><th>Bundle</th><th>Date</th><th>Source</th><th>Comment</th></tr>")
                 for node_id, result in group_items:
+                    base, _ = _split_params(node_id=node_id)
+                    if base in matrix_bases:
+                        continue
                     raw_comment = result.defect_comment or ""
                     comment = html_mod.escape(s=raw_comment)
                     parts.append(_result_row(node_id=node_id, result=result, extra_col=f"<td>{comment}</td>"))
@@ -1369,12 +1399,6 @@ function openTab(evt, tabName) {
 
         # NEVER EXECUTED section for this team
         team_never = never_by_team.get(team, [])
-        # Collect base tests that have 2-axis matrices
-        matrix_bases: set[str] = set()
-        for summary in team_summaries:
-            if summary.is_two_axis:
-                matrix_bases.add(summary.base_test)
-
         if team_never:
             parts.append("<details class='section-never'>")
             parts.append(
@@ -1382,6 +1406,8 @@ function openTab(evt, tabName) {
             )
             parts.append("<table><tr><th>Test</th><th>Type</th></tr>")
             for base, params_list in _group_by_base(items=team_never):
+                if base in matrix_bases:
+                    continue
                 if len(params_list) == 1 and not params_list[0]:
                     label = "Manual" if base in manual_set else "Automated"
                     parts.append(f"<tr><td class='mono'>{esc(base)}</td><td>{label}</td></tr>")
