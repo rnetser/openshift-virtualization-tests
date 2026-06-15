@@ -342,3 +342,18 @@ class TestCheckCoverage:
 
         assert len(result_map) == 1
         assert result_map["tests.net.test_a.TestA.test_one"].status == "PASSED"
+
+    def test_check_coverage_since_days(self, mock_rp_client: MagicMock) -> None:
+        """Verify since_days is forwarded to get_launches."""
+        mock_rp_client.get_launches.return_value = []
+
+        check_coverage(
+            rp_client=mock_rp_client,
+            bundle_prefix="4.22",
+            since_days=45,
+        )
+
+        mock_rp_client.get_launches.assert_called_once_with(
+            bundle_prefix="4.22",
+            since_days=45,
+        )

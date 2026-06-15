@@ -987,24 +987,32 @@ def _matrix_primary_section(
 
 
 def _clean_param_display(params: str) -> str:
-    """Clean parametrize display: strip fixture suffixes, keep meaningful values.
+    """Clean parametrize display: remove ``#`` delimiters, keep all parts.
 
-    Extracts ``#value#`` groups from the param string and drops fixture name
-    suffixes. If no ``#value#`` groups are found, returns the param as-is.
+    Replaces ``#value#`` delimiters with the bare value and joins all
+    segments with em-dash separators.  Suffixes after the last ``#..#``
+    group are preserved because they may distinguish variants.
 
     Args:
-        params: Raw parameter suffix (e.g., ``[#hostpath-csi-basic#-fixture0]``).
+        params: Raw parameter suffix (e.g., ``[#hostpath-csi-basic#-snap0]``).
 
     Returns:
-        Cleaned display string (e.g., ``[hostpath-csi-basic]``).
+        Cleaned display string (e.g., ``[hostpath-csi-basic \u2014 snap0]``).
     """
     import re  # noqa: PLC0415
 
-    matches = re.findall(r"#([^#]+)#", params)
-    if matches:
-        inner = " \u2014 ".join(matches)
-        return f"[{inner}]"
-    return params
+    values = re.findall(r"#([^#]+)#", params)
+    if not values:
+        return params
+
+    # Split on #...# groups — last part is the suffix after all hash values
+    segments = re.split(r"#[^#]+#", params.strip("[]"))
+    suffix = segments[-1].lstrip("-") if segments else ""
+
+    display = " \u2014 ".join(values)
+    if suffix:
+        display += f" \u2014 {suffix}"
+    return f"[{display}]"
 
 
 _MAX_HORIZONTAL_VARIANTS: int = 10
@@ -1028,7 +1036,10 @@ def _render_annotated_list(summary: ParametrizedTestSummary, esc: Any) -> list[s
     parts: list[str] = []
     parts.append(f"<div class='param-header'>{esc(s=summary.base_test)} ({len(summary.variants)} variants)</div>")
 
-    if len(sorted_variants) > _MAX_HORIZONTAL_VARIANTS:
+    cleaned_headers = [_clean_param_display(params=v.params).strip("[]") for v in sorted_variants]
+    has_duplicates = len(set(cleaned_headers)) < len(cleaned_headers)
+
+    if len(sorted_variants) > _MAX_HORIZONTAL_VARIANTS or has_duplicates:
         return _render_annotated_list_vertical(
             sorted_variants=sorted_variants,
             parts=parts,

@@ -205,11 +205,12 @@ class RPClient:
         response.raise_for_status()
         LOGGER.info(f"Finished test item {item_uuid} with status {status.upper()}")
 
-    def get_launches(self, bundle_prefix: str, page_size: int = 300) -> list[dict[str, Any]]:
+    def get_launches(self, bundle_prefix: str, since_days: int = 0, page_size: int = 300) -> list[dict[str, Any]]:
         """Fetches launches filtered by BUNDLE attribute prefix.
 
         Args:
             bundle_prefix: Prefix to match against BUNDLE attribute values.
+            since_days: Only fetch launches from the last N days (0 = all).
             page_size: Number of items per page.
 
         Returns:
@@ -220,6 +221,12 @@ class RPClient:
             "filter.has.attributeKey": "BUNDLE",
             "filter.cnt.attributeValue": bundle_prefix,
         }
+        if since_days > 0:
+            from datetime import datetime, timedelta  # noqa: PLC0415
+
+            since_ts = int((datetime.now(tz=UTC) - timedelta(days=since_days)).timestamp() * 1000)
+            params["filter.gte.startTime"] = since_ts
+            LOGGER.info(f"Filtering launches to last {since_days} days")
         launches = self._paginate(url=url, params=params, page_size=page_size)
         LOGGER.info(f"Found {len(launches)} launches matching bundle prefix '{bundle_prefix}'")
         return launches

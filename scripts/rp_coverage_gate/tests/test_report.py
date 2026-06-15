@@ -1620,12 +1620,14 @@ class TestAnnotatedList:
         assert "status-passed" in html
         assert "matrix-table" in html
 
-    def test_clean_param_display_strips_fixture(self) -> None:
-        """Verify fixture suffixes are stripped from param display."""
+    def test_clean_param_display_preserves_suffix(self) -> None:
+        """Verify suffixes after #value# groups are preserved."""
         result = _clean_param_display(
-            params="[#hostpath-csi-basic#-golden_image_data_volume_multi_storage_scope_function0]",
+            params="[#hostpath-csi-basic#-test_restore_basic_snapshot0]",
         )
-        assert result == "[hostpath-csi-basic]"
+        assert "hostpath-csi-basic" in result
+        assert "test_restore_basic_snapshot0" in result
+        assert "#" not in result
 
     def test_clean_param_display_preserves_plain(self) -> None:
         """Verify params without # delimiters are kept as-is."""
@@ -1645,12 +1647,12 @@ class TestAnnotatedList:
             base_test="tests/net/test_a.py::TestA::test_foo",
             variants=[
                 VariantStatus(
-                    params="[#hostpath-csi-basic#-fixture_name0]",
+                    params="[#hostpath-csi-basic#-snap0]",
                     status="PASSED",
                     result=None,
                 ),
                 VariantStatus(
-                    params="[#ocs-rbd#-fixture_name0]",
+                    params="[#ocs-rbd#-snap0]",
                     status="NEVER_EXECUTED",
                     result=None,
                 ),
@@ -1662,8 +1664,26 @@ class TestAnnotatedList:
         parts = _render_annotated_list(summary=summary, esc=html_mod.escape)
         html = "\n".join(parts)
         assert "hostpath-csi-basic" in html
-        assert "fixture_name0" not in html
+        assert "snap0" in html
+        assert "#" not in html
         assert "matrix-table" in html
+
+    def test_annotated_list_fallback_on_duplicates(self) -> None:
+        """Verify duplicate column headers fall back to vertical list."""
+        summary = ParametrizedTestSummary(
+            base_test="tests/net/test_a.py::TestA::test_foo",
+            variants=[
+                VariantStatus(params="[dup]", status="PASSED", result=None),
+                VariantStatus(params="[dup]", status="FAILED", result=None),
+            ],
+            is_two_axis=False,
+            axis1_values=[],
+            axis2_values=[],
+        )
+        parts = _render_annotated_list(summary=summary, esc=html_mod.escape)
+        html = "\n".join(parts)
+        assert "param-variant" in html
+        assert "matrix-table" not in html
 
     def test_annotated_list_fallback_vertical(self) -> None:
         """Verify >10 variants fall back to vertical badge list."""

@@ -84,6 +84,9 @@ Examples:
     help="Exclude team(s) from report (repeatable, e.g., --exclude-team chaos --exclude-team deprecated_api)",
 )
 @click.option("--max-launches", type=int, default=0, help="Max recent launches to query (0 = all, default: all)")
+@click.option(
+    "--since-days", type=int, default=0, help="Only fetch launches from the last N days (0 = all, default: 0)"
+)
 @click.option("--fail-on-stale/--no-fail-on-stale", default=True, help="Whether stale tests fail the gate")
 @click.option("--full", is_flag=True, default=False, help="Show per-test details including bundle")
 @click.option("--dry-run", is_flag=True, default=False, help="Collect tests only, skip RP query")
@@ -98,6 +101,7 @@ def main(
     team: str | None,
     exclude_team: tuple[str, ...],
     max_launches: int,
+    since_days: int,
     fail_on_stale: bool,
     full: bool,
     dry_run: bool,
@@ -146,6 +150,7 @@ def main(
             rp_client=rp_client,
             bundle_prefix=bundle,
             max_launches=max_launches,
+            since_days=since_days,
             progress_callback=_progress,
         )
         report = analyze_coverage(

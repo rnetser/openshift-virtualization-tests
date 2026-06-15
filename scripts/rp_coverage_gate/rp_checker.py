@@ -141,6 +141,7 @@ def check_coverage(
     rp_client: RPClient,
     bundle_prefix: str,
     max_launches: int = 50,
+    since_days: int = 0,
     max_workers: int = 10,
     progress_callback: Any | None = None,
 ) -> dict[str, ItemResult]:
@@ -157,13 +158,14 @@ def check_coverage(
         rp_client: Authenticated RPClient instance.
         bundle_prefix: Bundle version prefix to match.
         max_launches: Maximum number of recent launches to process.
+        since_days: Only fetch launches from the last N days (0 = all).
         max_workers: Thread pool size for parallel item fetching.
         progress_callback: Optional callable(current, total) for progress.
 
     Returns:
         Dict mapping RP test name to its most recent ItemResult.
     """
-    launches = rp_client.get_launches(bundle_prefix=bundle_prefix)
+    launches = rp_client.get_launches(bundle_prefix=bundle_prefix, since_days=since_days)
     launches.sort(key=lambda launch: launch.get("startTime", 0))
 
     total_launches = len(launches)
