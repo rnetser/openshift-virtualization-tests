@@ -997,24 +997,23 @@ def _render_annotated_list(summary: ParametrizedTestSummary, esc: Any) -> list[s
         esc: HTML escape function.
 
     Returns:
-        List of HTML strings forming the annotated list.
+        List of HTML strings forming the annotated div group.
     """
     parts: list[str] = []
-    parts.append(
-        f"<table><tr><td class='mono' colspan='2'>"
-        f"<b>{esc(s=summary.base_test)}</b> ({len(summary.variants)} variants)</td></tr>"
-    )
+    parts.append("<div class='param-group'>")
+    parts.append(f"<div class='param-header'>{esc(s=summary.base_test)} ({len(summary.variants)} variants)</div>")
     for variant in sorted(summary.variants, key=lambda v: v.params):
         badge_cls = _STATUS_BADGE_CSS.get(variant.status, "")
         label = _STATUS_LABELS.get(variant.status, variant.status)
         if variant.status == "FAILED" and variant.defect_type:
-            abbrev = _DEFECT_ABBREVS.get(variant.defect_type, "")
-            label = f"FAILED ({abbrev})" if abbrev else "FAILED"
+            label = f"FAILED ({variant.defect_type})"
         parts.append(
-            f"<tr><td class='mono'>\u00a0\u00a0{esc(s=variant.params)}</td>"
-            f"<td><span class='badge {badge_cls}'>{label}</span></td></tr>"
+            f"<div class='param-variant'>"
+            f"<span class='mono'>{esc(s=variant.params)}</span>"
+            f"<span class='badge {badge_cls}'>{label}</span>"
+            f"</div>"
         )
-    parts.append("</table>")
+    parts.append("</div>")
     return parts
 
 
@@ -1163,6 +1162,11 @@ summary:hover { opacity: 0.85; }
 .badge-stale { background: #fff3cd; color: #856404; }
 .badge-skipped { background: #cff4fc; color: #055160; }
 .badge-quarantined { background: #e8daef; color: #6c3483; }
+.param-group { margin: 0.5rem 0 0.8rem 0; border-left: 3px solid #ddd; padding-left: 0.8rem; }
+.param-header { font-weight: 700; font-family: monospace; font-size: 0.9em; margin-bottom: 0.3rem; }
+.param-variant { display: flex; justify-content: space-between; align-items: center;
+                 padding: 2px 0; font-size: 0.85em; max-width: 900px; }
+.param-variant .mono { font-family: monospace; overflow: hidden; text-overflow: ellipsis; }
 .badge { display: inline-block; padding: 6px 18px; border-radius: 4px;
          font-weight: bold; font-size: 1.2rem; margin: 0.5rem 0 1.5rem; }
 .badge-pass { background: #198754; color: white; }
@@ -1232,28 +1236,51 @@ function openTab(evt, tabName) {
     parts.append("<details>")
     parts.append("<summary><strong>Legend</strong></summary>")
     parts.append("<table>")
-    parts.append("<tr><th>Matrix</th><th>Meaning</th><th>Failed Analysis</th><th>Meaning</th></tr>")
+    parts.append("<tr><th colspan='2'>Status Icons</th></tr>")
     parts.append(
-        "<tr><td class='matrix-cell status-passed'>\u2705</td><td>Passed</td>"
-        "<td class='matrix-cell status-failed'>PB</td><td>Product Bug</td></tr>"
+        "<tr><td class='matrix-cell status-passed'>\u2705</td>"
+        "<td>Passed \u2014 test passed in most recent run</td></tr>"
     )
     parts.append(
-        "<tr><td class='matrix-cell status-failed'>\u274c</td><td>Failed</td>"
-        "<td class='matrix-cell status-failed'>AB</td><td>Automation Bug</td></tr>"
+        "<tr><td class='matrix-cell status-failed'>\u274c</td>"
+        "<td>Failed \u2014 test failed, no defect classification in ReportPortal</td></tr>"
     )
     parts.append(
-        "<tr><td class='matrix-cell status-never'>\u2014</td><td>Never Executed</td>"
-        "<td class='matrix-cell status-failed'>SI</td><td>System Issue</td></tr>"
+        "<tr><td class='matrix-cell status-never'>\u2014</td>"
+        "<td>Never Executed \u2014 no results found in ReportPortal for this bundle</td></tr>"
     )
     parts.append(
-        "<tr><td class='matrix-cell status-stale'>\u26a0\ufe0f</td><td>Stale</td>"
-        "<td class='matrix-cell status-failed'>TI</td><td>To Investigate (not yet analyzed)</td></tr>"
+        "<tr><td class='matrix-cell status-stale'>\u26a0\ufe0f</td>"
+        "<td>Stale \u2014 last execution is older than the stale threshold</td></tr>"
     )
     parts.append(
-        "<tr><td class='matrix-cell'>SKIP</td><td>Skipped</td>"
-        "<td class='matrix-cell status-failed'>NI</td><td>Not Issue / No Defect</td></tr>"
+        "<tr><td class='matrix-cell'>SKIP</td>"
+        "<td>Skipped \u2014 test was skipped (not quarantined) in most recent run</td></tr>"
     )
-    parts.append("<tr><td class='matrix-cell status-quarantined'>Q</td><td>Quarantined</td><td></td><td></td></tr>")
+    parts.append(
+        "<tr><td class='matrix-cell status-quarantined'>Q</td>"
+        "<td>Quarantined \u2014 intentionally disabled due to known bug or automation issue</td></tr>"
+    )
+    parts.append("<tr><th colspan='2'>Defect Classifications (shown in matrix cells for failed tests)</th></tr>")
+    parts.append(
+        "<tr><td class='matrix-cell status-failed'>PB</td>"
+        "<td>Product Bug \u2014 confirmed defect in the product</td></tr>"
+    )
+    parts.append(
+        "<tr><td class='matrix-cell status-failed'>AB</td>"
+        "<td>Automation Bug \u2014 test code issue, not a product defect</td></tr>"
+    )
+    parts.append(
+        "<tr><td class='matrix-cell status-failed'>SI</td>"
+        "<td>System Issue \u2014 environment or infrastructure problem</td></tr>"
+    )
+    parts.append(
+        "<tr><td class='matrix-cell status-failed'>TI</td><td>To Investigate \u2014 failure not yet analyzed</td></tr>"
+    )
+    parts.append(
+        "<tr><td class='matrix-cell status-failed'>NI</td>"
+        "<td>No Issue \u2014 false alarm or expected behavior</td></tr>"
+    )
     parts.append("</table>")
     parts.append("</details>")
     parts.append("</div>")

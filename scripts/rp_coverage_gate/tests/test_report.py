@@ -1324,6 +1324,9 @@ class TestLegendAndDeduplication:
         assert "class='legend'" in html or 'class="legend"' in html
         assert "Legend" in html
         assert "Product Bug" in html
+        assert "Automation Bug" in html
+        assert "Status Icons" in html
+        assert "Defect Classifications" in html
         assert "status-passed" in html
         assert "status-quarantined" in html
         # Legend is outside tab-content (collapsible, always visible)
@@ -1559,8 +1562,10 @@ class TestAnnotatedList:
             },
         )
         html = format_html_report(report=report, bundle_prefix="v4.22.0", stale_days=30)
-        # Should contain annotated list with badges, NOT a matrix-table
+        # Should contain annotated list with badges in param-group divs, NOT a matrix-table
         assert "<table class='matrix-table'>" not in html
+        assert "param-group" in html
+        assert "param-variant" in html
         assert "badge-passed" in html
         assert "badge-never" in html
         assert "test_foo" in html
@@ -1610,6 +1615,8 @@ class TestAnnotatedList:
         )
         parts = _render_annotated_list(summary=summary, esc=html_mod.escape)
         html = "\n".join(parts)
-        assert "FAILED (PB)" in html
+        assert "FAILED (Product Bug)" in html
         assert "badge-failed" in html
         assert "badge-passed" in html
+        assert "param-group" in html
+        assert "param-variant" in html
