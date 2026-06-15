@@ -16,9 +16,11 @@ from scripts.rp_coverage_gate.report import (
     TeamStats,
     VariantStatus,
     _clean_param_display,
+    _detect_implicit_two_axis,
     _get_team_from_node_id,
     _group_by_base,
     _matrix_primary_section,
+    _parse_hash_suffix_params,
     _parse_two_axis_params,
     _render_annotated_list,
     analyze_coverage,
@@ -1642,17 +1644,17 @@ class TestAnnotatedList:
         assert "\u2014" in result  # em-dash separator
 
     def test_annotated_list_uses_clean_params(self) -> None:
-        """Verify horizontal table renders cleaned param names as headers."""
+        """Verify horizontal table renders cleaned param names, stripping identical suffix."""
         summary = ParametrizedTestSummary(
             base_test="tests/net/test_a.py::TestA::test_foo",
             variants=[
                 VariantStatus(
-                    params="[#hostpath-csi-basic#-snap0]",
+                    params="[#hostpath-csi-basic#-fixture0]",
                     status="PASSED",
                     result=None,
                 ),
                 VariantStatus(
-                    params="[#ocs-rbd#-snap0]",
+                    params="[#ocs-rbd#-fixture0]",
                     status="NEVER_EXECUTED",
                     result=None,
                 ),
@@ -1664,7 +1666,9 @@ class TestAnnotatedList:
         parts = _render_annotated_list(summary=summary, esc=html_mod.escape)
         html = "\n".join(parts)
         assert "hostpath-csi-basic" in html
-        assert "snap0" in html
+        assert "ocs-rbd" in html
+        # Identical suffix 'fixture0' should be stripped
+        assert "fixture0" not in html
         assert "#" not in html
         assert "matrix-table" in html
 
@@ -1707,3 +1711,53 @@ class TestAnnotatedList:
         assert "param-variant" in html
         assert "badge-passed" in html
         assert "matrix-table" not in html
+
+
+class TestImplicitTwoAxis:
+    """Tests for implicit 2-axis detection from #value#-suffix patterns."""
+
+    def test_parse_hash_suffix_params(self) -> None:
+        """Verify #value#-suffix parsing extracts both parts."""
+        result = _parse_hash_suffix_params(params="[#hostpath-csi-basic#-test_restore_basic_snapshot0]")
+        assert result == ("hostpath-csi-basic", "test_restore_basic_snapshot0")
+
+    def test_parse_hash_suffix_params_no_suffix(self) -> None:
+        """Verify plain #value# without suffix returns None."""
+        result = _parse_hash_suffix_params(params="[#hostpath-csi-basic#]")
+        assert result is None
+
+    def test_parse_hash_suffix_params_no_hash(self) -> None:
+        """Verify params without # delimiters returns None."""
+        result = _parse_hash_suffix_params(params="[ipv4]")
+        assert result is None
+
+    def test_detect_implicit_two_axis_with_varying_suffixes(self) -> None:
+        """Verify varying suffixes produce a 2-axis result."""
+        variants = [
+            VariantStatus(params="[#hostpath#-snap_basic0]", status="PASSED", result=None),
+            VariantStatus(params="[#hostpath#-snap_middle0]", status="PASSED", result=None),
+            VariantStatus(params="[#ocs-rbd#-snap_basic0]", status="NEVER_EXECUTED", result=None),
+            VariantStatus(params="[#ocs-rbd#-snap_middle0]", status="NEVER_EXECUTED", result=None),
+        ]
+        is_two_axis, axis1, axis2 = _detect_implicit_two_axis(variants=variants)
+        assert is_two_axis is True
+        assert axis1 == ["hostpath", "ocs-rbd"]
+        assert axis2 == ["snap_basic0", "snap_middle0"]
+
+    def test_detect_implicit_two_axis_identical_suffix(self) -> None:
+        """Verify identical suffixes are NOT detected as 2-axis."""
+        variants = [
+            VariantStatus(params="[#hostpath#-fixture0]", status="PASSED", result=None),
+            VariantStatus(params="[#ocs-rbd#-fixture0]", status="PASSED", result=None),
+        ]
+        is_two_axis, _, _ = _detect_implicit_two_axis(variants=variants)
+        assert is_two_axis is False
+
+    def test_clean_param_display_strip_suffix(self) -> None:
+        """Verify strip_suffix=True removes the suffix."""
+        result = _clean_param_display(
+            params="[#hostpath-csi-basic#-fixture0]",
+            strip_suffix=True,
+        )
+        assert "hostpath-csi-basic" in result
+        assert "fixture0" not in result

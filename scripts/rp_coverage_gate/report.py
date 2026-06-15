@@ -55,6 +55,57 @@ def _parse_two_axis_params(params: str) -> tuple[str, str] | None:
     return None
 
 
+def _parse_hash_suffix_params(params: str) -> tuple[str, str] | None:
+    """Parse ``[#val#-suffix]`` into ``(val, suffix)``.
+
+    Handles the pattern where one axis uses ``#value#`` delimiters and
+    the second axis is a plain suffix after a ``-`` separator.
+
+    Args:
+        params: Parameter suffix string, e.g. ``[#hostpath-csi-basic#-test_restore_basic_snapshot0]``.
+
+    Returns:
+        Tuple of (hash_value, suffix) if the pattern matches, None otherwise.
+    """
+    import re  # noqa: PLC0415
+
+    match = re.match(r"^\[#([^#]+)#-(.+)\]$", params)
+    if match:
+        return (match.group(1), match.group(2))
+    return None
+
+
+def _detect_implicit_two_axis(
+    variants: list[VariantStatus],
+) -> tuple[bool, list[str], list[str]]:
+    """Detect implicit 2-axis from ``[#val#-suffix]`` patterns.
+
+    When all variants match ``#value#-suffix`` and there are multiple
+    distinct suffixes (not just fixture names), the test is implicitly
+    2-axis with hash values as axis 1 and suffixes as axis 2.
+
+    If all suffixes are identical (e.g. fixture names like
+    ``data_volume_multi_storage_scope_function0``), this is NOT 2-axis
+    — it's single-axis with a junk suffix.
+
+    Args:
+        variants: List of variant statuses to analyze.
+
+    Returns:
+        Tuple of (is_two_axis, axis1_values, axis2_values).
+    """
+    parsed = [_parse_hash_suffix_params(params=v.params) for v in variants]
+    if not all(p is not None for p in parsed):
+        return (False, [], [])
+
+    suffixes: set[str] = {p[1] for p in parsed if p}  # type: ignore[index]
+    if len(suffixes) <= 1:
+        return (False, [], [])
+
+    axis1_set: set[str] = {p[0] for p in parsed if p}  # type: ignore[index]
+    return (True, sorted(axis1_set), sorted(suffixes))
+
+
 @dataclass
 class VariantStatus:
     """Status of a single parametrized variant.
@@ -490,6 +541,9 @@ def analyze_coverage(
                     axis2_set.add(p[1])
             axis1_values = sorted(axis1_set)
             axis2_values = sorted(axis2_set)
+        else:
+            # Fallback: detect implicit 2-axis from #val#-suffix patterns
+            is_two_axis, axis1_values, axis2_values = _detect_implicit_two_axis(variants=variants)
 
         summary = ParametrizedTestSummary(
             base_test=base,
@@ -986,7 +1040,7 @@ def _matrix_primary_section(
     return "passed"
 
 
-def _clean_param_display(params: str) -> str:
+def _clean_param_display(params: str, strip_suffix: bool = False) -> str:
     """Clean parametrize display: remove ``#`` delimiters, keep all parts.
 
     Replaces ``#value#`` delimiters with the bare value and joins all
@@ -995,6 +1049,8 @@ def _clean_param_display(params: str) -> str:
 
     Args:
         params: Raw parameter suffix (e.g., ``[#hostpath-csi-basic#-snap0]``).
+        strip_suffix: If True, drop suffix after the last ``#value#`` group.
+            Used when all variants share the same suffix (fixture names).
 
     Returns:
         Cleaned display string (e.g., ``[hostpath-csi-basic \u2014 snap0]``).
@@ -1005,13 +1061,13 @@ def _clean_param_display(params: str) -> str:
     if not values:
         return params
 
-    # Split on #...# groups — last part is the suffix after all hash values
-    segments = re.split(r"#[^#]+#", params.strip("[]"))
-    suffix = segments[-1].lstrip("-") if segments else ""
-
     display = " \u2014 ".join(values)
-    if suffix:
-        display += f" \u2014 {suffix}"
+    if not strip_suffix:
+        # Split on #...# groups — last part is the suffix after all hash values
+        segments = re.split(r"#[^#]+#", params.strip("[]"))
+        suffix = segments[-1].lstrip("-") if segments else ""
+        if suffix:
+            display += f" \u2014 {suffix}"
     return f"[{display}]"
 
 
@@ -1036,7 +1092,19 @@ def _render_annotated_list(summary: ParametrizedTestSummary, esc: Any) -> list[s
     parts: list[str] = []
     parts.append(f"<div class='param-header'>{esc(s=summary.base_test)} ({len(summary.variants)} variants)</div>")
 
-    cleaned_headers = [_clean_param_display(params=v.params).strip("[]") for v in sorted_variants]
+    # Detect if all variants share the same suffix (fixture name junk)
+    import re  # noqa: PLC0415
+
+    suffixes = set()
+    for variant in sorted_variants:
+        segments = re.split(r"#[^#]+#", variant.params.strip("[]"))
+        suffix = segments[-1].lstrip("-") if segments else ""
+        suffixes.add(suffix)
+    should_strip_suffix = len(suffixes) == 1 and suffixes != {""}
+
+    cleaned_headers = [
+        _clean_param_display(params=v.params, strip_suffix=should_strip_suffix).strip("[]") for v in sorted_variants
+    ]
     has_duplicates = len(set(cleaned_headers)) < len(cleaned_headers)
 
     if len(sorted_variants) > _MAX_HORIZONTAL_VARIANTS or has_duplicates:
@@ -1044,13 +1112,14 @@ def _render_annotated_list(summary: ParametrizedTestSummary, esc: Any) -> list[s
             sorted_variants=sorted_variants,
             parts=parts,
             esc=esc,
+            strip_suffix=should_strip_suffix,
         )
 
     # Horizontal 1-row matrix
     parts.append("<table class='matrix-table'>")
     header = "<tr>"
     for variant in sorted_variants:
-        display = _clean_param_display(params=variant.params).strip("[]")
+        display = _clean_param_display(params=variant.params, strip_suffix=should_strip_suffix).strip("[]")
         header += f"<th>{esc(s=display)}</th>"
     header += "</tr>"
     parts.append(header)
@@ -1077,6 +1146,7 @@ def _render_annotated_list_vertical(
     sorted_variants: list[VariantStatus],
     parts: list[str],
     esc: Any,
+    strip_suffix: bool = False,
 ) -> list[str]:
     """Fallback vertical list for parametrized tests with many variants.
 
@@ -1084,6 +1154,7 @@ def _render_annotated_list_vertical(
         sorted_variants: Sorted list of variant statuses.
         parts: Existing HTML parts to append to.
         esc: HTML escape function.
+        strip_suffix: If True, strip identical suffixes from display.
 
     Returns:
         List of HTML strings with param-variant divs.
@@ -1094,7 +1165,7 @@ def _render_annotated_list_vertical(
         label = _STATUS_LABELS.get(variant.status, variant.status)
         if variant.status == "FAILED" and variant.defect_type:
             label = f"FAILED ({variant.defect_type})"
-        display_params = _clean_param_display(params=variant.params)
+        display_params = _clean_param_display(params=variant.params, strip_suffix=strip_suffix)
         parts.append(
             f"<div class='param-variant'>"
             f"<span class='mono'>{esc(s=display_params)}</span>"
@@ -1125,6 +1196,8 @@ def _render_html_matrix(summary: ParametrizedTestSummary, esc: Any) -> list[str]
     variant_map: dict[tuple[str, str], VariantStatus] = {}
     for variant in summary.variants:
         parsed = _parse_two_axis_params(params=variant.params)
+        if not parsed:
+            parsed = _parse_hash_suffix_params(params=variant.params)
         if parsed:
             variant_map[parsed] = variant
 
