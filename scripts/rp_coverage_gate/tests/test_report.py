@@ -15,6 +15,7 @@ from scripts.rp_coverage_gate.report import (
     ParametrizedTestSummary,
     TeamStats,
     VariantStatus,
+    _clean_param_display,
     _get_team_from_node_id,
     _group_by_base,
     _matrix_primary_section,
@@ -1324,7 +1325,7 @@ class TestLegendAndDeduplication:
         assert "class='legend'" in html or 'class="legend"' in html
         assert "Legend" in html
         assert "Product Bug" in html
-        assert "Automation Bug" in html
+        assert "Auto Bug" in html
         assert "Status Icons" in html
         assert "Defect Classifications" in html
         assert "status-passed" in html
@@ -1620,3 +1621,42 @@ class TestAnnotatedList:
         assert "badge-passed" in html
         assert "param-group" in html
         assert "param-variant" in html
+
+    def test_clean_param_display_strips_fixture(self) -> None:
+        """Verify fixture suffixes are stripped from param display."""
+        result = _clean_param_display(
+            params="[#hostpath-csi-basic#-golden_image_data_volume_multi_storage_scope_function0]",
+        )
+        assert result == "[hostpath-csi-basic]"
+
+    def test_clean_param_display_preserves_plain(self) -> None:
+        """Verify params without # delimiters are kept as-is."""
+        result = _clean_param_display(params="[ipv4]")
+        assert result == "[ipv4]"
+
+    def test_clean_param_display_two_axis(self) -> None:
+        """Verify two #value# groups are joined with em-dash."""
+        result = _clean_param_display(params="[#rhel.10#-#hostpath-csi-basic#]")
+        assert "rhel.10" in result
+        assert "hostpath-csi-basic" in result
+        assert "\u2014" in result  # em-dash separator
+
+    def test_annotated_list_uses_clean_params(self) -> None:
+        """Verify annotated list renders cleaned param names."""
+        summary = ParametrizedTestSummary(
+            base_test="tests/net/test_a.py::TestA::test_foo",
+            variants=[
+                VariantStatus(
+                    params="[#hostpath-csi-basic#-fixture_name0]",
+                    status="PASSED",
+                    result=None,
+                ),
+            ],
+            is_two_axis=False,
+            axis1_values=[],
+            axis2_values=[],
+        )
+        parts = _render_annotated_list(summary=summary, esc=html_mod.escape)
+        html = "\n".join(parts)
+        assert "[hostpath-csi-basic]" in html
+        assert "fixture_name0" not in html

@@ -92,12 +92,12 @@ class ParametrizedTestSummary:
 
 
 _DEFECT_ABBREVS: dict[str, str] = {
-    "Product Bug": "PB",
-    "Automation Bug": "AB",
-    "System Issue": "SI",
-    "To Investigate": "TI",
-    "No Defect": "ND",
-    "Not Issue": "NI",
+    "Product Bug": "Product Bug",
+    "Automation Bug": "Auto Bug",
+    "System Issue": "Sys Issue",
+    "To Investigate": "To Invest.",
+    "No Defect": "No Defect",
+    "Not Issue": "No Defect",
 }
 
 
@@ -986,6 +986,27 @@ def _matrix_primary_section(
     return "passed"
 
 
+def _clean_param_display(params: str) -> str:
+    """Clean parametrize display: strip fixture suffixes, keep meaningful values.
+
+    Extracts ``#value#`` groups from the param string and drops fixture name
+    suffixes. If no ``#value#`` groups are found, returns the param as-is.
+
+    Args:
+        params: Raw parameter suffix (e.g., ``[#hostpath-csi-basic#-fixture0]``).
+
+    Returns:
+        Cleaned display string (e.g., ``[hostpath-csi-basic]``).
+    """
+    import re  # noqa: PLC0415
+
+    matches = re.findall(r"#([^#]+)#", params)
+    if matches:
+        inner = " \u2014 ".join(matches)
+        return f"[{inner}]"
+    return params
+
+
 def _render_annotated_list(summary: ParametrizedTestSummary, esc: Any) -> list[str]:
     """Render a grouped parametrized test with status badges per variant.
 
@@ -1007,9 +1028,10 @@ def _render_annotated_list(summary: ParametrizedTestSummary, esc: Any) -> list[s
         label = _STATUS_LABELS.get(variant.status, variant.status)
         if variant.status == "FAILED" and variant.defect_type:
             label = f"FAILED ({variant.defect_type})"
+        display_params = _clean_param_display(params=variant.params)
         parts.append(
             f"<div class='param-variant'>"
-            f"<span class='mono'>{esc(s=variant.params)}</span>"
+            f"<span class='mono'>{esc(s=display_params)}</span>"
             f"<span class='badge {badge_cls}'>{label}</span>"
             f"</div>"
         )
@@ -1143,7 +1165,7 @@ summary:hover { opacity: 0.85; }
 .matrix-table { border-collapse: collapse; margin: 0.5rem 0 1rem 1.5rem; }
 .matrix-table th, .matrix-table td { border: 1px solid #ddd; padding: 4px 8px; text-align: center; }
 .matrix-table th { background: #f5f5f5; font-size: 0.85em; }
-.matrix-cell { font-size: 1.1em; min-width: 30px; }
+.matrix-cell { font-size: 0.85em; min-width: 60px; padding: 4px 6px; }
 .legend { margin: 1rem 0; padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px; background: #fafafa; }
 .legend summary { cursor: pointer; }
 .legend th { text-align: left; padding: 2px 8px; }
@@ -1263,23 +1285,17 @@ function openTab(evt, tabName) {
     )
     parts.append("<tr><th colspan='2'>Defect Classifications (shown in matrix cells for failed tests)</th></tr>")
     parts.append(
-        "<tr><td class='matrix-cell status-failed'>PB</td>"
-        "<td>Product Bug \u2014 confirmed defect in the product</td></tr>"
+        "<tr><td class='matrix-cell status-failed'>Product Bug</td><td>Confirmed defect in the product</td></tr>"
     )
     parts.append(
-        "<tr><td class='matrix-cell status-failed'>AB</td>"
-        "<td>Automation Bug \u2014 test code issue, not a product defect</td></tr>"
+        "<tr><td class='matrix-cell status-failed'>Auto Bug</td><td>Test code issue, not a product defect</td></tr>"
     )
     parts.append(
-        "<tr><td class='matrix-cell status-failed'>SI</td>"
-        "<td>System Issue \u2014 environment or infrastructure problem</td></tr>"
+        "<tr><td class='matrix-cell status-failed'>Sys Issue</td><td>Environment or infrastructure problem</td></tr>"
     )
+    parts.append("<tr><td class='matrix-cell status-failed'>To Invest.</td><td>Failure not yet analyzed</td></tr>")
     parts.append(
-        "<tr><td class='matrix-cell status-failed'>TI</td><td>To Investigate \u2014 failure not yet analyzed</td></tr>"
-    )
-    parts.append(
-        "<tr><td class='matrix-cell status-failed'>NI</td>"
-        "<td>No Issue \u2014 false alarm or expected behavior</td></tr>"
+        "<tr><td class='matrix-cell status-failed'>No Defect</td><td>False alarm or expected behavior</td></tr>"
     )
     parts.append("</table>")
     parts.append("</details>")
