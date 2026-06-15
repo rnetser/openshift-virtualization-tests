@@ -1007,23 +1007,78 @@ def _clean_param_display(params: str) -> str:
     return params
 
 
-def _render_annotated_list(summary: ParametrizedTestSummary, esc: Any) -> list[str]:
-    """Render a grouped parametrized test with status badges per variant.
+_MAX_HORIZONTAL_VARIANTS: int = 10
 
-    Used for non-2-axis parametrized tests that still need to show all
-    variants with their individual statuses in one place.
+
+def _render_annotated_list(summary: ParametrizedTestSummary, esc: Any) -> list[str]:
+    """Render a non-2-axis parametrized test as a horizontal 1-row matrix.
+
+    For tests with up to 10 variants, renders a horizontal table with
+    cleaned parameter names as column headers and status symbols in the
+    row below. Falls back to a vertical badge list for >10 variants.
 
     Args:
         summary: ParametrizedTestSummary (is_two_axis=False).
         esc: HTML escape function.
 
     Returns:
-        List of HTML strings forming the annotated div group.
+        List of HTML strings.
     """
+    sorted_variants = sorted(summary.variants, key=lambda v: v.params)
     parts: list[str] = []
-    parts.append("<div class='param-group'>")
     parts.append(f"<div class='param-header'>{esc(s=summary.base_test)} ({len(summary.variants)} variants)</div>")
-    for variant in sorted(summary.variants, key=lambda v: v.params):
+
+    if len(sorted_variants) > _MAX_HORIZONTAL_VARIANTS:
+        return _render_annotated_list_vertical(
+            sorted_variants=sorted_variants,
+            parts=parts,
+            esc=esc,
+        )
+
+    # Horizontal 1-row matrix
+    parts.append("<table class='matrix-table'>")
+    header = "<tr>"
+    for variant in sorted_variants:
+        display = _clean_param_display(params=variant.params).strip("[]")
+        header += f"<th>{esc(s=display)}</th>"
+    header += "</tr>"
+    parts.append(header)
+
+    row = "<tr>"
+    for variant in sorted_variants:
+        css_class = _STATUS_CSS.get(variant.status, "")
+        if variant.status == "FAILED" and variant.defect_type:
+            abbrev = _DEFECT_ABBREVS.get(variant.defect_type, "\u274c")
+            tooltip = esc(s=variant.defect_type)
+            if variant.result and variant.result.defect_comment:
+                tooltip += f": {esc(s=variant.result.defect_comment[:80])}"
+            row += f"<td class='matrix-cell {css_class}' title='{tooltip}'>{abbrev}</td>"
+        else:
+            symbol = _STATUS_SYMBOLS.get(variant.status, "?")
+            row += f"<td class='matrix-cell {css_class}'>{symbol}</td>"
+    row += "</tr>"
+    parts.append(row)
+    parts.append("</table>")
+    return parts
+
+
+def _render_annotated_list_vertical(
+    sorted_variants: list[VariantStatus],
+    parts: list[str],
+    esc: Any,
+) -> list[str]:
+    """Fallback vertical list for parametrized tests with many variants.
+
+    Args:
+        sorted_variants: Sorted list of variant statuses.
+        parts: Existing HTML parts to append to.
+        esc: HTML escape function.
+
+    Returns:
+        List of HTML strings with param-variant divs.
+    """
+    parts.append("<div class='param-group'>")
+    for variant in sorted_variants:
         badge_cls = _STATUS_BADGE_CSS.get(variant.status, "")
         label = _STATUS_LABELS.get(variant.status, variant.status)
         if variant.status == "FAILED" and variant.defect_type:

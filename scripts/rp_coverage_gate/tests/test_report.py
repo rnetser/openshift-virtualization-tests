@@ -1563,15 +1563,13 @@ class TestAnnotatedList:
             },
         )
         html = format_html_report(report=report, bundle_prefix="v4.22.0", stale_days=30)
-        # Should contain annotated list with badges in param-group divs, NOT a matrix-table
-        assert "<table class='matrix-table'>" not in html
-        assert "param-group" in html
-        assert "param-variant" in html
-        assert "badge-passed" in html
-        assert "badge-never" in html
+        # Should contain horizontal 1-row matrix for single-axis params
+        assert "matrix-table" in html
         assert "test_foo" in html
-        assert "[hostpath]" in html
-        assert "[ocs-rbd]" in html
+        assert "hostpath" in html
+        assert "ocs-rbd" in html
+        assert "status-passed" in html
+        assert "status-never" in html
 
     def test_annotated_list_appears_in_worst_section(self) -> None:
         """Verify non-2-axis annotated list appears only in worst-status section."""
@@ -1616,11 +1614,11 @@ class TestAnnotatedList:
         )
         parts = _render_annotated_list(summary=summary, esc=html_mod.escape)
         html = "\n".join(parts)
-        assert "FAILED (Product Bug)" in html
-        assert "badge-failed" in html
-        assert "badge-passed" in html
-        assert "param-group" in html
-        assert "param-variant" in html
+        # Horizontal table shows defect label in cell (same as 2-axis matrix)
+        assert "Product Bug" in html
+        assert "status-failed" in html
+        assert "status-passed" in html
+        assert "matrix-table" in html
 
     def test_clean_param_display_strips_fixture(self) -> None:
         """Verify fixture suffixes are stripped from param display."""
@@ -1642,13 +1640,18 @@ class TestAnnotatedList:
         assert "\u2014" in result  # em-dash separator
 
     def test_annotated_list_uses_clean_params(self) -> None:
-        """Verify annotated list renders cleaned param names."""
+        """Verify horizontal table renders cleaned param names as headers."""
         summary = ParametrizedTestSummary(
             base_test="tests/net/test_a.py::TestA::test_foo",
             variants=[
                 VariantStatus(
                     params="[#hostpath-csi-basic#-fixture_name0]",
                     status="PASSED",
+                    result=None,
+                ),
+                VariantStatus(
+                    params="[#ocs-rbd#-fixture_name0]",
+                    status="NEVER_EXECUTED",
                     result=None,
                 ),
             ],
@@ -1658,5 +1661,29 @@ class TestAnnotatedList:
         )
         parts = _render_annotated_list(summary=summary, esc=html_mod.escape)
         html = "\n".join(parts)
-        assert "[hostpath-csi-basic]" in html
+        assert "hostpath-csi-basic" in html
         assert "fixture_name0" not in html
+        assert "matrix-table" in html
+
+    def test_annotated_list_fallback_vertical(self) -> None:
+        """Verify >10 variants fall back to vertical badge list."""
+        variants = [
+            VariantStatus(
+                params=f"[param{i}]",
+                status="PASSED",
+                result=None,
+            )
+            for i in range(11)
+        ]
+        summary = ParametrizedTestSummary(
+            base_test="tests/net/test_a.py::TestA::test_many",
+            variants=variants,
+            is_two_axis=False,
+            axis1_values=[],
+            axis2_values=[],
+        )
+        parts = _render_annotated_list(summary=summary, esc=html_mod.escape)
+        html = "\n".join(parts)
+        assert "param-variant" in html
+        assert "badge-passed" in html
+        assert "matrix-table" not in html
