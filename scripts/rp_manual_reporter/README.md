@@ -72,6 +72,12 @@ and populates these attributes automatically:
 |-----------|--------------------------------------|----------------------|
 | `TIER`    | Test tier level                      | `TIER-2`, `TIER-3`   |
 
+### Bundle-to-version derivation
+
+When `--bundle` is provided explicitly, `CNV_XY_VER` is automatically derived
+from the bundle version (e.g., `v4.22.0.rhel9-102` → `4.22`). This override
+takes precedence over any cluster-detected `CNV_XY_VER`.
+
 ### Automatically set
 
 | Attribute    | Description                                        |
@@ -201,7 +207,21 @@ When no `--batch-file` is provided, the tool enters interactive mode:
    | `s` | **Skip** — move to the next test without recording anything  |
    | `q` | **Quit** — stop and push results collected so far            |
 
-4. **Failure comment** — When you mark a test as **failed**, the tool prompts for
+4. **Defect classification** — When you mark a test as **failed**, the tool prompts
+   for a defect type:
+
+   | Code | Defect Type |
+   |------|-------------|
+   | `1` | Product Bug — confirmed defect in the product |
+   | `2` | Automation Bug — test code issue |
+   | `3` | System Issue — environment or infrastructure problem |
+   | `4` | To Investigate — failure not yet analyzed |
+   | `5` | No Defect — false alarm or expected behavior |
+
+   Invalid input is re-prompted until a valid code (1–5) is entered.
+   The defect type is attached to the RP test item as an issue.
+
+5. **Failure comment** — After selecting the defect type, the tool prompts for
    an optional comment (e.g., a bug ID like `CNV-12345` or a brief description).
 
 ---
@@ -268,6 +288,12 @@ No manual work is lost — you never have to re-enter verdicts.
 | `--channel`         | No*      | —               | HCO subscription channel (e.g., `candidate`)          |
 | `--tier`            | No       | —               | Test tier level (e.g., `TIER-2`, `TIER-3`)            |
 | `--batch-file`      | No       | —               | Path to YAML file with pre-recorded results           |
+| `--tests-dir`       | No       | `tests`         | Directory to scan for placeholder tests               |
+| `-m` / `--marker`   | No       | —               | Filter tests by pytest marker expression              |
+| `-k` / `--keyword`  | No       | —               | Filter tests by keyword in node ID                    |
+| `--rp-url`          | No       | env `REPORT_PORTAL_URL`    | ReportPortal base URL              |
+| `--rp-project`      | No       | env `REPORT_PORTAL_PROJECT` | ReportPortal project name         |
+| `--rp-token`        | No       | env `REPORT_PORTAL_TOKEN`  | ReportPortal API token             |
 | `--dry-run`         | No       | `false`         | Preview results without pushing to ReportPortal       |
 
 > **\*** These flags are required when `--from-cluster` is not used. With
