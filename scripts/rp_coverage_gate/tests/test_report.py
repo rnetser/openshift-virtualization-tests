@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import html as html_mod
 import json
 import re
 from datetime import UTC, datetime, timedelta
@@ -18,6 +19,7 @@ from scripts.rp_coverage_gate.report import (
     _group_by_base,
     _matrix_primary_section,
     _parse_two_axis_params,
+    _render_annotated_list,
     analyze_coverage,
     format_html_report,
     format_json_report,
@@ -1512,3 +1514,102 @@ class TestMatrixPrimarySection:
             axis2_values=["b"],
         )
         assert _matrix_primary_section(summary=summary) == "never_executed"
+
+
+class TestAnnotatedList:
+    def test_non_2axis_renders_annotated_list(self) -> None:
+        """Verify non-2-axis parametrized tests render annotated list in HTML."""
+        summary = ParametrizedTestSummary(
+            base_test="tests/net/test_a.py::TestA::test_foo",
+            variants=[
+                VariantStatus(params="[hostpath]", status="PASSED", result=None),
+                VariantStatus(params="[ocs-rbd]", status="NEVER_EXECUTED", result=None),
+            ],
+            is_two_axis=False,
+            axis1_values=[],
+            axis2_values=[],
+        )
+        report = CoverageReport(
+            total_tests=2,
+            automated_count=2,
+            unautomated_count=0,
+            passed=[("tests/net/test_a.py::TestA::test_foo[hostpath]", _make_result(name="t1"))],
+            failed=[],
+            skipped=[],
+            never_executed=["tests/net/test_a.py::TestA::test_foo[ocs-rbd]"],
+            never_executed_automated=["tests/net/test_a.py::TestA::test_foo[ocs-rbd]"],
+            never_executed_manual=[],
+            stale=[],
+            gate_passed=False,
+            gating_never_executed=[],
+            gating_stale=[],
+            quarantined=[],
+            parametrized_summaries={"net": [summary]},
+            team_stats={
+                "net": TeamStats(
+                    total=2,
+                    passed=1,
+                    failed=0,
+                    skipped=0,
+                    never_executed=1,
+                    stale=0,
+                    quarantined=0,
+                    coverage_pct=50.0,
+                ),
+            },
+        )
+        html = format_html_report(report=report, bundle_prefix="v4.22.0", stale_days=30)
+        # Should contain annotated list with badges, NOT a matrix-table
+        assert "<table class='matrix-table'>" not in html
+        assert "badge-passed" in html
+        assert "badge-never" in html
+        assert "test_foo" in html
+        assert "[hostpath]" in html
+        assert "[ocs-rbd]" in html
+
+    def test_annotated_list_appears_in_worst_section(self) -> None:
+        """Verify non-2-axis annotated list appears only in worst-status section."""
+        recent = _recent_iso()
+        report = analyze_coverage(
+            automated_ids=[
+                "tests/net/test_a.py::TestA::test_foo[hostpath]",
+                "tests/net/test_a.py::TestA::test_foo[ocs-rbd]",
+            ],
+            unautomated_ids=[],
+            rp_results={
+                "tests.net.test_a.TestA.test_foo[hostpath]": _make_result(
+                    name="t1",
+                    last_executed=recent,
+                ),
+            },
+        )
+        assert report.parametrized_summaries is not None
+        assert "net" in report.parametrized_summaries
+        summaries = report.parametrized_summaries["net"]
+        assert len(summaries) == 1
+        assert summaries[0].is_two_axis is False
+        # Should be in never_executed section (worst status)
+        assert _matrix_primary_section(summary=summaries[0]) == "never_executed"
+
+    def test_failed_defect_in_annotated_list(self) -> None:
+        """Verify failed variant shows defect abbreviation in annotated list."""
+        summary = ParametrizedTestSummary(
+            base_test="tests/net/test_a.py::TestA::test_foo",
+            variants=[
+                VariantStatus(
+                    params="[hostpath]",
+                    status="FAILED",
+                    result=None,
+                    defect_type="Product Bug",
+                ),
+                VariantStatus(params="[ocs-rbd]", status="PASSED", result=None),
+            ],
+            is_two_axis=False,
+            axis1_values=[],
+            axis2_values=[],
+        )
+        parts = _render_annotated_list(summary=summary, esc=html_mod.escape)
+        html = "\n".join(parts)
+        assert "FAILED (PB)" in html
+        assert "badge-failed" in html
+        assert "badge-passed" in html
