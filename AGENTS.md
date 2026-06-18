@@ -267,3 +267,4 @@ uv run tox -e utilities-unittests
 - [`docs/CODING_AND_STYLE_GUIDE.md`](docs/CODING_AND_STYLE_GUIDE.md) — Detailed coding and style conventions
 - [`docs/CONTRIBUTING.md`](docs/CONTRIBUTING.md) — Contribution guidelines
 - [`tests/network/README.md`](tests/network/README.md) — Network domain knowledge: terminology, naming conventions and functionality.
+- [`docs/flows/`](docs/flows/) — Visual guides to common test flow patterns (VM creation, networking, migration, golden image)

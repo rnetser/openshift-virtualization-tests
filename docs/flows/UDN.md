@@ -31,8 +31,8 @@ flowchart TD
 ```mermaid
 flowchart LR
     NS[Namespace<br>with UDN label] --> UDN[Layer2UserDefinedNetwork<br>primary role]
-    UDN --> VM1[VM-A<br>UDN primary interface]
-    UDN --> VM2[VM-B<br>UDN primary interface]
+    UDN --> VM1[client VM<br>UDN primary interface]
+    UDN --> VM2[server VM<br>UDN primary interface]
     VM1 <-->|L2 connectivity| VM2
 ```
 

@@ -6,13 +6,13 @@ Migration tests verify that VM network connectivity survives live migration to a
 flowchart TD
     subgraph Setup
         A[Create bridge on worker-1 + worker-2] --> B[Create NAD]
-        B --> C[Create VM-A on worker-1]
-        C --> D[Create VM-B on worker-2]
-        D --> E[Verify connectivity VM-A ↔ VM-B]
+        B --> C[Create migrating VM on worker-1]
+        C --> D[Create peer VM on worker-2]
+        D --> E[Verify connectivity migrating VM ↔ peer VM]
     end
 
     subgraph Migration
-        F[migrate_vm_and_verify VM-A] --> G[VM-A moves to worker-2]
+        F[migrate_vm_and_verify migrating VM] --> G[migrating VM moves to worker-2]
         G --> H[Verify connectivity still works]
     end
 

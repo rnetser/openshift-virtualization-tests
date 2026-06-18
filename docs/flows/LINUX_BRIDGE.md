@@ -31,12 +31,12 @@ flowchart TD
 flowchart LR
     NNCP[NNCP<br>creates bridge on nodes] --> Bridge[Linux Bridge<br>on host]
     Bridge --> NAD[NAD<br>references bridge]
-    NAD --> VM1[VM-A eth1<br>bridge interface]
-    NAD --> VM2[VM-B eth1<br>bridge interface]
+    NAD --> VM1[client VM eth1<br>bridge interface]
+    NAD --> VM2[server VM eth1<br>bridge interface]
     VM1 <--> |L2 connectivity| VM2
 ```
 
-## Typical Fixture Stack
+## Resource Dependency Chain
 
 ```mermaid
 flowchart TD

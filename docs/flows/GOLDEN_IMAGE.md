@@ -21,7 +21,7 @@ flowchart TD
     F3 --> G3[Run test, destroy VM]
 ```
 
-## Fixture Hierarchy
+## Resource Lifecycle
 
 ```mermaid
 flowchart TD
