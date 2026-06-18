@@ -1610,7 +1610,18 @@ function openTab(evt, tabName) {
 
         # FAILED section for this team
         team_failed = failed_by_team.get(team, [])
-        if team_failed:
+
+        # Pre-compute failed variants from tests owned by other sections
+        cross_section_failed: list[tuple[str, ItemResult]] = []
+        for summary in team_summaries:
+            owner = param_owners.get(summary.base_test)
+            if owner and owner != "failed":
+                for variant in summary.variants:
+                    if variant.status == "FAILED" and variant.result:
+                        node_id = f"{summary.base_test}{variant.params}"
+                        cross_section_failed.append((node_id, variant.result))
+
+        if team_failed or cross_section_failed:
             parts.append("<details open class='section-failed'>")
             parts.append(
                 f"<summary>FAILED TESTS ({len(team_failed)}) <small class='section-desc'>— Tests whose most recent result across all launches is FAILED</small></summary>"
@@ -1639,14 +1650,19 @@ function openTab(evt, tabName) {
 
             for group_name, group_items in sorted_groups:
                 parts.append(f"<div class='defect-group'>{esc(group_name)} ({len(group_items)}):</div>")
-                parts.append("<table><tr><th>Test</th><th>Bundle</th><th>Date</th><th>Source</th><th>Comment</th></tr>")
+                parts.append(
+                    "<table><tr><th>Test</th><th>Bundle</th><th>Date</th><th>Source</th><th>Defect</th><th>Comment</th></tr>"
+                )
                 for node_id, result in group_items:
                     base, _ = _split_params(node_id=node_id)
                     if base in param_bases:
                         continue
                     raw_comment = result.defect_comment or ""
+                    defect_cell = f"<td>{html_mod.escape(s=result.defect_type or '')}</td>"
                     comment = html_mod.escape(s=raw_comment)
-                    parts.append(_result_row(node_id=node_id, result=result, extra_col=f"<td>{comment}</td>"))
+                    parts.append(
+                        _result_row(node_id=node_id, result=result, extra_col=f"{defect_cell}<td>{comment}</td>")
+                    )
                 parts.append("</table>")
             # Render full matrices whose primary section is "failed"
             for summary in team_summaries:
@@ -1655,6 +1671,16 @@ function openTab(evt, tabName) {
                         parts.extend(_render_html_matrix(summary=summary, esc=esc))
                     else:
                         parts.extend(_render_annotated_list(summary=summary, esc=esc))
+            if cross_section_failed:
+                parts.append("<div class='defect-group'>Additional failed variants:</div>")
+                parts.append(
+                    "<table><tr><th>Test</th><th>Bundle</th><th>Date</th><th>Source</th><th>Defect</th><th>Comment</th></tr>"
+                )
+                for node_id, result in sorted(cross_section_failed, key=lambda e: e[0]):
+                    defect_cell = f"<td>{html_mod.escape(s=result.defect_type or '')}</td>"
+                    comment_cell = f"<td>{html_mod.escape(s=(result.defect_comment or '')[:200])}</td>"
+                    parts.append(_result_row(node_id=node_id, result=result, extra_col=f"{defect_cell}{comment_cell}"))
+                parts.append("</table>")
             parts.append("</details>")
 
         # QUARANTINED section for this team
