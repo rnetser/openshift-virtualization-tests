@@ -14,7 +14,7 @@ from typing import Any
 
 import requests
 
-from scripts.rp_utils.rp_client import RPClient
+from scripts.reportportal.rp_utils.rp_client import RPClient
 
 LOGGER = logging.getLogger(__name__)
 

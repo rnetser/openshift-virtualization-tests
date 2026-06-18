@@ -89,7 +89,7 @@ takes precedence over any cluster-detected `CNV_XY_VER`.
 If you don't have access to the cluster, provide all required attributes as CLI flags:
 
 ```bash
-uv run python -m scripts.rp_manual_reporter.rp_manual_reporter \
+uv run python -m scripts.reportportal.rp_manual_reporter.rp_manual_reporter \
     --bundle v4.22.0-test \
     --ocp-version 4.19.0 \
     --cnv-version 4.22 \
@@ -114,7 +114,7 @@ Auto-fill environment attributes from the connected cluster. Team is
 auto-inferred from `--tests-dir`:
 
 ```bash
-uv run python -m scripts.rp_manual_reporter.rp_manual_reporter \
+uv run python -m scripts.reportportal.rp_manual_reporter.rp_manual_reporter \
     --from-cluster \
     --bundle v4.22.0-test \
     --tests-dir tests/network/
@@ -125,7 +125,7 @@ uv run python -m scripts.rp_manual_reporter.rp_manual_reporter \
 Provide environment attributes manually when no cluster is connected:
 
 ```bash
-uv run python -m scripts.rp_manual_reporter.rp_manual_reporter \
+uv run python -m scripts.reportportal.rp_manual_reporter.rp_manual_reporter \
     --bundle v4.22.0-test \
     --ocp-version 4.19.0 \
     --cnv-version 4.22 \
@@ -143,7 +143,7 @@ Submit pre-recorded results from a YAML file instead of going through
 the interactive prompt:
 
 ```bash
-uv run python -m scripts.rp_manual_reporter.rp_manual_reporter \
+uv run python -m scripts.reportportal.rp_manual_reporter.rp_manual_reporter \
     --team NETWORK --bundle v4.22.0 --batch-file results.yaml
 ```
 
@@ -152,7 +152,7 @@ uv run python -m scripts.rp_manual_reporter.rp_manual_reporter \
 Scan only a specific team's tests (team is auto-inferred from path):
 
 ```bash
-uv run python -m scripts.rp_manual_reporter.rp_manual_reporter \
+uv run python -m scripts.reportportal.rp_manual_reporter.rp_manual_reporter \
     --tests-dir tests/network/ --bundle v4.22.0
 ```
 
@@ -161,7 +161,7 @@ uv run python -m scripts.rp_manual_reporter.rp_manual_reporter \
 Collect only gating-marked placeholder tests:
 
 ```bash
-uv run python -m scripts.rp_manual_reporter.rp_manual_reporter \
+uv run python -m scripts.reportportal.rp_manual_reporter.rp_manual_reporter \
     --bundle v4.22.0 -m gating
 ```
 
@@ -170,7 +170,7 @@ uv run python -m scripts.rp_manual_reporter.rp_manual_reporter \
 Collect only tests matching a keyword in the node ID:
 
 ```bash
-uv run python -m scripts.rp_manual_reporter.rp_manual_reporter \
+uv run python -m scripts.reportportal.rp_manual_reporter.rp_manual_reporter \
     --bundle v4.22.0 -k test_connectivity
 ```
 
@@ -179,7 +179,7 @@ uv run python -m scripts.rp_manual_reporter.rp_manual_reporter \
 Preview what would be reported without pushing anything to ReportPortal:
 
 ```bash
-uv run python -m scripts.rp_manual_reporter.rp_manual_reporter \
+uv run python -m scripts.reportportal.rp_manual_reporter.rp_manual_reporter \
     --bundle v4.22.0 --dry-run
 ```
 
@@ -264,7 +264,7 @@ If the push to ReportPortal fails (network error, token expiry, server outage):
 
 2. **Retry** — Once the issue is resolved, replay the saved results:
    ```bash
-   uv run python -m scripts.rp_manual_reporter.rp_manual_reporter \
+   uv run python -m scripts.reportportal.rp_manual_reporter.rp_manual_reporter \
        --team STORAGE --bundle v4.22.0 --batch-file manual_results_20250612_143022.yaml
    ```
 

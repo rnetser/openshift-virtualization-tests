@@ -21,12 +21,12 @@ import requests
 import yaml
 from simple_logger.logger import get_logger
 
-from scripts.rp_manual_reporter.collector import (
+from scripts.reportportal.rp_manual_reporter.collector import (
     PlaceholderTestDetail,
     collect_placeholder_details,
     node_id_to_rp_name,
 )
-from scripts.rp_utils.rp_client import RPClient
+from scripts.reportportal.rp_utils.rp_client import RPClient
 
 LOGGER = get_logger(name=__name__)
 
@@ -510,7 +510,7 @@ def main(
     # ── 1. Resolve cluster attributes ──
     cluster_attrs: list[dict[str, str]] | None = None
     if from_cluster:
-        from scripts.rp_manual_reporter.cluster_info import (  # noqa: PLC0415
+        from scripts.reportportal.rp_manual_reporter.cluster_info import (  # noqa: PLC0415
             cluster_attributes_to_launch_attrs,
             get_cluster_attributes,
         )

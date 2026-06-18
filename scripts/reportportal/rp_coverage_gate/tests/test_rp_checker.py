@@ -1,5 +1,5 @@
 # Co-authored-by: Claude <noreply@anthropic.com>
-"""Tests for scripts.rp_coverage_gate.rp_checker module."""
+"""Tests for scripts.reportportal.rp_coverage_gate.rp_checker module."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ from unittest.mock import MagicMock
 import pytest
 import requests
 
-from scripts.rp_coverage_gate.rp_checker import _classify_defect, _extract_attribute, check_coverage
+from scripts.reportportal.rp_coverage_gate.rp_checker import _classify_defect, _extract_attribute, check_coverage
 
 
 class TestExtractAttribute:

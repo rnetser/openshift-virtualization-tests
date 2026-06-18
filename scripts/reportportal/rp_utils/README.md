@@ -13,7 +13,7 @@ Thread-safe HTTP client for the ReportPortal REST API. Handles authentication,
 pagination, and launch/item CRUD operations.
 
 ```python
-from scripts.rp_utils.rp_client import RPClient
+from scripts.reportportal.rp_utils.rp_client import RPClient
 
 client = RPClient(
     base_url="https://reportportal.example.com",
@@ -51,7 +51,7 @@ using the RP filter API. Page size defaults to 300 items.
 Converts pytest node IDs to ReportPortal test item names.
 
 ```python
-from scripts.rp_utils.naming import node_id_to_rp_name
+from scripts.reportportal.rp_utils.naming import node_id_to_rp_name
 
 rp_name = node_id_to_rp_name(node_id="tests/network/test_foo.py::TestBar::test_baz[param1]")
 # Returns: "tests.network.test_foo.TestBar.test_baz[param1]"

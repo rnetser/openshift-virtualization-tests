@@ -1,5 +1,5 @@
 # Co-authored-by: Claude <noreply@anthropic.com>
-"""Tests for scripts.rp_utils.rp_client module."""
+"""Tests for scripts.reportportal.rp_utils.rp_client module."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 import requests
 
-from scripts.rp_utils.rp_client import RPClient, _utc_now_iso
+from scripts.reportportal.rp_utils.rp_client import RPClient, _utc_now_iso
 
 
 @pytest.fixture()

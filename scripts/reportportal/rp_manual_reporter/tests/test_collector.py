@@ -1,5 +1,5 @@
 # Co-authored-by: Claude <noreply@anthropic.com>
-"""Tests for scripts.rp_manual_reporter.collector module."""
+"""Tests for scripts.reportportal.rp_manual_reporter.collector module."""
 
 from __future__ import annotations
 
@@ -11,11 +11,11 @@ from unittest.mock import patch
 
 import pytest
 
-from scripts.rp_manual_reporter.cluster_info import (
+from scripts.reportportal.rp_manual_reporter.cluster_info import (
     ClusterAttributes,
     cluster_attributes_to_launch_attrs,
 )
-from scripts.rp_manual_reporter.collector import (
+from scripts.reportportal.rp_manual_reporter.collector import (
     PlaceholderTestDetail,
     _extract_docstring,
     _extract_markers,
@@ -28,7 +28,7 @@ from scripts.rp_manual_reporter.collector import (
     collect_placeholder_details,
     node_id_to_rp_name,
 )
-from scripts.rp_manual_reporter.rp_manual_reporter import _build_launch_attributes
+from scripts.reportportal.rp_manual_reporter.rp_manual_reporter import _build_launch_attributes
 
 
 class TestNodeIdToRpName:

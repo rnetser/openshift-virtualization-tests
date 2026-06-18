@@ -13,7 +13,7 @@ import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from scripts.rp_utils.naming import node_id_to_rp_name
+from scripts.reportportal.rp_utils.naming import node_id_to_rp_name
 
 LOGGER = logging.getLogger(__name__)
 

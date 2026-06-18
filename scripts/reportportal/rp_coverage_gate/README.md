@@ -145,13 +145,13 @@ Class-level quarantine markers expand to all `test_*` methods in the class.
 ### Basic text report
 
 ```bash
-uv run python -m scripts.rp_coverage_gate.rp_coverage_gate --bundle v4.22.0
+uv run python -m scripts.reportportal.rp_coverage_gate.rp_coverage_gate --bundle v4.22.0
 ```
 
 ### HTML report with exclusions
 
 ```bash
-uv run python -m scripts.rp_coverage_gate.rp_coverage_gate \
+uv run python -m scripts.reportportal.rp_coverage_gate.rp_coverage_gate \
   --bundle v4.22.0 \
   --output-format html \
   --exclude-team chaos \
@@ -164,7 +164,7 @@ uv run python -m scripts.rp_coverage_gate.rp_coverage_gate \
 ### Specific team with custom stale threshold
 
 ```bash
-uv run python -m scripts.rp_coverage_gate.rp_coverage_gate \
+uv run python -m scripts.reportportal.rp_coverage_gate.rp_coverage_gate \
   --bundle v4.22.0 \
   --team network \
   --stale-days 60
@@ -175,21 +175,21 @@ uv run python -m scripts.rp_coverage_gate.rp_coverage_gate \
 Preview test inventory without querying ReportPortal:
 
 ```bash
-uv run python -m scripts.rp_coverage_gate.rp_coverage_gate \
+uv run python -m scripts.reportportal.rp_coverage_gate.rp_coverage_gate \
   --bundle v4.22.0 --dry-run
 ```
 
 ### Limit launches for faster iteration
 
 ```bash
-uv run python -m scripts.rp_coverage_gate.rp_coverage_gate \
+uv run python -m scripts.reportportal.rp_coverage_gate.rp_coverage_gate \
   --bundle v4.22.0 --max-launches 200
 ```
 
 ### JSON output for CI integration
 
 ```bash
-uv run python -m scripts.rp_coverage_gate.rp_coverage_gate \
+uv run python -m scripts.reportportal.rp_coverage_gate.rp_coverage_gate \
   --bundle v4.22.0 --output-format json > coverage.json
 ```
 

@@ -1,12 +1,12 @@
 # Co-authored-by: Claude <noreply@anthropic.com>
-"""Tests for scripts.rp_coverage_gate.test_collector quarantine scanning."""
+"""Tests for scripts.reportportal.rp_coverage_gate.test_collector quarantine scanning."""
 
 from __future__ import annotations
 
 import textwrap
 from pathlib import Path
 
-from scripts.rp_coverage_gate.test_collector import scan_quarantined_tests
+from scripts.reportportal.rp_coverage_gate.test_collector import scan_quarantined_tests
 
 
 class TestScanQuarantinedTests:

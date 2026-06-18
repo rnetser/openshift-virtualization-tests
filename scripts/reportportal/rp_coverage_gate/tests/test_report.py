@@ -1,5 +1,5 @@
 # Co-authored-by: Claude <noreply@anthropic.com>
-"""Tests for scripts.rp_coverage_gate.report module."""
+"""Tests for scripts.reportportal.rp_coverage_gate.report module."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
-from scripts.rp_coverage_gate.report import (
+from scripts.reportportal.rp_coverage_gate.report import (
     CoverageReport,
     ParametrizedTestSummary,
     TeamStats,
@@ -28,8 +28,8 @@ from scripts.rp_coverage_gate.report import (
     format_json_report,
     format_text_report,
 )
-from scripts.rp_coverage_gate.rp_checker import ItemResult
-from scripts.rp_coverage_gate.test_collector import QuarantinedTest, _parse_pytest_collect_output
+from scripts.reportportal.rp_coverage_gate.rp_checker import ItemResult
+from scripts.reportportal.rp_coverage_gate.test_collector import QuarantinedTest, _parse_pytest_collect_output
 
 
 def _make_result(

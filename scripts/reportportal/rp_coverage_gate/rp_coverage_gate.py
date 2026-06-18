@@ -21,15 +21,15 @@ from typing import Any
 import click
 from simple_logger.logger import get_logger
 
-from scripts.rp_coverage_gate.report import (
+from scripts.reportportal.rp_coverage_gate.report import (
     analyze_coverage,
     format_html_report,
     format_json_report,
     format_text_report,
 )
-from scripts.rp_coverage_gate.rp_checker import check_coverage
-from scripts.rp_coverage_gate.test_collector import collect_all_tests, scan_quarantined_tests
-from scripts.rp_utils.rp_client import RPClient
+from scripts.reportportal.rp_coverage_gate.rp_checker import check_coverage
+from scripts.reportportal.rp_coverage_gate.test_collector import collect_all_tests, scan_quarantined_tests
+from scripts.reportportal.rp_utils.rp_client import RPClient
 
 LOGGER = get_logger(name=__name__)
 
@@ -45,10 +45,10 @@ Exit codes: 0 = pass, 1 = gaps found, 2 = error
 
 \b
 Examples:
-    uv run python -m scripts.rp_coverage_gate.rp_coverage_gate --bundle v4.22.0
-    uv run python -m scripts.rp_coverage_gate.rp_coverage_gate --bundle v4.22.0 --team network
-    uv run python -m scripts.rp_coverage_gate.rp_coverage_gate --bundle v4.22.0 --output-format json
-    uv run python -m scripts.rp_coverage_gate.rp_coverage_gate --bundle v4.22.0 --full
+    uv run python -m scripts.reportportal.rp_coverage_gate.rp_coverage_gate --bundle v4.22.0
+    uv run python -m scripts.reportportal.rp_coverage_gate.rp_coverage_gate --bundle v4.22.0 --team network
+    uv run python -m scripts.reportportal.rp_coverage_gate.rp_coverage_gate --bundle v4.22.0 --output-format json
+    uv run python -m scripts.reportportal.rp_coverage_gate.rp_coverage_gate --bundle v4.22.0 --full
     """,
 )
 @click.option("--bundle", type=str, required=True, help="Bundle version prefix (e.g., v4.22.0)")

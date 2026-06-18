@@ -14,9 +14,9 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
 
-from scripts.rp_coverage_gate.rp_checker import ItemResult
-from scripts.rp_coverage_gate.test_collector import QuarantinedTest
-from scripts.rp_utils.naming import node_id_to_rp_name
+from scripts.reportportal.rp_coverage_gate.rp_checker import ItemResult
+from scripts.reportportal.rp_coverage_gate.test_collector import QuarantinedTest
+from scripts.reportportal.rp_utils.naming import node_id_to_rp_name
 
 LOGGER = logging.getLogger(__name__)
 
