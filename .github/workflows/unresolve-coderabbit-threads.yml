@@ -66,7 +66,7 @@ jobs:
                   (.author.login == $pr_author and ((.body // "") | length) >= 15)
                   or
                   # CodeRabbit verified the fix
-                  (.author.login == $bot_login and .author.__typename == $bot_type and ((.body // "") | test("addressed|verified|resolved|✅|concern is fully"; "i")))
+                  (.author.login == $bot_login and .author.__typename == $bot_type and ((.body // "") | test("\\b(addressed|verified|resolved)\\b|✅|concern is fully"; "i")))
                 )
               )
             ')
