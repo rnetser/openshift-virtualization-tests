@@ -2276,6 +2276,22 @@ class TestExtractDeletedSymbolsFromDiff:
         result = _extract_deleted_symbols_from_diff(diff_content=diff)
         assert result == {"old_func"}
 
+    def test_deleted_class_member_collides_with_toplevel(self) -> None:
+        """Deleted class members are returned as bare names, which may collide with unrelated top-level symbols."""
+        diff = (
+            "@@ -1,6 +1,0 @@\n"
+            "-class OldHelper:\n"
+            "-    def setup(self):\n"
+            "-        pass\n"
+            "-    def teardown(self):\n"
+            "-        pass\n"
+        )
+        result = _extract_deleted_symbols_from_diff(diff_content=diff)
+        # Both the class and its members are extracted as independent symbols.
+        # "setup" and "teardown" could collide with unrelated top-level fixtures,
+        # causing broader test selection — acceptable over-reporting for safety.
+        assert result == {"OldHelper", "setup", "teardown"}
+
 
 class TestPureDeletionSymbolNarrowing:
     """Tests that pure-deletion diffs enable symbol-level narrowing."""

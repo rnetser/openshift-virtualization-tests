@@ -1843,8 +1843,11 @@ def _extract_modified_symbols(
                     "'",
                     "if TYPE_CHECKING:",
                     "if typing.TYPE_CHECKING:",
-                    ")",  # Closing paren of multi-line import; safe because
-                    # the opening line (e.g. "setup(") would trigger fallback.
+                    ")",  # Closing paren of multi-line import/expression.
+                    # If the opening line (e.g. "setup(") is also changed,
+                    # it triggers fallback before we reach ")".  A standalone
+                    # ")" diff without its opener is rare but possible (e.g.
+                    # reformatting); accepted as low-risk over-narrowing.
                     "__all__",
                 )):
                     has_unattributed = True
@@ -1852,6 +1855,12 @@ def _extract_modified_symbols(
                     # Import continuation line (e.g. "TIMEOUT_2MIN," inside
                     # a multi-line "from ... import (...)" block).
                     # Trailing comma is required to avoid matching bare identifiers.
+                    # NOTE: This also matches identifiers inside module-level tuples/lists
+                    # (e.g. "HandlerA," in a registry tuple).  In practice, such
+                    # constructs are ast.Assign nodes whose line ranges are tracked
+                    # in the symbol map, so their inner lines are attributed before
+                    # reaching this branch.  The regex only fires for truly
+                    # unattributed lines (outside all symbol ranges).
                     has_unattributed = True
                 else:
                     # Executable module-level code — conservative fallback
