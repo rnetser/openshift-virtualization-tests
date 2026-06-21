@@ -22,6 +22,7 @@ from scripts.tests_analyzer.pytest_marker_analyzer import (
     _collect_test_attribute_accesses,
     _collect_test_function_calls,
     _expand_modified_members_transitively,
+    _extract_deleted_symbols_from_diff,
     _extract_modified_items_from_conftest,
     _extract_modified_symbols,
     _get_modified_function_names,
@@ -1137,8 +1138,8 @@ class TestExtractModifiedSymbolsUnattributed:
 
         assert result is None
 
-    def test_pure_deletion_still_returns_none(self, tmp_path: Path) -> None:
-        """When diff is pure deletion (no added lines), still returns None."""
+    def test_pure_deletion_returns_empty_classification(self, tmp_path: Path) -> None:
+        """When diff is pure deletion of non-symbol lines, returns empty SymbolClassification."""
         file_path = tmp_path / "module.py"
         file_path.write_text("def foo(): pass\n")
 
@@ -1156,8 +1157,9 @@ class TestExtractModifiedSymbolsUnattributed:
                 github_pr_info=None,
             )
 
-        # Pure deletion should return None (conservative fallback)
-        assert result is None
+        # Pure deletion now returns SymbolClassification (not None) to enable symbol narrowing
+        assert result is not None
+        assert result.modified_symbols == set()  # No def/class in deleted lines
 
     def test_executable_module_level_code_returns_none(self, tmp_path: Path) -> None:
         """When unmapped line is executable code (e.g. function call), returns None (conservative)."""
@@ -2228,3 +2230,380 @@ class TestCheckConftestPathwayTransitive:
         )
         assert len(matching_deps) == 1
         assert "lookup_iface_status" in matching_deps[0]
+
+
+class TestExtractDeletedSymbolsFromDiff:
+    """Tests for _extract_deleted_symbols_from_diff extracting function/class names."""
+
+    def test_deleted_function(self) -> None:
+        """Detects deleted function definitions."""
+        diff = (
+            "@@ -10,5 +10,0 @@\n"
+            "-def skip_no_reencrypt_route(upload_proxy_route):\n"
+            "-    if upload_proxy_route.termination != 'reencrypt':\n"
+            "-        pytest.skip('Skip testing.')\n"
+        )
+        result = _extract_deleted_symbols_from_diff(diff_content=diff)
+        assert result == {"skip_no_reencrypt_route"}
+
+    def test_deleted_async_function(self) -> None:
+        """Detects deleted async function definitions."""
+        diff = "@@ -1,3 +1,0 @@\n-async def fetch_data(url):\n-    return await get(url)\n"
+        result = _extract_deleted_symbols_from_diff(diff_content=diff)
+        assert result == {"fetch_data"}
+
+    def test_deleted_class_and_members(self) -> None:
+        """Deleted class and its member methods are both extracted as symbols."""
+        diff = "@@ -1,4 +1,0 @@\n-class OldHelper:\n-    def method(self):\n-        pass\n"
+        result = _extract_deleted_symbols_from_diff(diff_content=diff)
+        assert result == {"OldHelper", "method"}
+
+    def test_no_deletions_returns_empty(self) -> None:
+        """No deletion lines produces empty set."""
+        diff = "@@ -1,2 +1,3 @@\n context\n+new_line\n context\n"
+        result = _extract_deleted_symbols_from_diff(diff_content=diff)
+        assert result == set()
+
+    def test_file_header_not_matched(self) -> None:
+        """--- file header is not treated as a deletion."""
+        diff = "--- a/old_file.py\n+++ b/new_file.py\n@@ -1,1 +1,1 @@\n-old_content\n+new_content\n"
+        result = _extract_deleted_symbols_from_diff(diff_content=diff)
+        assert result == set()
+
+    def test_mixed_deletions_and_additions(self) -> None:
+        """Only deleted symbol definitions are captured, not added ones."""
+        diff = "@@ -1,4 +1,4 @@\n-def old_func():\n-    pass\n+def new_func():\n+    pass\n"
+        result = _extract_deleted_symbols_from_diff(diff_content=diff)
+        assert result == {"old_func"}
+
+
+class TestPureDeletionSymbolNarrowing:
+    """Tests that pure-deletion diffs enable symbol-level narrowing."""
+
+    def test_pure_deletion_returns_classification_not_none(self, tmp_path: Path) -> None:
+        """When a diff only deletes a function, returns SymbolClassification with the deleted symbol."""
+        source = textwrap.dedent("""\
+            import pytest
+
+            def remaining_func():
+                pass
+        """)
+        file_path = tmp_path / "module.py"
+        file_path.write_text(source)
+
+        # Diff that only deletes a function (no additions)
+        diff_content = "@@ -3,4 +3,0 @@\n-def deleted_func():\n-    if True:\n-        pytest.skip()\n"
+        mock_result = type("Result", (), {"returncode": 0, "stdout": diff_content, "stderr": ""})()
+        with patch(
+            "scripts.tests_analyzer.pytest_marker_analyzer.subprocess.run",
+            return_value=mock_result,
+        ):
+            result = _extract_modified_symbols(
+                file_path=file_path,
+                base_branch="main",
+                repo_root=tmp_path,
+                github_pr_info=None,
+            )
+
+        assert result is not None, "Should return SymbolClassification, not None (was the old bug)"
+        assert result.modified_symbols == {"deleted_func"}
+        assert result.new_symbols == set()
+
+    def test_pure_deletion_no_symbols_returns_empty_classification(self, tmp_path: Path) -> None:
+        """When a diff deletes only non-symbol lines, returns empty classification."""
+        source = textwrap.dedent("""\
+            import os
+
+            def my_func():
+                pass
+        """)
+        file_path = tmp_path / "module.py"
+        file_path.write_text(source)
+
+        # Diff that deletes only a comment/blank line (no function/class defs)
+        diff_content = "@@ -1,2 +1,1 @@\n-# old comment\n"
+        mock_result = type("Result", (), {"returncode": 0, "stdout": diff_content, "stderr": ""})()
+        with patch(
+            "scripts.tests_analyzer.pytest_marker_analyzer.subprocess.run",
+            return_value=mock_result,
+        ):
+            result = _extract_modified_symbols(
+                file_path=file_path,
+                base_branch="main",
+                repo_root=tmp_path,
+                github_pr_info=None,
+            )
+
+        assert result is not None, "Should return SymbolClassification, not None"
+        assert result.modified_symbols == set()
+
+
+class TestTypeCheckingLineSafety:
+    """Tests that if TYPE_CHECKING: lines are treated as safe unmapped lines."""
+
+    def test_type_checking_guard_is_safe(self, tmp_path: Path) -> None:
+        """if TYPE_CHECKING: line should NOT cause conservative fallback."""
+        source = textwrap.dedent("""\
+            from __future__ import annotations
+
+            from typing import TYPE_CHECKING
+
+            if TYPE_CHECKING:
+                from some_module import SomeType
+
+            CONSTANT = 42
+
+            def my_func():
+                pass
+        """)
+        file_path = tmp_path / "module.py"
+        file_path.write_text(source)
+
+        # Diff that adds TYPE_CHECKING guard (lines 3-6 are additions)
+        diff_content = (
+            "@@ -1,2 +1,7 @@\n"
+            " from __future__ import annotations\n"
+            " \n"
+            "+from typing import TYPE_CHECKING\n"
+            "+\n"
+            "+if TYPE_CHECKING:\n"
+            "+    from some_module import SomeType\n"
+            "+\n"
+        )
+        mock_result = type("Result", (), {"returncode": 0, "stdout": diff_content, "stderr": ""})()
+        with patch(
+            "scripts.tests_analyzer.pytest_marker_analyzer.subprocess.run",
+            return_value=mock_result,
+        ):
+            result = _extract_modified_symbols(
+                file_path=file_path,
+                base_branch="main",
+                repo_root=tmp_path,
+                github_pr_info=None,
+            )
+
+        assert result is not None, (
+            "Should return SymbolClassification, not None \u2014 if TYPE_CHECKING: should be treated as safe"
+        )
+        assert result.has_unattributed_changes is True
+
+    def test_typing_type_checking_guard_is_safe(self, tmp_path: Path) -> None:
+        """if typing.TYPE_CHECKING: line should NOT cause conservative fallback."""
+        source = textwrap.dedent("""\
+            import typing
+
+            if typing.TYPE_CHECKING:
+                from some_module import SomeType
+
+            def my_func():
+                pass
+        """)
+        file_path = tmp_path / "module.py"
+        file_path.write_text(source)
+
+        diff_content = (
+            "@@ -1,1 +1,5 @@\n+import typing\n+\n+if typing.TYPE_CHECKING:\n+    from some_module import SomeType\n+\n"
+        )
+        mock_result = type("Result", (), {"returncode": 0, "stdout": diff_content, "stderr": ""})()
+        with patch(
+            "scripts.tests_analyzer.pytest_marker_analyzer.subprocess.run",
+            return_value=mock_result,
+        ):
+            result = _extract_modified_symbols(
+                file_path=file_path,
+                base_branch="main",
+                repo_root=tmp_path,
+                github_pr_info=None,
+            )
+
+        assert result is not None, (
+            "Should return SymbolClassification, not None \u2014 if typing.TYPE_CHECKING: should be treated as safe"
+        )
+        assert result.has_unattributed_changes is True
+
+
+class TestDecoratorLineRange:
+    """Tests that decorator lines are included in symbol line ranges."""
+
+    def test_function_with_decorators_includes_decorator_lines(self) -> None:
+        """Decorator lines are included in the function's line range."""
+        source = "@pytest.mark.smoke\n@pytest.mark.s390x\ndef test_something():\n    pass\n"
+        symbol_map = _build_line_to_symbol_map(source=source)
+        # Decorator at line 1 should be included in the range
+        assert symbol_map.top_level[0] == (1, 4, "test_something"), (
+            "Function range should start at first decorator line"
+        )
+
+    def test_class_with_decorators_includes_decorator_lines(self) -> None:
+        """Decorator lines are included in the class's line range."""
+        source = "@pytest.mark.polarion('CNV-1234')\nclass TestFoo:\n    def test_bar(self):\n        pass\n"
+        symbol_map = _build_line_to_symbol_map(source=source)
+        assert symbol_map.top_level[0] == (1, 4, "TestFoo"), "Class range should start at first decorator line"
+
+    def test_function_without_decorators_unchanged(self) -> None:
+        """Functions without decorators start at def keyword."""
+        source = "def plain_function():\n    return 1\n"
+        symbol_map = _build_line_to_symbol_map(source=source)
+        assert symbol_map.top_level[0] == (1, 2, "plain_function"), (
+            "Function without decorators should start at def line"
+        )
+
+    def test_class_member_with_decorator_includes_decorator_lines(self) -> None:
+        """Class member decorator lines are included in member line range."""
+        source = "class Foo:\n    @pytest.fixture\n    def my_fixture(self):\n        return 1\n"
+        symbol_map = _build_line_to_symbol_map(source=source)
+        members = symbol_map.class_members["Foo"].members
+        assert members["my_fixture"] == (2, 4), "Member range should start at decorator line"
+
+    def test_decorator_change_maps_to_function(self, tmp_path: Path) -> None:
+        """Decorator-only diff change maps to the decorated function."""
+        source = (
+            "import pytest\n"
+            "\n"
+            "@pytest.mark.smoke\n"
+            "@pytest.mark.s390x\n"
+            "def test_something():\n"
+            "    pass\n"
+            "\n"
+            "def test_other():\n"
+            "    pass\n"
+        )
+        diff = (
+            "--- a/tests/example/test_file.py\n"
+            "+++ b/tests/example/test_file.py\n"
+            "@@ -3,6 +3,7 @@\n"
+            " @pytest.mark.smoke\n"
+            "+@pytest.mark.s390x\n"
+            " def test_something():\n"
+            "     pass\n"
+        )
+        source_file = tmp_path / "tests" / "example" / "test_file.py"
+        source_file.parent.mkdir(parents=True, exist_ok=True)
+        source_file.write_text(source)
+
+        with (
+            patch(
+                "scripts.tests_analyzer.pytest_marker_analyzer._get_diff_content",
+                return_value=diff,
+            ),
+            patch(
+                "scripts.tests_analyzer.pytest_marker_analyzer._fetch_file_at_ref",
+                return_value=source,
+            ),
+        ):
+            result = _extract_modified_symbols(
+                file_path=source_file,
+                base_branch="main",
+                repo_root=tmp_path,
+                github_pr_info=None,
+            )
+        assert result is not None, "Should return SymbolClassification, not None"
+        assert "test_something" in result.modified_symbols, "Decorator change should map to test_something"
+        assert "test_other" not in result.modified_symbols, "Unmodified function should not be in modified symbols"
+
+
+class TestImportContinuationSafety:
+    """Tests that multi-line import continuation lines are treated as safe."""
+
+    def test_import_continuation_line_is_safe(self, tmp_path: Path) -> None:
+        """Import continuation lines do not trigger conservative fallback."""
+        source = (
+            "from utilities.constants import (\n"
+            "    TIMEOUT_1MIN,\n"
+            "    TIMEOUT_2MIN,\n"
+            ")\n"
+            "\n"
+            "def existing_func():\n"
+            "    pass\n"
+        )
+        diff = (
+            "--- a/utilities/example.py\n"
+            "+++ b/utilities/example.py\n"
+            "@@ -1,3 +1,4 @@\n"
+            " from utilities.constants import (\n"
+            "     TIMEOUT_1MIN,\n"
+            "+    TIMEOUT_2MIN,\n"
+            " )\n"
+        )
+        source_file = tmp_path / "utilities" / "example.py"
+        source_file.parent.mkdir(parents=True, exist_ok=True)
+        source_file.write_text(source)
+
+        with (
+            patch(
+                "scripts.tests_analyzer.pytest_marker_analyzer._get_diff_content",
+                return_value=diff,
+            ),
+            patch(
+                "scripts.tests_analyzer.pytest_marker_analyzer._fetch_file_at_ref",
+                return_value=source,
+            ),
+        ):
+            result = _extract_modified_symbols(
+                file_path=source_file,
+                base_branch="main",
+                repo_root=tmp_path,
+                github_pr_info=None,
+            )
+        assert result is not None, "Import continuation should not trigger file-level fallback"
+        assert result.has_unattributed_changes is True
+        assert result.modified_symbols == set()
+
+    def test_import_continuation_with_alias(self, tmp_path: Path) -> None:
+        """Import continuation with 'as' alias is treated as safe."""
+        source = "from collections.abc import (\n    Generator,\n    Collection as Col,\n)\n\ndef func():\n    pass\n"
+        diff = (
+            "--- a/utilities/example.py\n"
+            "+++ b/utilities/example.py\n"
+            "@@ -1,3 +1,4 @@\n"
+            " from collections.abc import (\n"
+            "     Generator,\n"
+            "+    Collection as Col,\n"
+            " )\n"
+        )
+        source_file = tmp_path / "utilities" / "example.py"
+        source_file.parent.mkdir(parents=True, exist_ok=True)
+        source_file.write_text(source)
+
+        with (
+            patch(
+                "scripts.tests_analyzer.pytest_marker_analyzer._get_diff_content",
+                return_value=diff,
+            ),
+            patch(
+                "scripts.tests_analyzer.pytest_marker_analyzer._fetch_file_at_ref",
+                return_value=source,
+            ),
+        ):
+            result = _extract_modified_symbols(
+                file_path=source_file,
+                base_branch="main",
+                repo_root=tmp_path,
+                github_pr_info=None,
+            )
+        assert result is not None, "Import continuation with alias should not trigger fallback"
+
+    def test_closing_paren_is_safe(self, tmp_path: Path) -> None:
+        """Closing parenthesis of multi-line import is treated as safe."""
+        source = "from os.path import (\n    join,\n)\n\ndef func():\n    pass\n"
+        diff = "--- a/utils.py\n+++ b/utils.py\n@@ -1,2 +1,3 @@\n from os.path import (\n+    join,\n )\n"
+        source_file = tmp_path / "utils.py"
+        source_file.write_text(source)
+
+        with (
+            patch(
+                "scripts.tests_analyzer.pytest_marker_analyzer._get_diff_content",
+                return_value=diff,
+            ),
+            patch(
+                "scripts.tests_analyzer.pytest_marker_analyzer._fetch_file_at_ref",
+                return_value=source,
+            ),
+        ):
+            result = _extract_modified_symbols(
+                file_path=source_file,
+                base_branch="main",
+                repo_root=tmp_path,
+                github_pr_info=None,
+            )
+        assert result is not None, "Closing paren should not trigger file-level fallback"

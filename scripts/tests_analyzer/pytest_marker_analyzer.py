@@ -1228,13 +1228,29 @@ def _extract_symbol_imports_from_file(file_path: Path, repo_root: Path) -> dict[
     return symbol_imports
 
 
+def _symbol_start_line(node: ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef) -> int:
+    """Return the start line of a symbol, including its decorators.
+
+    Args:
+        node: AST node for a function, async function, or class definition.
+
+    Returns:
+        Line number of the first decorator if present, otherwise the ``def``/``class`` line.
+    """
+    if node.decorator_list:
+        return node.decorator_list[0].lineno
+    return node.lineno
+
+
 def _build_line_to_symbol_map(source: str) -> SymbolMap:
     """Build a hierarchical mapping from line ranges to symbols.
 
     Parses the AST of the given source to identify top-level definitions
     (functions, async functions, classes, and module-level assignments) and
-    their line ranges. For classes, also extracts member-level line ranges
-    and intra-class call graphs.
+    their line ranges.  Decorator lines are included in the range so that
+    changes to markers (e.g. ``@pytest.mark.s390x``) map to the decorated
+    symbol.  For classes, also extracts member-level line ranges and
+    intra-class call graphs.
 
     Args:
         source: Python source code text.
@@ -1248,15 +1264,15 @@ def _build_line_to_symbol_map(source: str) -> SymbolMap:
 
     for node in ast.iter_child_nodes(tree):
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
-            symbols.append((node.lineno, node.end_lineno or node.lineno, node.name))
+            symbols.append((_symbol_start_line(node=node), node.end_lineno or node.lineno, node.name))
 
         elif isinstance(node, ast.ClassDef):
-            symbols.append((node.lineno, node.end_lineno or node.lineno, node.name))
+            symbols.append((_symbol_start_line(node=node), node.end_lineno or node.lineno, node.name))
             # Extract class members with line ranges
             members: dict[str, tuple[int, int]] = {}
             for child in ast.iter_child_nodes(node):
                 if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef)):
-                    members[child.name] = (child.lineno, child.end_lineno or child.lineno)
+                    members[child.name] = (_symbol_start_line(node=child), child.end_lineno or child.lineno)
             # Build intra-class call graph
             internal_calls = _build_intra_class_call_graph(class_node=node)
             class_members[node.name] = ClassMemberInfo(
@@ -1488,6 +1504,43 @@ def _diff_has_deletions(diff_content: str) -> bool:
     return any(line.startswith("-") and not line.startswith("---") for line in diff_content.splitlines())
 
 
+def _extract_deleted_symbols_from_diff(diff_content: str) -> set[str]:
+    """Extract names of functions and classes that were deleted in a diff.
+
+    Scans deletion lines (``-``) for ``def`` and ``class`` statements to
+    identify symbols that were removed.  This avoids the need to fetch
+    and parse the old file source.
+
+    Note:
+        When a class with methods is deleted, both the class name *and* its member
+        method names are returned as separate symbols.  This may cause broader
+        dependency matching than strictly necessary (a member name like ``setup``
+        could collide with an unrelated top-level function), but is acceptable
+        because over-reporting is safer than under-reporting for test selection.
+
+    Args:
+        diff_content: Unified diff text.
+
+    Returns:
+        Set of deleted function/class names.
+    """
+    deleted_symbols: set[str] = set()
+    for line in diff_content.splitlines():
+        if not line.startswith("-") or line.startswith("---"):
+            continue
+        stripped = line[1:].strip()
+        # Match function definitions
+        func_match = re.match(pattern=r"(?:async\s+)?def\s+(\w+)\s*\(", string=stripped)
+        if func_match:
+            deleted_symbols.add(func_match.group(1))
+            continue
+        # Match class definitions
+        class_match = re.match(pattern=r"class\s+(\w+)[\s:(]", string=stripped)
+        if class_match:
+            deleted_symbols.add(class_match.group(1))
+    return deleted_symbols
+
+
 def _get_diff_content(
     file_path: Path,
     base_branch: str,
@@ -1690,8 +1743,8 @@ def _extract_modified_symbols(
 
     Returns:
         ``SymbolClassification`` with modified and new symbol sets, or
-        ``None`` when symbol-level analysis is not possible (diff failure,
-        pure deletion, or parse errors).  A ``None`` return signals the
+        ``None`` when symbol-level analysis is not possible (diff failure
+        or parse errors).  A ``None`` return signals the
         caller to fall back to file-level dependency tracking.
 
         When some changed lines fall outside any named symbol (e.g. import
@@ -1721,7 +1774,10 @@ def _extract_modified_symbols(
         if has_deletions:
             if file_status == "renamed":
                 return SymbolClassification(modified_symbols=set(), new_symbols=set())
-            return None  # Pure deletion — cannot safely narrow impact
+            # Pure deletion — extract deleted symbol names from the diff
+            # to enable symbol-level narrowing instead of conservative fallback
+            deleted_symbols = _extract_deleted_symbols_from_diff(diff_content=diff_content)
+            return SymbolClassification(modified_symbols=deleted_symbols, new_symbols=set())
         return SymbolClassification(modified_symbols=set(), new_symbols=set())
 
     try:
@@ -1777,7 +1833,25 @@ def _extract_modified_symbols(
             # or potentially impactful executable code.
             if line_number <= len(source_lines):
                 line_content = source_lines[line_number - 1].strip()
-                if not line_content or line_content.startswith(("#", "import ", "from ", '"""', "'''", '"', "'")):
+                if not line_content or line_content.startswith((
+                    "#",
+                    "import ",
+                    "from ",
+                    '"""',
+                    "'''",
+                    '"',
+                    "'",
+                    "if TYPE_CHECKING:",
+                    "if typing.TYPE_CHECKING:",
+                    ")",  # Closing paren of multi-line import; safe because
+                    # the opening line (e.g. "setup(") would trigger fallback.
+                    "__all__",
+                )):
+                    has_unattributed = True
+                elif re.match(pattern=r"^[A-Za-z_]\w*(?:\s+as\s+\w+)?\s*,\s*$", string=line_content):
+                    # Import continuation line (e.g. "TIMEOUT_2MIN," inside
+                    # a multi-line "from ... import (...)" block).
+                    # Trailing comma is required to avoid matching bare identifiers.
                     has_unattributed = True
                 else:
                     # Executable module-level code — conservative fallback
