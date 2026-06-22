@@ -131,5 +131,8 @@ docs/source/rst
 # Claude Code assistant
 .claude/
 
+# ReportPortal local config (may contain secrets)
+scripts/reportportal/rp_manual_reporter/config.yaml
+
 # For local run (debug).
 ocp_resources

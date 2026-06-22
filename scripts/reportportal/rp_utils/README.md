@@ -1,7 +1,7 @@
 <!-- Co-authored-by: Claude <noreply@anthropic.com> -->
 # ReportPortal Shared Utilities
 
-Shared library used by `rp_manual_reporter` and `rp_coverage_gate`.
+Shared library used by `rp_manual_reporter`.
 
 ---
 
