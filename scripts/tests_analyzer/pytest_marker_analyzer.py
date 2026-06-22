@@ -2754,18 +2754,21 @@ def _parse_diff_for_functions(diff_content: str) -> set[str]:
     modified = set()
     current_function = None
     has_changes_in_function = False
+    pending_decorator_change = False
 
     for line in diff_content.splitlines():
         if line.startswith("@@"):
-            if current_function and has_changes_in_function:
+            if current_function and (has_changes_in_function or pending_decorator_change):
                 modified.add(current_function)
 
             match = re.search(pattern=r"@@.*@@\s*(?:async\s+)?def\s+(\w+)", string=line)
             if match:
                 current_function = match.group(1)
                 has_changes_in_function = False
+                pending_decorator_change = False
             else:
                 current_function = None
+                pending_decorator_change = False
             continue
 
         if line.startswith(("+", "-")) and not line.startswith(("+++", "---", "@@")):
@@ -2774,15 +2777,25 @@ def _parse_diff_for_functions(diff_content: str) -> set[str]:
                 # Check if this line defines a new function — reset tracking
                 func_match = re.match(pattern=r"(?:async\s+)?def\s+(\w+)\s*\(", string=stripped)
                 if func_match:
-                    # Save previous function if it had changes
+                    # Save previous function if it had real (non-decorator) changes
                     if current_function and has_changes_in_function:
                         modified.add(current_function)
+                    # Pending decorator belongs to the NEW function, not the old one
                     current_function = func_match.group(1)
                     has_changes_in_function = True
+                    pending_decorator_change = False
+                elif stripped.startswith("@"):
+                    # Decorator line — defer until we know if it belongs to
+                    # the current function or a newly appended one
+                    pending_decorator_change = True
                 else:
+                    # Regular code change — commit any pending decorator
+                    if pending_decorator_change:
+                        has_changes_in_function = True
+                        pending_decorator_change = False
                     has_changes_in_function = True
 
-    if current_function and has_changes_in_function:
+    if current_function and (has_changes_in_function or pending_decorator_change):
         modified.add(current_function)
 
     return modified

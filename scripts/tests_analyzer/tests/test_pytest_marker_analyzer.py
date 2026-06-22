@@ -2708,6 +2708,22 @@ class TestParseDiffForFunctionsContextReset:
             "Context function should NOT be in modified set when only async function is appended after it"
         )
 
+    def test_decorator_before_appended_function(self) -> None:
+        """Decorator before appended function is not attributed to context function."""
+        diff = (
+            "@@ -50,6 +50,16 @@ def existing_fixture():\n"
+            "     return dv\n"
+            " \n"
+            '+@pytest.fixture(scope="session")\n'
+            "+def new_fixture():\n"
+            "+    return something\n"
+        )
+        result = _parse_diff_for_functions(diff_content=diff)
+        assert "new_fixture" in result, "Appended function with decorator should be in modified set"
+        assert "existing_fixture" not in result, (
+            "Context function should NOT be in modified set when decorator belongs to appended function"
+        )
+
 
 class TestPytestPluginsDetection:
     """Tests that pytest_plugins changes are detected by symbol-level analysis."""
@@ -2715,6 +2731,7 @@ class TestPytestPluginsDetection:
     def test_pytest_plugins_in_symbol_map(self) -> None:
         """pytest_plugins assignment is tracked as a top-level symbol."""
         source = textwrap.dedent("""\
+            import logging
             import pytest
 
             pytest_plugins = [
