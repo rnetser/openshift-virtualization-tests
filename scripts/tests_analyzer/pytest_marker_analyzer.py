@@ -2407,6 +2407,13 @@ def _check_test_impact(
                 is_checkout=is_checkout,
             )
 
+            # None signals structural change (e.g., pytest_plugins modified)
+            # — flag test unconditionally since fixture loading may change
+            if modified_fixtures is None:
+                test_affected = True
+                matching_deps.append(f"{changed_file.relative_to(repo_root)} (pytest_plugins changed — structural)")
+                continue
+
             # Get all transitively affected fixtures
             affected_fixtures = _get_affected_fixtures_helper(
                 modified_fixtures=modified_fixtures, modified_functions=modified_functions, fixtures_dict=fixtures_dict
@@ -2561,7 +2568,7 @@ def _extract_modified_items_from_conftest(
     pr_diffs_cache: dict[str, str] | None = None,
     file_status: str | None = None,
     is_checkout: bool = False,
-) -> tuple[set[str], set[str]]:
+) -> tuple[set[str] | None, set[str] | None]:
     """Extract modified fixtures and functions from conftest.py.
 
     Filters out purely new functions and fixtures that did not exist in
@@ -2619,6 +2626,29 @@ def _extract_modified_items_from_conftest(
             if changed_file.exists():
                 return all_fixtures, set()
             return set(), set()
+
+        # Check for critical module-level variables (e.g., pytest_plugins)
+        # that affect pytest's fixture/plugin loading and are invisible
+        # to function-level diff tracking.
+        classification = _extract_modified_symbols(
+            file_path=changed_file,
+            base_branch=base_branch,
+            repo_root=repo_root,
+            github_pr_info=github_pr_info,
+            pr_diffs_cache=pr_diffs_cache,
+            file_status=file_status,
+            is_checkout=is_checkout,
+        )
+        if classification is None or "pytest_plugins" in (classification.modified_symbols | classification.new_symbols):
+            # pytest_plugins controls plugin/fixture loading — signal to caller
+            # that ALL tests depending on this conftest should be flagged.
+            # Return None to indicate structural change (distinct from empty set
+            # which means "no impact").
+            logger.info(
+                msg="pytest_plugins modified in conftest — structural change",
+                extra={"file": str(changed_file)},
+            )
+            return None, None
 
         # Filter out purely new functions/fixtures (additive-change detection)
         if modified_function_names and file_status not in ("added", "renamed"):

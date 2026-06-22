@@ -919,9 +919,19 @@ class TestExtractModifiedItemsFromConftestDiffFailure:
         """)
         )
 
-        with patch(
-            "scripts.tests_analyzer.pytest_marker_analyzer._get_modified_function_names",
-            return_value=set(),
+        no_pytest_plugins = SymbolClassification(
+            modified_symbols={"os"},
+            new_symbols=set(),
+        )
+        with (
+            patch(
+                "scripts.tests_analyzer.pytest_marker_analyzer._get_modified_function_names",
+                return_value=set(),
+            ),
+            patch(
+                "scripts.tests_analyzer.pytest_marker_analyzer._extract_modified_symbols",
+                return_value=no_pytest_plugins,
+            ),
         ):
             modified_fixtures, modified_functions = _extract_modified_items_from_conftest(
                 changed_file=conftest,
@@ -977,10 +987,20 @@ class TestExtractModifiedItemsFromConftestDiffFailure:
         """)
         )
 
-        with patch(
-            "scripts.tests_analyzer.pytest_marker_analyzer._get_modified_function_names",
-            return_value=set(),
-        ) as mock_get_modified:
+        no_pytest_plugins = SymbolClassification(
+            modified_symbols=set(),
+            new_symbols=set(),
+        )
+        with (
+            patch(
+                "scripts.tests_analyzer.pytest_marker_analyzer._get_modified_function_names",
+                return_value=set(),
+            ) as mock_get_modified,
+            patch(
+                "scripts.tests_analyzer.pytest_marker_analyzer._extract_modified_symbols",
+                return_value=no_pytest_plugins,
+            ),
+        ):
             _extract_modified_items_from_conftest(
                 changed_file=conftest,
                 base_branch="main",
@@ -2687,3 +2707,23 @@ class TestParseDiffForFunctionsContextReset:
         assert "sync_func" not in result, (
             "Context function should NOT be in modified set when only async function is appended after it"
         )
+
+
+class TestPytestPluginsDetection:
+    """Tests that pytest_plugins changes are detected by symbol-level analysis."""
+
+    def test_pytest_plugins_in_symbol_map(self) -> None:
+        """pytest_plugins assignment is tracked as a top-level symbol."""
+        source = textwrap.dedent("""\
+            import pytest
+
+            pytest_plugins = [
+                "tests.fixtures.network.l2_bridge",
+                "tests.fixtures.network.cluster",
+            ]
+
+            LOGGER = logging.getLogger(__name__)
+        """)
+        symbol_map = _build_line_to_symbol_map(source=source)
+        symbol_names = {name for _, _, name in symbol_map.top_level}
+        assert "pytest_plugins" in symbol_names, "pytest_plugins assignment should be tracked as a top-level symbol"
