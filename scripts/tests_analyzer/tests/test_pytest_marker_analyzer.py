@@ -2623,3 +2623,67 @@ class TestImportContinuationSafety:
                 github_pr_info=None,
             )
         assert result is not None, "Closing paren should not trigger file-level fallback"
+
+
+class TestParseDiffForFunctionsContextReset:
+    """Tests that _parse_diff_for_functions resets context on new function definitions."""
+
+    def test_appended_function_not_attributed_to_context(self) -> None:
+        """New function appended after context function is attributed correctly."""
+        diff = (
+            "@@ -50,6 +50,15 @@ def existing_fixture():\n"
+            "     return dv\n"
+            " \n"
+            " \n"
+            "+def new_fixture():\n"
+            '+    """Brand new fixture."""\n'
+            "+    return something\n"
+        )
+        result = _parse_diff_for_functions(diff_content=diff)
+        assert "new_fixture" in result, "Appended function should be in modified set"
+        assert "existing_fixture" not in result, (
+            "Context function should NOT be in modified set when only new code is appended after it"
+        )
+
+    def test_modified_context_function_still_detected(self) -> None:
+        """When both the context function and an appended function are modified."""
+        diff = (
+            "@@ -50,6 +50,15 @@ def existing_fixture():\n"
+            "-    return old_dv\n"
+            "+    return new_dv\n"
+            " \n"
+            " \n"
+            "+def new_fixture():\n"
+            "+    return something\n"
+        )
+        result = _parse_diff_for_functions(diff_content=diff)
+        assert "existing_fixture" in result, "Modified context function should be detected"
+        assert "new_fixture" in result, "Appended function should also be detected"
+
+    def test_deleted_function_attributed_correctly(self) -> None:
+        """Deleted function definition is attributed to the deleted function, not context."""
+        diff = (
+            "@@ -50,10 +50,3 @@ def existing_fixture():\n"
+            "     return dv\n"
+            " \n"
+            " \n"
+            "-def old_fixture():\n"
+            '-    """Old fixture to remove."""\n'
+            "-    return old_thing\n"
+        )
+        result = _parse_diff_for_functions(diff_content=diff)
+        assert "old_fixture" in result, "Deleted function should be in modified set"
+        assert "existing_fixture" not in result, (
+            "Context function should NOT be in modified set when only a subsequent function is deleted"
+        )
+
+    def test_async_function_appended(self) -> None:
+        """Async function appended after context is attributed correctly."""
+        diff = (
+            "@@ -10,3 +10,8 @@ def sync_func():\n     pass\n \n+async def new_async_func():\n+    await something()\n"
+        )
+        result = _parse_diff_for_functions(diff_content=diff)
+        assert "new_async_func" in result, "Appended async function should be in modified set"
+        assert "sync_func" not in result, (
+            "Context function should NOT be in modified set when only async function is appended after it"
+        )

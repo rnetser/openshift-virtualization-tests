@@ -2741,7 +2741,16 @@ def _parse_diff_for_functions(diff_content: str) -> set[str]:
         if line.startswith(("+", "-")) and not line.startswith(("+++", "---", "@@")):
             stripped = line[1:].strip()
             if stripped and not stripped.startswith("#"):
-                has_changes_in_function = True
+                # Check if this line defines a new function — reset tracking
+                func_match = re.match(pattern=r"(?:async\s+)?def\s+(\w+)\s*\(", string=stripped)
+                if func_match:
+                    # Save previous function if it had changes
+                    if current_function and has_changes_in_function:
+                        modified.add(current_function)
+                    current_function = func_match.group(1)
+                    has_changes_in_function = True
+                else:
+                    has_changes_in_function = True
 
     if current_function and has_changes_in_function:
         modified.add(current_function)
