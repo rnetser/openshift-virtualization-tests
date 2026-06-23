@@ -2838,6 +2838,17 @@ def _parse_diff_for_functions(diff_content: str) -> set[str]:
                         has_changes_in_function = True
                         pending_decorator_change = False
                     has_changes_in_function = True
+        elif pending_decorator_change and line.startswith(" "):
+            # Context line (unchanged) following a decorator change —
+            # bind pending decorator to the function on this context line
+            context_stripped = line[1:].strip()
+            context_func = re.match(pattern=r"(?:async\s+)?def\s+(\w+)\s*\(", string=context_stripped)
+            if context_func:
+                if current_function and has_changes_in_function:
+                    modified.add(current_function)
+                current_function = context_func.group(1)
+                has_changes_in_function = True
+                pending_decorator_change = False
 
     if current_function and (has_changes_in_function or pending_decorator_change):
         modified.add(current_function)

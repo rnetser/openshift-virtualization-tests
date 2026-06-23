@@ -2952,6 +2952,12 @@ class TestParseDiffForFunctionsContextReset:
             "Context function should NOT be in modified set when decorator belongs to appended function"
         )
 
+    def test_parse_diff_decorator_bound_to_context_def(self) -> None:
+        """Decorator-only diff followed by context def line binds to that function."""
+        diff = "@@ -10,6 +10,7 @@ def other_func\n+@pytest.mark.tier3\n def existing_fixture():\n     pass\n"
+        result = _parse_diff_for_functions(diff_content=diff)
+        assert "existing_fixture" in result, f"Decorator change should be bound to context def line, got {result}"
+
 
 class TestPytestPluginsDetection:
     """Tests that pytest_plugins changes are detected by symbol-level analysis."""
