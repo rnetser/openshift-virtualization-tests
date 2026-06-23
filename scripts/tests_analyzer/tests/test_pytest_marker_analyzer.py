@@ -2956,7 +2956,7 @@ class TestParseDiffForFunctionsContextReset:
         """Decorator-only diff followed by context def line binds to that function."""
         diff = "@@ -10,6 +10,7 @@ def other_func\n+@pytest.mark.tier3\n def existing_fixture():\n     pass\n"
         result = _parse_diff_for_functions(diff_content=diff)
-        assert "existing_fixture" in result, f"Decorator change should be bound to context def line, got {result}"
+        assert result == {"existing_fixture"}, f"Decorator change should bind only to context def line, got {result}"
 
 
 class TestPytestPluginsDetection:
