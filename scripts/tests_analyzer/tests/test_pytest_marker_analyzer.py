@@ -2700,7 +2700,7 @@ class TestDecoratorLineRange:
 
     def test_class_with_decorators_includes_decorator_lines(self) -> None:
         """Decorator lines are included in the class's line range."""
-        source = "@pytest.mark.polarion('CNV-1234')\nclass TestFoo:\n    def test_bar(self):\n        pass\n"
+        source = "@pytest.mark.polarion('FAKE-1234')\nclass TestFoo:\n    def test_bar(self):\n        pass\n"
         symbol_map = _build_line_to_symbol_map(source=source)
         assert symbol_map.top_level[0] == (1, 4, "TestFoo"), "Class range should start at first decorator line"
 
