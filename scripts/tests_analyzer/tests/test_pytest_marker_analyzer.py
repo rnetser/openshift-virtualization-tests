@@ -1892,6 +1892,234 @@ class TestImportVisitorTypeChecking:
         assert "libs.vm.vm" in visitor.imports
 
 
+class TestCheckConftestPathwayOpaqueNarrowing:
+    """Opaque conftest imports should use symbol-level narrowing when available."""
+
+    def test_opaque_import_narrowed_by_modified_symbols(self, tmp_path: Path) -> None:
+        """When conftest opaquely imports a changed file but no fixture calls modified symbols, test is safe."""
+        repo_root = tmp_path
+        conftest_path = tmp_path / "tests" / "conftest.py"
+        conftest_path.parent.mkdir(parents=True)
+        conftest_path.touch()
+
+        changed_file = tmp_path / "utilities" / "hco.py"
+        changed_file.parent.mkdir(parents=True)
+        changed_file.touch()
+
+        test_file = tmp_path / "tests" / "test_smoke.py"
+        test_file.touch()
+
+        marked_test = MarkedTest(
+            file_path=test_file,
+            test_name="test_smoke",
+            node_id="tests/test_smoke.py::test_smoke",
+            dependencies={conftest_path},
+            fixtures={"vm_fixture"},
+            symbol_imports={},
+        )
+
+        # Conftest opaquely imports the changed file
+        conftest_opaque_deps: dict[Path, set[Path]] = {
+            conftest_path: {changed_file},
+        }
+
+        # Symbol analysis shows only verify_boot_sources was modified
+        modified_symbols_cache: dict[Path, SymbolClassification | None] = {
+            changed_file: SymbolClassification(
+                modified_symbols={"verify_boot_sources_reimported"},
+                new_symbols=set(),
+            ),
+        }
+
+        # The test's fixture does NOT call verify_boot_sources_reimported
+        fixtures_dict: dict[str, Fixture] = {
+            "vm_fixture": Fixture(
+                name="vm_fixture",
+                file_path=conftest_path,
+                function_calls={"create_vm", "wait_for_vm"},
+            ),
+        }
+
+        is_affected, matching_deps = _check_conftest_pathway(
+            changed_file=changed_file,
+            marked_test=marked_test,
+            conftest_symbol_imports={},
+            conftest_opaque_deps=conftest_opaque_deps,
+            modified_symbols_cache=modified_symbols_cache,
+            fixtures_dict=fixtures_dict,
+            repo_root=repo_root,
+        )
+
+        assert not is_affected, (
+            f"Test should NOT be flagged when opaque import is narrowed and no fixture calls modified symbols, "
+            f"but got matching_deps={matching_deps}"
+        )
+
+    def test_opaque_import_flags_when_fixture_calls_modified_symbol(self, tmp_path: Path) -> None:
+        """When conftest opaquely imports a changed file AND a fixture calls the modified symbol, flag test."""
+        repo_root = tmp_path
+        conftest_path = tmp_path / "tests" / "conftest.py"
+        conftest_path.parent.mkdir(parents=True)
+        conftest_path.touch()
+
+        changed_file = tmp_path / "utilities" / "hco.py"
+        changed_file.parent.mkdir(parents=True)
+        changed_file.touch()
+
+        test_file = tmp_path / "tests" / "test_hco_update.py"
+        test_file.touch()
+
+        marked_test = MarkedTest(
+            file_path=test_file,
+            test_name="test_hco_update",
+            node_id="tests/test_hco_update.py::test_hco_update",
+            dependencies={conftest_path},
+            fixtures={"hco_fixture"},
+            symbol_imports={},
+        )
+
+        conftest_opaque_deps: dict[Path, set[Path]] = {
+            conftest_path: {changed_file},
+        }
+
+        modified_symbols_cache: dict[Path, SymbolClassification | None] = {
+            changed_file: SymbolClassification(
+                modified_symbols={"verify_boot_sources_reimported"},
+                new_symbols=set(),
+            ),
+        }
+
+        # This fixture DOES call the modified symbol
+        fixtures_dict: dict[str, Fixture] = {
+            "hco_fixture": Fixture(
+                name="hco_fixture",
+                file_path=conftest_path,
+                function_calls={"verify_boot_sources_reimported", "get_hco_cr"},
+            ),
+        }
+
+        is_affected, matching_deps = _check_conftest_pathway(
+            changed_file=changed_file,
+            marked_test=marked_test,
+            conftest_symbol_imports={},
+            conftest_opaque_deps=conftest_opaque_deps,
+            modified_symbols_cache=modified_symbols_cache,
+            fixtures_dict=fixtures_dict,
+            repo_root=repo_root,
+        )
+
+        assert is_affected, "Test SHOULD be flagged when fixture calls the modified symbol"
+        assert any("via fixture hco_fixture" in dep for dep in matching_deps)
+
+    def test_opaque_import_only_new_symbols_skips(self, tmp_path: Path) -> None:
+        """When opaquely imported file has only new symbols (no modifications), test is safe."""
+        repo_root = tmp_path
+        conftest_path = tmp_path / "tests" / "conftest.py"
+        conftest_path.parent.mkdir(parents=True)
+        conftest_path.touch()
+
+        changed_file = tmp_path / "utilities" / "hco.py"
+        changed_file.parent.mkdir(parents=True)
+        changed_file.touch()
+
+        test_file = tmp_path / "tests" / "test_smoke.py"
+        test_file.touch()
+
+        marked_test = MarkedTest(
+            file_path=test_file,
+            test_name="test_smoke",
+            node_id="tests/test_smoke.py::test_smoke",
+            dependencies={conftest_path},
+            fixtures={"vm_fixture"},
+            symbol_imports={},
+        )
+
+        conftest_opaque_deps: dict[Path, set[Path]] = {
+            conftest_path: {changed_file},
+        }
+
+        # Only new symbols — nothing was modified
+        modified_symbols_cache: dict[Path, SymbolClassification | None] = {
+            changed_file: SymbolClassification(
+                modified_symbols=set(),
+                new_symbols={"new_helper_function"},
+            ),
+        }
+
+        fixtures_dict: dict[str, Fixture] = {
+            "vm_fixture": Fixture(
+                name="vm_fixture",
+                file_path=conftest_path,
+                function_calls={"create_vm"},
+            ),
+        }
+
+        is_affected, _ = _check_conftest_pathway(
+            changed_file=changed_file,
+            marked_test=marked_test,
+            conftest_symbol_imports={},
+            conftest_opaque_deps=conftest_opaque_deps,
+            modified_symbols_cache=modified_symbols_cache,
+            fixtures_dict=fixtures_dict,
+            repo_root=repo_root,
+        )
+
+        assert not is_affected, "Test should NOT be flagged when only new symbols were added"
+
+    def test_opaque_import_no_classification_falls_back(self, tmp_path: Path) -> None:
+        """When classification is None (diff failed), fall back to conservative file-level flagging."""
+        repo_root = tmp_path
+        conftest_path = tmp_path / "tests" / "conftest.py"
+        conftest_path.parent.mkdir(parents=True)
+        conftest_path.touch()
+
+        changed_file = tmp_path / "utilities" / "hco.py"
+        changed_file.parent.mkdir(parents=True)
+        changed_file.touch()
+
+        test_file = tmp_path / "tests" / "test_smoke.py"
+        test_file.touch()
+
+        marked_test = MarkedTest(
+            file_path=test_file,
+            test_name="test_smoke",
+            node_id="tests/test_smoke.py::test_smoke",
+            dependencies={conftest_path},
+            fixtures={"vm_fixture"},
+            symbol_imports={},
+        )
+
+        conftest_opaque_deps: dict[Path, set[Path]] = {
+            conftest_path: {changed_file},
+        }
+
+        # Classification is None — diff parsing failed
+        modified_symbols_cache: dict[Path, SymbolClassification | None] = {
+            changed_file: None,
+        }
+
+        fixtures_dict: dict[str, Fixture] = {
+            "vm_fixture": Fixture(
+                name="vm_fixture",
+                file_path=conftest_path,
+                function_calls={"create_vm"},
+            ),
+        }
+
+        is_affected, matching_deps = _check_conftest_pathway(
+            changed_file=changed_file,
+            marked_test=marked_test,
+            conftest_symbol_imports={},
+            conftest_opaque_deps=conftest_opaque_deps,
+            modified_symbols_cache=modified_symbols_cache,
+            fixtures_dict=fixtures_dict,
+            repo_root=repo_root,
+        )
+
+        assert is_affected, "Test SHOULD be flagged when classification is None (conservative fallback)"
+        assert any("opaque import" in dep for dep in matching_deps)
+
+
 class TestCheckConftestPathwayTransitive:
     """Transitive conftest narrowing: conftest -> intermediate -> changed_file."""
 

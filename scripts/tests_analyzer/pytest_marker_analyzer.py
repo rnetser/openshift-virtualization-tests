@@ -2186,7 +2186,51 @@ def _check_conftest_pathway(
         # Check if conftest opaquely imports the changed file
         opaque_set = conftest_opaque_deps.get(conftest_path, set())
         if changed_file in opaque_set:
-            # Can't determine which symbols — conservative: flag test
+            # Try symbol-level narrowing before falling back to file-level
+            classification = modified_symbols_cache.get(changed_file)
+            if (
+                classification is not None
+                and not classification.modified_symbols
+                and classification.new_symbols
+                and not classification.has_unattributed_changes
+            ):
+                # Only new symbols added — cannot break existing tests
+                conftest_resolved = True
+                continue
+            if classification is not None and not classification.modified_symbols:
+                # Empty modified_symbols without new_symbols — could be pure deletion
+                # or unmapped module-level edits; fall back to conservative behavior
+                matching_deps.append(
+                    f"{changed_file.relative_to(repo_root)} (opaque import via {conftest_path.relative_to(repo_root)})"
+                )
+                return True, matching_deps
+            if classification is not None and classification.modified_symbols:
+                if classification.has_unattributed_changes:
+                    # Module-level changes with opaque import — conservative fallback
+                    matching_deps.append(
+                        f"{changed_file.relative_to(repo_root)} "
+                        f"(opaque import via {conftest_path.relative_to(repo_root)})"
+                    )
+                    return True, matching_deps
+                fixture_match = False
+                for fixture_name, fixture in fixtures_dict.items():
+                    if (
+                        fixture.file_path == conftest_path
+                        and fixture_name in used_fixtures
+                        and fixture.function_calls & classification.modified_symbols
+                    ):
+                        symbols_str = ", ".join(sorted(fixture.function_calls & classification.modified_symbols))
+                        matching_deps.append(
+                            f"{changed_file.relative_to(repo_root)} (via fixture {fixture_name}: {symbols_str})"
+                        )
+                        fixture_match = True
+                        break
+                if fixture_match:
+                    return True, matching_deps
+                # No fixture calls modified symbols — pathway resolved as safe
+                conftest_resolved = True
+                continue
+            # classification is None — diff failed, fall back to file-level
             matching_deps.append(
                 f"{changed_file.relative_to(repo_root)} (opaque import via {conftest_path.relative_to(repo_root)})"
             )
