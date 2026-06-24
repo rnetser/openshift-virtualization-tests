@@ -14,7 +14,8 @@ jobs:
       contents: read
       pull-requests: write
 
-    # safe to use pull_request_target because we only run this for trusted collaborators
+    # Org members run automatically; outside contributors need maintainer approval
+    environment: ${{ (github.event.pull_request.head.repo.full_name != github.repository && !contains(fromJSON('["COLLABORATOR","MEMBER","OWNER"]'), github.event.pull_request.author_association)) && 'external-pr-tests' || '' }}
     if: contains(fromJson('["OWNER","MEMBER","COLLABORATOR","CONTRIBUTOR"]'), github.event.pull_request.author_association)
     steps:
       - name: Check out repository
@@ -22,6 +23,7 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0
+          allow-unsafe-pr-checkout: true
 
       - name: Set up QEMU for multi-arch builds
         uses: docker/setup-qemu-action@v4
