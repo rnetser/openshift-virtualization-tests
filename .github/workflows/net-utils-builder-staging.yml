@@ -15,7 +15,7 @@ jobs:
       pull-requests: write
 
     # Org members run automatically; outside contributors need maintainer approval
-    environment: ${{ (github.event_name == 'pull_request_target' && github.event.pull_request.head.repo.full_name != github.repository && !contains(fromJSON('["COLLABORATOR","CONTRIBUTOR","MEMBER","OWNER"]'), github.event.pull_request.author_association)) && 'external-pr-tests' || '' }}
+    environment: ${{ (github.event_name == 'pull_request_target' && github.event.pull_request.head.repo.full_name != github.repository && !contains(fromJSON('["COLLABORATOR","MEMBER","OWNER"]'), github.event.pull_request.author_association)) && 'external-pr-tests' || '' }}
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
