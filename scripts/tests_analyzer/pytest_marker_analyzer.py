@@ -1835,6 +1835,7 @@ def _extract_modified_symbols(
                 line_content = source_lines[line_number - 1].strip()
                 if not line_content or line_content.startswith((
                     "#",
+                    "@",
                     "import ",
                     "from ",
                     '"""',
@@ -2334,6 +2335,7 @@ def _check_test_impact(
     pr_diffs_cache: dict[str, str] | None = None,
     pr_file_statuses: dict[str, str] | None = None,
     is_checkout: bool = False,
+    pr_head_ref: str | None = None,
 ) -> dict[str, Any] | None:
     """Check if a single test is affected by changed files (for parallel execution).
 
@@ -2367,6 +2369,8 @@ def _check_test_impact(
             to their unified diff content.
         pr_file_statuses: Optional mapping of relative file paths to their
             GitHub file status strings.
+        pr_head_ref: Optional PR head commit SHA used in remote (no-checkout)
+            mode to fetch the correct version of files from GitHub.
 
     Returns:
         Dictionary with test info if affected, ``None`` otherwise.
@@ -2449,6 +2453,7 @@ def _check_test_impact(
                 pr_diffs_cache=pr_diffs_cache,
                 file_status=file_status_conftest,
                 is_checkout=is_checkout,
+                pr_head_ref=pr_head_ref,
             )
 
             # None signals structural change (e.g., pytest_plugins modified)
@@ -2612,6 +2617,7 @@ def _extract_modified_items_from_conftest(
     pr_diffs_cache: dict[str, str] | None = None,
     file_status: str | None = None,
     is_checkout: bool = False,
+    pr_head_ref: str | None = None,
 ) -> tuple[set[str] | None, set[str] | None]:
     """Extract modified fixtures and functions from conftest.py.
 
@@ -2628,6 +2634,8 @@ def _extract_modified_items_from_conftest(
             to their unified diff content.
         file_status: Optional file status from GitHub PR files API
             (``"added"``, ``"modified"``, ``"removed"``, ``"renamed"``).
+        pr_head_ref: Optional PR head commit SHA used in remote (no-checkout)
+            mode to fetch the correct version of files from GitHub.
 
     Returns:
         Tuple of (modified_fixtures, modified_functions) containing only
@@ -2682,6 +2690,7 @@ def _extract_modified_items_from_conftest(
             pr_diffs_cache=pr_diffs_cache,
             file_status=file_status,
             is_checkout=is_checkout,
+            pr_head_ref=pr_head_ref,
         )
         if classification is None or "pytest_plugins" in (classification.modified_symbols | classification.new_symbols):
             # pytest_plugins controls plugin/fixture loading — signal to caller
@@ -3675,6 +3684,7 @@ class MarkerTestAnalyzer:
                     pr_diffs_cache=pr_diffs_cache,
                     pr_file_statuses=pr_file_statuses,
                     is_checkout=self.is_checkout,
+                    pr_head_ref=pr_head_ref,
                 ): node_id
                 for node_id, marked_test in self.marked_tests.items()
             }

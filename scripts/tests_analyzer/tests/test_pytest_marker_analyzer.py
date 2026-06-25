@@ -692,6 +692,59 @@ class TestParseDiffForFunctions:
         result = _parse_diff_for_functions(diff_content=diff_content)
         assert result == set()
 
+    def test_new_function_added_after_existing(self) -> None:
+        diff_content = textwrap.dedent("""\
+            @@ -93,3 +96,25 @@ def uploaded_dv_scope_class(request):
+            +
+            +@pytest.fixture(scope="module")
+            +def uploaded_dv_in_udn_namespace(request):
+            +    yield from create_dv(request)
+        """)
+        result = _parse_diff_for_functions(diff_content=diff_content)
+        assert result == {"uploaded_dv_in_udn_namespace"}, "New function added after existing should be detected"
+
+    def test_new_function_added_does_not_mark_existing_as_modified(self) -> None:
+        diff_content = textwrap.dedent("""\
+            @@ -50,3 +50,10 @@ def existing_func():
+            +
+            +def brand_new_func():
+            +    do_something()
+            +    do_more()
+        """)
+        result = _parse_diff_for_functions(diff_content=diff_content)
+        assert "existing_func" not in result, (
+            "Existing function in @@ header should not be marked as modified when only new code was added"
+        )
+        assert result == {"brand_new_func"}, "Only the newly added function should be in the result"
+
+    def test_removed_function_detected(self) -> None:
+        diff_content = textwrap.dedent("""\
+            @@ -50,10 +50,3 @@ def existing_func():
+            -
+            -def removed_func():
+            -    do_something()
+            -    do_more()
+        """)
+        result = _parse_diff_for_functions(diff_content=diff_content)
+        assert "existing_func" not in result, (
+            "Existing function in @@ header should not be marked when a different function was removed"
+        )
+        assert result == {"removed_func"}, "Removed function should be detected in the diff"
+
+    def test_new_async_function_added_after_existing(self) -> None:
+        diff_content = textwrap.dedent("""\
+            @@ -93,3 +96,10 @@ def existing_func():
+            +
+            +async def new_async_handler(request):
+            +    data = await fetch()
+            +    return data
+        """)
+        result = _parse_diff_for_functions(diff_content=diff_content)
+        assert result == {"new_async_handler"}, "New async function added after existing should be detected"
+        assert "existing_func" not in result, (
+            "Existing function in @@ header should not be marked when only new async code was added"
+        )
+
 
 class TestSymbolClassificationModifiedMembers:
     def test_default_empty_dict(self):
@@ -1340,6 +1393,50 @@ class TestExtractModifiedSymbolsUnattributed:
             )
 
         assert result is None, "Executable module-level code should trigger conservative fallback"
+
+    def test_decorator_lines_outside_symbol_range_are_safe(self, tmp_path: Path) -> None:
+        """Decorator lines outside a function's AST range are safe, not a conservative fallback.
+
+        Python's AST sets lineno at the 'def' line, not at the first decorator.
+        When a decorated function is added, the decorator lines (e.g. @pytest.mark.polarion)
+        fall outside the symbol map's line range.  These must be treated as safe
+        (like imports or comments), not as executable module-level code.
+        """
+        source = textwrap.dedent("""\
+            import pytest
+
+            @pytest.mark.polarion("CNV-1234")
+            def test_new_feature():
+                pass
+        """)
+        file_path = tmp_path / "module.py"
+        file_path.write_text(source)
+
+        # Diff that adds the decorator line (line 3), which is outside the AST
+        # range of test_new_feature (whose lineno is 4, the 'def' line)
+        diff_content = (
+            "--- a/module.py\n"
+            "+++ b/module.py\n"
+            "@@ -1,2 +1,5 @@\n"
+            " import pytest\n"
+            " \n"
+            '+@pytest.mark.polarion("CNV-1234")\n'
+            "+def test_new_feature():\n"
+            "+    pass\n"
+        )
+        mock_result = type("Result", (), {"returncode": 0, "stdout": diff_content, "stderr": ""})()
+        with patch(
+            "scripts.tests_analyzer.pytest_marker_analyzer.subprocess.run",
+            return_value=mock_result,
+        ):
+            result = _extract_modified_symbols(
+                file_path=file_path,
+                base_branch="main",
+                repo_root=tmp_path,
+                github_pr_info=None,
+            )
+
+        assert result is not None, "Decorator lines should not trigger conservative fallback"
 
     def test_line_number_beyond_source_returns_none(self, tmp_path: Path) -> None:
         """When changed line number exceeds source length, returns None (conservative)."""
