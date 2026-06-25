@@ -43,7 +43,7 @@ jobs:
 
       - name: Add retest-smoke label
         if: steps.check-team.outputs.isTeamMember == 'true'
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
             await github.rest.issues.addLabels({
