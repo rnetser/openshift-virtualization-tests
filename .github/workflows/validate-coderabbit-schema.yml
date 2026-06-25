@@ -14,8 +14,6 @@ jobs:
     name: Validate .coderabbit.yaml against schema
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    # Org members run automatically; outside contributors need maintainer approval
-    environment: ${{ (github.event_name == 'pull_request_target' && github.event.pull_request.head.repo.full_name != github.repository && !contains(fromJSON('["COLLABORATOR","MEMBER","OWNER"]'), github.event.pull_request.author_association)) && 'external-pr-tests' || '' }}
     permissions:
       contents: read
       pull-requests: read
