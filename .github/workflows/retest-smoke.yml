@@ -22,7 +22,7 @@ jobs:
         id: check-team
         uses: tspascoal/get-user-teams-membership@v4
         with:
-          team: cnvqe-bot
+          team: CNV
           username: ${{ github.event.comment.user.login }}
           organization: RedHatQE
           GITHUB_TOKEN: ${{ secrets.BOT3_TOKEN }}
