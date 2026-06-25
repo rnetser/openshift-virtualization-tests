@@ -1398,14 +1398,14 @@ class TestExtractModifiedSymbolsUnattributed:
         """Decorator lines outside a function's AST range are safe, not a conservative fallback.
 
         Python's AST sets lineno at the 'def' line, not at the first decorator.
-        When a decorated function is added, the decorator lines (e.g. @pytest.mark.polarion)
+        When a decorated function is added, the decorator lines (e.g. @pytest.mark.some_marker)
         fall outside the symbol map's line range.  These must be treated as safe
         (like imports or comments), not as executable module-level code.
         """
         source = textwrap.dedent("""\
             import pytest
 
-            @pytest.mark.polarion("CNV-1234")
+            @pytest.mark.some_marker("ID-1234")
             def test_new_feature():
                 pass
         """)
@@ -1420,7 +1420,7 @@ class TestExtractModifiedSymbolsUnattributed:
             "@@ -1,2 +1,5 @@\n"
             " import pytest\n"
             " \n"
-            '+@pytest.mark.polarion("CNV-1234")\n'
+            '+@pytest.mark.some_marker("ID-1234")\n'
             "+def test_new_feature():\n"
             "+    pass\n"
         )
@@ -2797,7 +2797,7 @@ class TestDecoratorLineRange:
 
     def test_class_with_decorators_includes_decorator_lines(self) -> None:
         """Decorator lines are included in the class's line range."""
-        source = "@pytest.mark.polarion('FAKE-1234')\nclass TestFoo:\n    def test_bar(self):\n        pass\n"
+        source = "@pytest.mark.some_marker('FAKE-1234')\nclass TestFoo:\n    def test_bar(self):\n        pass\n"
         symbol_map = _build_line_to_symbol_map(source=source)
         assert symbol_map.top_level[0] == (1, 4, "TestFoo"), "Class range should start at first decorator line"
 
