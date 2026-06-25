@@ -1394,13 +1394,14 @@ class TestExtractModifiedSymbolsUnattributed:
 
         assert result is None, "Executable module-level code should trigger conservative fallback"
 
-    def test_decorator_lines_outside_symbol_range_are_safe(self, tmp_path: Path) -> None:
-        """Decorator lines outside a function's AST range are safe, not a conservative fallback.
+    def test_new_decorated_function_classified_as_new_symbol(self, tmp_path: Path) -> None:
+        """A newly added decorated function should be classified as a new symbol.
 
-        Python's AST sets lineno at the 'def' line, not at the first decorator.
-        When a decorated function is added, the decorator lines (e.g. @pytest.mark.some_marker)
-        fall outside the symbol map's line range.  These must be treated as safe
-        (like imports or comments), not as executable module-level code.
+        When a diff adds a decorated function (decorator + def + body), all
+        changed lines fall within the function's symbol range because
+        ``_symbol_start_line`` includes decorators.  The function should be
+        classified as a *new* symbol (not modified), and no conservative
+        fallback should occur.
         """
         source = textwrap.dedent("""\
             import pytest
@@ -1412,8 +1413,8 @@ class TestExtractModifiedSymbolsUnattributed:
         file_path = tmp_path / "module.py"
         file_path.write_text(source)
 
-        # Diff that adds the decorator line (line 3), which is outside the AST
-        # range of test_new_feature (whose lineno is 4, the 'def' line)
+        # Diff that adds the decorated function (lines 3-5).  _symbol_start_line
+        # includes the decorator, so the symbol range covers all changed lines.
         diff_content = (
             "--- a/module.py\n"
             "+++ b/module.py\n"
@@ -1436,7 +1437,11 @@ class TestExtractModifiedSymbolsUnattributed:
                 github_pr_info=None,
             )
 
-        assert result is not None, "Decorator lines should not trigger conservative fallback"
+        assert result is not None, "Decorated new function should not trigger conservative fallback"
+        assert "test_new_feature" in result.new_symbols, "Newly added decorated function should be in new_symbols"
+        assert "test_new_feature" not in result.modified_symbols, (
+            "Newly added function should not appear in modified_symbols"
+        )
 
     def test_line_number_beyond_source_returns_none(self, tmp_path: Path) -> None:
         """When changed line number exceeds source length, returns None (conservative)."""
