@@ -24,6 +24,7 @@ jobs:
         with:
           team: cnvqe-bot
           username: ${{ github.event.comment.user.login }}
+          organization: RedHatQE
           GITHUB_TOKEN: ${{ secrets.BOT3_TOKEN }}
 
       - name: Reject unauthorized user
