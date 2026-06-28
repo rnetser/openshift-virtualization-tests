@@ -1,7 +1,7 @@
 # Co-authored-by: Claude <noreply@anthropic.com>
 """Tests for scripts.reportportal.rp_manual_reporter.collector module.
 
-Coverage: https://github.com/RedHatQE/openshift-virtualization-tests/pull/5207
+RFE: https://github.com/RedHatQE/openshift-virtualization-tests/pull/5207
 """
 
 from __future__ import annotations
