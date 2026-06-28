@@ -332,7 +332,12 @@ def _load_batch_file(batch_path: Path) -> tuple[list[dict[str, Any]], dict[str, 
             raise click.ClickException(f"Batch result entry must be a dict, got: {type(entry).__name__}")
         if "test" not in entry:
             raise click.ClickException(f"Batch entry missing required 'test' key: {entry}")
-        status = entry.get("status", "").upper()
+        raw_status = entry.get("status", "")
+        if not isinstance(raw_status, str):
+            raise click.ClickException(
+                f"Invalid status type for test '{entry.get('test')}': expected string, got {type(raw_status).__name__}"
+            )
+        status = raw_status.upper()
         if status not in _VALID_STATUSES:
             raise click.ClickException(
                 f"Invalid status '{entry.get('status')}' for test '{entry.get('test')}'. "
@@ -652,7 +657,6 @@ def main(
 
         collected_count = len(collected_tests)
         click.echo(message=f"Found {collected_count} placeholder tests.\n")
-        results, skipped_count = _run_interactive_mode(tests=collected_tests)
 
     # ── 4. Validate required launch attributes (skip in dry-run) ──
     required_attr_keys = {
@@ -675,6 +679,9 @@ def main(
                 f"Missing required launch attributes: {missing_names}\n"
                 f"Provide them via CLI flags ({missing_flags}) or use --from-cluster."
             )
+
+    if not batch_file:
+        results, skipped_count = _run_interactive_mode(tests=collected_tests)
 
     # ── 5. Print summary ──
     pass_count = sum(1 for result in results if result["status"] == "PASSED")

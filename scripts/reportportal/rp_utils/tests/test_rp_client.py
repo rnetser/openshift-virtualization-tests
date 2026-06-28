@@ -1,8 +1,12 @@
 # Co-authored-by: Claude <noreply@anthropic.com>
-"""Tests for scripts.reportportal.rp_utils.rp_client module."""
+"""Tests for scripts.reportportal.rp_utils.rp_client module.
+
+Coverage: https://github.com/RedHatQE/openshift-virtualization-tests/pull/5207
+"""
 
 from __future__ import annotations
 
+from collections.abc import Generator
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -12,13 +16,15 @@ from scripts.reportportal.rp_utils.rp_client import RPClient, _utc_now_iso
 
 
 @pytest.fixture()
-def rp_client() -> RPClient:
+def rp_client() -> Generator[RPClient]:
     """Create an RPClient instance with test credentials."""
-    return RPClient(
+    client = RPClient(
         base_url="https://rp.example.com",
         project="test-project",
         token="test-token",
     )
+    yield client
+    client.close()
 
 
 class TestUtcNowIso:
