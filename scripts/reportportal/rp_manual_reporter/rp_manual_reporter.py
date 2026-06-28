@@ -681,6 +681,7 @@ def main(
             )
 
     if not batch_file:
+        assert collected_tests is not None, "collected_tests must be set when not using batch file"
         results, skipped_count = _run_interactive_mode(tests=collected_tests)
 
     # ── 5. Print summary ──

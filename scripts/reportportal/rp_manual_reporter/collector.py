@@ -369,18 +369,11 @@ def collect_placeholder_details(
     placeholder_files = scan_placeholder_tests(tests_dir=tests_dir)
     details: list[PlaceholderTestDetail] = []
 
-    # Derive project root: file_path is relative to root (e.g., tests/network/test_foo.py)
-    # and tests_dir is a subdirectory of root (e.g., <root>/tests or <root>/tests/network).
-    # Walk up from tests_dir until we find "tests" to locate the project root.
-    resolved_tests_dir = tests_dir.resolve()
-    project_root = resolved_tests_dir
-    while project_root.name != "tests" and project_root != project_root.parent:
-        project_root = project_root.parent
-    project_root = project_root.parent  # Go above the "tests" directory
-
     for placeholder_file in placeholder_files:
         file_path = Path(placeholder_file.file_path)
-        full_path = project_root / file_path
+        # file_path is relative to tests_dir.parent (see scan_placeholder_tests line 311:
+        # relative_path = str(test_file.relative_to(tests_dir.parent)))
+        full_path = tests_dir.parent / file_path
 
         try:
             source = full_path.read_text(encoding="utf-8")
