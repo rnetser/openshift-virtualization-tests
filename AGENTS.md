@@ -143,7 +143,7 @@ When reviewing quarantine PRs, verify the **quarantine mechanism matches the fai
 
 **Review signal:** If the quarantine reason describes a **confirmed** product behavior that is broken (e.g., "feature X is not functioning in Y"), it is a product bug — use `@pytest.mark.jira`. If the root cause is unclear, under investigation, or relates to test/automation/environment issues (e.g., "test times out due to framework issue", "intermittent failure under investigation"), use `@pytest.mark.xfail` quarantine.
 
-- **`quarantined` marker is auto-added** — tests with `@pytest.mark.xfail(reason=f"{QUARANTINED}: ...")` automatically receive the `quarantined` marker at collection time. Do NOT add `@pytest.mark.quarantined` explicitly.
+- **`quarantined` marker is auto-added** — tests with `@pytest.mark.xfail(reason=f"{QUARANTINED}: ...", run=False)` automatically receive the `quarantined` marker at collection time. Do NOT add `@pytest.mark.quarantined` explicitly.
 
 ### Fixture Guidelines (CRITICAL)
 
