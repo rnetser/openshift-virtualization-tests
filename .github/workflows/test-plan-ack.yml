@@ -1,0 +1,184 @@
+# description: Detect test plan acknowledgment checkbox toggle and manage labels.
+# When PR author or collaborator checks the checkbox in CodeRabbit's test plan
+# comment, swap needs-test-ack → test-ack. Reverse on uncheck.
+
+name: Test plan acknowledgment
+
+on:
+  issue_comment:
+    types: [edited]
+
+concurrency:
+  group: test-plan-ack-${{ github.event.issue.number }}
+  cancel-in-progress: true
+
+permissions:
+  pull-requests: write
+  issues: write
+
+jobs:
+  detect-ack:
+    # Only run on PR comments (not issue comments)
+    if: github.event.issue.pull_request
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Check checkbox toggle and manage labels
+        uses: actions/github-script@v9
+        env:
+          BOT3_ACCOUNT: openshift-virtualization-qe-bot-3
+        with:
+          github-token: ${{ secrets.BOT3_TOKEN }}
+          script: |
+            const comment = context.payload.comment;
+            const sender = context.payload.sender;
+            const issue = context.payload.issue;
+
+            // --- Guard: comment must be from CodeRabbit or BOT3 ---
+            const allowedAuthors = ['coderabbitai[bot]', process.env.BOT3_ACCOUNT];
+            if (!allowedAuthors.includes(comment.user.login)) {
+              core.info(`Comment author ${comment.user.login} is not an allowed bot. Skipping.`);
+              return;
+            }
+
+            // --- Guard: comment must contain test execution plan markers ---
+            const body = comment.body || '';
+            if (!body.includes('<!-- test-execution-plan-start -->') || !body.includes('<!-- test-execution-plan-end -->')) {
+              core.info('Comment does not contain test execution plan markers. Skipping.');
+              return;
+            }
+
+            // --- Guard: must be the latest test plan comment ---
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issue.number,
+              per_page: 100
+            });
+
+            const testPlanComments = comments.filter(c =>
+              allowedAuthors.includes(c.user.login) &&
+              c.body && c.body.includes('<!-- test-execution-plan-start -->')
+            );
+
+            if (testPlanComments.length === 0) {
+              core.info('No test plan comments found. Skipping.');
+              return;
+            }
+
+            const latestTestPlan = testPlanComments[testPlanComments.length - 1];
+            if (comment.id !== latestTestPlan.id) {
+              core.info(`Comment ${comment.id} is not the latest test plan (latest: ${latestTestPlan.id}). Skipping.`);
+              return;
+            }
+
+            // --- Guard: sender must be PR author or collaborator/member/owner ---
+            const prAuthor = issue.user.login;
+            const senderLogin = sender.login;
+
+            let isAllowed = false;
+            if (senderLogin === prAuthor) {
+              isAllowed = true;
+              core.info(`Sender ${senderLogin} is the PR author.`);
+            } else {
+              // Get the sender's association via the collaborator API
+              try {
+                const { data: permissionData } = await github.rest.repos.getCollaboratorPermissionLevel({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  username: senderLogin
+                });
+                const permission = permissionData.permission;
+                // admin and write permissions correspond to OWNER/MEMBER/COLLABORATOR
+                if (['admin', 'write'].includes(permission)) {
+                  isAllowed = true;
+                  core.info(`Sender ${senderLogin} has ${permission} permission.`);
+                }
+              } catch (error) {
+                core.warning(`Permission check failed for ${senderLogin}: ${error.message} — denying acknowledgment`);
+              }
+            }
+
+            if (!isAllowed) {
+              core.warning(`Sender ${senderLogin} is not authorized to acknowledge the test plan.`);
+              return;
+            }
+
+            // --- Detect checkbox TOGGLE (compare old vs new body) ---
+            const previousBody = context.payload.changes?.body?.from || '';
+            const wasChecked = previousBody.includes('[x] I have reviewed and executed the tests listed above');
+            const isChecked = body.includes('[x] I have reviewed and executed the tests listed above');
+
+            // Only act on actual state transitions
+            if (wasChecked === isChecked) {
+              core.info('No checkbox state transition detected. Skipping.');
+              return;
+            }
+
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+
+            if (isChecked && !wasChecked) {
+              core.info(`Test plan acknowledged by ${senderLogin}`);
+
+              // Remove needs-test-ack
+              try {
+                await github.rest.issues.removeLabel({ owner, repo, issue_number: issue.number, name: 'needs-test-ack' });
+              } catch (error) {
+                if (error.status !== 404) core.warning(`Failed to remove needs-test-ack: ${error.message}`);
+              }
+
+              // Add test-ack
+              try {
+                await github.rest.issues.addLabels({ owner, repo, issue_number: issue.number, labels: ['test-ack'] });
+              } catch (error) {
+                core.warning(`Failed to add test-ack: ${error.message}`);
+              }
+
+              // Add reaction to the comment
+              try {
+                await github.rest.reactions.createForIssueComment({
+                  owner, repo, comment_id: comment.id, content: '+1'
+                });
+              } catch (error) {
+                core.warning(`Failed to add reaction: ${error.message}`);
+              }
+
+              // Post audit trail comment
+              try {
+                await github.rest.issues.createComment({
+                  owner, repo, issue_number: issue.number,
+                  body: `✅ Test plan acknowledged by @${senderLogin}`
+                });
+              } catch (error) {
+                core.warning(`Failed to post audit comment: ${error.message}`);
+              }
+
+            } else if (!isChecked && wasChecked) {
+              core.info(`Test plan un-acknowledged by ${senderLogin}`);
+
+              // Remove test-ack
+              try {
+                await github.rest.issues.removeLabel({ owner, repo, issue_number: issue.number, name: 'test-ack' });
+              } catch (error) {
+                if (error.status !== 404) core.warning(`Failed to remove test-ack: ${error.message}`);
+              }
+
+              // Add needs-test-ack
+              try {
+                await github.rest.issues.addLabels({ owner, repo, issue_number: issue.number, labels: ['needs-test-ack'] });
+              } catch (error) {
+                core.warning(`Failed to add needs-test-ack: ${error.message}`);
+              }
+
+              // Post audit trail comment
+              try {
+                await github.rest.issues.createComment({
+                  owner, repo, issue_number: issue.number,
+                  body: `⚠️ Test plan acknowledgment removed by @${senderLogin}`
+                });
+              } catch (error) {
+                core.warning(`Failed to post audit comment: ${error.message}`);
+              }
+            }

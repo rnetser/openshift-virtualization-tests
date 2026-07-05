@@ -1,4 +1,4 @@
-# description: Add comment for CodeRabbit to add test instructions. An inline informational test-plan comment will be added.
+# description: Request CodeRabbit test execution plan. A regular PR comment with checkboxes will be posted.
 
 name: Request CodeRabbit tests instructions
 
@@ -11,6 +11,7 @@ on:
 permissions:
   pull-requests: write
   contents: read
+  issues: write
 
 jobs:
   comment-on-commit:
@@ -26,8 +27,31 @@ jobs:
         !endsWith(github.event.comment.user.login, '[bot]')
       )
     runs-on: ubuntu-latest
+    timeout-minutes: 5
 
     steps:
+      - name: Check commenter permissions
+        if: github.event_name == 'issue_comment'
+        id: check-commenter
+        uses: actions/github-script@v9
+        with:
+          github-token: ${{ secrets.BOT3_TOKEN }}
+          script: |
+            const commenter = context.payload.comment.user.login;
+            try {
+              const { data } = await github.rest.repos.getCollaboratorPermissionLevel({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                username: commenter
+              });
+              const allowed = ['admin', 'write'].includes(data.permission);
+              core.info(`Commenter ${commenter} has ${data.permission} permission — ${allowed ? 'allowed' : 'denied'}`);
+              core.setOutput('allowed', String(allowed));
+            } catch (error) {
+              core.warning(`Could not check permissions for ${commenter}: ${error.message}`);
+              core.setOutput('allowed', 'false');
+            }
+
       - name: Check team membership
         id: check-user-team
         uses: tspascoal/get-user-teams-membership@v4
@@ -37,7 +61,9 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.BOT3_TOKEN }}
 
       - name: Create or update comment
-        if: steps.check-user-team.outputs.is-member != 'true'
+        if: |
+          steps.check-user-team.outputs.is-member != 'true' &&
+          (github.event_name != 'issue_comment' || steps.check-commenter.outputs.allowed == 'true')
         uses: peter-evans/create-or-update-comment@v5
         with:
           issue-number: ${{ github.event.pull_request.number || github.event.issue.number }}
@@ -47,14 +73,8 @@ jobs:
             <details>
               <summary>Test execution plan request details</summary>
 
-              CRITICAL: You MUST post an inline review comment on the first changed line of the first file.
-              The inline comment should contain the full Test Execution Plan (smoke decision, gating decision, and specific affected tests).
-              Do NOT submit a blocking review event (REQUEST_CHANGES/APPROVE).
-              Post a single inline PR comment on Files Changed (non-blocking COMMENT flow).
-
               As an expert software testing engineer, analyze all modified files in this PR and create a targeted test execution plan.
-              You will post an inline review comment with the test execution plan on the first changed file.
-              If you fail to run or post a comment, retry.
+              Post the test execution plan as your reply to this comment. Do NOT use inline review comments, API calls, or shell scripts to post — just include the plan directly in your response text.
 
               **Analysis Requirements:**
 
@@ -108,81 +128,55 @@ jobs:
               **Output rules:**
               Do NOT include analysis step numbers (1-8) in your visible output.
 
-              **Your deliverable:**
-              Your inline informational comment will be based on the following requirements:
+              **Your deliverable — use this EXACT format (including HTML comment markers and checkbox):**
 
+              <!-- test-execution-plan-start -->
               **Test Execution Plan**
 
               - **Run smoke tests: True / False** — If True, state the dependency path (test → fixture → changed symbol). True ONLY with a verified path.
               - **Run gating tests: True / False** — If True, state the dependency path. True if any gating-marked test is in the affected set.
-              - **Affected tests to run** _(required when utilities/, libs/, or shared conftest changes — list concrete paths even when smoke is False)_
 
-              Use these formats:
-              - `path/to/test_file.py` - When the entire test file needs verification
-              - `path/to/test_file.py::TestClass::test_method` - When specific test(s) needed
-              - `path/to/test_file.py::test_function` - When specific test(s) needed
-              - `-m marker` - When a marker covers multiple affected tests (e.g. `-m gating` only if ALL gating tests in scope need run)
-              - Tag each listed test or group with its marker when not obvious, e.g. `(gating)` or `(smoke)`
+              **Affected tests to run:**
+              - `path/to/test_file.py` or `path/to/test_file.py::TestClass::test_method` with marker tags like `(smoke)` or `(gating)`
 
-              **Real test commands (MANDATORY when changes affect session/runtime code):**
+              **Real tests (cluster required):**
+              _(MANDATORY when changes affect session/runtime code — conftest fixtures, pytest plugins, config hooks, session-scoped setup, or runtime behavior that unit tests mock away)_
+              - Error path: `pytest <command>` — Expected: ...
+              - Happy path: `pytest <command>` — Expected: ...
 
-              When the affected code runs at session/collection time (conftest fixtures, pytest plugins,
-              config hooks, session-scoped setup) or modifies runtime behavior that unit tests mock away,
-              you MUST include concrete `pytest` commands the PR author must run on a real cluster
-              to verify the change works end-to-end. Include:
-              - A command for the **error/fix path** (the scenario the PR fixes)
-              - A command for the **happy path** (regression: the normal case still works)
-              - Use lightweight tests (e.g., `--collect-only` for startup failures,
-                a single small test for runtime behavior)
-              If the PR only changes test logic (not utilities/libs/conftest), the affected test
-              paths themselves serve as the real test commands — no separate section needed.
+              _(If the PR only changes test logic, the affected test paths serve as real test commands — no separate section needed.)_
 
-              Example output for a session-startup fix:
-              ```
-              **Real tests (cluster required)**
-              Error path (the fix):
-              `pytest tests/storage/.../test_foo.py --storage-class-matrix=nonexistent-sc --collect-only`
-              Expected: ValueError with clear message, not IndexError
-
-              Happy path (regression):
-              `pytest tests/storage/.../test_foo.py --storage-class-matrix=<valid-sc> -k test_bar`
-              Expected: session starts normally
-              ```
+              ### Acknowledgment
+              - [ ] I have reviewed and executed the tests listed above
+              <!-- test-execution-plan-end -->
 
               **Guidelines:**
 
-              - Include tests affected directly OR via fixture setup/teardown, `yield from` cleanup, or transitive utility call chains (caller calls modified helper)
+              - Include tests affected directly OR via fixture setup/teardown, `yield from` cleanup, or transitive utility call chains
               - Use a full file path only if ALL tests in that file require verification
-              - Use file path + test name when only specific tests use an affected fixture or utility wrapper (preferred for partial file impact)
+              - Use file path + test name when only specific tests use an affected fixture or utility wrapper
               - If a test marker can cover multiple files/tests, provide the marker
-              - Balance coverage vs over-testing - Keep descriptions minimal
-              - Example: if leaf helper `foo()` changes, include tests whose fixture teardown calls wrapper `bar()` where `bar()` calls `foo()`, even when the test body only imports an unrelated symbol from the same utilities module
+              - Balance coverage vs over-testing
+              - Tag each listed test with its marker, e.g. `(gating)` or `(smoke)`
 
               **Hardware-Related Checks (SR-IOV, GPU, DPDK):**
 
               When PR modifies fixtures for hardware-specific resources:
-              - **Collection Safety**: Fixtures MUST have existence checks (return `None` when hardware unavailable)
-              - **Test Plan**: MUST verify both WITH and WITHOUT hardware:
-                - Run affected tests on cluster WITH hardware
-                - Verify collection succeeds on cluster WITHOUT hardware
+              - **Collection Safety**: Fixtures MUST have existence checks
+              - **Test Plan**: MUST verify both WITH and WITHOUT hardware
 
               **CRITICAL WORKFLOW COMPLETION RULES:**
 
-              When responding to this test execution plan request, you MUST follow these rules EXACTLY:
+              1. **YOUR ONLY DELIVERABLE**: Reply to this comment with the test execution plan using the exact format above
+              2. **THEN STOP IMMEDIATELY** — no follow-up comments
+              3. You MUST include the `<!-- test-execution-plan-start -->` and `<!-- test-execution-plan-end -->` HTML markers
+              4. You MUST include the `### Acknowledgment` checkbox exactly as shown
+              5. Do NOT post inline review comments — reply as a regular PR comment only
 
-              1. **YOUR ONLY DELIVERABLE**: Post one non-blocking inline comment containing the test execution plan on the first changed line
-              2. **THEN STOP IMMEDIATELY** - Do NOT generate any additional response
-              3. **FALLBACK ONLY**: If inline comment API calls fail after retrying, post as a regular PR comment
-              4. **SILENCE = SUCCESS**: After successfully submitting the review, your task is complete. No confirmation needed.
-
-              **ABSOLUTE PROHIBITIONS** (violating these creates empty/meaningless reviews):
-              - ❌ Do NOT post acknowledgment messages like "Test execution plan posted", "Review posted successfully", "I've successfully posted"
-              - ❌ Do NOT mention review IDs, URLs, or confirmation of posting in the PR thread
-              - ❌ Do NOT add any follow-up comments after submitting the review
-              - ❌ Do NOT reply to confirm task completion
-              - ❌ Do NOT explain what you did - just do it and stop
-
-              **Remember**: The pull request review is visible to users. Additional comments are redundant noise.
+              **ABSOLUTE PROHIBITIONS:**
+              - ❌ Do NOT post acknowledgment messages like "Test execution plan posted"
+              - ❌ Do NOT add any follow-up comments after the test plan
+              - ❌ Do NOT use shell scripts or API calls to post the plan — just include it in your reply text
 
               CRITICAL — Verification rules for smoke and gating decisions:
                 - For each True decision, you must have traced a concrete path: test file → fixture → utility function → modified symbol.
@@ -194,3 +188,45 @@ jobs:
                 RIGHT: "Smoke test X uses fixture Y → wrapper Z → changed function W in utilities/hco.py"
 
             </details>
+
+      - name: Manage test-ack labels
+        if: |
+          steps.check-user-team.outputs.is-member != 'true' &&
+          (github.event_name != 'issue_comment' || steps.check-commenter.outputs.allowed == 'true')
+        uses: actions/github-script@v9
+        with:
+          github-token: ${{ secrets.BOT3_TOKEN }}
+          script: |
+            const issueNumber = context.payload.pull_request?.number || context.payload.issue?.number;
+            if (!issueNumber) return;
+
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+
+            // Add needs-test-ack label
+            try {
+              await github.rest.issues.addLabels({
+                owner,
+                repo,
+                issue_number: issueNumber,
+                labels: ['needs-test-ack']
+              });
+              core.info('Added needs-test-ack label');
+            } catch (error) {
+              core.warning(`Failed to add needs-test-ack label: ${error.message}`);
+            }
+
+            // Remove stale test-ack label if present
+            try {
+              await github.rest.issues.removeLabel({
+                owner,
+                repo,
+                issue_number: issueNumber,
+                name: 'test-ack'
+              });
+              core.info('Removed stale test-ack label');
+            } catch (error) {
+              if (error.status !== 404) {
+                core.warning(`Failed to remove test-ack label: ${error.message}`);
+              }
+            }

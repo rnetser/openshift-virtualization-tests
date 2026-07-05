@@ -1,0 +1,104 @@
+# description: Reset test plan acknowledgment labels on new code pushes.
+# Clean rebases (no code changes) preserve labels. Code changes remove
+# both test-ack and needs-test-ack — a new test plan will be generated
+# when the PR is re-verified.
+
+name: Reset test-ack on push
+
+on:
+  pull_request_target:
+    types: [synchronize]
+
+concurrency:
+  group: reset-test-ack-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  pull-requests: write
+  issues: write
+
+jobs:
+  reset-labels:
+    # Skip bot PRs
+    if: "!endsWith(github.event.pull_request.user.login, '[bot]')"
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Check if clean rebase or code change
+        id: check-rebase
+        uses: actions/github-script@v9
+        with:
+          github-token: ${{ secrets.BOT3_TOKEN }}
+          script: |
+            const before = context.payload.before;
+            const after = context.payload.after;
+
+            // First push — treat as code change
+            if (before === '0000000000000000000000000000000000000000') {
+              core.info('First push detected — treating as code change');
+              core.setOutput('is_clean_rebase', 'false');
+              return;
+            }
+
+            // Get tree SHAs via GitHub API (works even after force-push)
+            let beforeTree, afterTree;
+            try {
+              const [beforeCommit, afterCommit] = await Promise.all([
+                github.rest.git.getCommit({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  commit_sha: before
+                }),
+                github.rest.git.getCommit({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  commit_sha: after
+                })
+              ]);
+              beforeTree = beforeCommit.data.tree.sha;
+              afterTree = afterCommit.data.tree.sha;
+            } catch (error) {
+              if (error.status === 404) {
+                core.warning(`Old commit ${before} no longer exists (force-push GC) — treating as code change`);
+              } else {
+                core.warning(`Could not fetch commit trees: ${error.message} — treating as code change`);
+              }
+              core.setOutput('is_clean_rebase', 'false');
+              return;
+            }
+
+            if (beforeTree === afterTree) {
+              core.info('Clean rebase detected — trees are identical');
+              core.setOutput('is_clean_rebase', 'true');
+            } else {
+              core.info('Code change detected — trees differ');
+              core.setOutput('is_clean_rebase', 'false');
+            }
+
+      - name: Remove test-ack labels on code change
+        if: steps.check-rebase.outputs.is_clean_rebase == 'false'
+        uses: actions/github-script@v9
+        with:
+          github-token: ${{ secrets.BOT3_TOKEN }}
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const issue_number = context.payload.pull_request.number;
+
+            const labelsToRemove = ['test-ack', 'needs-test-ack'];
+
+            for (const label of labelsToRemove) {
+              try {
+                await github.rest.issues.removeLabel({ owner, repo, issue_number, name: label });
+                core.info(`Removed ${label} label`);
+              } catch (error) {
+                if (error.status === 404) {
+                  core.info(`Label ${label} not present — skipping`);
+                } else {
+                  core.warning(`Failed to remove ${label}: ${error.message}`);
+                }
+              }
+            }
+
+            core.info('Test-ack labels reset due to code change');
