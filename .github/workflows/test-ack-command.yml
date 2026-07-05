@@ -1,0 +1,168 @@
+# description: Handle /test-ack slash command for test plan acknowledgment.
+# Alternative to checkbox toggle — allows external contributors (who can't
+# edit bot comments) to acknowledge the test plan via a comment command.
+# Usage: /test-ack <explanation of what was tested>
+
+name: Test plan ack command
+
+on:
+  issue_comment:
+    types: [created]
+
+concurrency:
+  group: test-ack-cmd-${{ github.event.issue.number }}
+  cancel-in-progress: true
+
+permissions:
+  pull-requests: write
+  issues: write
+
+jobs:
+  handle-ack:
+    if: |
+      github.event.issue.pull_request &&
+      startsWith(github.event.comment.body, '/test-ack') &&
+      !endsWith(github.event.comment.user.login, '[bot]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Process test-ack command
+        uses: actions/github-script@v9
+        env:
+          BOT3_ACCOUNT: openshift-virtualization-qe-bot-3
+        with:
+          github-token: ${{ secrets.BOT3_TOKEN }}
+          script: |
+            const comment = context.payload.comment;
+            const sender = comment.user.login;
+            const issue = context.payload.issue;
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const issueNumber = issue.number;
+
+            // --- Guard: sender must be PR author or have write/admin access ---
+            const prAuthor = issue.user.login;
+            let isAllowed = false;
+
+            if (sender === prAuthor) {
+              isAllowed = true;
+              core.info(`Sender ${sender} is the PR author.`);
+            } else {
+              try {
+                const { data } = await github.rest.repos.getCollaboratorPermissionLevel({
+                  owner, repo, username: sender
+                });
+                if (['admin', 'write'].includes(data.permission)) {
+                  isAllowed = true;
+                  core.info(`Sender ${sender} has ${data.permission} permission.`);
+                }
+              } catch (error) {
+                core.warning(`Permission check failed for ${sender}: ${error.message} — denying acknowledgment`);
+              }
+            }
+
+            if (!isAllowed) {
+              core.warning(`Sender ${sender} is not authorized to acknowledge the test plan.`);
+              // Add a reaction to indicate denial
+              try {
+                await github.rest.reactions.createForIssueComment({
+                  owner, repo, comment_id: comment.id, content: '-1'
+                });
+              } catch (error) {
+                core.warning(`Failed to add reaction: ${error.message}`);
+              }
+              return;
+            }
+
+            // --- Guard: comment must have substance (not just "/test-ack") ---
+            // Exact command match: must be /test-ack followed by whitespace or end of string
+            if (!/^\/test-ack(?:\s|$)/.test(comment.body)) {
+              core.info('Comment does not match exact /test-ack command. Skipping.');
+              return;
+            }
+
+            const ackText = comment.body.replace(/^\/test-ack\s*/, '').trim();
+            if (ackText.length < 20) {
+              core.warning(`Ack text too short (${ackText.length} chars). Requires >= 20 chars.`);
+              try {
+                await github.rest.issues.createComment({
+                  owner, repo, issue_number: issueNumber,
+                  body: `⚠️ @${sender} — \`/test-ack\` requires an explanation of what was tested (at least 20 characters).\n\nExample: \`/test-ack ran smoke and gating tests on cluster ocp-4.18, all passed\``
+                });
+              } catch (error) {
+                core.warning(`Failed to post guidance comment: ${error.message}`);
+              }
+              return;
+            }
+
+            // --- Guard: PR must have a test plan comment ---
+            const allowedAuthors = ['coderabbitai[bot]', process.env.BOT3_ACCOUNT];
+            const allComments = await github.paginate(github.rest.issues.listComments, {
+              owner, repo, issue_number: issueNumber, per_page: 100
+            });
+
+            const testPlanComments = allComments.filter(c =>
+              allowedAuthors.includes(c.user.login) &&
+              c.body && c.body.includes('<!-- test-execution-plan-start -->')
+            );
+
+            if (testPlanComments.length === 0) {
+              core.warning('No test plan comment found on this PR.');
+              try {
+                await github.rest.issues.createComment({
+                  owner, repo, issue_number: issueNumber,
+                  body: `⚠️ @${sender} — No test plan found on this PR. A test plan is generated when the \`verified\` label is added.`
+                });
+              } catch (error) {
+                core.warning(`Failed to post guidance comment: ${error.message}`);
+              }
+              return;
+            }
+
+            // --- Apply acknowledgment ---
+            const latestTestPlan = testPlanComments[testPlanComments.length - 1];
+            const testPlanUrl = latestTestPlan.html_url;
+            core.info(`Test plan acknowledged and executed by ${sender} via /test-ack command`);
+
+            // Remove needs-test-ack (non-critical — may not exist)
+            try {
+              await github.rest.issues.removeLabel({ owner, repo, issue_number: issueNumber, name: 'needs-test-ack' });
+            } catch (error) {
+              if (error.status !== 404) core.warning(`Failed to remove needs-test-ack: ${error.message}`);
+            }
+
+            // Add test-ack (MANDATORY — fail the workflow if this fails)
+            try {
+              await github.rest.issues.addLabels({ owner, repo, issue_number: issueNumber, labels: ['test-ack'] });
+            } catch (error) {
+              core.setFailed(`Failed to add test-ack label: ${error.message}`);
+              try {
+                await github.rest.issues.createComment({
+                  owner, repo, issue_number: issueNumber,
+                  body: `❌ @${sender} — /test-ack failed: could not add \`test-ack\` label. Please retry.`
+                });
+              } catch (commentError) {
+                core.warning(`Failed to post failure comment: ${commentError.message}`);
+              }
+              return;
+            }
+
+            // Add reaction to the command comment
+            try {
+              await github.rest.reactions.createForIssueComment({
+                owner, repo, comment_id: comment.id, content: '+1'
+              });
+            } catch (error) {
+              core.warning(`Failed to add reaction: ${error.message}`);
+            }
+
+            // Post audit trail comment as quote-reply on the test plan comment
+            try {
+              await github.rest.issues.createComment({
+                owner, repo, issue_number: issueNumber,
+                body: `> [Test plan](${testPlanUrl})\n\n✅ Test plan acknowledged and executed by @${sender}\n\n\`\`\`\n${ackText.slice(0, 500)}\n\`\`\``
+              });
+            } catch (error) {
+              core.warning(`Failed to post audit comment: ${error.message}`);
+            }
