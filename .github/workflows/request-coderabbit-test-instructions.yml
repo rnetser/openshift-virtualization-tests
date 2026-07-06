@@ -54,6 +54,7 @@ jobs:
 
       - name: Check team membership
         id: check-user-team
+        continue-on-error: true
         uses: tspascoal/get-user-teams-membership@v4
         with:
           team: cnvqe-bot
