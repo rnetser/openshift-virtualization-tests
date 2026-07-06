@@ -120,7 +120,7 @@ jobs:
             const repo = context.repo.repo;
 
             if (isChecked && !wasChecked) {
-              core.info(`Test plan acknowledged by ${senderLogin}`);
+              core.info(`Test plan acknowledged and executed by ${senderLogin}`);
 
               // Remove needs-test-ack
               try {
@@ -145,11 +145,12 @@ jobs:
                 core.warning(`Failed to add reaction: ${error.message}`);
               }
 
-              // Post audit trail comment
+              // Post audit trail comment as quote-reply on the test plan comment
+              const testPlanUrl = latestTestPlan.html_url;
               try {
                 await github.rest.issues.createComment({
                   owner, repo, issue_number: issue.number,
-                  body: `✅ Test plan acknowledged by @${senderLogin}`
+                  body: `> [Test plan](${testPlanUrl})\n\n✅ Test plan acknowledged and executed by @${senderLogin}`
                 });
               } catch (error) {
                 core.warning(`Failed to post audit comment: ${error.message}`);
@@ -157,6 +158,8 @@ jobs:
 
             } else if (!isChecked && wasChecked) {
               core.info(`Test plan un-acknowledged by ${senderLogin}`);
+
+              const unackTestPlanUrl = latestTestPlan.html_url;
 
               // Remove test-ack
               try {
@@ -172,11 +175,11 @@ jobs:
                 core.warning(`Failed to add needs-test-ack: ${error.message}`);
               }
 
-              // Post audit trail comment
+              // Post audit trail comment as quote-reply on the test plan comment
               try {
                 await github.rest.issues.createComment({
                   owner, repo, issue_number: issue.number,
-                  body: `⚠️ Test plan acknowledgment removed by @${senderLogin}`
+                  body: `> [Test plan](${unackTestPlanUrl})\n\n⚠️ Test plan acknowledgment removed by @${senderLogin}`
                 });
               } catch (error) {
                 core.warning(`Failed to post audit comment: ${error.message}`);
