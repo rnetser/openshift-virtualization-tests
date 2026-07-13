@@ -172,24 +172,6 @@ reviews:
           FAIL with a table: scenario summary | STP tier/priority | status (covered/missing).
           List every missing scenario explicitly.
 
-      - name: "special_infra marker required"
-        mode: error
-        instructions: |
-          For newly added test functions or `test_*.py` files under `tests/`:
-
-          If the test uses a hardware or special-configuration marker from `pytest.ini` that
-          requires non-standard cluster capabilities, it MUST also declare
-          `@pytest.mark.special_infra` at module (`pytestmark`), class, or test level.
-
-          Triggering markers: `gpu`, `sriov`, `bgp`, `ibm_bare_metal`, `dpdk`, `swap`,
-          `cpu_manager`, `numa`, `hugepages`, `jumbo_frame`, `rwx_default_storage`,
-          `descheduler`, `high_resource_vm`.
-
-          Exempt: `single_nic`, `remote_cluster`, `mixed_os_nodes`, `cclm`, operator-only
-          markers (`hpp`, `mtv`, `tekton`, `service_mesh`, `nmstate`), `utilities/unittests/`.
-
-          PASS if no new tests use a triggering marker without `special_infra`.
-
   # Auto-review configuration
   auto_review:
     enabled: true
