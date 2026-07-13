@@ -1,4 +1,4 @@
-"""Scratch space storage class selection STD.
+"""Scratch space storage class selection STD (partial — 1 of 4 P0 scenarios).
 
 STP: https://github.com/RedHatQE/openshift-virtualization-tests-design-docs/blob/main/stps/sig-storage/scratch_space_sc_selection_logic.md
 
