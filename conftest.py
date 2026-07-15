@@ -51,6 +51,7 @@ from utilities.exceptions import MissingEnvironmentVariableError, StorageSanityE
 from utilities.junit_ai_utils import enrich_junit_xml, setup_ai_analysis
 from utilities.logger import setup_logging
 from utilities.pytest_utils import (
+    InjectFailurePlugin,
     assert_incremental_classes_fully_collected,
     config_default_storage_class,
     deploy_run_in_progress_config_map,
@@ -583,6 +584,8 @@ def pytest_configure(config):
         ).construct_storage_class_matrix(storage_config=config.getoption("conformance_storage_class_config"))
 
         py_config["default_storage_class"] = conformance_storage_class
+
+    config.pluginmanager.register(plugin=InjectFailurePlugin(), name="inject-failure-junit")
 
 
 def pytest_collection_modifyitems(session, config, items):

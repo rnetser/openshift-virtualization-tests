@@ -7,6 +7,9 @@ from unittest.mock import MagicMock, mock_open, patch
 import pytest
 
 import utilities.constants
+
+# Circular dependencies are already mocked in conftest.py
+from utilities import pytest_utils as pytest_utils_module
 from utilities.constants.architecture import (
     AMD_64,
     ARM_64,
@@ -19,8 +22,6 @@ from utilities.constants.instance_types import (
     RHEL9_PREFERENCE,
 )
 from utilities.exceptions import MissingEnvironmentVariableError, UnsupportedCPUArchitectureError
-
-# Circular dependencies are already mocked in conftest.py
 from utilities.pytest_utils import (
     assert_incremental_classes_fully_collected,
     config_default_storage_class,
@@ -37,6 +38,7 @@ from utilities.pytest_utils import (
     get_current_running_data,
     get_matrix_params,
     get_tests_cluster_markers,
+    inject_failure_junit,
     mark_nmstate_dependent_tests,
     remove_tests_from_list,
     reorder_early_fixtures,
@@ -2536,3 +2538,94 @@ class TestFilterMultiarchTests:
 
         assert result == [item_other]
         config.hook.pytest_deselected.assert_not_called()
+
+
+class TestInjectFailureJunit:
+    """Test cases for inject_failure_junit and _failure_info mechanism"""
+
+    def setup_method(self):
+        pytest_utils_module._failure_info = pytest_utils_module._FailureInfo()
+
+    def teardown_method(self):
+        pytest_utils_module._failure_info = pytest_utils_module._FailureInfo()
+
+    def test_no_op_when_no_failure(self):
+        """Test inject_failure_junit does nothing when no failure was recorded."""
+        mock_session = MagicMock()
+        inject_failure_junit(session=mock_session)
+        mock_session.config.stash.get.assert_not_called()
+
+    def test_no_op_when_junitxml_not_registered(self):
+        """Test inject_failure_junit does nothing when junitxml writer is not active."""
+        pytest_utils_module._failure_info.message = "Test failure"
+        pytest_utils_module._failure_info.log_message = "Detailed failure"
+        pytest_utils_module._failure_info.return_code = 99
+        pytest_utils_module._failure_info.recorded = True
+
+        mock_session = MagicMock()
+        mock_session.config.stash.get.return_value = None
+
+        inject_failure_junit(session=mock_session)
+
+        mock_session.config.stash.get.assert_called_once()
+
+    def test_injects_synthetic_testcase(self):
+        """Test inject_failure_junit creates synthetic error testcase in JUnit XML."""
+        pytest_utils_module._failure_info.message = "Cluster sanity failed"
+        pytest_utils_module._failure_info.log_message = "Detailed cluster sanity failure message"
+        pytest_utils_module._failure_info.return_code = 99
+        pytest_utils_module._failure_info.recorded = True
+
+        mock_session = MagicMock()
+        mock_xml_writer = MagicMock()
+        mock_reporter = MagicMock()
+        mock_reporter.attrs = {}
+        mock_xml_writer.node_reporter.return_value = mock_reporter
+        mock_session.config.stash.get.return_value = mock_xml_writer
+
+        inject_failure_junit(session=mock_session)
+
+        mock_xml_writer.node_reporter.assert_called_once_with(report="pytest_exit::cluster_sanity_failed")
+        assert mock_reporter.attrs["classname"] == "pytest_exit"
+        assert mock_reporter.attrs["name"] == "cluster_sanity_failed"
+        mock_reporter.append.assert_called_once()
+        error_element = mock_reporter.append.call_args[0][0]
+        assert error_element.tag == "error"
+        assert "exit code: 99" in error_element.get("message")
+        assert "Detailed cluster sanity failure message" in error_element.text
+
+    @patch("utilities.pytest_utils.pytest.exit")
+    @patch("utilities.pytest_utils.get_data_collector_base_directory")
+    def test_exit_pytest_execution_stores_failure_info(self, mock_get_base_dir, mock_pytest_exit):
+        """Test exit_pytest_execution stores failure info for JUnit XML injection."""
+        mock_get_base_dir.return_value = "/tmp/test"
+        mock_admin_client = MagicMock()
+
+        exit_pytest_execution(
+            log_message="Storage check failed",
+            return_code=99,
+            message="Cluster sanity checks failed.",
+            admin_client=mock_admin_client,
+        )
+
+        assert pytest_utils_module._failure_info.recorded
+        assert pytest_utils_module._failure_info.message == "Cluster sanity checks failed."
+        assert pytest_utils_module._failure_info.log_message == "Storage check failed"
+        assert pytest_utils_module._failure_info.return_code == 99
+
+    @patch("utilities.pytest_utils.pytest.exit")
+    @patch("utilities.pytest_utils.get_data_collector_base_directory")
+    def test_exit_pytest_execution_uses_log_message_when_no_message(self, mock_get_base_dir, mock_pytest_exit):
+        """Test exit_pytest_execution uses log_message as message when message is None."""
+        mock_get_base_dir.return_value = "/tmp/test"
+        mock_admin_client = MagicMock()
+
+        exit_pytest_execution(
+            log_message="Network sanity failed",
+            return_code=91,
+            admin_client=mock_admin_client,
+        )
+
+        assert pytest_utils_module._failure_info.recorded
+        assert pytest_utils_module._failure_info.message == "Network sanity failed"
+        assert pytest_utils_module._failure_info.return_code == 91

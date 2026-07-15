@@ -9,9 +9,12 @@ import shutil
 import socket
 import sys
 from collections import defaultdict
+from dataclasses import dataclass
 from typing import Any
+from xml.etree import ElementTree
 
 import pytest
+from _pytest.junitxml import bin_xml_escape, xml_key  # Internal pytest API — verify after pytest upgrades
 from kubernetes.dynamic import DynamicClient
 from ocp_resources.config_map import ConfigMap
 from ocp_resources.namespace import Namespace
@@ -50,6 +53,72 @@ from utilities.os_utils import (
 )
 
 LOGGER = logging.getLogger(__name__)
+
+
+@dataclass
+class _FailureInfo:
+    """Stores failure info from exit_pytest_execution for JUnit XML injection.
+
+    Used as a module-level singleton — set by exit_pytest_execution,
+    read by inject_failure_junit in pytest_sessionfinish.
+    """
+
+    message: str = ""
+    log_message: str = ""
+    return_code: int = 0
+    recorded: bool = False
+
+
+_failure_info = _FailureInfo()
+
+
+class InjectFailurePlugin:
+    """Plugin to inject synthetic failure testcase into JUnit XML before LogXML writes."""
+
+    @staticmethod
+    @pytest.hookimpl(tryfirst=True)
+    def pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
+        inject_failure_junit(session=session)
+
+
+def inject_failure_junit(session: pytest.Session) -> None:
+    """Inject a synthetic error testcase into JUnit XML for early pytest exit failures.
+
+    When pytest exits before running any tests, the JUnit XML report contains zero
+    testcases. CI systems ignore empty reports, making failures invisible. This
+    function adds a synthetic error testcase to ensure the failure is reported.
+
+    Note:
+        Must execute before LogXML.pytest_sessionfinish writes the report.
+        InjectFailurePlugin ensures this via @pytest.hookimpl(tryfirst=True).
+
+    Args:
+        session: The pytest session object, used to access the junitxml writer.
+    """
+    if not _failure_info.recorded:
+        return
+
+    xml_writer = session.config.stash.get(xml_key, None)
+    if xml_writer is None:
+        LOGGER.info("No junitxml writer active (--junitxml not passed), skipping synthetic testcase injection")
+        return
+
+    return_code = _failure_info.return_code
+    log_message = _failure_info.log_message
+
+    sanitized_name = re.sub(r"[^a-z0-9_]", "", _failure_info.message.lower().replace(" ", "_"))[:80]
+    name = sanitized_name or "execution_failure"
+
+    node_id = f"pytest_exit::{name}"
+    reporter = xml_writer.node_reporter(report=node_id)
+    reporter.attrs["classname"] = "pytest_exit"
+    reporter.attrs["name"] = name
+
+    error_node = ElementTree.Element("error", attrib={"message": f"Pytest execution failed (exit code: {return_code})"})
+    error_node.text = bin_xml_escape(arg=log_message)
+    reporter.append(error_node)
+
+    LOGGER.info(f"Injected synthetic failure testcase into JUnit XML (exit code: {return_code})")
 
 
 def get_base_matrix_name(matrix_name):
@@ -367,6 +436,11 @@ def exit_pytest_execution(
         junitxml_property (pytest plugin): record_testsuite_property
         message (str): Message to log in an error file. If not provided, `log_message` will be used.
         admin_client (DynamicClient): cluster admin client
+
+    Note:
+        Records the failure details in a module-level store so that
+        inject_failure_junit can emit a synthetic JUnit XML testcase
+        during pytest_sessionfinish.
     """
     target_location = os.path.join(get_data_collector_base_directory(), "utilities", "pytest_exit_errors")
     # collect must-gather for past 5 minutes:
@@ -386,6 +460,12 @@ def exit_pytest_execution(
         )
     if junitxml_property:
         junitxml_property(name="exit_code", value=return_code)
+
+    _failure_info.message = message or log_message
+    _failure_info.log_message = log_message
+    _failure_info.return_code = return_code
+    _failure_info.recorded = True
+
     pytest.exit(reason=log_message, returncode=return_code)
 
 
