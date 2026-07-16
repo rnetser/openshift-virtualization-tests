@@ -190,6 +190,9 @@ reviews:
           PASS if every STP scenario has a corresponding STD/test declaration in the PR (or
           existing file), OR the PR description documents intentional exclusion with a
           follow-up Jira link per excluded scenario.
+          Exempt from direct-declaration checks: regression scenarios intentionally excluded
+          from the STP scenario table, and scenarios inherited from a parent STP via
+          child-STP extension (child STPs extend the parent without duplicating its scenarios).
 
           *Modified tests:*
           When a test referencing an STP is modified (docstring, steps, assertions, or fixtures),
@@ -310,40 +313,31 @@ knowledge_base:
     # Link to design-docs repo for STP ↔ test traceability
     - repository: "RedHatQE/openshift-virtualization-tests-design-docs"
       instructions: |
-        Contains Software Test Plans (STPs) under stps/<sig>/ that define
+        Contains Software Test Plans (STPs) under stps/<sig>/ defining
         test requirements, scenarios, and acceptance criteria.
 
-        STRICT ENFORCEMENT (applied to STD (Software Test Description)
-        and test implementation PRs):
-        - CRITICAL: Every STD PR MUST cover ALL test scenarios from the
-          referenced STP, except scenarios explicitly excluded with
-          justification and a follow-up Jira link. Any other missing
-          scenario blocks merge.
+        STRICT ENFORCEMENT (STD and test implementation PRs):
+        - CRITICAL: Every STD PR MUST cover ALL STP scenarios, except
+          explicitly excluded ones with justification and follow-up
+          Jira link. Missing scenarios block merge.
         - CRITICAL: Every new feature test MUST link to its STP (or
-          Jira/RFE when no STP exists). The link can be at module,
-          class, or test level docstring — place it at the level that
-          applies. Missing traceability links block merge.
-        - HIGH: STD docstring preconditions, steps, and expected results
-          MUST align with the STP scenario description.
-        - HIGH: If an STP scenario is intentionally excluded, the PR
-          description MUST explain why and include a follow-up Jira link.
-        - HIGH: Every test scenario defined in the STP must have a
-          corresponding STD test implementation.
-        - HIGH: Negative and edge-case scenarios defined in the STP
-          MUST have corresponding tests — do not skip error paths.
-        - HIGH: When a test referencing an STP is modified, its docstring
-          (Preconditions, Steps, Expected) AND test body (assertions,
-          fixture usage) MUST still align with the STP scenario
-          description. Flag misalignment as HIGH.
-        - HIGH: When a test referencing an STP, Jira, or RFE is deleted,
-          the PR description MUST document the justification. If the
-          covered issue/feature/scenario is still valid, a follow-up
-          Jira link for re-coverage MUST be included. Unjustified
-          deletion of traceability-linked tests blocks merge.
-        - Jira/RFE-only tests (no STP) do NOT require STP scenario
-          comparison, but modified tests MUST retain a valid Jira:/RFE:
-          traceability link, and deleted tests require documented
-          justification.
+          Jira/RFE if no STP exists) in module/class/test docstring.
+          Missing traceability links block merge.
+        - HIGH: STD preconditions, steps, and expected results MUST
+          align with the STP scenario description.
+        - HIGH: Intentionally excluded STP scenarios require PR
+          description justification with a follow-up Jira link.
+        - HIGH: Every STP feature scenario needs a corresponding STD.
+          Exempt: regression scenarios excluded from the STP table,
+          and scenarios inherited from a parent STP via child-STP.
+        - HIGH: STP negative/edge-case scenarios MUST have tests.
+        - HIGH: Modified tests referencing an STP must keep docstring
+          and test body aligned with the STP scenario. Flag drift.
+        - HIGH: Deleted STP/Jira/RFE-linked tests require PR
+          justification. If scenario is still valid, include a
+          follow-up Jira link. Unjustified deletion blocks merge.
+        - Jira/RFE-only tests skip STP comparison but must retain
+          traceability links on modification, and justify deletion.
         - Partial coverage without justification blocks merge.
 
   # Enable code guidelines enforcement from AGENTS.md (single source of truth)
