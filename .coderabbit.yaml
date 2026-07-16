@@ -43,7 +43,7 @@ reviews:
         Do NOT report STP coverage gaps only in PR conversation chat.
 
         ## STP alignment on modification and deletion
-        When a test referencing an `STP:` URL is modified or deleted, use the same
+        When a test referencing an `STP:` URL is modified, use the same
         inline-comment placement as the "STP traceability" section above: post on the
         changed lines (docstring, assertion, or fixture) when available, otherwise fall
         back to the `STP:` line or module docstring.
