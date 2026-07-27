@@ -2368,11 +2368,11 @@ def vm_for_test(request, namespace, unprivileged_client):
 
 
 @pytest.fixture(scope="class")
-def migrated_vm_multiple_times(request, vm_for_migration_test):
+def migrated_vm_multiple_times(request, admin_client, vm_for_migration_test):
     vmim = []
     for migration_index in range(request.param):
         migration_obj = VirtualMachineInstanceMigration(
-            client=vm_for_migration_test.client,
+            client=admin_client,
             name=f"{vm_for_migration_test.name}-{migration_index}",
             namespace=vm_for_migration_test.namespace,
             vmi_name=vm_for_migration_test.vmi.name,
