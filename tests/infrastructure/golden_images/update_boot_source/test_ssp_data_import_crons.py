@@ -35,11 +35,14 @@ pytestmark = pytest.mark.post_upgrade
 
 
 @pytest.mark.polarion("CNV-12414")
-def test_updated_rhel_image(golden_images_data_import_crons_scope_class, latest_rhel_release_versions_dict, subtests):
+def test_updated_rhel_image(
+    admin_client, golden_images_data_import_crons_scope_class, latest_rhel_release_versions_dict, subtests
+):
     for rhel_dic in [dic for dic in golden_images_data_import_crons_scope_class if "rhel" in dic.name.lower()]:
         rhel_instance_dict = rhel_dic.instance
         image_reference_version = get_image_version(
-            image=rhel_instance_dict.metadata.annotations.get("cdi.kubevirt.io/storage.import.imageStreamDockerRef")
+            image=rhel_instance_dict.metadata.annotations.get("cdi.kubevirt.io/storage.import.imageStreamDockerRef"),
+            client=admin_client,
         )
         with subtests.test(rhel_dic_name=rhel_dic.name, managed_data_source=rhel_instance_dict.spec.managedDataSource):
             managed_data_source = rhel_instance_dict.spec.managedDataSource

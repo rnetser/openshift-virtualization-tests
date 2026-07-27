@@ -18,7 +18,7 @@ def fedora_vm(
     vm_labels: dict[str, str] | None = None,
     vm_annotations: dict[str, str] | None = None,
 ) -> BaseVirtualMachine:
-    spec = _fill_vm_spec_defaults(spec=spec)
+    spec = _fill_vm_spec_defaults(spec=spec, client=client)
 
     return BaseVirtualMachine(
         namespace=namespace,
@@ -31,13 +31,13 @@ def fedora_vm(
     )
 
 
-def fedora_image(arch: str | None = None) -> str:
+def fedora_image(client: DynamicClient, arch: str | None = None) -> str:
     images = getattr(ArchImages, arch.upper()) if arch else constants_module.Images
 
-    return container_image(base_image=images.Fedora.FEDORA_CONTAINER_IMAGE, arch=arch)
+    return container_image(base_image=images.Fedora.FEDORA_CONTAINER_IMAGE, client=client, arch=arch)
 
 
-def _fill_vm_spec_defaults(spec: VMSpec | None) -> VMSpec:
+def _fill_vm_spec_defaults(spec: VMSpec | None, client: DynamicClient) -> VMSpec:
     spec = spec or base_vmspec()
 
     vmi_spec = spec.template.spec
@@ -49,7 +49,7 @@ def _fill_vm_spec_defaults(spec: VMSpec | None) -> VMSpec:
     vmi_spec.domain.devices.disks = vmi_spec.domain.devices.disks or []
     vmi_spec.volumes = vmi_spec.volumes or []
 
-    disk, volume = containerdisk_storage(image=fedora_image(arch=vmi_spec.architecture))
+    disk, volume = containerdisk_storage(image=fedora_image(client=client, arch=vmi_spec.architecture))
     vmi_spec.domain.devices.disks.insert(0, disk)
     vmi_spec.volumes.insert(0, volume)
 

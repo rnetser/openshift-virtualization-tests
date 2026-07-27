@@ -28,7 +28,6 @@ from libs.vm.spec import (
 )
 from tests.network.libs import cloudinit
 from utilities import infra
-from utilities.cluster import cache_admin_client
 from utilities.constants.virt import CLOUD_INIT_DISK_NAME
 from utilities.virt import get_oc_image_info, vm_console_run_commands
 
@@ -245,8 +244,8 @@ class BaseVirtualMachine(VirtualMachine):
         return obj
 
 
-def container_image(base_image: str, arch: str | None = None) -> str:
-    pull_secret = infra.generate_openshift_pull_secret_file(client=cache_admin_client())
+def container_image(base_image: str, client: DynamicClient, arch: str | None = None) -> str:
+    pull_secret = infra.generate_openshift_pull_secret_file(client=client)
     image_info = get_oc_image_info(
         image=base_image,
         pull_secret=pull_secret,

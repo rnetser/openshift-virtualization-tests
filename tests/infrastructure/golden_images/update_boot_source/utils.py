@@ -12,7 +12,6 @@ from ocp_resources.volume_snapshot import VolumeSnapshot
 from packaging.version import Version
 from timeout_sampler import TimeoutExpiredError, TimeoutSampler
 
-from utilities.cluster import cache_admin_client
 from utilities.constants.images import DEFAULT_FEDORA_REGISTRY_URL
 from utilities.constants.storage import WILDCARD_CRON_EXPRESSION
 from utilities.constants.timeouts import (
@@ -137,7 +136,7 @@ def get_all_release_versions_from_docs(major_ver_num: int) -> list[int]:
     return versions
 
 
-def get_image_version(image: str) -> str | None:
+def get_image_version(image: str, client: DynamicClient) -> str | None:
     """
     Extract the major.minor version from an image's version label.
 
@@ -146,6 +145,7 @@ def get_image_version(image: str) -> str | None:
 
     Args:
         image: Image reference string.
+        client: Dynamic client for API operations.
 
     Returns:
         Version string in "major.minor" format (e.g., "8.9"), or None if:
@@ -154,7 +154,7 @@ def get_image_version(image: str) -> str | None:
     """
     image_info = get_oc_image_info(
         image=image,
-        pull_secret=generate_openshift_pull_secret_file(client=cache_admin_client()),
+        pull_secret=generate_openshift_pull_secret_file(client=client),
     )
     full_version = image_info.get("config", {}).get("config", {}).get("Labels", {}).get("version")
     try:
