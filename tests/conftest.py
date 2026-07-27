@@ -2436,11 +2436,11 @@ def rhel_vm_with_cluster_instance_type_and_preference(namespace, unprivileged_cl
         namespace=namespace.name,
         client=unprivileged_client,
         vm_instance_type=VirtualMachineClusterInstancetype(
-            client=namespace.client,
+            client=unprivileged_client,
             name=EXPECTED_CLUSTER_INSTANCE_TYPE_LABELS[INSTANCE_TYPE_STR],
         ),
         vm_preference=VirtualMachineClusterPreference(
-            client=namespace.client,
+            client=unprivileged_client,
             name=EXPECTED_CLUSTER_INSTANCE_TYPE_LABELS[PREFERENCE_STR],
         ),
         os_flavor=OS_FLAVOR_RHEL,
