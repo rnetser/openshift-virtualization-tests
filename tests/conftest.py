@@ -583,7 +583,7 @@ def generated_pulled_secret(
 ):
     if is_production_source and installing_cnv:
         return
-    return generate_openshift_pull_secret_file(client=admin_client)
+    return generate_openshift_pull_secret_file()
 
 
 @pytest.fixture(scope="session")

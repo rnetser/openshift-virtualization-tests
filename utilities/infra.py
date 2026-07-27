@@ -37,7 +37,7 @@ from ocp_resources.namespace import Namespace
 from ocp_resources.package_manifest import PackageManifest
 from ocp_resources.pod import Pod
 from ocp_resources.project_request import ProjectRequest
-from ocp_resources.resource import Resource, ResourceEditor
+from ocp_resources.resource import Resource, ResourceEditor, get_client
 from ocp_resources.secret import Secret
 from ocp_resources.subscription import Subscription
 from packaging.version import Version
@@ -801,10 +801,10 @@ def unique_name(name, service_type=None):
     return f"{name}-{service_type}{time.time()}".replace(".", "-")
 
 
-def get_openshift_pull_secret(client: DynamicClient) -> Secret:
+def get_openshift_pull_secret(client: DynamicClient = None) -> Secret:
     pull_secret_name = "pull-secret"
     secret = Secret(
-        client=client,
+        client=client or get_client(),
         name=pull_secret_name,
         namespace=NamespacesNames.OPENSHIFT_CONFIG,
     )
@@ -812,22 +812,16 @@ def get_openshift_pull_secret(client: DynamicClient) -> Secret:
     return secret
 
 
-_openshift_pull_secret_file: str | None = None
-
-
-def generate_openshift_pull_secret_file(client: DynamicClient) -> str:
+@cache
+def generate_openshift_pull_secret_file(client: DynamicClient = None) -> str:
     # TODO: refactor this code; only needed by `utilities.virt.get_oc_image_info`
     #  Should be called by `utilities.virt.get_oc_image_info` and not require the user to pass it
-    global _openshift_pull_secret_file
-    if _openshift_pull_secret_file is not None:
-        return _openshift_pull_secret_file
     pull_secret = get_openshift_pull_secret(client=client)
     pull_secret_path = tempfile.mkdtemp(suffix="-cnv-tests-pull-secret")
     json_file = os.path.join(pull_secret_path, "pull-secrets.json")
     secret = base64.b64decode(pull_secret.instance.data[".dockerconfigjson"]).decode(encoding="utf-8")
     with open(file=json_file, mode="w") as outfile:
         outfile.write(secret)
-    _openshift_pull_secret_file = json_file
     return json_file
 
 

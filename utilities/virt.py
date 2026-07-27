@@ -51,7 +51,6 @@ import utilities.cpu
 import utilities.data_utils
 import utilities.infra
 from libs.net.cluster import is_ipv6_single_stack_cluster
-from utilities.cluster import cache_admin_client
 from utilities.console import Console
 from utilities.constants import Images
 from utilities.constants.architecture import (
@@ -1535,7 +1534,7 @@ def vm_console_run_commands(
 
 
 def fedora_vm_body(name: str) -> dict[str, Any]:
-    pull_secret = utilities.infra.generate_openshift_pull_secret_file(client=cache_admin_client())
+    pull_secret = utilities.infra.generate_openshift_pull_secret_file()
 
     image = getattr(ArchImages, py_config["cpu_arch"].upper()).Fedora.FEDORA_CONTAINER_IMAGE
     image_info = get_oc_image_info(
