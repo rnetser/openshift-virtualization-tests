@@ -12,6 +12,7 @@ from ocp_resources.volume_snapshot import VolumeSnapshot
 from packaging.version import Version
 from timeout_sampler import TimeoutExpiredError, TimeoutSampler
 
+from utilities.cluster import cache_admin_client
 from utilities.constants.images import DEFAULT_FEDORA_REGISTRY_URL
 from utilities.constants.storage import WILDCARD_CRON_EXPRESSION
 from utilities.constants.timeouts import (
@@ -153,7 +154,7 @@ def get_image_version(image: str) -> str | None:
     """
     image_info = get_oc_image_info(
         image=image,
-        pull_secret=generate_openshift_pull_secret_file(),
+        pull_secret=generate_openshift_pull_secret_file(client=cache_admin_client()),
     )
     full_version = image_info.get("config", {}).get("config", {}).get("Labels", {}).get("version")
     try:

@@ -583,7 +583,7 @@ def generated_pulled_secret(
 ):
     if is_production_source and installing_cnv:
         return
-    return generate_openshift_pull_secret_file()
+    return generate_openshift_pull_secret_file(client=admin_client)
 
 
 @pytest.fixture(scope="session")
@@ -2245,11 +2245,12 @@ def vm_from_template_with_existing_dv(
 
 
 @pytest.fixture()
-def scaled_deployment(request, hco_namespace):
+def scaled_deployment(request, hco_namespace, admin_client):
     with scale_deployment_replicas(
         deployment_name=request.param["deployment_name"],
         replica_count=request.param["replicas"],
         namespace=hco_namespace.name,
+        client=admin_client,
     ):
         yield
 

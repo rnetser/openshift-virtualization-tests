@@ -37,7 +37,7 @@ from ocp_resources.namespace import Namespace
 from ocp_resources.package_manifest import PackageManifest
 from ocp_resources.pod import Pod
 from ocp_resources.project_request import ProjectRequest
-from ocp_resources.resource import Resource, ResourceEditor, get_client
+from ocp_resources.resource import Resource, ResourceEditor
 from ocp_resources.secret import Secret
 from ocp_resources.subscription import Subscription
 from packaging.version import Version
@@ -651,11 +651,11 @@ def get_daemonsets(admin_client, namespace):
 
 
 @contextmanager
-def scale_deployment_replicas(deployment_name, namespace, replica_count):
+def scale_deployment_replicas(deployment_name, namespace, replica_count, client):
     """
     It scales deployments replicas. At the end of the test restores them back
     """
-    deployment = Deployment(name=deployment_name, namespace=namespace)
+    deployment = Deployment(client=client, name=deployment_name, namespace=namespace)
     initial_replicas = deployment.instance.spec.replicas
     deployment.scale_replicas(replica_count=replica_count)
     deployment.wait_for_replicas(deployed=replica_count > 0)
@@ -801,10 +801,10 @@ def unique_name(name, service_type=None):
     return f"{name}-{service_type}{time.time()}".replace(".", "-")
 
 
-def get_openshift_pull_secret(client: DynamicClient = None) -> Secret:
+def get_openshift_pull_secret(client: DynamicClient) -> Secret:
     pull_secret_name = "pull-secret"
     secret = Secret(
-        client=client or get_client(),
+        client=client,
         name=pull_secret_name,
         namespace=NamespacesNames.OPENSHIFT_CONFIG,
     )
@@ -812,16 +812,22 @@ def get_openshift_pull_secret(client: DynamicClient = None) -> Secret:
     return secret
 
 
-@cache
-def generate_openshift_pull_secret_file(client: DynamicClient = None) -> str:
+_openshift_pull_secret_file: str | None = None
+
+
+def generate_openshift_pull_secret_file(client: DynamicClient) -> str:
     # TODO: refactor this code; only needed by `utilities.virt.get_oc_image_info`
     #  Should be called by `utilities.virt.get_oc_image_info` and not require the user to pass it
+    global _openshift_pull_secret_file
+    if _openshift_pull_secret_file is not None:
+        return _openshift_pull_secret_file
     pull_secret = get_openshift_pull_secret(client=client)
     pull_secret_path = tempfile.mkdtemp(suffix="-cnv-tests-pull-secret")
     json_file = os.path.join(pull_secret_path, "pull-secrets.json")
     secret = base64.b64decode(pull_secret.instance.data[".dockerconfigjson"]).decode(encoding="utf-8")
     with open(file=json_file, mode="w") as outfile:
         outfile.write(secret)
+    _openshift_pull_secret_file = json_file
     return json_file
 
 
@@ -903,6 +909,7 @@ def utility_daemonset_for_custom_tests(
     generated_pulled_secret,
     cnv_tests_utilities_service_account,
     label,
+    client,
     node_selector_label=None,
     delete_pod_resources_limit=False,
 ):
@@ -914,6 +921,7 @@ def utility_daemonset_for_custom_tests(
         cnv_tests_utilities_service_account (ServiceAccount): fixture that contains the service account
         for CNV tests utilities.
         label (str): string that is used as a label for the daemonset.
+        client (DynamicClient): Dynamic client for API operations.
         node_selector_label (dict):  dictionary that contains the node selector for the daemonset. This is an optional
         parameter and if not provided, no node selector will be set.
         delete_pod_resources_limit (bool): boolean that indicates whether the pod resources
@@ -945,7 +953,7 @@ def utility_daemonset_for_custom_tests(
 
     ds_yaml_file = io.StringIO(yaml.dump(ds_yaml))
 
-    with DaemonSet(yaml_file=ds_yaml_file) as ds:
+    with DaemonSet(client=client, yaml_file=ds_yaml_file) as ds:
         ds.wait_until_deployed()
         yield ds
 
