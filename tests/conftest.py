@@ -1161,9 +1161,9 @@ def golden_images_cluster_role_edit(
 
 @pytest.fixture()
 def golden_images_edit_rolebinding(
+    admin_client,
     golden_images_namespace,
     golden_images_cluster_role_edit,
-    admin_client,
 ):
     with RoleBinding(
         client=admin_client,
@@ -1468,7 +1468,7 @@ def kmp_enabled_ns(admin_client, kmp_vm_label):
 
 
 @pytest.fixture(scope="session")
-def cdi(hco_namespace, admin_client):
+def cdi(admin_client, hco_namespace):
     cdi = CDI(client=admin_client, name=CDI_KUBEVIRT_HYPERCONVERGED)
     assert cdi.instance is not None
     yield cdi
@@ -2121,7 +2121,7 @@ def fips_enabled_cluster(workers_utility_pods):
 
 
 @pytest.fixture(scope="class")
-def instance_type_for_test_scope_class(namespace, common_instance_type_param_dict, admin_client):
+def instance_type_for_test_scope_class(admin_client, namespace, common_instance_type_param_dict):
     instance_type_param_dict = copy.deepcopy(common_instance_type_param_dict)
     instance_type_param_dict["namespace"] = namespace.name
     instance_type_param_dict["client"] = admin_client
@@ -2161,7 +2161,7 @@ def common_instance_type_param_dict(request):
 
 
 @pytest.fixture(scope="class")
-def vm_preference_for_test(namespace, common_vm_preference_param_dict, admin_client):
+def vm_preference_for_test(admin_client, namespace, common_vm_preference_param_dict):
     vm_preference_param_dict = copy.deepcopy(common_vm_preference_param_dict)
     vm_preference_param_dict["namespace"] = namespace.name
     if vm_preference_param_dict.get("client") is None:
@@ -2318,7 +2318,7 @@ def migration_policy_with_bandwidth_scope_class(admin_client):
 
 
 @pytest.fixture(scope="session")
-def worker_machine1(worker_node1, admin_client):
+def worker_machine1(admin_client, worker_node1):
     machine = Machine(
         client=admin_client,
         name=worker_node1.machine_name,
