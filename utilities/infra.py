@@ -827,23 +827,8 @@ def get_openshift_pull_secret(client: DynamicClient | None = None) -> Secret:
 
 @cache
 def generate_openshift_pull_secret_file(client: DynamicClient | None = None) -> str:
-    """Write ``openshift-config/pull-secret`` to a temp file for ``oc --registry-config``.
-
-    Reading this Secret requires cluster-admin (or equivalent) privileges, so when
-    ``client`` is omitted, ``cache_admin_client()`` is used. Results are cached by
-    client identity (same pattern as ``get_infrastructure``).
-
-    TODO: refactor this code; only needed by ``utilities.virt.get_oc_image_info``.
-    Should be called by ``utilities.virt.get_oc_image_info`` and not require the user
-    to pass the file path.
-
-    Args:
-        client: Optional DynamicClient with permission to read
-            ``openshift-config/pull-secret``. Defaults to ``cache_admin_client()``.
-
-    Returns:
-        Path to a dockerconfigjson file usable with ``oc --registry-config``.
-    """
+    # TODO: refactor this code; only needed by `utilities.virt.get_oc_image_info`
+    #  Should be called by `utilities.virt.get_oc_image_info` and not require the user to pass it
     pull_secret = get_openshift_pull_secret(client=client)
     pull_secret_path = tempfile.mkdtemp(suffix="-cnv-tests-pull-secret")
     json_file = os.path.join(pull_secret_path, "pull-secrets.json")
