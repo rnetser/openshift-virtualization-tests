@@ -136,7 +136,7 @@ def get_all_release_versions_from_docs(major_ver_num: int) -> list[int]:
     return versions
 
 
-def get_image_version(image: str, client: DynamicClient) -> str | None:
+def get_image_version(image: str) -> str | None:
     """
     Extract the major.minor version from an image's version label.
 
@@ -145,7 +145,6 @@ def get_image_version(image: str, client: DynamicClient) -> str | None:
 
     Args:
         image: Image reference string.
-        client: Dynamic client for API operations.
 
     Returns:
         Version string in "major.minor" format (e.g., "8.9"), or None if:
@@ -154,7 +153,7 @@ def get_image_version(image: str, client: DynamicClient) -> str | None:
     """
     image_info = get_oc_image_info(
         image=image,
-        pull_secret=generate_openshift_pull_secret_file(client=client),
+        pull_secret=generate_openshift_pull_secret_file(),
     )
     full_version = image_info.get("config", {}).get("config", {}).get("Labels", {}).get("version")
     try:

@@ -127,9 +127,7 @@ def updated_custom_hco_catalog_source_image(
 ):
     image_url = cnv_image_url
     if is_disconnected_cluster:
-        image_info = get_oc_image_info(
-            image=image_url, pull_secret=generate_openshift_pull_secret_file(client=admin_client)
-        )
+        image_info = get_oc_image_info(image=image_url, pull_secret=generate_openshift_pull_secret_file())
         assert image_info, f"For cnv image {image_url}, image information not found"
         image_url = f"{cnv_image_url.split('iib:')[0]}iib@{image_info['digest']}"
     LOGGER.info(f"Deployment is not from production; updating HCO catalog source image to {image_url}.")
@@ -269,12 +267,10 @@ def updated_ocp_upgrade_channel(extracted_ocp_version_from_image_url, cluster_ve
 
 
 @pytest.fixture()
-def triggered_ocp_upgrade(ocp_image_url, is_disconnected_cluster, upgrade_start_timestamp, admin_client):
+def triggered_ocp_upgrade(ocp_image_url, is_disconnected_cluster, upgrade_start_timestamp):
     image_url = ocp_image_url
     if is_disconnected_cluster:
-        image_info = get_oc_image_info(
-            image=ocp_image_url, pull_secret=generate_openshift_pull_secret_file(client=admin_client)
-        )
+        image_info = get_oc_image_info(image=ocp_image_url, pull_secret=generate_openshift_pull_secret_file())
         assert image_info, f"For ocp image {ocp_image_url}, image information not found"
         image_url = f"quay.io/openshift-release-dev/ocp-release@{image_info['digest']}"
     LOGGER.info(f"Executing OCP upgrade command to image {ocp_image_url}")

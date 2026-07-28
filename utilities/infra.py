@@ -47,6 +47,7 @@ from requests import HTTPError, Timeout, TooManyRedirects
 from timeout_sampler import TimeoutExpiredError, TimeoutSampler, retry
 
 import utilities.virt
+from utilities.cluster import cache_admin_client
 from utilities.constants.architecture import (
     AMD_64,
     X86_64,
@@ -801,10 +802,22 @@ def unique_name(name, service_type=None):
     return f"{name}-{service_type}{time.time()}".replace(".", "-")
 
 
-def get_openshift_pull_secret(client: DynamicClient) -> Secret:
+def get_openshift_pull_secret(client: DynamicClient | None = None) -> Secret:
+    """Return the cluster ``openshift-config/pull-secret`` Secret.
+
+    Reading this Secret requires cluster-admin (or equivalent) privileges, so when
+    ``client`` is omitted, ``cache_admin_client()`` is used.
+
+    Args:
+        client: Optional DynamicClient with permission to read
+            ``openshift-config/pull-secret``. Defaults to ``cache_admin_client()``.
+
+    Returns:
+        The cluster pull-secret Secret resource.
+    """
     pull_secret_name = "pull-secret"
     secret = Secret(
-        client=client,
+        client=client or cache_admin_client(),
         name=pull_secret_name,
         namespace=NamespacesNames.OPENSHIFT_CONFIG,
     )
@@ -812,9 +825,36 @@ def get_openshift_pull_secret(client: DynamicClient) -> Secret:
     return secret
 
 
-def generate_openshift_pull_secret_file(client: DynamicClient) -> str:
-    # TODO: refactor this code; only needed by `utilities.virt.get_oc_image_info`
-    #  Should be called by `utilities.virt.get_oc_image_info` and not require the user to pass it
+def generate_openshift_pull_secret_file(client: DynamicClient | None = None) -> str:
+    """Write ``openshift-config/pull-secret`` to a temp file for ``oc --registry-config``.
+
+    Reading this Secret requires cluster-admin (or equivalent) privileges, so when
+    ``client`` is omitted, ``cache_admin_client()`` is used and the result is cached.
+    Pass an explicit admin-capable client only when the default admin client must not
+    be used; that path is not cached (``DynamicClient`` is not hashable).
+
+    TODO: refactor this code; only needed by ``utilities.virt.get_oc_image_info``.
+    Should be called by ``utilities.virt.get_oc_image_info`` and not require the user
+    to pass the file path.
+
+    Args:
+        client: Optional DynamicClient with permission to read
+            ``openshift-config/pull-secret``. Defaults to ``cache_admin_client()``.
+
+    Returns:
+        Path to a dockerconfigjson file usable with ``oc --registry-config``.
+    """
+    if client is None:
+        return _generate_openshift_pull_secret_file_cached()
+    return _write_openshift_pull_secret_file(client=client)
+
+
+@cache
+def _generate_openshift_pull_secret_file_cached() -> str:
+    return _write_openshift_pull_secret_file(client=cache_admin_client())
+
+
+def _write_openshift_pull_secret_file(client: DynamicClient) -> str:
     pull_secret = get_openshift_pull_secret(client=client)
     pull_secret_path = tempfile.mkdtemp(suffix="-cnv-tests-pull-secret")
     json_file = os.path.join(pull_secret_path, "pull-secrets.json")
