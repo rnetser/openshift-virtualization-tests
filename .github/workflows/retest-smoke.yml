@@ -35,6 +35,13 @@ jobs:
       # Matches expected Jenkins smoke re-trigger window for github-events-listener.
       RETEST_SMOKE_COOLDOWN_HOURS: '4'
     steps:
+      # Acknowledge the request immediately; replaced with eyes if we skip re-trigger.
+      - name: Acknowledge request
+        uses: peter-evans/create-or-update-comment@v5
+        with:
+          comment-id: ${{ github.event.comment.id }}
+          reactions: '+1'
+
       - name: Manage retest-smoke label
         id: manage-label
         uses: actions/github-script@v9
@@ -124,9 +131,10 @@ jobs:
             console.log('Added retest-smoke label.');
             core.setOutput('label_added', 'true');
 
-      - name: Add thumbs up reaction
-        if: steps.manage-label.outputs.label_added == 'true'
+      - name: Mark request skipped
+        if: steps.manage-label.outputs.label_added == 'false'
         uses: peter-evans/create-or-update-comment@v5
         with:
           comment-id: ${{ github.event.comment.id }}
-          reactions: '+1'
+          reactions: eyes
+          reactions-edit-mode: replace
