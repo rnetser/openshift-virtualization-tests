@@ -36,7 +36,7 @@ jobs:
       pull-requests: write
     env:
       # Matches expected Jenkins smoke re-trigger window for github-events-listener.
-      RETEST_SMOKE_COOLDOWN_HOURS: '4'
+      RETEST_SMOKE_COOLDOWN_HOURS: '0'
     steps:
       # Acknowledge the request immediately; replaced with -1 if we skip re-trigger.
       - name: Acknowledge request
