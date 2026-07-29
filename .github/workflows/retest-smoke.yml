@@ -24,6 +24,7 @@ concurrency:
 
 jobs:
   retest-smoke:
+    # Only /rerun-smoke on PRs from trusted associations.
     if: >-
       startsWith(github.event.comment.body, '/rerun-smoke')
       && github.event.issue.pull_request
@@ -65,6 +66,7 @@ jobs:
             });
             const hasLabel = issue.labels.some((label) => label.name === labelName);
 
+            // Label already present: decide skip (cooldown) vs remove+re-add (stale).
             if (hasLabel) {
               const events = await github.paginate(github.rest.issues.listEvents, {
                 owner,
@@ -75,14 +77,17 @@ jobs:
 
               let labeledAtMs = null;
               for (const event of events) {
+                // Keep only retest-smoke "labeled" events from issue history.
                 if (event.event === 'labeled' && event.label?.name === labelName) {
                   const eventMs = Date.parse(event.created_at);
+                  // Track the most recent labeled timestamp (order-independent).
                   if (labeledAtMs === null || eventMs > labeledAtMs) {
                     labeledAtMs = eventMs;
                   }
                 }
               }
 
+              // No history → cannot compute age; fail closed (treat as in cooldown).
               if (labeledAtMs === null) {
                 console.log(
                   'retest-smoke is present but no labeled event was found; ' +
@@ -94,6 +99,7 @@ jobs:
 
               const labeledAt = new Date(labeledAtMs);
               const ageMs = Date.now() - labeledAtMs;
+              // Still within cooldown → Jenkins may still be handling the last trigger.
               if (ageMs < cooldownMs) {
                 console.log(
                   `retest-smoke was added less than ${cooldownHours} hours ago ` +
@@ -115,6 +121,7 @@ jobs:
                   name: labelName,
                 });
               } catch (error) {
+                // 404: label already gone (e.g. Jenkins raced us); continue to addLabels.
                 if (error.status !== 404) {
                   throw error;
                 }
@@ -124,6 +131,7 @@ jobs:
               }
             }
 
+            // Fresh add, or re-add after stale remove (also the no-label path).
             await github.rest.issues.addLabels({
               owner,
               repo,
@@ -133,6 +141,7 @@ jobs:
             console.log('Added retest-smoke label.');
             core.setOutput('label_added', 'true');
 
+      # Cooldown/skip path: replace the initial +1 with -1.
       - name: Mark request skipped
         if: steps.manage-label.outputs.label_added == 'false'
         uses: peter-evans/create-or-update-comment@v5
