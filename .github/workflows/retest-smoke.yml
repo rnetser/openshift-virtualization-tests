@@ -35,7 +35,7 @@ jobs:
       # Matches expected Jenkins smoke re-trigger window for github-events-listener.
       RETEST_SMOKE_COOLDOWN_HOURS: '4'
     steps:
-      # Acknowledge the request immediately; replaced with eyes if we skip re-trigger.
+      # Acknowledge the request immediately; replaced with -1 if we skip re-trigger.
       - name: Acknowledge request
         uses: peter-evans/create-or-update-comment@v5
         with:
@@ -136,5 +136,5 @@ jobs:
         uses: peter-evans/create-or-update-comment@v5
         with:
           comment-id: ${{ github.event.comment.id }}
-          reactions: eyes
+          reactions: '-1'
           reactions-edit-mode: replace
