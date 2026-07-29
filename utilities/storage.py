@@ -34,7 +34,7 @@ import utilities.artifactory
 import utilities.infra
 import utilities.virt as virt_util
 from utilities import console
-from utilities.artifactory import get_test_artifact_server_url
+from utilities.artifactory import artifactory_credentials, get_test_artifact_server_url
 from utilities.constants import Images
 from utilities.constants.architecture import MULTIARCH
 from utilities.constants.components import HPP_POOL
@@ -245,7 +245,7 @@ def create_dv(
                     create_secret = not secret_name
                     create_config_map = not cert_configmap_name
                     artifactory = stack.enter_context(
-                        utilities.artifactory.artifactory_credentials(
+                        artifactory_credentials(
                             namespace=namespace,
                             client=client,
                             create_secret=create_secret,
