@@ -1,3 +1,16 @@
+# Trigger Jenkins smoke re-run via the retest-smoke label when a trusted
+# contributor comments `/rerun-smoke` on a PR.
+#
+# Flow: GHA adds `retest-smoke` → Jenkins job github-events-listener handles it
+# (and typically removes the label after processing).
+#
+# Cooldown: if `retest-smoke` is already on the PR and was labeled less than
+# 4 hours ago, skip re-add and log guidance to check github-events-listener.
+# If the label is still present and older than 4 hours, remove then re-add so
+# Jenkins sees a fresh labeled event.
+#
+# Auth: OWNER / MEMBER / COLLABORATOR only.
+
 name: Retest Smoke
 on:
   issue_comment:
@@ -5,7 +18,7 @@ on:
 
 concurrency:
   group: retest-smoke-${{ github.event.issue.number }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   retest-smoke:
@@ -18,20 +31,102 @@ jobs:
     permissions:
       issues: write
       pull-requests: write
+    env:
+      # Matches expected Jenkins smoke re-trigger window for github-events-listener.
+      RETEST_SMOKE_COOLDOWN_HOURS: '4'
     steps:
+      - name: Manage retest-smoke label
+        id: manage-label
+        uses: actions/github-script@v9
+        env:
+          RETEST_SMOKE_COOLDOWN_HOURS: ${{ env.RETEST_SMOKE_COOLDOWN_HOURS }}
+        with:
+          script: |
+            const labelName = 'retest-smoke';
+            const cooldownHours = Number(process.env.RETEST_SMOKE_COOLDOWN_HOURS);
+            const cooldownMs = cooldownHours * 60 * 60 * 1000;
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const issue_number = context.payload.issue.number;
+
+            const { data: issue } = await github.rest.issues.get({
+              owner,
+              repo,
+              issue_number,
+            });
+            const hasLabel = issue.labels.some((label) => label.name === labelName);
+
+            if (hasLabel) {
+              const events = await github.paginate(github.rest.issues.listEvents, {
+                owner,
+                repo,
+                issue_number,
+                per_page: 100,
+              });
+
+              let labeledAtMs = null;
+              for (const event of events) {
+                if (event.event === 'labeled' && event.label?.name === labelName) {
+                  const eventMs = Date.parse(event.created_at);
+                  if (labeledAtMs === null || eventMs > labeledAtMs) {
+                    labeledAtMs = eventMs;
+                  }
+                }
+              }
+
+              if (labeledAtMs === null) {
+                console.log(
+                  'retest-smoke is present but no labeled event was found; ' +
+                    'treating as within cooldown. Check Jenkins job github-events-listener.'
+                );
+                core.setOutput('label_added', 'false');
+                return;
+              }
+
+              const labeledAt = new Date(labeledAtMs);
+              const ageMs = Date.now() - labeledAtMs;
+              if (ageMs < cooldownMs) {
+                console.log(
+                  `retest-smoke was added less than ${cooldownHours} hours ago ` +
+                    `(${labeledAt.toISOString()}). Check Jenkins job github-events-listener.`
+                );
+                core.setOutput('label_added', 'false');
+                return;
+              }
+
+              console.log(
+                `retest-smoke is older than ${cooldownHours} hours ` +
+                  `(labeled at ${labeledAt.toISOString()}); removing before re-adding.`
+              );
+              try {
+                await github.rest.issues.removeLabel({
+                  owner,
+                  repo,
+                  issue_number,
+                  name: labelName,
+                });
+              } catch (error) {
+                if (error.status !== 404) {
+                  throw error;
+                }
+                console.log(
+                  'retest-smoke was already removed before removeLabel; continuing to addLabels.'
+                );
+              }
+            }
+
+            await github.rest.issues.addLabels({
+              owner,
+              repo,
+              issue_number,
+              labels: [labelName],
+            });
+            console.log('Added retest-smoke label.');
+            core.setOutput('label_added', 'true');
+
       - name: Add thumbs up reaction
+        if: steps.manage-label.outputs.label_added == 'true'
         uses: peter-evans/create-or-update-comment@v5
         with:
           comment-id: ${{ github.event.comment.id }}
           reactions: '+1'
-
-      - name: Add retest-smoke label
-        uses: actions/github-script@v9
-        with:
-          script: |
-            await github.rest.issues.addLabels({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: context.payload.issue.number,
-              labels: ['retest-smoke']
-            });
