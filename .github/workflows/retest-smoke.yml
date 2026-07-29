@@ -1,15 +1,17 @@
-# Trigger Jenkins smoke re-run via the retest-smoke label when a trusted
-# contributor comments `/rerun-smoke` on a PR.
+# /rerun-smoke — re-trigger Jenkins smoke via the retest-smoke label.
 #
-# Flow: GHA adds `retest-smoke` → Jenkins job github-events-listener handles it
-# (and typically removes the label after processing).
+# Trigger: PR comment starting with `/rerun-smoke` from OWNER/MEMBER/COLLABORATOR.
 #
-# Cooldown: if `retest-smoke` is already on the PR and was labeled less than
-# 4 hours ago, skip re-add and log guidance to check github-events-listener.
-# If the label is still present and older than 4 hours, remove then re-add so
-# Jenkins sees a fresh labeled event.
-#
-# Auth: OWNER / MEMBER / COLLABORATOR only.
+# Logic:
+#   1. React +1 immediately (request acknowledged).
+#   2. If retest-smoke is absent → add it (Jenkins job github-events-listener
+#      picks up the labeled event; Jenkins usually removes the label after).
+#   3. If retest-smoke is present:
+#        - labeled < 4h ago (or no labeled event found) → do not re-add;
+#          log "check github-events-listener"; replace +1 with -1.
+#        - labeled >= 4h ago → remove then re-add so Jenkins sees a fresh
+#          labeled event; leave +1.
+#   4. Reactions: +1 = label added/refreshed; -1 = skipped (cooldown).
 
 name: Retest Smoke
 on:
