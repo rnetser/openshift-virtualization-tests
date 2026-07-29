@@ -240,5 +240,8 @@ def rhel_vm_for_dedicated_cpu(unprivileged_client, namespace, latest_rhel_data_s
 
 @pytest.fixture(scope="session")
 def windows_namespace_artifactory_credentials(windows_test_images_namespace_role_binding):
-    with artifactory_credentials(namespace=windows_test_images_namespace_role_binding.namespace) as credentials:
+    with artifactory_credentials(
+        namespace=windows_test_images_namespace_role_binding.namespace,
+        client=windows_test_images_namespace_role_binding.client,
+    ) as credentials:
         yield credentials
