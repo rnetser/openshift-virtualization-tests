@@ -375,5 +375,5 @@ class TestMain:
         with caplog.at_level(level="INFO"):
             assert main() == 0
         assert "Retry cap reached (5)" in caplog.text
-        assert mock_process.call_count == 10  # all submitted, but only 5 counted
+        assert mock_process.call_count == 5  # bounded scheduler stops submitting after 5 successful triggers
         assert "retried=5" in caplog.text

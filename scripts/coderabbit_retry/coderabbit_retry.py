@@ -28,7 +28,7 @@ Co-authored-by: Claude <noreply@anthropic.com>
 
 from __future__ import annotations
 
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 from datetime import UTC, datetime, timedelta
 from itertools import islice
 from json import JSONDecodeError
@@ -46,6 +46,7 @@ from github import Github, GithubException
 from simple_logger.logger import get_logger
 
 if TYPE_CHECKING:
+    from concurrent.futures import Future
     from typing import Any
 
     from github.Issue import Issue
@@ -304,24 +305,42 @@ def main() -> int:
     checked = len(to_process)
     retried = 0
     with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
-        futures = [
-            executor.submit(
+        pr_iter = iter(to_process)
+        active: dict[Future[bool], Issue] = {}
+        for pr_issue in islice(pr_iter, MAX_WORKERS):
+            future = executor.submit(
                 process_pr,
                 repo_name=repo_name,
                 repo=repo,
                 pr_number=pr_issue.number,
             )
-            for pr_issue in to_process
-        ]
-        for future in as_completed(fs=futures):
-            try:
-                if future.result():
-                    retried += 1
-                    if retried >= MAX_RETRIES_PER_RUN:
-                        LOGGER.info(f"Retry cap reached ({MAX_RETRIES_PER_RUN}) — remaining results deferred")
-                        break
-            except GithubException as error:
-                LOGGER.warning(f"PR processing failed: {error}")
+            active[future] = pr_issue
+
+        while active and retried < MAX_RETRIES_PER_RUN:
+            completed, _ = wait(fs=active, return_when=FIRST_COMPLETED)
+            for future in completed:
+                active.pop(future)
+                try:
+                    if future.result():
+                        retried += 1
+                except GithubException as error:
+                    LOGGER.warning(f"PR processing failed: {error}")
+
+                if retried >= MAX_RETRIES_PER_RUN:
+                    LOGGER.info(f"Retry cap reached ({MAX_RETRIES_PER_RUN}) — remaining PRs deferred")
+                    break
+
+                next_pr = next(pr_iter, None)
+                # Keep in-flight work within remaining retry budget so already-running
+                # tasks cannot push successful triggers past MAX_RETRIES_PER_RUN.
+                if next_pr and retried + len(active) < MAX_RETRIES_PER_RUN:
+                    new_future = executor.submit(
+                        process_pr,
+                        repo_name=repo_name,
+                        repo=repo,
+                        pr_number=next_pr.number,
+                    )
+                    active[new_future] = next_pr
 
     LOGGER.info(f"Summary: checked={checked} skipped={skipped} retried={retried}")
     return 0
