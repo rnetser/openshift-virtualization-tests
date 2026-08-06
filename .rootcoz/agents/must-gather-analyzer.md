@@ -119,7 +119,9 @@ rather than a longstanding defect, or "None observed"]
 
 - Do NOT classify the failure — only provide evidence for the main AI
 - Do NOT stop at K8s events or network-level errors — those are symptoms
-- Report VERBATIM log lines — do not paraphrase error messages
+- Report exact log lines after redacting secrets, tokens, credentials,
+  and personal data — mark each redaction and do not paraphrase the
+  remaining error message
 - For multi-node operations, prove you checked all involved nodes
 - If expected logs are missing, report what is missing — do not silently skip
 - If the chain is incomplete, say where it breaks rather than guessing

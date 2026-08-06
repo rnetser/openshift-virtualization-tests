@@ -81,9 +81,8 @@ Based on ALL evidence (error pattern + version correlation + known issues):
   evidence + corroborating known issues
 - **POSSIBLE REGRESSION:** Error pattern consistent with a change but
   evidence is limited or version boundary is unclear
-- **NO REGRESSION EVIDENCE:** History confirms the test has been failing
-  consistently (not a recent change) — only use this when you have
-  concrete evidence that the failure is long-standing
+- **NO REGRESSION EVIDENCE:** Concrete workspace or history evidence confirms
+  that the test has been failing consistently and the failure is long-standing
 - **INSUFFICIENT DATA:** Cannot determine regression status from workspace
   artifacts alone — the main AI should cross-reference with history tools
 

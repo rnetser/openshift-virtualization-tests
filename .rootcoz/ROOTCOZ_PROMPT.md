@@ -321,7 +321,9 @@ Pattern guidance:
 
 The STEP 0 agent `cross-domain-resolver` identifies all product domains involved in
 a failure (not just the test's home directory) and generates domain-specific keywords.
-Use its output alongside your own analysis when generating `jira_search_keywords`.
+Use its output to select 3-5 unique final `jira_search_keywords` that cover
+the highest-confidence involved domains. Keep unused domain candidates in
+analysis evidence, not in the final field.
 
 When classifying a failure as `PRODUCT BUG`, generate `jira_search_keywords` to help
 find existing Jira tickets:

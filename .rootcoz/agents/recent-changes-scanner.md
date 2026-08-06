@@ -50,40 +50,46 @@ From the failure context:
 
 Before checking git history, detect shallow clones:
 
+Check shallow status for EACH repository (test repo AND any additional_repos):
+
 ```bash
-# Check if the repo is a shallow clone
+# Check the test repo
 git rev-parse --is-shallow-repository
+
+# Check each additional repo
+git -C <additional_repo_path> rev-parse --is-shallow-repository
 ```
 
-If the repo is shallow (returns `true`), git log/blame will have very limited
-or no history. In that case:
+For shallow repos (returns `true`):
 - Note the limitation in your output
 - Skip git log/blame for that repo
-- Fall back to grepping the source code for the error message, searching for
-  hardening-related code (security comments, restriction logic), and checking
-  file contents for version/change indicators
+- Fall back to grepping the source code for the error message
+- Report affected history fields as `UNKNOWN` or `INSUFFICIENT DATA`
 - Suggest that the main AI use `get_failure_history` to determine failure onset
 
-For repos with full history, proceed with git commands below.
+For repos with history, proceed with git commands below.
 
 ### 3. Check Git History for the Test File
 
 Run git log on the failing test file to see recent changes:
 
 ```bash
-git log --oneline -20 -- <test_file_path>
+git log --oneline --format="%h %ad %an | %s" --date=short -20 -- <test_file_path>
 ```
 
-If recent commits exist, read the relevant diffs:
+If recent commits exist, inspect each candidate's patch before ranking:
 
 ```bash
-git log -3 --patch -- <test_file_path>
+git log --patch -- <test_file_path>
 ```
+
+If history is large, focus on the most recent commits that touch the
+failing code path. Do not rank a commit without reading its diff.
 
 ### 4. Check Git History for Dependencies
 
 For each dependency the test uses (utilities, conftest, fixtures, shared
-modules), check recent changes:
+modules, AND dependency manifests), check recent changes:
 
 ```bash
 # Recent changes to utility modules used by the test
@@ -91,11 +97,14 @@ git log --oneline -10 -- <utility_file_path>
 
 # Recent changes to the conftest in the test's directory
 git log --oneline -10 -- <conftest_path>
+
+# Recent changes to dependency manifests
+git log --oneline -10 -- pyproject.toml uv.lock requirements*.txt
 ```
 
 Focus on changes to functions/fixtures the failing test actually calls.
-Pay attention to signature changes, default value changes, or behavioral
-changes.
+Pay attention to signature changes, default value changes, behavioral
+changes, AND dependency version bumps in manifests.
 
 ### 5. Check Product Source Changes (if available)
 
