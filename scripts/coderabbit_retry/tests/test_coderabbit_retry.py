@@ -228,7 +228,7 @@ class TestProcessPr:
     @patch("scripts.coderabbit_retry.coderabbit_retry.time_time")
     @patch("scripts.coderabbit_retry.coderabbit_retry.check_rate_limit")
     def test_triggers_when_wait_elapsed(
-        self, mock_check: MagicMock, mock_time: MagicMock, mock_review: MagicMock, mock_trigger: MagicMock
+        self, mock_check: MagicMock, mock_time: MagicMock, _mock_review: MagicMock, _mock_trigger: MagicMock
     ) -> None:
         mock_check.return_value = {
             "rate_limited": True,
@@ -287,7 +287,7 @@ class TestMain:
     @patch("scripts.coderabbit_retry.coderabbit_retry.Github")
     @patch.dict("os.environ", {"REPO": "owner/repo", "GH_TOKEN": "fake-token"}, clear=True)
     def test_exits_0_with_valid_env(
-        self, mock_github_cls: MagicMock, mock_list: MagicMock, mock_process: MagicMock
+        self, _mock_github_cls: MagicMock, mock_list: MagicMock, mock_process: MagicMock
     ) -> None:
         mock_list.return_value = [make_pr_issue(number=1)]
         assert main() == 0
@@ -296,7 +296,7 @@ class TestMain:
     @patch("scripts.coderabbit_retry.coderabbit_retry.list_eligible_prs")
     @patch("scripts.coderabbit_retry.coderabbit_retry.Github")
     @patch.dict("os.environ", {"REPO": "owner/repo", "GH_TOKEN": "fake-token"}, clear=True)
-    def test_skips_wip_prs(self, mock_github_cls: MagicMock, mock_list: MagicMock, mock_process: MagicMock) -> None:
+    def test_skips_wip_prs(self, _mock_github_cls: MagicMock, mock_list: MagicMock, mock_process: MagicMock) -> None:
         mock_list.return_value = [make_pr_issue(number=1, title="[WIP] my feature")]
         assert main() == 0
         mock_process.assert_not_called()
@@ -307,7 +307,7 @@ class TestMain:
     @patch.dict("os.environ", {"REPO": "owner/repo", "GH_TOKEN": "fake-token"}, clear=True)
     def test_aggregates_results_from_multiple_prs(
         self,
-        mock_github_cls: MagicMock,
+        _mock_github_cls: MagicMock,
         mock_list: MagicMock,
         mock_process: MagicMock,
         caplog: pytest.LogCaptureFixture,
@@ -328,7 +328,7 @@ class TestMain:
     @patch.dict("os.environ", {"REPO": "owner/repo", "GH_TOKEN": "fake-token"}, clear=True)
     def test_propagates_unexpected_pr_errors(
         self,
-        mock_github_cls: MagicMock,
+        _mock_github_cls: MagicMock,
         mock_list: MagicMock,
         mock_process: MagicMock,
     ) -> None:
@@ -343,7 +343,7 @@ class TestMain:
     @patch.dict("os.environ", {"REPO": "owner/repo", "GH_TOKEN": "fake-token"}, clear=True)
     def test_counts_wip_and_non_wip_correctly(
         self,
-        mock_github_cls: MagicMock,
+        _mock_github_cls: MagicMock,
         mock_list: MagicMock,
         mock_process: MagicMock,
         caplog: pytest.LogCaptureFixture,
@@ -359,3 +359,21 @@ class TestMain:
             assert main() == 0
         assert "Summary: checked=3 skipped=2" in caplog.text
         assert mock_process.call_count == 3
+
+    @patch("scripts.coderabbit_retry.coderabbit_retry.process_pr", return_value=True)
+    @patch("scripts.coderabbit_retry.coderabbit_retry.list_eligible_prs")
+    @patch("scripts.coderabbit_retry.coderabbit_retry.Github")
+    @patch.dict("os.environ", {"REPO": "owner/repo", "GH_TOKEN": "fake-token"}, clear=True)
+    def test_stops_after_retry_cap(
+        self,
+        _mock_github_cls: MagicMock,
+        mock_list: MagicMock,
+        mock_process: MagicMock,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        mock_list.return_value = [make_pr_issue(number=idx) for idx in range(10)]
+        with caplog.at_level(level="INFO"):
+            assert main() == 0
+        assert "Retry cap reached (5)" in caplog.text
+        assert mock_process.call_count == 10  # all submitted, but only 5 counted
+        assert "retried=5" in caplog.text

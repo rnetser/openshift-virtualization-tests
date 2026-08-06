@@ -36,6 +36,7 @@ jobs:
       - name: Checkout retry script
         uses: actions/checkout@v4
         with:
+          persist-credentials: false
           sparse-checkout: |
             scripts/coderabbit_retry
             pyproject.toml

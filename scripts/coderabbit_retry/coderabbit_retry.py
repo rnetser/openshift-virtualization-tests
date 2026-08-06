@@ -57,6 +57,7 @@ MAX_PRS = 200
 SINCE_DAYS = 2
 SUBPROCESS_TIMEOUT_SECONDS = 30
 MAX_WORKERS = 5
+MAX_RETRIES_PER_RUN = 5
 
 REVIEW_REQUEST_PATTERN = re_compile(
     pattern=r"@coderabbitai\s+(review|resume)",
@@ -313,8 +314,14 @@ def main() -> int:
             for pr_issue in to_process
         ]
         for future in as_completed(fs=futures):
-            if future.result():
-                retried += 1
+            try:
+                if future.result():
+                    retried += 1
+                    if retried >= MAX_RETRIES_PER_RUN:
+                        LOGGER.info(f"Retry cap reached ({MAX_RETRIES_PER_RUN}) — remaining results deferred")
+                        break
+            except GithubException as error:
+                LOGGER.warning(f"PR processing failed: {error}")
 
     LOGGER.info(f"Summary: checked={checked} skipped={skipped} retried={retried}")
     return 0
