@@ -330,10 +330,12 @@ def main() -> int:
                     LOGGER.info(f"Retry cap reached ({MAX_RETRIES_PER_RUN}) — remaining PRs deferred")
                     break
 
-                next_pr = next(pr_iter, None)
                 # Keep in-flight work within remaining retry budget so already-running
                 # tasks cannot push successful triggers past MAX_RETRIES_PER_RUN.
-                if next_pr and retried + len(active) < MAX_RETRIES_PER_RUN:
+                if retried + len(active) < MAX_RETRIES_PER_RUN:
+                    next_pr = next(pr_iter, None)
+                    if not next_pr:
+                        continue
                     new_future = executor.submit(
                         process_pr,
                         repo_name=repo_name,
