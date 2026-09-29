@@ -155,11 +155,9 @@ reviews:
           A) A newly added test file (test_*.py) under `tests/`
           B) A newly added test function (def test_*) in an existing test file under `tests/`
 
-          For each case, at least one of the following MUST appear in the
-          module, class, or test function docstring:
-          - A line with "STP:" followed by a URL
-          - A line with "RFE:" followed by an issue tracker URL
-          - A line with "Jira:" followed by an issue tracker URL
+          For each case, the module, class, or test function docstring MUST contain
+          an STP link when an STP exists for the feature. If no STP exists, it MUST
+          contain an RFE or Jira link instead.
 
           If a module-level or class-level STP link already exists in the file,
           newly added test functions in that same file are considered covered.
@@ -194,6 +192,10 @@ reviews:
           PASS if every STP scenario has a corresponding STD/test declaration in the PR (or
           existing file), OR the PR description documents intentional exclusion with a
           follow-up Jira link per excluded scenario.
+          For every new or changed STP-linked test, also verify that:
+          1. `Preconditions:`, `Steps:`, and `Expected:` docstring sections match the
+             referenced STP scenario.
+          2. Fixture, helper, assertion, and API-path behavior implements that scenario.
           Exempt from direct-declaration checks: regression scenarios intentionally excluded
           from the STP scenario table, and scenarios inherited from a parent STP via
           child-STP extension (child STPs extend the parent without duplicating its scenarios).
@@ -334,7 +336,8 @@ knowledge_base:
         - HIGH: Every STP feature scenario needs a corresponding STD.
           Exempt: regression scenarios excluded from the STP table,
           and scenarios inherited from a parent STP via child-STP.
-        - HIGH: STP negative/edge-case scenarios MUST have tests.
+        - HIGH: STP negative/edge-case scenarios MUST have tests,
+          unless the PR documents an intentional exclusion with justification and a follow-up Jira link.
         - HIGH: Modified tests referencing an STP must keep docstring
           and test body aligned with the STP scenario. Flag drift.
         - HIGH: Deleted STP/Jira/RFE-linked tests require PR
