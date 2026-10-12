@@ -69,7 +69,7 @@ def migrated_pci_topology_vm(admin_client, pci_topology_vm, initial_pci_addresse
 
 
 @pytest.fixture()
-def snapshot_restored_pci_topology_vm(admin_client, unprivileged_client, pci_topology_vm, initial_pci_addresses):
+def snapshot_restored_pci_topology_vm(unprivileged_client, pci_topology_vm, initial_pci_addresses):
     with VirtualMachineSnapshot(
         client=unprivileged_client,
         name=f"{pci_topology_vm.name}-snapshot",
@@ -80,7 +80,7 @@ def snapshot_restored_pci_topology_vm(admin_client, unprivileged_client, pci_top
         pci_topology_vm.stop(wait=True)
         LOGGER.info(f"Restoring VM {pci_topology_vm.name} from snapshot {snapshot.name}")
         with VirtualMachineRestore(
-            client=admin_client,
+            client=unprivileged_client,
             name=f"{pci_topology_vm.name}-restore",
             namespace=pci_topology_vm.namespace,
             vm_name=pci_topology_vm.name,
