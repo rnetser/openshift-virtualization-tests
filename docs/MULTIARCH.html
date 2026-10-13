@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Multi-Architecture (Heterogeneous) Clusters - openshift-virtualization-tests</title>
+    <meta name="description" content="Tests for OpenShift Virtualization">
+    <link rel="stylesheet" href="assets/style.css?v=66bf87bdd9">
+    <script>try{var t=localStorage.getItem('theme');if(t==='dark')document.documentElement.setAttribute('data-theme','dark')}catch(e){}</script>
+    <link rel="alternate" type="text/plain" title="LLM Documentation Index" href="llms.txt">
+    <link rel="alternate" type="text/plain" title="LLM Full Documentation" href="llms-full.txt">
+</head>
+<body>
+    <aside class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+            <a href="index.html" class="sidebar-logo">openshift-virtualization-tests</a>
+            <p class="sidebar-tagline">Tests for OpenShift Virtualization</p>
+        </div>
+
+        <div class="sidebar-search">
+            <input type="text" id="search-input" placeholder="Search... (⌘K)" autocomplete="off" readonly>
+            <div id="search-results" class="search-results"></div>
+        </div>
+
+        <nav class="sidebar-nav">
+
+            <div class="nav-group">
+                <h3 class="nav-group-title">Getting Started</h3>
+                <ul class="nav-group-pages">
+
+                    <li>
+                        <a href="GETTING_STARTED.html"
+                           class="nav-link">
+                            Getting started
+                        </a>
+                    </li>
+
+                    <li>
+                        <a href="CONTRIBUTING.html"
+                           class="nav-link">
+                            Welcome to openshift-virtualization-tests contributing guide
+                        </a>
+                    </li>
+
+                    <li>
+                        <a href="DEVELOPER_GUIDE.html"
+                           class="nav-link">
+                            Project Structure
+                        </a>
+                    </li>
+
+                </ul>
+            </div>
+
+            <div class="nav-group">
+                <h3 class="nav-group-title">Running Tests</h3>
+                <ul class="nav-group-pages">
+
+                    <li>
+                        <a href="RUNNING_TESTS.html"
+                           class="nav-link">
+                            Running the tests
+                        </a>
+                    </li>
+
+                    <li>
+                        <a href="INSTALL_AND_UPGRADE.html"
+                           class="nav-link">
+                            Install openshift-virtualization tests
+                        </a>
+                    </li>
+
+                    <li>
+                        <a href="MULTIARCH.html"
+                           class="nav-link active" aria-current="page">
+                            Multi-Architecture (Heterogeneous) Clusters
+                        </a>
+                    </li>
+
+                    <li>
+                        <a href="CONTAINERIZE_TESTS.html"
+                           class="nav-link">
+                            Building and pushing openshift-virtualization-tests container image
+                        </a>
+                    </li>
+
+                </ul>
+            </div>
+
+            <div class="nav-group">
+                <h3 class="nav-group-title">Guidelines</h3>
+                <ul class="nav-group-pages">
+
+                    <li>
+                        <a href="CODING_AND_STYLE_GUIDE.html"
+                           class="nav-link">
+                            Coding standards
+                        </a>
+                    </li>
+
+                    <li>
+                        <a href="CODE_ORGANIZATION.html"
+                           class="nav-link">
+                            Code Organization
+                        </a>
+                    </li>
+
+                    <li>
+                        <a href="QUARANTINE_GUIDELINES.html"
+                           class="nav-link">
+                            OpenShift Virtualization Test Stability, Quarantine and De-quarantine Guidelines
+                        </a>
+                    </li>
+
+                    <li>
+                        <a href="SOFTWARE_TEST_DESCRIPTION.html"
+                           class="nav-link">
+                            Software Test Description
+                        </a>
+                    </li>
+
+                </ul>
+            </div>
+
+            <div class="nav-group">
+                <h3 class="nav-group-title">Reference</h3>
+                <ul class="nav-group-pages">
+
+                    <li>
+                        <a href="ARCHITECTURE_SUPPORT.html"
+                           class="nav-link">
+                            Test Images Architecture Support
+                        </a>
+                    </li>
+
+                    <li>
+                        <a href="OWNERS.html"
+                           class="nav-link">
+                            OWNERS files
+                        </a>
+                    </li>
+
+                    <li>
+                        <a href="MAINTAINER_GUIDELINES.html"
+                           class="nav-link">
+                            Maintainer (Approver) Guidelines
+                        </a>
+                    </li>
+
+                    <li>
+                        <a href="AI_CONTRIBUTION_POLICY.html"
+                           class="nav-link">
+                            AI Contribution Policy
+                        </a>
+                    </li>
+
+                </ul>
+            </div>
+
+        </nav>
+    </aside>
+
+    <div class="main-wrapper">
+        <header class="top-bar">
+            <div class="top-bar-left">
+                <button class="sidebar-toggle" id="sidebar-toggle" aria-label="Toggle sidebar" aria-expanded="false">
+                    <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                        <path d="M3 5h14M3 10h14M3 15h14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                    </svg>
+                </button>
+                <a href="index.html" class="top-bar-title">openshift-virtualization-tests</a>
+            </div>
+            <div class="top-bar-spacer"></div>
+            <div class="top-bar-right">
+                <button class="top-bar-search-btn" id="search-trigger" aria-label="Search">
+                    <kbd>&#8984;K</kbd> Search
+                </button>
+                <a href="https://github.com/rnetser/openshift-virtualization-tests" target="_blank" rel="noopener" class="docsite-badge" title="documentation">
+                    ⚡ pi<span class="brand-accent">-docsite</span>
+                </a>
+
+                <a href="https://github.com/rnetser/openshift-virtualization-tests" target="_blank" rel="noopener noreferrer" class="top-bar-github" id="github-link" data-repo-url="https://github.com/rnetser/openshift-virtualization-tests">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
+                    <span class="github-stars" id="github-stars" title="GitHub stars"></span>
+                </a>
+
+                <button class="theme-toggle" id="theme-toggle" aria-label="Toggle theme">
+                    <svg class="icon-sun" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                        <circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+                    </svg>
+                    <svg class="icon-moon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                        <path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/>
+                    </svg>
+                </button>
+            </div>
+        </header>
+
+        <main class="content">
+
+            <article class="article">
+                <div class="article-body">
+                    <!-- SECURITY: |safe is intentional. Content is AI-generated markdown
+                         converted to HTML server-side by the markdown library, not
+                         user-supplied input. XSS risk is minimal and accepted since
+                         the AI generates the content, not end users. -->
+                    <h1 id="multi-architecture-heterogeneous-clusters">Multi-Architecture (Heterogeneous) Clusters</h1>
+<p>A heterogeneous cluster has worker nodes of more than one CPU architecture — for example, amd64 and arm64 workers coexisting on the same cluster. The test framework detects this automatically.</p>
+<p><strong>Supported architectures:</strong> <code>amd64</code>, <code>arm64</code></p>
+<h2 id="overview">Overview</h2>
+<p>The <code>--cpu-arch</code> option selects which architecture(s) to target. Behavior depends on cluster type and the value passed:</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Test suite</th>
+<th>Cluster</th>
+<th><code>--cpu-arch</code></th>
+<th>What runs</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Standard</strong></td>
+<td>Homogeneous (single arch)</td>
+<td>Omit — auto-detected from node labels</td>
+<td>Standard regression tests</td>
+</tr>
+<tr>
+<td><strong>Multiarch regression</strong></td>
+<td>Heterogeneous (multiarch)</td>
+<td>Single value — e.g. <code>amd64</code> or <code>arm64</code></td>
+<td>Full suite, scoped to nodes of that arch</td>
+</tr>
+<tr>
+<td><strong>Multiarch-dedicated</strong></td>
+<td>Heterogeneous (multiarch)</td>
+<td>Comma-separated — e.g. <code>amd64,arm64</code></td>
+<td>Only tests marked with <code>multiarch</code></td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>On a heterogeneous cluster:</strong></p>
+<ul>
+<li><code>--cpu-arch</code> is <strong>required</strong>. Omitting it raises <code>UnsupportedCPUArchitectureError</code>.</li>
+<li>Pass <code>--tc-file=tests/global_config.py</code> for regression runs (preferred — it auto-imports the multiarch config). <code>tests/global_config_multiarch.py</code> also works.</li>
+<li>For multiarch-dedicated tests, <code>--tc-file=tests/global_config_multiarch.py</code> is <strong>required</strong>.</li>
+</ul>
+<p><strong>On a homogeneous cluster:</strong></p>
+<ul>
+<li>Run tests normally and do <strong>not</strong> pass <code>--cpu-arch</code>. Passing it raises <code>UnsupportedCPUArchitectureError</code>.</li>
+</ul>
+<h2 id="multiarch-regression">Multiarch regression</h2>
+<p>Run the existing test suite against one architecture's nodes at a time.</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># amd64 regression</span>
+uv<span class="w"> </span>run<span class="w"> </span>pytest<span class="w"> </span>--tc-file<span class="o">=</span>tests/global_config.py<span class="w"> </span>--cpu-arch<span class="o">=</span>amd64<span class="w"> </span>...
+
+<span class="c1"># arm64 regression</span>
+uv<span class="w"> </span>run<span class="w"> </span>pytest<span class="w"> </span>--tc-file<span class="o">=</span>tests/global_config.py<span class="w"> </span>--cpu-arch<span class="o">=</span>arm64<span class="w"> </span>...
+</code></pre></div>
+
+<h2 id="multiarch-dedicated-tests">Multiarch-dedicated tests</h2>
+<p>Run tests that exercise behavior requiring multiple architectures simultaneously (e.g., golden image import across both archs, cross-arch scheduling).</p>
+<div class="highlight"><pre><span></span><code>uv<span class="w"> </span>run<span class="w"> </span>pytest<span class="w"> </span>--tc-file<span class="o">=</span>tests/global_config_multiarch.py<span class="w"> </span>--cpu-arch<span class="o">=</span>amd64,arm64<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-m<span class="w"> </span><span class="s2">"iuo and multiarch"</span><span class="w"> </span>...
+</code></pre></div>
+
+<h3 id="run-requirements">Run requirements</h3>
+<ul>
+<li>The cluster must be heterogeneous.</li>
+<li><code>--cpu-arch</code> must list multiple architectures (e.g. <code>amd64,arm64</code>)</li>
+<li>Every collected test must have the <code>multiarch</code> marker — use <code>-m multiarch</code>, or point pytest at a path that contains only multiarch tests (e.g. a <code>multiarch/</code> subdirectory). If any non-multiarch test is collected, pytest raises <code>UnsupportedCPUArchitectureError</code>.</li>
+</ul>
+<h3 id="writing-dedicated-tests">Writing dedicated tests</h3>
+<p>Multiarch-dedicated tests should be isolated from regular tests. Avoid modifying existing fixtures and functions — prefer creating dedicated ones for multiarch tests to reduce the risk of breaking regression suites.</p>
+<p>Mark the entire file or specific classes with the <code>multiarch</code> marker:</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># Module-level (preferred — marks the whole file)</span>
+<span class="n">pytestmark</span> <span class="o">=</span> <span class="p">[</span><span class="n">pytest</span><span class="o">.</span><span class="n">mark</span><span class="o">.</span><span class="n">multiarch</span><span class="p">]</span>
+
+<span class="c1"># Class-level</span>
+<span class="nd">@pytest</span><span class="o">.</span><span class="n">mark</span><span class="o">.</span><span class="n">multiarch</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">TestMultiarchFeature</span><span class="p">:</span>
+    <span class="o">...</span>
+</code></pre></div>
+
+<p>The <code>multiarch</code> marker is <strong>required</strong> on any test that runs in multiarch-dedicated mode. It also prevents the test from being collected on homogeneous clusters.</p>
+<p>Place multiarch tests in a <code>multiarch/</code> subdirectory or use <code>_multiarch</code> in the filename (repo convention, not enforced by pytest):</p>
+<div class="highlight"><pre><span></span><code>tests/
+  install_upgrade_operators/
+    hco_enablement_golden_image_updates/
+      multiarch/
+        test_multiarch_golden_images_support.py
+  network/
+    connectivity/
+      test_pod_network_multiarch.py
+</code></pre></div>
+
+<h3 id="framework-constraints">Framework constraints</h3>
+<p>Multiarch-dedicated runs (<code>--cpu-arch=amd64,arm64</code>) do not set a single target architecture. Tests must not rely on the helpers that regression runs provide:</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Helper</th>
+<th>Multiarch regression</th>
+<th>Multiarch-dedicated</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>py_config["cpu_arch"]</code></td>
+<td>Set to selected arch</td>
+<td><strong>Not set</strong></td>
+</tr>
+<tr>
+<td>OS matrix keys in <code>py_config</code> (e.g. <code>latest_rhel_os_dict</code>)</td>
+<td>Generated for selected arch</td>
+<td><strong>Not generated</strong></td>
+</tr>
+<tr>
+<td><code>schedulable_nodes</code></td>
+<td>Nodes of selected arch only</td>
+<td>All schedulable nodes — filter by arch in the test</td>
+</tr>
+</tbody>
+</table></div>
+                </div>
+            </article>
+            <nav class="page-nav">
+
+                <a href="INSTALL_AND_UPGRADE.html" class="page-nav-link page-nav-prev">
+                    <span class="page-nav-label">Previous</span>
+                    <span class="page-nav-title">Install openshift-virtualization tests</span>
+                </a>
+
+
+                <a href="CONTAINERIZE_TESTS.html" class="page-nav-link page-nav-next">
+                    <span class="page-nav-label">Next</span>
+                    <span class="page-nav-title">Building and pushing openshift-virtualization-tests container image</span>
+                </a>
+
+            </nav>
+
+            <aside class="toc-sidebar">
+                <div class="toc-container">
+                    <h3>On this page</h3>
+                    <div class="toc">
+<ul>
+<li><a href="#overview">Overview</a></li>
+<li><a href="#multiarch-regression">Multiarch regression</a></li>
+<li><a href="#multiarch-dedicated-tests">Multiarch-dedicated tests</a><ul>
+<li><a href="#run-requirements">Run requirements</a></li>
+<li><a href="#writing-dedicated-tests">Writing dedicated tests</a></li>
+<li><a href="#framework-constraints">Framework constraints</a></li>
+</ul>
+</li>
+</ul>
+</div>
+
+                </div>
+            </aside>
+
+
+        </main>
+
+        <footer class="page-footer">
+
+            Built from <code>docs/*.md</code> by <code>pi-docsite</code>
+            <span class="footer-sep">&middot;</span>
+            <span class="footer-llm">LLM-friendly: <a href="llms.txt">llms.txt</a> &middot; <a href="llms-full.txt">llms-full.txt</a></span>
+        </footer>
+    </div>
+
+    <div class="sidebar-overlay" id="sidebar-overlay"></div>
+
+    <script src="assets/theme.js?v=66bf87bdd9"></script>
+
+    <script src="assets/search.js?v=66bf87bdd9"></script>
+    <script src="assets/copy.js?v=66bf87bdd9"></script>
+    <script src="assets/callouts.js?v=66bf87bdd9"></script>
+    <script src="assets/scrollspy.js?v=66bf87bdd9"></script>
+    <script src="assets/codelabels.js?v=66bf87bdd9"></script>
+    <script src="assets/github.js?v=66bf87bdd9"></script>
+    <script>
+(function() {
+    var toggle = document.getElementById('sidebar-toggle');
+    var sidebar = document.getElementById('sidebar');
+    var overlay = document.getElementById('sidebar-overlay');
+    if (toggle && sidebar) {
+        toggle.addEventListener('click', function() {
+            sidebar.classList.toggle('open');
+            if (overlay) overlay.classList.toggle('open');
+            var expanded = sidebar.classList.contains('open');
+            toggle.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+        });
+    }
+    if (overlay) {
+        overlay.addEventListener('click', function() {
+            sidebar.classList.remove('open');
+            overlay.classList.remove('open');
+            if (toggle) toggle.setAttribute('aria-expanded', 'false');
+        });
+    }
+})();
+</script>
+<script>
+(function() {
+    var sidebar = document.querySelector('.sidebar-nav') || document.querySelector('.sidebar');
+    if (!sidebar) return;
+
+    // Restore scroll position
+    var saved = sessionStorage.getItem('sidebar-scroll');
+    if (saved) sidebar.scrollTop = parseInt(saved, 10);
+
+    // Save scroll position before navigating
+    sidebar.addEventListener('scroll', function() {
+        sessionStorage.setItem('sidebar-scroll', sidebar.scrollTop.toString());
+    });
+
+    // Also scroll active link into view if no saved position
+    if (!saved) {
+        var active = sidebar.querySelector('.nav-link.active');
+        if (active) {
+            active.scrollIntoView({ block: 'center', behavior: 'instant' });
+        }
+    }
+})();
+</script>
+<!-- generated by pi-docsite -->
+</body>
+</html>

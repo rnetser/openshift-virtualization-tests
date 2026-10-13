@@ -1,0 +1,1223 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Software Test Description - openshift-virtualization-tests</title>
+    <meta name="description" content="Tests for OpenShift Virtualization">
+    <link rel="stylesheet" href="assets/style.css?v=66bf87bdd9">
+    <script>try{var t=localStorage.getItem('theme');if(t==='dark')document.documentElement.setAttribute('data-theme','dark')}catch(e){}</script>
+    <link rel="alternate" type="text/plain" title="LLM Documentation Index" href="llms.txt">
+    <link rel="alternate" type="text/plain" title="LLM Full Documentation" href="llms-full.txt">
+</head>
+<body>
+    <aside class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+            <a href="index.html" class="sidebar-logo">openshift-virtualization-tests</a>
+            <p class="sidebar-tagline">Tests for OpenShift Virtualization</p>
+        </div>
+
+        <div class="sidebar-search">
+            <input type="text" id="search-input" placeholder="Search... (⌘K)" autocomplete="off" readonly>
+            <div id="search-results" class="search-results"></div>
+        </div>
+
+        <nav class="sidebar-nav">
+
+            <div class="nav-group">
+                <h3 class="nav-group-title">Getting Started</h3>
+                <ul class="nav-group-pages">
+
+                    <li>
+                        <a href="GETTING_STARTED.html"
+                           class="nav-link">
+                            Getting started
+                        </a>
+                    </li>
+
+                    <li>
+                        <a href="CONTRIBUTING.html"
+                           class="nav-link">
+                            Welcome to openshift-virtualization-tests contributing guide
+                        </a>
+                    </li>
+
+                    <li>
+                        <a href="DEVELOPER_GUIDE.html"
+                           class="nav-link">
+                            Project Structure
+                        </a>
+                    </li>
+
+                </ul>
+            </div>
+
+            <div class="nav-group">
+                <h3 class="nav-group-title">Running Tests</h3>
+                <ul class="nav-group-pages">
+
+                    <li>
+                        <a href="RUNNING_TESTS.html"
+                           class="nav-link">
+                            Running the tests
+                        </a>
+                    </li>
+
+                    <li>
+                        <a href="INSTALL_AND_UPGRADE.html"
+                           class="nav-link">
+                            Install openshift-virtualization tests
+                        </a>
+                    </li>
+
+                    <li>
+                        <a href="MULTIARCH.html"
+                           class="nav-link">
+                            Multi-Architecture (Heterogeneous) Clusters
+                        </a>
+                    </li>
+
+                    <li>
+                        <a href="CONTAINERIZE_TESTS.html"
+                           class="nav-link">
+                            Building and pushing openshift-virtualization-tests container image
+                        </a>
+                    </li>
+
+                </ul>
+            </div>
+
+            <div class="nav-group">
+                <h3 class="nav-group-title">Guidelines</h3>
+                <ul class="nav-group-pages">
+
+                    <li>
+                        <a href="CODING_AND_STYLE_GUIDE.html"
+                           class="nav-link">
+                            Coding standards
+                        </a>
+                    </li>
+
+                    <li>
+                        <a href="CODE_ORGANIZATION.html"
+                           class="nav-link">
+                            Code Organization
+                        </a>
+                    </li>
+
+                    <li>
+                        <a href="QUARANTINE_GUIDELINES.html"
+                           class="nav-link">
+                            OpenShift Virtualization Test Stability, Quarantine and De-quarantine Guidelines
+                        </a>
+                    </li>
+
+                    <li>
+                        <a href="SOFTWARE_TEST_DESCRIPTION.html"
+                           class="nav-link active" aria-current="page">
+                            Software Test Description
+                        </a>
+                    </li>
+
+                </ul>
+            </div>
+
+            <div class="nav-group">
+                <h3 class="nav-group-title">Reference</h3>
+                <ul class="nav-group-pages">
+
+                    <li>
+                        <a href="ARCHITECTURE_SUPPORT.html"
+                           class="nav-link">
+                            Test Images Architecture Support
+                        </a>
+                    </li>
+
+                    <li>
+                        <a href="OWNERS.html"
+                           class="nav-link">
+                            OWNERS files
+                        </a>
+                    </li>
+
+                    <li>
+                        <a href="MAINTAINER_GUIDELINES.html"
+                           class="nav-link">
+                            Maintainer (Approver) Guidelines
+                        </a>
+                    </li>
+
+                    <li>
+                        <a href="AI_CONTRIBUTION_POLICY.html"
+                           class="nav-link">
+                            AI Contribution Policy
+                        </a>
+                    </li>
+
+                </ul>
+            </div>
+
+        </nav>
+    </aside>
+
+    <div class="main-wrapper">
+        <header class="top-bar">
+            <div class="top-bar-left">
+                <button class="sidebar-toggle" id="sidebar-toggle" aria-label="Toggle sidebar" aria-expanded="false">
+                    <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                        <path d="M3 5h14M3 10h14M3 15h14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                    </svg>
+                </button>
+                <a href="index.html" class="top-bar-title">openshift-virtualization-tests</a>
+            </div>
+            <div class="top-bar-spacer"></div>
+            <div class="top-bar-right">
+                <button class="top-bar-search-btn" id="search-trigger" aria-label="Search">
+                    <kbd>&#8984;K</kbd> Search
+                </button>
+                <a href="https://github.com/rnetser/openshift-virtualization-tests" target="_blank" rel="noopener" class="docsite-badge" title="documentation">
+                    ⚡ pi<span class="brand-accent">-docsite</span>
+                </a>
+
+                <a href="https://github.com/rnetser/openshift-virtualization-tests" target="_blank" rel="noopener noreferrer" class="top-bar-github" id="github-link" data-repo-url="https://github.com/rnetser/openshift-virtualization-tests">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
+                    <span class="github-stars" id="github-stars" title="GitHub stars"></span>
+                </a>
+
+                <button class="theme-toggle" id="theme-toggle" aria-label="Toggle theme">
+                    <svg class="icon-sun" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                        <circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+                    </svg>
+                    <svg class="icon-moon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                        <path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/>
+                    </svg>
+                </button>
+            </div>
+        </header>
+
+        <main class="content">
+
+            <article class="article">
+                <div class="article-body">
+                    <!-- SECURITY: |safe is intentional. Content is AI-generated markdown
+                         converted to HTML server-side by the markdown library, not
+                         user-supplied input. XSS risk is minimal and accepted since
+                         the AI generates the content, not end users. -->
+                    <blockquote>
+<p><em>This document was created with the assistance of Claude (Anthropic).</em></p>
+</blockquote>
+<h1 id="software-test-description">Software Test Description</h1>
+<h2 id="overview">Overview</h2>
+<h3 id="test-descriptions-as-code">Test Descriptions as Code</h3>
+<p>In this repository, <strong>test descriptions are written as docstrings directly in the test code</strong>.
+This approach keeps documentation and implementation together, ensuring they stay synchronized and reducing the overhead of maintaining separate documentation.</p>
+<p>Each test function includes a comprehensive docstring that serves as the STD, using the <strong>Preconditions/Steps/Expected</strong> format optimized for automation:</p>
+<ul>
+<li><strong>Preconditions</strong>: Test setup requirements and state</li>
+<li><strong>Steps</strong>: Numbered, discrete actions (each step maps to code)</li>
+<li><strong>Expected</strong>: Natural language assertion (e.g., "VM is Running", "File does NOT exist")</li>
+</ul>
+<p>The STD format is particularly valuable for:</p>
+<ul>
+<li><strong>Design First</strong>: Enables test design review before implementation effort</li>
+<li><strong>Quality Assurance</strong>: Ensures tests are well-documented and can be understood by anyone on the team</li>
+<li><strong>Maintenance</strong>: Makes it easier to update and maintain tests over time</li>
+<li><strong>Review</strong>: Facilitates code review by clearly stating expected behavior</li>
+</ul>
+<hr>
+<h2 id="development-workflow">Development Workflow</h2>
+<p>This project follows a <strong>two-phase development workflow</strong> that separates test design from test implementation.</p>
+<p><strong>Scope:</strong> The traceability and STD lifecycle/format requirements in this guide apply only to product tests under <code>tests/</code>. Utilities unit tests under <code>utilities/unittests/</code> and tooling tests under <code>scripts/</code> are exempt; they require no STP/Jira traceability or STD docstring/lifecycle controls.</p>
+<h3 id="phase-1-test-description-pr-design-phase">Phase 1: Test Description PR (Design Phase)</h3>
+<ol>
+<li><strong>Create test stubs with docstrings only</strong>:</li>
+<li>Write the test function signature</li>
+<li>Add the complete STD docstring (Preconditions/Steps/Expected)</li>
+<li>Include the exact <code>STP: &lt;URL&gt;</code> link in <strong>every test function or method docstring</strong> when an STP exists. A module- or class-level link alone does not provide traceability for a new test.</li>
+<li>When no STP exists, include the exact <code>Jira: &lt;issue URL&gt;  # &lt;skip-jira-utils-check&gt;</code> fallback in every test function or method docstring. Use Jira/RFE tracking links, not support cases.</li>
+<li>Add applicable pytest markers (architecture markers, etc.) in the <code>Markers:</code> docstring section and keep those planned markers in the STD during Phase 1. Add the real <code>@pytest.mark.manual</code> decorator directly to every docstring-only test.</li>
+<li>
+<p>Add effective <code>__test__ = False</code> to every unimplemented test: use module/class scope where it applies, and <code>&lt;test_name&gt;.__test__ = False</code> for a standalone test. <code>@pytest.mark.manual</code> classifies the placeholder but does not suppress collection.</p>
+</li>
+<li>
+<p><strong>Submit PR for review</strong>:</p>
+</li>
+<li>The PR contains only the test descriptions (no automation code)</li>
+<li>Reviewers evaluate the test design, coverage, and clarity</li>
+<li>
+<p>Discussions focus on <em>what</em> should be tested and <em>how</em> it should be validated</p>
+</li>
+<li>
+<p><strong>Approval and merge</strong>:</p>
+</li>
+<li>Once the test design is approved, merge the PR</li>
+<li>This establishes the test contract before implementation begins</li>
+</ol>
+<h3 id="phase-2-test-automation-pr-implementation-phase">Phase 2: Test Automation PR (Implementation Phase)</h3>
+<ol>
+<li><strong>Implement the test automation</strong>:</li>
+<li>Add the actual test code to the previously merged test stubs</li>
+<li>Create any required fixtures</li>
+<li>Implement helper functions as needed</li>
+<li>Remove both the direct <code>@pytest.mark.manual</code> decorator and <code>__test__ = False</code> from implemented tests; manual classification is only for unautomated/docstring-only tests.</li>
+<li>When automating only part of a class/module, move <code>__test__ = False</code> onto each remaining placeholder (<code>&lt;test_name&gt;.__test__ = False</code>) before removing the shared assignment. Keep their direct manual decorators so only implemented tests become collectable.</li>
+<li>Retain the direct <code>STP: &lt;URL&gt;</code> or <code>Jira: &lt;issue URL&gt;</code> traceability line in each test docstring.</li>
+<li>Convert <code>Markers:</code> entries from STD docstrings to real pytest expressions:<ul>
+<li>Module-level markers → <code>pytestmark = [pytest.mark.&lt;marker&gt;]</code> at module scope</li>
+<li>Class-level markers → <code>@pytest.mark.&lt;marker&gt;</code> on the class</li>
+<li>Test-level markers → <code>@pytest.mark.&lt;marker&gt;</code> on the test function</li>
+<li><code>pytestmark</code> is a <strong>Phase 2 addition</strong> — it is intentionally absent from STD placeholders</li>
+</ul>
+</li>
+<li>
+<p>If needed, update the test description. This change must be approved by the team's qe sig owner / lead.</p>
+</li>
+<li>
+<p><strong>Submit PR for review</strong>:</p>
+</li>
+<li>Reviewers verify the implementation matches the approved design</li>
+<li>
+<p>Focus is on code quality, correctness, and adherence to the STD</p>
+</li>
+<li>
+<p><strong>Approval, verification and merge</strong>:</p>
+</li>
+<li>Once implementation is verified, merge the automation</li>
+</ol>
+<h3 id="per-test-traceability">Per-Test Traceability</h3>
+<p>Traceability belongs to the test that covers the scenario. Every new product test function or method under <code>tests/</code> must contain one of these exact labels in its own docstring:</p>
+<div class="highlight"><pre><span></span><code>STP: https://example.com/stp/&lt;scenario&gt;
+</code></pre></div>
+
+<p>If no STP exists, use a Jira or RFE link instead (never a support case), with the required same-line <code># &lt;skip-jira-utils-check&gt;</code> suffix. The URL below is illustrative; replace it with the applicable issue:</p>
+<div class="highlight"><pre><span></span><code>Jira: https://issues.redhat.com/browse/CNV-1234  # &lt;skip-jira-utils-check&gt;
+</code></pre></div>
+
+<p>A module- or class-level link may document shared context, but it does not replace the direct link in each test docstring. Historical traceability must be retained when tests are modified or deleted; follow the repository's existing retention and deletion rules.</p>
+<h3 id="benefits-of-this-workflow">Benefits of This Workflow</h3>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Benefit</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Early Design Review</strong></td>
+<td>Test design is reviewed before implementation effort is spent</td>
+</tr>
+<tr>
+<td><strong>Clear Contracts</strong></td>
+<td>The STD serves as a contract between design and implementation</td>
+</tr>
+<tr>
+<td><strong>Reduced Rework</strong></td>
+<td>Design issues are caught early, before automation is written</td>
+</tr>
+<tr>
+<td><strong>Better Documentation</strong></td>
+<td>Tests are always documented before they are implemented</td>
+</tr>
+<tr>
+<td><strong>Easier Planning</strong></td>
+<td>Test descriptions can be created during sprint planning</td>
+</tr>
+</tbody>
+</table></div>
+<hr>
+<h2 id="automation-friendly-syntax">Automation-Friendly Syntax</h2>
+<p>To enable consistent parsing and automation, use these conventions in docstrings:</p>
+<h3 id="assertion-wording-expected">Assertion Wording (Expected)</h3>
+<p>Use clear, natural language that maps directly to assertions, for example:</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Wording Pattern</th>
+<th>Maps To</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>X equals Y</code></td>
+<td><code>assert x == y</code></td>
+</tr>
+<tr>
+<td><code>X does not equal Y</code></td>
+<td><code>assert x != y</code></td>
+</tr>
+<tr>
+<td><code>VM is "Running"</code></td>
+<td><code>assert vm.status == Running</code></td>
+</tr>
+<tr>
+<td><code>VM is not running</code></td>
+<td><code>assert vm.status != Running</code></td>
+</tr>
+<tr>
+<td><code>File exists</code> / <code>Resource x exists</code></td>
+<td><code>assert exists(x)</code></td>
+</tr>
+<tr>
+<td><code>File does not exist</code> / <code>Resource x does NOT exist</code></td>
+<td><code>assert not exists(x)</code></td>
+</tr>
+<tr>
+<td><code>X does not contain Y</code></td>
+<td><code>assert y not in x</code></td>
+</tr>
+<tr>
+<td><code>Ping succeeds</code> / <code>Operation succeeds</code></td>
+<td><code>assert operation()</code> (no exception)</td>
+</tr>
+<tr>
+<td><code>Ping fails</code> / <code>Operation fails</code></td>
+<td><code>assert</code> raises exception or returns failure</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>Example:</strong></p>
+<div class="highlight"><pre><span></span><code>Expected:
+    - VM is Running
+    - File content equals "data-before-snapshot"
+    - File /data/after.txt does NOT exist
+    - Ping fails with 100% packet loss
+</code></pre></div>
+
+<h3 id="exclude-new-test-stubs-from-pytest-collection-customizing-test-collection">Exclude new test stubs from pytest collection <a href="https://doc.pytest.org/en/latest/example/pythoncollection.html#customizing-test-collection">customizing-test-collection</a></h3>
+<p>Docstring-only STD tests are not automation and must not be collected. Use <code>__test__ = False</code> at the module or class level, or on each standalone test function. Add the real manual marker separately: it classifies the test and does not suppress collection.</p>
+<div class="highlight"><pre><span></span><code><span class="sd">"""Illustrative module containing only STD placeholder tests."""</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">pytest</span>
+
+<span class="n">__test__</span> <span class="o">=</span> <span class="kc">False</span>
+
+<span class="nd">@pytest</span><span class="o">.</span><span class="n">mark</span><span class="o">.</span><span class="n">manual</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">test_abc</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">"""</span>
+<span class="sd">    Test that the example behavior is documented before automation.</span>
+
+<span class="sd">    STP: https://example.com/stp/example-behavior</span>
+
+<span class="sd">    Preconditions:</span>
+<span class="sd">        - Example system is available</span>
+
+<span class="sd">    Steps:</span>
+<span class="sd">        1. Perform the example action manually</span>
+
+<span class="sd">    Expected:</span>
+<span class="sd">        - Example behavior succeeds</span>
+<span class="sd">    """</span>
+</code></pre></div>
+
+<p>For a class of STD methods, set <code>__test__ = False</code> on the class and put the direct manual decorator and traceability link on every method:</p>
+<div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">pytest</span>
+
+<span class="k">class</span><span class="w"> </span><span class="nc">TestClass</span><span class="p">:</span>
+    <span class="n">__test__</span> <span class="o">=</span> <span class="kc">False</span>
+
+    <span class="nd">@pytest</span><span class="o">.</span><span class="n">mark</span><span class="o">.</span><span class="n">manual</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">test_abc</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">"""</span>
+<span class="sd">        Test that the example behavior is documented before automation.</span>
+
+<span class="sd">        STP: https://example.com/stp/example-behavior</span>
+
+<span class="sd">        Preconditions:</span>
+<span class="sd">            - Example system is available</span>
+
+<span class="sd">        Steps:</span>
+<span class="sd">            1. Perform the example action manually</span>
+
+<span class="sd">        Expected:</span>
+<span class="sd">            - Example behavior succeeds</span>
+<span class="sd">        """</span>
+</code></pre></div>
+
+<h3 id="negative-test-indicator">Negative Test Indicator</h3>
+<p>Mark tests that verify failure scenarios with <code>[NEGATIVE]</code> in the description:</p>
+<div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">pytest</span>
+
+<span class="nd">@pytest</span><span class="o">.</span><span class="n">mark</span><span class="o">.</span><span class="n">manual</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">test_isolated_vms_cannot_communicate</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">"""</span>
+<span class="sd">    [NEGATIVE] Test that VMs on separate networks cannot ping each other.</span>
+
+<span class="sd">    STP: https://example.com/stp/isolated-network</span>
+
+<span class="sd">    Preconditions:</span>
+<span class="sd">        - Client VM and server VM are on separate networks</span>
+
+<span class="sd">    Steps:</span>
+<span class="sd">        1. Ping the server VM from the client VM</span>
+
+<span class="sd">    Expected:</span>
+<span class="sd">        - Ping fails</span>
+<span class="sd">    """</span>
+
+<span class="n">test_isolated_vms_cannot_communicate</span><span class="o">.</span><span class="n">__test__</span> <span class="o">=</span> <span class="kc">False</span>
+</code></pre></div>
+
+<h3 id="parametrization-hints">Parametrization Hints</h3>
+<p>When a test should run with multiple parameter combinations, add a <code>Parametrize:</code> section.</p>
+<p>Parameter values may have their own markers using inline <code>[Markers: ...]</code> syntax to differentiate between common test markers and parameter-specific ones:</p>
+<div class="highlight"><pre><span></span><code>Parametrize:
+    - ip_family:
+        - ipv4 [Markers: ipv4]
+        - ipv6 [Markers: ipv6]
+</code></pre></div>
+
+<h3 id="markers-section">Markers Section</h3>
+<p>When specific pytest markers are required, list them explicitly in <code>Markers:</code>. During Phase 1, planned markers other than <code>manual</code> remain documentation entries and are converted during Phase 2. The real <code>@pytest.mark.manual</code> decorator is required directly on each unautomated/docstring-only test. Markers can be described at any level:</p>
+<ul>
+<li><strong>Module docstring</strong> — markers that apply to all tests in the module</li>
+<li><strong>Class docstring</strong> — markers that apply to all tests in the class</li>
+<li><strong>Test docstring</strong> — markers specific to a single test</li>
+</ul>
+<hr>
+<h2 id="std-template">STD Template</h2>
+<p><strong>Key Principles:</strong></p>
+<ul>
+<li>Each test should verify <strong>ONE thing</strong></li>
+<li><strong>Tests must be independent</strong> - no test should depend on another test's outcome</li>
+<li>Related tests are grouped in a <strong>test class</strong></li>
+<li>If a test needs a precondition that could be another test's outcome, place the tests under the class in the required order</li>
+<li>Mention handling of early failures (i.e "fail fast")</li>
+<li><strong>Shared preconditions</strong> go in the class/module docstring</li>
+<li><strong>Test-specific preconditions</strong> (if any) go in the test docstring</li>
+<li><strong>Shared resources used directly by tests</strong> must be mentioned at both levels: in the shared preconditions (class/module) AND in the test-level preconditions. E.g., a VM shared across the module and used in tests should appear in both the module/class preconditions and each test's preconditions.</li>
+<li><strong>Per-test traceability</strong> must be direct: each test function/method docstring contains <code>STP: &lt;URL&gt;</code> when an STP exists, or <code>Jira: &lt;issue URL&gt;</code> when no STP exists. Module/class-only links do not satisfy this requirement.</li>
+</ul>
+<h3 id="class-level-template">Class-Level Template</h3>
+<div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">pytest</span>
+
+<span class="k">class</span><span class="w"> </span><span class="nc">Test</span><span class="o">&lt;</span><span class="n">FeatureName</span><span class="o">&gt;</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""</span>
+<span class="sd">    Tests for &lt;feature description&gt;.</span>
+
+<span class="sd">    Markers:</span>
+<span class="sd">        - arm64</span>
+<span class="sd">        - gating</span>
+
+<span class="sd">    Parametrize:</span>
+<span class="sd">        - storage_class: [ocs-storagecluster-ceph-rbd, hostpath-csi]</span>
+<span class="sd">        - os_image: [rhel9, fedora]</span>
+
+<span class="sd">    Preconditions:</span>
+<span class="sd">        - &lt;Shared setup requirement&gt;</span>
+<span class="sd">        - &lt;Another shared requirement&gt;</span>
+
+<span class="sd">    """</span>
+    <span class="n">__test__</span> <span class="o">=</span> <span class="kc">False</span>
+
+    <span class="nd">@pytest</span><span class="o">.</span><span class="n">mark</span><span class="o">.</span><span class="n">manual</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">test_</span><span class="o">&lt;</span><span class="n">specific_behavior</span><span class="o">&gt;</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">"""</span>
+<span class="sd">        Test that &lt;specific ONE thing being verified&gt;.</span>
+
+<span class="sd">        STP: https://example.com/stp/&lt;scenario&gt;</span>
+
+<span class="sd">        Steps:</span>
+<span class="sd">            1. &lt;The test action to perform&gt;</span>
+
+<span class="sd">        Expected:</span>
+<span class="sd">            - &lt;Natural language assertion, e.g., "VM is Running", "File exists"&gt;</span>
+<span class="sd">        """</span>
+</code></pre></div>
+
+<h3 id="test-level-template">Test-Level Template</h3>
+<p>For standalone tests without related tests:</p>
+<div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">pytest</span>
+
+<span class="nd">@pytest</span><span class="o">.</span><span class="n">mark</span><span class="o">.</span><span class="n">manual</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">test_</span><span class="o">&lt;</span><span class="n">specific_behavior</span><span class="o">&gt;</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">"""</span>
+<span class="sd">    Test that &lt;specific ONE thing being verified&gt;.</span>
+
+<span class="sd">    STP: https://example.com/stp/&lt;scenario&gt;</span>
+
+<span class="sd">    Markers:</span>
+<span class="sd">        - gating</span>
+
+<span class="sd">    Parametrize:</span>
+<span class="sd">        - os_image: [rhel9, fedora]</span>
+
+<span class="sd">    Preconditions:</span>
+<span class="sd">        - &lt;Setup requirement&gt;</span>
+<span class="sd">        - &lt;Another requirement&gt;</span>
+
+<span class="sd">    Steps:</span>
+<span class="sd">        1. &lt;The test action to perform&gt;</span>
+
+<span class="sd">    Expected:</span>
+<span class="sd">        - &lt;Natural language assertion, e.g., "VM is Running", "File exists"&gt;</span>
+<span class="sd">    """</span>
+
+<span class="n">test_</span><span class="o">&lt;</span><span class="n">specific_behavior</span><span class="o">&gt;.</span><span class="n">__test__</span> <span class="o">=</span> <span class="kc">False</span>
+</code></pre></div>
+
+<h3 id="template-components">Template Components</h3>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Component</th>
+<th>Purpose</th>
+<th>Guidelines</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Class Docstring</strong></td>
+<td>Shared preconditions</td>
+<td>Setup common to all tests</td>
+</tr>
+<tr>
+<td><strong>Brief Description</strong></td>
+<td>One-line summary</td>
+<td>Describe the ONE thing being verified; use <code>[NEGATIVE]</code> for failure tests</td>
+</tr>
+<tr>
+<td><strong>Preconditions</strong> (test)</td>
+<td>Test-specific setup</td>
+<td>Only if this test has additional setup beyond the class</td>
+</tr>
+<tr>
+<td><strong>Steps</strong></td>
+<td>Test action(s)</td>
+<td>Minimal - just what's needed to get the result to verify</td>
+</tr>
+<tr>
+<td><strong>Expected</strong></td>
+<td>ONE assertion</td>
+<td>Use natural language that maps to assertions</td>
+</tr>
+<tr>
+<td><strong>Parametrize</strong></td>
+<td>Matrix testing</td>
+<td>Optional - list parameter combinations</td>
+</tr>
+<tr>
+<td><strong>Traceability</strong></td>
+<td>Per-test tracking</td>
+<td>Exact <code>STP: &lt;URL&gt;</code> or <code>Jira: &lt;issue URL&gt;</code> in every test docstring</td>
+</tr>
+<tr>
+<td><strong>Markers</strong></td>
+<td>pytest markers</td>
+<td>List planned decorators; use direct <code>@pytest.mark.manual</code> in Phase 1</td>
+</tr>
+</tbody>
+</table></div>
+<hr>
+<h2 id="best-practices">Best Practices</h2>
+<h3 id="writing-effective-stds">Writing Effective STDs</h3>
+<ol>
+<li><strong>One Test = One Thing</strong>: Each test should verify exactly one behavior.</li>
+<li>Good: <code>test_ping_succeeds</code>, <code>test_ping_fails_when_isolated</code></li>
+<li>
+<p>Bad: <code>test_ping_succeeds_and_fails_when_isolated</code></p>
+</li>
+<li>
+<p><strong>Group Related Tests in Classes</strong>: Use class docstring for shared preconditions.</p>
+</li>
+<li>Good: Class <code>TestSnapshotRestore</code> with shared VM setup</li>
+<li>
+<p>Bad: Standalone functions with repeated preconditions</p>
+</li>
+<li>
+<p><strong>Be Specific in Preconditions</strong>: Describe the exact state required.</p>
+</li>
+<li>Good: <code>- File path="/data/original.txt", content="test-data"</code></li>
+<li>
+<p>Bad: <code>- A file exists</code></p>
+</li>
+<li>
+<p><strong>No Fixture Names in Phase 1</strong>: Fixtures are implementation details.</p>
+</li>
+<li>Good: <code>- Running Fedora virtual machine</code></li>
+<li>
+<p>Bad: <code>- Running Fedora VM (vm_to_restart fixture)</code></p>
+</li>
+<li>
+<p><strong>Name Resources by Function</strong>: Name objects by their role, not generic labels.</p>
+</li>
+<li>Good: <code>- Connectivity reference VM</code>, <code>- Client VM</code></li>
+<li>Bad: <code>- VM-A</code>, <code>- VM-B</code>, <code>- First VM</code></li>
+<li>
+<p>This is especially important when multiple resources of the same kind are used, to clarify each resource's purpose.</p>
+</li>
+<li>
+<p><strong>Single Expected Behavior per Test</strong>: One assertion: clear pass/fail.</p>
+</li>
+<li>Good: <code>Expected: - Ping succeeds with 0% packet loss</code></li>
+<li>Bad: <code>Expected: - Ping succeeds - VM remains running - No errors logged</code></li>
+<li>
+<p>There may be <strong>exceptions</strong>, where multiple assertions are required to verify a <strong>single</strong> behavior.</p>
+<ul>
+<li>Example: <code>Expected: - VM reports valid IP addres. Expected - User can access VM via SSH</code></li>
+</ul>
+</li>
+<li>
+<p><strong>Tests Must Be Independent</strong>: Tests should not depend on other tests.</p>
+</li>
+<li>Dependencies between tests mean that one test depends on the result of a previous test.</li>
+<li>If testing of a feature requires dependencies between tests, make sure that:<ul>
+<li>They are grouped under a class with shared preconditions</li>
+<li>List <code>incremental</code> in the class <code>Markers:</code> section during Phase 1; apply <code>@pytest.mark.incremental</code> during Phase 2 to preserve the dependency on previous test results</li>
+</ul>
+</li>
+<li>Good: Fixture <code>migrated_vm</code> sets up a VM that has been migrated</li>
+<li>
+<p>Bad: <code>test_migrate_vm</code> must run before <code>test_ssh_after_migration</code></p>
+<p>Example:</p>
+<p>```python
+import pytest</p>
+<p>class TestVMSomeFeature:
+    """
+    Markers:
+        - incremental
+    """
+    <strong>test</strong> = False</p>
+<div class="highlight"><pre><span></span><code>@pytest.mark.manual
+def test_vm_is_created(self):
+    """
+    Test that a VM with feature 1 can be created.
+
+    STP: https://example.com/stp/vm-feature-1
+
+    Preconditions:
+        - Feature 1 is available
+
+    Steps:
+        1. Create a VM with feature 1
+
+    Expected:
+        - The VM is created
+    """
+
+@pytest.mark.manual
+def test_vm_migration(self):
+    """
+    Test that a VM with feature 1 can be migrated.
+
+    STP: https://example.com/stp/vm-feature-1
+
+    Preconditions:
+        - A VM with feature 1 is running
+
+    Steps:
+        1. Migrate the VM
+
+    Expected:
+        - The VM remains running after migration
+    """
+</code></pre></div>
+
+<p>```</p>
+</li>
+</ol>
+<h3 id="common-patterns-in-this-project">Common Patterns in This Project</h3>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Pattern</th>
+<th>Description</th>
+<th>Example</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Fixture-based Setup</strong></td>
+<td>Use pytest fixtures for resource creation</td>
+<td><code>vm_to_restart</code>, <code>namespace</code></td>
+</tr>
+<tr>
+<td><strong>Parameterize Testing</strong></td>
+<td>Parametrize tests or fixtures for multiple scenarios</td>
+<td><code>@pytest.mark.parametrize("run_strategy", [Always, Manual])</code></td>
+</tr>
+<tr>
+<td><strong>Matrix Testing</strong></td>
+<td>Advanced parametrization via dynamic fixtures</td>
+<td><code>storage_class_matrix</code>, <code>run_strategy_matrix</code></td>
+</tr>
+<tr>
+<td><strong>Architecture Markers</strong></td>
+<td>Indicate architecture compatibility</td>
+<td><code>@pytest.mark.arm64</code>, <code>@pytest.mark.s390x</code></td>
+</tr>
+<tr>
+<td><strong>Gating Tests</strong></td>
+<td>Critical tests for CI/CD pipelines</td>
+<td><code>@pytest.mark.gating</code></td>
+</tr>
+</tbody>
+</table></div>
+<h3 id="std-checklist">STD Checklist</h3>
+<h4 id="phase-1-test-description-pr">Phase 1: Test Description PR</h4>
+<ul>
+<li>[ ] Every test function/method docstring has exact <code>STP: &lt;URL&gt;</code>, or <code>Jira: &lt;issue URL&gt;</code> when no STP exists</li>
+<li>[ ] Tests grouped in class with shared preconditions where appropriate</li>
+<li>[ ] Each test has: description, traceability line, Preconditions, Steps, Expected</li>
+<li>[ ] Each test verifies ONE thing with ONE Expected</li>
+<li>[ ] Negative tests marked with <code>[NEGATIVE]</code></li>
+<li>[ ] Every docstring-only test has direct <code>@pytest.mark.manual</code> and effective <code>__test__ = False</code></li>
+<li>[ ] Jira fallback lines have the same-line <code># &lt;skip-jira-utils-check&gt;</code> suffix; no support-case links</li>
+</ul>
+<h4 id="phase-2-test-automation-pr">Phase 2: Test Automation PR</h4>
+<ul>
+<li>[ ] Implementation matches approved STD</li>
+<li>[ ] Fixtures implement preconditions</li>
+<li>[ ] Assertions match Expected</li>
+<li>[ ] No changes to approved STD docstrings, including per-test traceability</li>
+<li>[ ] Remove both direct <code>@pytest.mark.manual</code> and <code>__test__ = False</code> when automation is added</li>
+<li>[ ] <code>Markers:</code> entries from STD docstrings converted to <code>pytestmark</code> or <code>@pytest.mark</code> decorators</li>
+</ul>
+<hr>
+<h3 id="example-1-group-tests-under-a-class">Example 1: Group tests under a class</h3>
+<div class="highlight"><pre><span></span><code><span class="sd">"""</span>
+<span class="sd">VM Snapshot and Restore Tests</span>
+
+<span class="sd">Shared preconditions for this class are documented here; each test retains its own traceability.</span>
+<span class="sd">"""</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">pytest</span>
+
+<span class="k">class</span><span class="w"> </span><span class="nc">TestSnapshotRestore</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""</span>
+<span class="sd">    Tests for VM snapshot restore functionality.</span>
+
+<span class="sd">    Markers:</span>
+<span class="sd">        - gating</span>
+
+<span class="sd">    Preconditions:</span>
+<span class="sd">        - Running VM with a data disk</span>
+<span class="sd">        - File path="/data/original.txt", content="data-before-snapshot"</span>
+<span class="sd">        - Snapshot created from VM</span>
+<span class="sd">        - File path="/data/after.txt", content="post-snapshot" (written after snapshot)</span>
+<span class="sd">        - VM Restored from snapshot, running and SSH accessible</span>
+<span class="sd">    """</span>
+    <span class="n">__test__</span> <span class="o">=</span> <span class="kc">False</span>
+
+    <span class="nd">@pytest</span><span class="o">.</span><span class="n">mark</span><span class="o">.</span><span class="n">manual</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">test_preserves_original_file</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">"""</span>
+<span class="sd">        Test that files created before a snapshot are preserved after restore.</span>
+
+<span class="sd">        STP: https://example.com/stp/vm-snapshot-restore</span>
+
+<span class="sd">        Preconditions:</span>
+<span class="sd">            - Data disk attached to the VM</span>
+<span class="sd">            - Running VM with /data/original.txt preserved from before the snapshot</span>
+<span class="sd">            - VM restored from the snapshot and SSH accessible</span>
+
+<span class="sd">        Steps:</span>
+<span class="sd">            1. Read file /data/original.txt from the restored VM</span>
+
+<span class="sd">        Expected:</span>
+<span class="sd">            - File content equals "data-before-snapshot"</span>
+<span class="sd">        """</span>
+
+    <span class="nd">@pytest</span><span class="o">.</span><span class="n">mark</span><span class="o">.</span><span class="n">manual</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">test_removes_post_snapshot_file</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">"""</span>
+<span class="sd">        Test that files created after a snapshot are removed after restore.</span>
+
+<span class="sd">        STP: https://example.com/stp/vm-snapshot-restore</span>
+
+<span class="sd">        Preconditions:</span>
+<span class="sd">            - Data disk attached to the VM</span>
+<span class="sd">            - Running VM with /data/after.txt created after the snapshot</span>
+<span class="sd">            - VM restored from the snapshot and SSH accessible</span>
+
+<span class="sd">        Steps:</span>
+<span class="sd">            1. Check if file /data/after.txt exists on the restored VM</span>
+
+<span class="sd">        Expected:</span>
+<span class="sd">            - File /data/after.txt does NOT exist</span>
+<span class="sd">        """</span>
+</code></pre></div>
+
+<h3 id="example-2-tests-with-test-specific-preconditions">Example 2: Tests with test-specific preconditions</h3>
+<div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">pytest</span>
+
+<span class="k">class</span><span class="w"> </span><span class="nc">TestVMLifecycle</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""</span>
+<span class="sd">    Tests for VM lifecycle operations.</span>
+
+<span class="sd">    Preconditions:</span>
+<span class="sd">        - VM running the latest Fedora image</span>
+<span class="sd">    """</span>
+    <span class="n">__test__</span> <span class="o">=</span> <span class="kc">False</span>
+
+    <span class="nd">@pytest</span><span class="o">.</span><span class="n">mark</span><span class="o">.</span><span class="n">manual</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">test_vm_restart_completes_successfully</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">"""</span>
+<span class="sd">        Test that a VM can be restarted.</span>
+
+<span class="sd">        STP: https://example.com/stp/vm-lifecycle</span>
+
+<span class="sd">        Preconditions:</span>
+<span class="sd">            - VM running the latest Fedora image</span>
+
+<span class="sd">        Steps:</span>
+<span class="sd">            1. Restart the running VM and wait for completion</span>
+
+<span class="sd">        Expected:</span>
+<span class="sd">            - VM is "Running"</span>
+<span class="sd">        """</span>
+
+    <span class="nd">@pytest</span><span class="o">.</span><span class="n">mark</span><span class="o">.</span><span class="n">manual</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">test_vm_stop_completes_successfully</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">"""</span>
+<span class="sd">        Test that a VM can be stopped.</span>
+
+<span class="sd">        STP: https://example.com/stp/vm-lifecycle</span>
+
+<span class="sd">        Preconditions:</span>
+<span class="sd">            - VM running the latest Fedora image</span>
+
+<span class="sd">        Steps:</span>
+<span class="sd">            1. Stop the running VM and wait for completion</span>
+
+<span class="sd">        Expected:</span>
+<span class="sd">            - VM is "Stopped"</span>
+<span class="sd">        """</span>
+
+    <span class="nd">@pytest</span><span class="o">.</span><span class="n">mark</span><span class="o">.</span><span class="n">manual</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">test_vm_start_after_stop</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">"""</span>
+<span class="sd">        Test that a stopped VM can be started.</span>
+
+<span class="sd">        STP: https://example.com/stp/vm-lifecycle</span>
+
+<span class="sd">        Preconditions:</span>
+<span class="sd">            - VM created from the latest Fedora image is stopped</span>
+
+<span class="sd">        Steps:</span>
+<span class="sd">            1. Start the VM and wait for it to become running</span>
+
+<span class="sd">        Expected:</span>
+<span class="sd">            - VM is "Running" and SSH accessible</span>
+<span class="sd">        """</span>
+</code></pre></div>
+
+<hr>
+<h3 id="jira-fallback-example">Jira Fallback Example</h3>
+<p>When a new test has no STP, use the Jira or RFE issue URL directly in the test docstring with the same-line <code># &lt;skip-jira-utils-check&gt;</code> suffix. Do not use a support-case URL. Replace the illustrative URL below with the applicable issue.</p>
+<div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">pytest</span>
+
+<span class="nd">@pytest</span><span class="o">.</span><span class="n">mark</span><span class="o">.</span><span class="n">manual</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">test_feature_behavior_without_stp</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">"""</span>
+<span class="sd">    Test the behavior tracked by the fallback Jira issue.</span>
+
+<span class="sd">    Jira: https://issues.redhat.com/browse/CNV-1234  # &lt;skip-jira-utils-check&gt;</span>
+
+<span class="sd">    Preconditions:</span>
+<span class="sd">        - The feature is available in the test environment</span>
+
+<span class="sd">    Steps:</span>
+<span class="sd">        1. Exercise the feature</span>
+
+<span class="sd">    Expected:</span>
+<span class="sd">        - The feature behaves as described by the issue</span>
+<span class="sd">    """</span>
+
+<span class="n">test_feature_behavior_without_stp</span><span class="o">.</span><span class="n">__test__</span> <span class="o">=</span> <span class="kc">False</span>
+</code></pre></div>
+
+<hr>
+<h3 id="example-3-single-test-no-class-needed">Example 3: Single Test (No Class Needed)</h3>
+<p>When a test stands alone without related tests, a class is not required:</p>
+<div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">pytest</span>
+
+<span class="nd">@pytest</span><span class="o">.</span><span class="n">mark</span><span class="o">.</span><span class="n">manual</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">test_flat_overlay_ping_between_vms</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">"""</span>
+<span class="sd">    Test that VMs on the same flat overlay network can communicate.</span>
+
+<span class="sd">    STP: https://example.com/stp/vm-flat-overlay</span>
+
+<span class="sd">    Markers:</span>
+<span class="sd">        - ipv4</span>
+<span class="sd">        - gating</span>
+
+<span class="sd">    Preconditions:</span>
+<span class="sd">        - Flat overlay Network Attachment Definition created</span>
+<span class="sd">        - Client VM running and attached to a flat overlay network</span>
+<span class="sd">        - Server VM running and attached to a flat overlay network</span>
+
+<span class="sd">    Steps:</span>
+<span class="sd">        1. Get the IPv4 address of the server VM</span>
+<span class="sd">        2. Execute ping from the client VM to the server VM</span>
+
+<span class="sd">    Expected:</span>
+<span class="sd">        - Ping succeeds with 0% packet loss</span>
+<span class="sd">    """</span>
+
+<span class="n">test_flat_overlay_ping_between_vms</span><span class="o">.</span><span class="n">__test__</span> <span class="o">=</span> <span class="kc">False</span>
+</code></pre></div>
+
+<hr>
+<h3 id="example-4-negative-test">Example 4: Negative Test</h3>
+<p>Tests that verify failure scenarios use the <code>[NEGATIVE]</code> indicator:</p>
+<div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">pytest</span>
+
+<span class="nd">@pytest</span><span class="o">.</span><span class="n">mark</span><span class="o">.</span><span class="n">manual</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">test_isolated_vms_cannot_communicate</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">"""</span>
+<span class="sd">    [NEGATIVE] Test that VMs on separate flat overlay networks cannot ping each other.</span>
+
+<span class="sd">    STP: https://example.com/stp/vm-isolated-overlay</span>
+
+<span class="sd">    Markers:</span>
+<span class="sd">        - ipv4</span>
+
+<span class="sd">    Preconditions:</span>
+<span class="sd">        - Client flat overlay network created</span>
+<span class="sd">        - Server flat overlay network created separately from the client network</span>
+<span class="sd">        - Client VM running and attached to the client network</span>
+<span class="sd">        - Server VM running and attached to the server network</span>
+
+<span class="sd">    Steps:</span>
+<span class="sd">        1. Get the IPv4 address of the server VM</span>
+<span class="sd">        2. Execute ping from the client VM to the server VM</span>
+
+<span class="sd">    Expected:</span>
+<span class="sd">        - Ping fails with 100% packet loss</span>
+<span class="sd">    """</span>
+
+<span class="n">test_isolated_vms_cannot_communicate</span><span class="o">.</span><span class="n">__test__</span> <span class="o">=</span> <span class="kc">False</span>
+</code></pre></div>
+
+<hr>
+<h3 id="example-5-parametrized-test">Example 5: Parametrized Test</h3>
+<p>Tests that should run with multiple parameter combinations include a <code>Parametrize:</code> section:</p>
+<div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">pytest</span>
+
+<span class="nd">@pytest</span><span class="o">.</span><span class="n">mark</span><span class="o">.</span><span class="n">manual</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">test_online_disk_resize</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">"""</span>
+<span class="sd">    Test that a running VM's disk can be expanded.</span>
+
+<span class="sd">    STP: https://example.com/stp/online-disk-resize</span>
+
+<span class="sd">    Markers:</span>
+<span class="sd">        - gating</span>
+
+<span class="sd">    Parametrize:</span>
+<span class="sd">        - storage_class: [ocs-storagecluster-ceph-rbd, hostpath-csi]</span>
+
+<span class="sd">    Preconditions:</span>
+<span class="sd">        - Storage class from parameter exists</span>
+<span class="sd">        - DataVolume with RHEL image using the storage class</span>
+<span class="sd">        - Running VM with the DataVolume as boot disk</span>
+
+<span class="sd">    Steps:</span>
+<span class="sd">        1. Expand PVC by 1Gi</span>
+<span class="sd">        2. Wait for resize to complete inside VM</span>
+
+<span class="sd">    Expected:</span>
+<span class="sd">        - Disk size inside VM is greater than original size</span>
+<span class="sd">    """</span>
+
+<span class="n">test_online_disk_resize</span><span class="o">.</span><span class="n">__test__</span> <span class="o">=</span> <span class="kc">False</span>
+</code></pre></div>
+
+<hr>
+<h3 id="example-6-module-level-preconditions">Example 6: Module-Level Preconditions</h3>
+<p>When a module contains multiple classes or standalone tests that share common setup, use the <strong>module docstring</strong> for shared preconditions. Resources used directly by tests must appear in both the module preconditions and the test-level preconditions:</p>
+<div class="highlight"><pre><span></span><code><span class="sd">"""</span>
+<span class="sd">VM Live Migration Tests</span>
+
+<span class="sd">Markers:</span>
+<span class="sd">    - gating</span>
+
+<span class="sd">Preconditions:</span>
+<span class="sd">    - Two worker nodes available for migration</span>
+<span class="sd">    - Running VM with the latest Fedora image, accessible via SSH</span>
+
+<span class="sd">"""</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">pytest</span>
+
+<span class="n">__test__</span> <span class="o">=</span> <span class="kc">False</span>
+
+<span class="nd">@pytest</span><span class="o">.</span><span class="n">mark</span><span class="o">.</span><span class="n">manual</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">test_ssh_connectivity_after_migration</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">"""</span>
+<span class="sd">    Test that SSH connectivity is preserved after live migration.</span>
+
+<span class="sd">    STP: https://example.com/stp/vm-live-migration</span>
+
+<span class="sd">    Preconditions:</span>
+<span class="sd">        - Two worker nodes available for migration</span>
+<span class="sd">        - Running VM with the latest Fedora image, accessible via SSH</span>
+
+<span class="sd">    Steps:</span>
+<span class="sd">        1. Live migrate the VM to another node</span>
+<span class="sd">        2. Wait for migration to complete</span>
+<span class="sd">        3. Connect to VM via SSH</span>
+
+<span class="sd">    Expected:</span>
+<span class="sd">        - SSH connection succeeds</span>
+<span class="sd">    """</span>
+
+<span class="nd">@pytest</span><span class="o">.</span><span class="n">mark</span><span class="o">.</span><span class="n">manual</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">test_data_disk_accessible_after_migration</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">"""</span>
+<span class="sd">    Test that data disk content is preserved after live migration.</span>
+
+<span class="sd">    STP: https://example.com/stp/vm-live-migration</span>
+
+<span class="sd">    Preconditions:</span>
+<span class="sd">        - Two worker nodes available for migration</span>
+<span class="sd">        - Running VM with the latest Fedora image, accessible via SSH</span>
+<span class="sd">        - Data disk attached to the VM with test data written to a file</span>
+
+<span class="sd">    Steps:</span>
+<span class="sd">        1. Live migrate the VM to another node</span>
+<span class="sd">        2. Read data from the data disk</span>
+
+<span class="sd">    Expected:</span>
+<span class="sd">        - Data disk content equals the written test data</span>
+<span class="sd">    """</span>
+</code></pre></div>
+
+<hr>
+                </div>
+            </article>
+            <nav class="page-nav">
+
+                <a href="QUARANTINE_GUIDELINES.html" class="page-nav-link page-nav-prev">
+                    <span class="page-nav-label">Previous</span>
+                    <span class="page-nav-title">OpenShift Virtualization Test Stability, Quarantine and De-quarantine Guidelines</span>
+                </a>
+
+
+                <a href="ARCHITECTURE_SUPPORT.html" class="page-nav-link page-nav-next">
+                    <span class="page-nav-label">Next</span>
+                    <span class="page-nav-title">Test Images Architecture Support</span>
+                </a>
+
+            </nav>
+
+            <aside class="toc-sidebar">
+                <div class="toc-container">
+                    <h3>On this page</h3>
+                    <div class="toc">
+<ul>
+<li><a href="#overview">Overview</a><ul>
+<li><a href="#test-descriptions-as-code">Test Descriptions as Code</a></li>
+</ul>
+</li>
+<li><a href="#development-workflow">Development Workflow</a><ul>
+<li><a href="#phase-1-test-description-pr-design-phase">Phase 1: Test Description PR (Design Phase)</a></li>
+<li><a href="#phase-2-test-automation-pr-implementation-phase">Phase 2: Test Automation PR (Implementation Phase)</a></li>
+<li><a href="#per-test-traceability">Per-Test Traceability</a></li>
+<li><a href="#benefits-of-this-workflow">Benefits of This Workflow</a></li>
+</ul>
+</li>
+<li><a href="#automation-friendly-syntax">Automation-Friendly Syntax</a><ul>
+<li><a href="#assertion-wording-expected">Assertion Wording (Expected)</a></li>
+<li><a href="#exclude-new-test-stubs-from-pytest-collection-customizing-test-collection">Exclude new test stubs from pytest collection customizing-test-collection</a></li>
+<li><a href="#negative-test-indicator">Negative Test Indicator</a></li>
+<li><a href="#parametrization-hints">Parametrization Hints</a></li>
+<li><a href="#markers-section">Markers Section</a></li>
+</ul>
+</li>
+<li><a href="#std-template">STD Template</a><ul>
+<li><a href="#class-level-template">Class-Level Template</a></li>
+<li><a href="#test-level-template">Test-Level Template</a></li>
+<li><a href="#template-components">Template Components</a></li>
+</ul>
+</li>
+<li><a href="#best-practices">Best Practices</a><ul>
+<li><a href="#writing-effective-stds">Writing Effective STDs</a></li>
+<li><a href="#common-patterns-in-this-project">Common Patterns in This Project</a></li>
+<li><a href="#std-checklist">STD Checklist</a></li>
+<li><a href="#example-1-group-tests-under-a-class">Example 1: Group tests under a class</a></li>
+<li><a href="#example-2-tests-with-test-specific-preconditions">Example 2: Tests with test-specific preconditions</a></li>
+<li><a href="#jira-fallback-example">Jira Fallback Example</a></li>
+<li><a href="#example-3-single-test-no-class-needed">Example 3: Single Test (No Class Needed)</a></li>
+<li><a href="#example-4-negative-test">Example 4: Negative Test</a></li>
+<li><a href="#example-5-parametrized-test">Example 5: Parametrized Test</a></li>
+<li><a href="#example-6-module-level-preconditions">Example 6: Module-Level Preconditions</a></li>
+</ul>
+</li>
+</ul>
+</div>
+
+                </div>
+            </aside>
+
+
+        </main>
+
+        <footer class="page-footer">
+
+            Built from <code>docs/*.md</code> by <code>pi-docsite</code>
+            <span class="footer-sep">&middot;</span>
+            <span class="footer-llm">LLM-friendly: <a href="llms.txt">llms.txt</a> &middot; <a href="llms-full.txt">llms-full.txt</a></span>
+        </footer>
+    </div>
+
+    <div class="sidebar-overlay" id="sidebar-overlay"></div>
+
+    <script src="assets/theme.js?v=66bf87bdd9"></script>
+
+    <script src="assets/search.js?v=66bf87bdd9"></script>
+    <script src="assets/copy.js?v=66bf87bdd9"></script>
+    <script src="assets/callouts.js?v=66bf87bdd9"></script>
+    <script src="assets/scrollspy.js?v=66bf87bdd9"></script>
+    <script src="assets/codelabels.js?v=66bf87bdd9"></script>
+    <script src="assets/github.js?v=66bf87bdd9"></script>
+    <script>
+(function() {
+    var toggle = document.getElementById('sidebar-toggle');
+    var sidebar = document.getElementById('sidebar');
+    var overlay = document.getElementById('sidebar-overlay');
+    if (toggle && sidebar) {
+        toggle.addEventListener('click', function() {
+            sidebar.classList.toggle('open');
+            if (overlay) overlay.classList.toggle('open');
+            var expanded = sidebar.classList.contains('open');
+            toggle.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+        });
+    }
+    if (overlay) {
+        overlay.addEventListener('click', function() {
+            sidebar.classList.remove('open');
+            overlay.classList.remove('open');
+            if (toggle) toggle.setAttribute('aria-expanded', 'false');
+        });
+    }
+})();
+</script>
+<script>
+(function() {
+    var sidebar = document.querySelector('.sidebar-nav') || document.querySelector('.sidebar');
+    if (!sidebar) return;
+
+    // Restore scroll position
+    var saved = sessionStorage.getItem('sidebar-scroll');
+    if (saved) sidebar.scrollTop = parseInt(saved, 10);
+
+    // Save scroll position before navigating
+    sidebar.addEventListener('scroll', function() {
+        sessionStorage.setItem('sidebar-scroll', sidebar.scrollTop.toString());
+    });
+
+    // Also scroll active link into view if no saved position
+    if (!saved) {
+        var active = sidebar.querySelector('.nav-link.active');
+        if (active) {
+            active.scrollIntoView({ block: 'center', behavior: 'instant' });
+        }
+    }
+})();
+</script>
+<!-- generated by pi-docsite -->
+</body>
+</html>

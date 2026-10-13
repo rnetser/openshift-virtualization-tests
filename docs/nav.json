@@ -1,0 +1,8 @@
+{
+  "groups": [
+    { "name": "Getting Started", "pages": ["GETTING_STARTED", "CONTRIBUTING", "DEVELOPER_GUIDE"] },
+    { "name": "Running Tests", "pages": ["RUNNING_TESTS", "INSTALL_AND_UPGRADE", "MULTIARCH", "CONTAINERIZE_TESTS"] },
+    { "name": "Guidelines", "pages": ["CODING_AND_STYLE_GUIDE", "CODE_ORGANIZATION", "QUARANTINE_GUIDELINES", "SOFTWARE_TEST_DESCRIPTION"] },
+    { "name": "Reference", "pages": ["ARCHITECTURE_SUPPORT", "OWNERS", "MAINTAINER_GUIDELINES", "AI_CONTRIBUTION_POLICY"] }
+  ]
+}

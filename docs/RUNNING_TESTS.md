@@ -1,4 +1,4 @@
-## Running the tests
+# Running the tests
 
 ### NOTE - Running chaos tests
 

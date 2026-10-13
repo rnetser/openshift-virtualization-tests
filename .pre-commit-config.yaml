@@ -64,6 +64,15 @@ repos:
       - id: gitlint
         stages: [commit-msg]
 
+  - repo: local
+    hooks:
+      - id: pi-docsite
+        name: regenerate docs site (pi-docsite)
+        entry: scripts/regen_docs.sh
+        language: system
+        files: ^docs/.*\.(md|json)$
+        pass_filenames: false
+
   - repo: https://github.com/python-jsonschema/check-jsonschema
     rev: "0.38.0"
     hooks:

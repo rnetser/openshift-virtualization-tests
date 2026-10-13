@@ -150,6 +150,7 @@ dev = [
     "ipython>=8.12.3",
     "pygithub>=2.9.1",
     "pytest-repeat>=0.9.4",
+    "pi-docsite>=4.8.5",
 ]
 
 [tool.uv.sources]

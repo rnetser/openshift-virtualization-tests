@@ -1,0 +1,568 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Code Organization - openshift-virtualization-tests</title>
+    <meta name="description" content="Tests for OpenShift Virtualization">
+    <link rel="stylesheet" href="assets/style.css?v=66bf87bdd9">
+    <script>try{var t=localStorage.getItem('theme');if(t==='dark')document.documentElement.setAttribute('data-theme','dark')}catch(e){}</script>
+    <link rel="alternate" type="text/plain" title="LLM Documentation Index" href="llms.txt">
+    <link rel="alternate" type="text/plain" title="LLM Full Documentation" href="llms-full.txt">
+</head>
+<body>
+    <aside class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+            <a href="index.html" class="sidebar-logo">openshift-virtualization-tests</a>
+            <p class="sidebar-tagline">Tests for OpenShift Virtualization</p>
+        </div>
+
+        <div class="sidebar-search">
+            <input type="text" id="search-input" placeholder="Search... (⌘K)" autocomplete="off" readonly>
+            <div id="search-results" class="search-results"></div>
+        </div>
+
+        <nav class="sidebar-nav">
+
+            <div class="nav-group">
+                <h3 class="nav-group-title">Getting Started</h3>
+                <ul class="nav-group-pages">
+
+                    <li>
+                        <a href="GETTING_STARTED.html"
+                           class="nav-link">
+                            Getting started
+                        </a>
+                    </li>
+
+                    <li>
+                        <a href="CONTRIBUTING.html"
+                           class="nav-link">
+                            Welcome to openshift-virtualization-tests contributing guide
+                        </a>
+                    </li>
+
+                    <li>
+                        <a href="DEVELOPER_GUIDE.html"
+                           class="nav-link">
+                            Project Structure
+                        </a>
+                    </li>
+
+                </ul>
+            </div>
+
+            <div class="nav-group">
+                <h3 class="nav-group-title">Running Tests</h3>
+                <ul class="nav-group-pages">
+
+                    <li>
+                        <a href="RUNNING_TESTS.html"
+                           class="nav-link">
+                            Running the tests
+                        </a>
+                    </li>
+
+                    <li>
+                        <a href="INSTALL_AND_UPGRADE.html"
+                           class="nav-link">
+                            Install openshift-virtualization tests
+                        </a>
+                    </li>
+
+                    <li>
+                        <a href="MULTIARCH.html"
+                           class="nav-link">
+                            Multi-Architecture (Heterogeneous) Clusters
+                        </a>
+                    </li>
+
+                    <li>
+                        <a href="CONTAINERIZE_TESTS.html"
+                           class="nav-link">
+                            Building and pushing openshift-virtualization-tests container image
+                        </a>
+                    </li>
+
+                </ul>
+            </div>
+
+            <div class="nav-group">
+                <h3 class="nav-group-title">Guidelines</h3>
+                <ul class="nav-group-pages">
+
+                    <li>
+                        <a href="CODING_AND_STYLE_GUIDE.html"
+                           class="nav-link">
+                            Coding standards
+                        </a>
+                    </li>
+
+                    <li>
+                        <a href="CODE_ORGANIZATION.html"
+                           class="nav-link active" aria-current="page">
+                            Code Organization
+                        </a>
+                    </li>
+
+                    <li>
+                        <a href="QUARANTINE_GUIDELINES.html"
+                           class="nav-link">
+                            OpenShift Virtualization Test Stability, Quarantine and De-quarantine Guidelines
+                        </a>
+                    </li>
+
+                    <li>
+                        <a href="SOFTWARE_TEST_DESCRIPTION.html"
+                           class="nav-link">
+                            Software Test Description
+                        </a>
+                    </li>
+
+                </ul>
+            </div>
+
+            <div class="nav-group">
+                <h3 class="nav-group-title">Reference</h3>
+                <ul class="nav-group-pages">
+
+                    <li>
+                        <a href="ARCHITECTURE_SUPPORT.html"
+                           class="nav-link">
+                            Test Images Architecture Support
+                        </a>
+                    </li>
+
+                    <li>
+                        <a href="OWNERS.html"
+                           class="nav-link">
+                            OWNERS files
+                        </a>
+                    </li>
+
+                    <li>
+                        <a href="MAINTAINER_GUIDELINES.html"
+                           class="nav-link">
+                            Maintainer (Approver) Guidelines
+                        </a>
+                    </li>
+
+                    <li>
+                        <a href="AI_CONTRIBUTION_POLICY.html"
+                           class="nav-link">
+                            AI Contribution Policy
+                        </a>
+                    </li>
+
+                </ul>
+            </div>
+
+        </nav>
+    </aside>
+
+    <div class="main-wrapper">
+        <header class="top-bar">
+            <div class="top-bar-left">
+                <button class="sidebar-toggle" id="sidebar-toggle" aria-label="Toggle sidebar" aria-expanded="false">
+                    <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                        <path d="M3 5h14M3 10h14M3 15h14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                    </svg>
+                </button>
+                <a href="index.html" class="top-bar-title">openshift-virtualization-tests</a>
+            </div>
+            <div class="top-bar-spacer"></div>
+            <div class="top-bar-right">
+                <button class="top-bar-search-btn" id="search-trigger" aria-label="Search">
+                    <kbd>&#8984;K</kbd> Search
+                </button>
+                <a href="https://github.com/rnetser/openshift-virtualization-tests" target="_blank" rel="noopener" class="docsite-badge" title="documentation">
+                    ⚡ pi<span class="brand-accent">-docsite</span>
+                </a>
+
+                <a href="https://github.com/rnetser/openshift-virtualization-tests" target="_blank" rel="noopener noreferrer" class="top-bar-github" id="github-link" data-repo-url="https://github.com/rnetser/openshift-virtualization-tests">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
+                    <span class="github-stars" id="github-stars" title="GitHub stars"></span>
+                </a>
+
+                <button class="theme-toggle" id="theme-toggle" aria-label="Toggle theme">
+                    <svg class="icon-sun" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                        <circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+                    </svg>
+                    <svg class="icon-moon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                        <path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/>
+                    </svg>
+                </button>
+            </div>
+        </header>
+
+        <main class="content">
+
+            <article class="article">
+                <div class="article-body">
+                    <!-- SECURITY: |safe is intentional. Content is AI-generated markdown
+                         converted to HTML server-side by the markdown library, not
+                         user-supplied input. XSS risk is minimal and accepted since
+                         the AI generates the content, not end users. -->
+                    <h1 id="code-organization">Code Organization</h1>
+<p>Where shared constants, utility functions, and pytest fixtures belong, and how to import them.</p>
+<p>For general coding style see <a href="CODING_AND_STYLE_GUIDE.md">CODING_AND_STYLE_GUIDE.md</a>. For enforceable
+AI/review rules see <a href="../AGENTS.md">AGENTS.md</a>.</p>
+<h2 id="shared-principles">Shared principles</h2>
+<ul>
+<li><strong>Thematic modules</strong> — one concern per file; no catch-all modules.</li>
+<li><strong>Search first</strong> — before adding anything, check existing <code>utilities/</code>, <code>libs/</code>, and <code>tests/</code> code.</li>
+<li><strong>Absolute imports</strong> — always <code>from utilities.… import …</code>, never relative imports.</li>
+<li>
+<p><strong>Submodule imports</strong> — import from the specific module that owns the symbol; do not rely on
+  package-level re-exports except where documented below.</p>
+</li>
+<li>
+<p><strong>No helpers in conftest</strong> — <code>conftest.py</code> and <code>test_*.py</code> contain fixtures and tests only;
+  helpers belong in <code>utilities/</code>, <code>libs/</code>, or feature <code>utils.py</code> files.</p>
+</li>
+</ul>
+<hr>
+<h2 id="constants-utilitiesconstants">Constants (<code>utilities/constants/</code>)</h2>
+<p>Test and utility code shares string literals, timeouts, resource names, and configuration values
+through the <code>utilities/constants/</code> package. Each file is a thematic submodule.</p>
+<h3 id="import-policy">Import policy</h3>
+<div class="highlight"><pre><span></span><code><span class="c1"># Preferred — import from the owning submodule</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">utilities.constants.timeouts</span><span class="w"> </span><span class="kn">import</span> <span class="n">TIMEOUT_5MIN</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">utilities.constants.cluster</span><span class="w"> </span><span class="kn">import</span> <span class="n">KUBERNETES_ARCH_LABEL</span>
+
+<span class="c1"># Exception — Images only (computed at package import time; see below)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">utilities.constants</span><span class="w"> </span><span class="kn">import</span> <span class="n">Images</span>
+</code></pre></div>
+
+<ul>
+<li>Do <strong>not</strong> use <code>from utilities.constants import X</code> for any name other than <code>Images</code>.</li>
+<li>Do <strong>not</strong> add re-exports to <code>utilities/constants/__init__.py</code> (except <code>Images</code>).</li>
+</ul>
+<h3 id="adding-a-new-constant">Adding a new constant</h3>
+<ol>
+<li>Read submodule docstrings (<code>Covers</code> / <code>Not here</code> sections) to pick the right file.</li>
+<li>Add the constant there; update the module docstring if the scope changes.</li>
+<li>
+<p>Submodule files must <strong>not</strong> import from other <code>utilities/constants/</code> submodules — only from
+   <code>libs/</code>, <code>ocp_resources</code>, or the standard library.</p>
+</li>
+<li>
+<p>Import the constant at call sites from the submodule directly.</p>
+</li>
+<li>Keep single-use values local to the test or feature module instead of adding them to the package.</li>
+</ol>
+<h3 id="images-exception"><code>Images</code> exception</h3>
+<p><code>Images</code> is resolved in <code>utilities/constants/__init__.py</code> based on cluster architecture.
+This avoids a circular import between <code>utilities/architecture.py</code> and the constants package.
+Use <code>from utilities.constants import Images</code> only for this alias. For <code>ArchImages</code>, OS flavor
+strings, and other image constants, import from <code>utilities/constants/images.py</code>.</p>
+<p>Architecture-specific image setup is described in <a href="ARCHITECTURE_SUPPORT.md">ARCHITECTURE_SUPPORT.md</a>.</p>
+<h3 id="module-map">Module map</h3>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Submodule</th>
+<th>Use for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>aaq.py</code></td>
+<td>Application-Aware Quota resource names, quota field keys, namespace labels, quota spec dicts</td>
+</tr>
+<tr>
+<td><code>architecture.py</code></td>
+<td>CPU architecture strings (<code>AMD_64</code>, <code>ARM_64</code>, …), vendor identifiers, supported architecture sets</td>
+</tr>
+<tr>
+<td><code>cluster.py</code></td>
+<td>Kubernetes node labels, <code>NODE_STR</code>, API verb strings, env vars, pod security labels, audit-log commands</td>
+</tr>
+<tr>
+<td><code>components.py</code></td>
+<td>CNV operator/pod/deployment/service <strong>name strings</strong> and Kubernetes kind strings (<code>kubectl get &lt;kind&gt;/&lt;name&gt;</code>)</td>
+</tr>
+<tr>
+<td><code>cpu_models.py</code></td>
+<td>CPU model exclusion lists for guest compatibility</td>
+</tr>
+<tr>
+<td><code>hco.py</code></td>
+<td>HCO status conditions, upgrade streams, TLS profiles, feature gate keys, CNV CRD list</td>
+</tr>
+<tr>
+<td><code>images.py</code></td>
+<td><code>ArchImages</code>, OS flavor strings, image disk names, <code>DEFAULT_FEDORA_REGISTRY_URL</code></td>
+</tr>
+<tr>
+<td><code>instance_types.py</code></td>
+<td>Instance type and VM preference name strings (<code>U1_*</code>, <code>RHEL*_PREFERENCE</code>, <code>WINDOWS_*_PREFERENCE</code>)</td>
+</tr>
+<tr>
+<td><code>monitoring.py</code></td>
+<td>Alert severities, operator health metrics, KubeVirt VMI metric names, Prometheus service name</td>
+</tr>
+<tr>
+<td><code>namespaces.py</code></td>
+<td><code>NamespacesNames</code> — well-known OpenShift and CNV namespace strings</td>
+</tr>
+<tr>
+<td><code>networking.py</code></td>
+<td>SR-IOV, bridge types, ports, KubeMacPool config, bonding, network test pod specs</td>
+</tr>
+<tr>
+<td><code>oadp.py</code></td>
+<td>OADP test file names, backup storage location names</td>
+</tr>
+<tr>
+<td><code>os_matrix.py</code></td>
+<td>Common-templates test matrix <strong>parameter keys</strong> (<code>IMAGE_NAME_STR</code>, <code>DV_SIZE_STR</code>, …)</td>
+</tr>
+<tr>
+<td><code>pytest.py</code></td>
+<td>Pytest exit codes, quarantine strings, fixture scope strings, unprivileged test credentials</td>
+</tr>
+<tr>
+<td><code>storage.py</code></td>
+<td><code>StorageClassNames</code>, CDI/HPP labels, hotplug constants, DataVolume source types, DataImportCron values</td>
+</tr>
+<tr>
+<td><code>tekton.py</code></td>
+<td>Tekton pipeline ref and task name strings for Windows VM automation</td>
+</tr>
+<tr>
+<td><code>timeouts.py</code></td>
+<td><code>TIMEOUT_*</code> integers and <code>TCP_TIMEOUT_30SEC</code></td>
+</tr>
+<tr>
+<td><code>virt.py</code></td>
+<td>Virtctl commands, migration/eviction values, Windows version tags, CPU/memory topology, VM hardware constants</td>
+</tr>
+</tbody>
+</table></div>
+<p>Each submodule docstring lists what belongs there and what belongs elsewhere.</p>
+<hr>
+<h2 id="utility-functions-utilities">Utility functions (<code>utilities/</code>)</h2>
+<p>Shared non-fixture logic lives under <code>utilities/</code>. Monolithic modules are being split into
+thematic subpackages over time (same model as <code>utilities/constants/</code>).</p>
+<h3 id="placement">Placement</h3>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Location</th>
+<th>Use for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>utilities/cluster.py</code></td>
+<td>Cluster-wide operations (oc commands, node operations, cluster state)</td>
+</tr>
+<tr>
+<td><code>utilities/infra.py</code></td>
+<td>Infrastructure helpers (SSH, networking infrastructure, pod operations)</td>
+</tr>
+<tr>
+<td><code>utilities/virt.py</code></td>
+<td>VM lifecycle, VMI operations, migration helpers</td>
+</tr>
+<tr>
+<td><code>utilities/storage.py</code></td>
+<td>Storage operations (PVC, DataVolume, StorageClass)</td>
+</tr>
+<tr>
+<td>Other <code>utilities/*.py</code></td>
+<td>Domain-specific helpers (HCO, monitoring, artifactory, …)</td>
+</tr>
+</tbody>
+</table></div>
+<p>When a module grows into a package (e.g. <code>utilities/virt/</code>), add functions to the submodule
+that matches the concern and import from there:</p>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">utilities.virt.migration</span><span class="w"> </span><span class="kn">import</span> <span class="n">migrate_vm_and_verify</span>
+</code></pre></div>
+
+<p>Small single-purpose modules (<code>exceptions.py</code>, <code>logger.py</code>, …) may remain as single files
+until splitting improves clarity.</p>
+<p><strong>Never</strong> add functions to the wrong domain module — match the table above.</p>
+<hr>
+<h2 id="fixtures-testsfixtures-and-conftestpy">Fixtures (<code>tests/fixtures/</code> and <code>conftest.py</code>)</h2>
+<p>Pytest fixtures provide test setup and teardown. Fixture <strong>definitions</strong> for shared use are
+moving into <code>tests/fixtures/</code>; <code>conftest.py</code> files register plugins and hold feature-local
+fixtures only.</p>
+<h3 id="hierarchy">Hierarchy</h3>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>File / directory</th>
+<th>Role</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="../conftest.py"><code>conftest.py</code></a></td>
+<td>Pytest hooks, session configuration, <code>pytest_plugins</code> registration</td>
+</tr>
+<tr>
+<td><a href="../tests/conftest.py"><code>tests/conftest.py</code></a></td>
+<td>Cross-team fixtures still being consolidated</td>
+</tr>
+<tr>
+<td><code>tests/&lt;team&gt;/&lt;feature&gt;/conftest.py</code></td>
+<td>Feature-local fixtures when needed</td>
+</tr>
+<tr>
+<td><code>tests/fixtures/&lt;team&gt;/&lt;topic&gt;.py</code></td>
+<td>Shared fixture implementations</td>
+</tr>
+</tbody>
+</table></div>
+<h3 id="testsfixtures-package"><code>tests/fixtures/</code> package</h3>
+<p>Shared fixtures are defined in Python modules under <code>tests/fixtures/</code>, grouped by team and topic:</p>
+<div class="highlight"><pre><span></span><code>tests/fixtures/
+    network/
+        l2_bridge.py
+        cluster.py
+</code></pre></div>
+
+<p>Register new fixture modules in the root <code>conftest.py</code> <code>pytest_plugins</code> list:</p>
+<div class="highlight"><pre><span></span><code><span class="n">pytest_plugins</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="s2">"tests.fixtures.network.l2_bridge"</span><span class="p">,</span>
+    <span class="s2">"tests.fixtures.network.cluster"</span><span class="p">,</span>
+<span class="p">]</span>
+</code></pre></div>
+
+<p>Add a new entry when introducing a fixture module used across multiple test directories.</p>
+<h3 id="rules">Rules</h3>
+<ul>
+<li><strong><code>conftest.py</code> is for fixtures only</strong> — no helper functions, utility functions, or classes.</li>
+<li>
+<p><strong>Fixture names are nouns</strong> — describe what the fixture provides (<code>vm_with_disk</code>), not an action
+  (<code>create_vm_with_disk</code>).</p>
+</li>
+<li>
+<p><strong>One action per fixture</strong> — split combined setup into separate fixtures composed by tests or
+  <code>@pytest.mark.usefixtures</code>.</p>
+</li>
+<li>
+<p><strong>Return or yield the resource</strong> — even setup-only fixtures should yield the created object.</p>
+</li>
+<li><strong>Use <code>@pytest.mark.usefixtures</code></strong> when the test does not use the fixture return value.</li>
+<li><strong>Feature-local helpers</strong> — place in <code>&lt;feature_dir&gt;/utils.py</code>, not in <code>conftest.py</code>.</li>
+</ul>
+<p>Fixture scope, ordering, and logging rules are in <a href="../AGENTS.md">AGENTS.md</a> and
+<a href="CODING_AND_STYLE_GUIDE.md">CODING_AND_STYLE_GUIDE.md</a>.</p>
+                </div>
+            </article>
+            <nav class="page-nav">
+
+                <a href="CODING_AND_STYLE_GUIDE.html" class="page-nav-link page-nav-prev">
+                    <span class="page-nav-label">Previous</span>
+                    <span class="page-nav-title">Coding standards</span>
+                </a>
+
+
+                <a href="QUARANTINE_GUIDELINES.html" class="page-nav-link page-nav-next">
+                    <span class="page-nav-label">Next</span>
+                    <span class="page-nav-title">OpenShift Virtualization Test Stability, Quarantine and De-quarantine Guidelines</span>
+                </a>
+
+            </nav>
+
+            <aside class="toc-sidebar">
+                <div class="toc-container">
+                    <h3>On this page</h3>
+                    <div class="toc">
+<ul>
+<li><a href="#shared-principles">Shared principles</a></li>
+<li><a href="#constants-utilitiesconstants">Constants (utilities/constants/)</a><ul>
+<li><a href="#import-policy">Import policy</a></li>
+<li><a href="#adding-a-new-constant">Adding a new constant</a></li>
+<li><a href="#images-exception">Images exception</a></li>
+<li><a href="#module-map">Module map</a></li>
+</ul>
+</li>
+<li><a href="#utility-functions-utilities">Utility functions (utilities/)</a><ul>
+<li><a href="#placement">Placement</a></li>
+</ul>
+</li>
+<li><a href="#fixtures-testsfixtures-and-conftestpy">Fixtures (tests/fixtures/ and conftest.py)</a><ul>
+<li><a href="#hierarchy">Hierarchy</a></li>
+<li><a href="#testsfixtures-package">tests/fixtures/ package</a></li>
+<li><a href="#rules">Rules</a></li>
+</ul>
+</li>
+</ul>
+</div>
+
+                </div>
+            </aside>
+
+
+        </main>
+
+        <footer class="page-footer">
+
+            Built from <code>docs/*.md</code> by <code>pi-docsite</code>
+            <span class="footer-sep">&middot;</span>
+            <span class="footer-llm">LLM-friendly: <a href="llms.txt">llms.txt</a> &middot; <a href="llms-full.txt">llms-full.txt</a></span>
+        </footer>
+    </div>
+
+    <div class="sidebar-overlay" id="sidebar-overlay"></div>
+
+    <script src="assets/theme.js?v=66bf87bdd9"></script>
+
+    <script src="assets/search.js?v=66bf87bdd9"></script>
+    <script src="assets/copy.js?v=66bf87bdd9"></script>
+    <script src="assets/callouts.js?v=66bf87bdd9"></script>
+    <script src="assets/scrollspy.js?v=66bf87bdd9"></script>
+    <script src="assets/codelabels.js?v=66bf87bdd9"></script>
+    <script src="assets/github.js?v=66bf87bdd9"></script>
+    <script>
+(function() {
+    var toggle = document.getElementById('sidebar-toggle');
+    var sidebar = document.getElementById('sidebar');
+    var overlay = document.getElementById('sidebar-overlay');
+    if (toggle && sidebar) {
+        toggle.addEventListener('click', function() {
+            sidebar.classList.toggle('open');
+            if (overlay) overlay.classList.toggle('open');
+            var expanded = sidebar.classList.contains('open');
+            toggle.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+        });
+    }
+    if (overlay) {
+        overlay.addEventListener('click', function() {
+            sidebar.classList.remove('open');
+            overlay.classList.remove('open');
+            if (toggle) toggle.setAttribute('aria-expanded', 'false');
+        });
+    }
+})();
+</script>
+<script>
+(function() {
+    var sidebar = document.querySelector('.sidebar-nav') || document.querySelector('.sidebar');
+    if (!sidebar) return;
+
+    // Restore scroll position
+    var saved = sessionStorage.getItem('sidebar-scroll');
+    if (saved) sidebar.scrollTop = parseInt(saved, 10);
+
+    // Save scroll position before navigating
+    sidebar.addEventListener('scroll', function() {
+        sessionStorage.setItem('sidebar-scroll', sidebar.scrollTop.toString());
+    });
+
+    // Also scroll active link into view if no saved position
+    if (!saved) {
+        var active = sidebar.querySelector('.nav-link.active');
+        if (active) {
+            active.scrollIntoView({ block: 'center', behavior: 'instant' });
+        }
+    }
+})();
+</script>
+<!-- generated by pi-docsite -->
+</body>
+</html>

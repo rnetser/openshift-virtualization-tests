@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Contribution Policy - openshift-virtualization-tests</title>
+    <meta name="description" content="Tests for OpenShift Virtualization">
+    <link rel="stylesheet" href="assets/style.css?v=66bf87bdd9">
+    <script>try{var t=localStorage.getItem('theme');if(t==='dark')document.documentElement.setAttribute('data-theme','dark')}catch(e){}</script>
+    <link rel="alternate" type="text/plain" title="LLM Documentation Index" href="llms.txt">
+    <link rel="alternate" type="text/plain" title="LLM Full Documentation" href="llms-full.txt">
+</head>
+<body>
+    <aside class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+            <a href="index.html" class="sidebar-logo">openshift-virtualization-tests</a>
+            <p class="sidebar-tagline">Tests for OpenShift Virtualization</p>
+        </div>
+
+        <div class="sidebar-search">
+            <input type="text" id="search-input" placeholder="Search... (⌘K)" autocomplete="off" readonly>
+            <div id="search-results" class="search-results"></div>
+        </div>
+
+        <nav class="sidebar-nav">
+
+            <div class="nav-group">
+                <h3 class="nav-group-title">Getting Started</h3>
+                <ul class="nav-group-pages">
+
+                    <li>
+                        <a href="GETTING_STARTED.html"
+                           class="nav-link">
+                            Getting started
+                        </a>
+                    </li>
+
+                    <li>
+                        <a href="CONTRIBUTING.html"
+                           class="nav-link">
+                            Welcome to openshift-virtualization-tests contributing guide
+                        </a>
+                    </li>
+
+                    <li>
+                        <a href="DEVELOPER_GUIDE.html"
+                           class="nav-link">
+                            Project Structure
+                        </a>
+                    </li>
+
+                </ul>
+            </div>
+
+            <div class="nav-group">
+                <h3 class="nav-group-title">Running Tests</h3>
+                <ul class="nav-group-pages">
+
+                    <li>
+                        <a href="RUNNING_TESTS.html"
+                           class="nav-link">
+                            Running the tests
+                        </a>
+                    </li>
+
+                    <li>
+                        <a href="INSTALL_AND_UPGRADE.html"
+                           class="nav-link">
+                            Install openshift-virtualization tests
+                        </a>
+                    </li>
+
+                    <li>
+                        <a href="MULTIARCH.html"
+                           class="nav-link">
+                            Multi-Architecture (Heterogeneous) Clusters
+                        </a>
+                    </li>
+
+                    <li>
+                        <a href="CONTAINERIZE_TESTS.html"
+                           class="nav-link">
+                            Building and pushing openshift-virtualization-tests container image
+                        </a>
+                    </li>
+
+                </ul>
+            </div>
+
+            <div class="nav-group">
+                <h3 class="nav-group-title">Guidelines</h3>
+                <ul class="nav-group-pages">
+
+                    <li>
+                        <a href="CODING_AND_STYLE_GUIDE.html"
+                           class="nav-link">
+                            Coding standards
+                        </a>
+                    </li>
+
+                    <li>
+                        <a href="CODE_ORGANIZATION.html"
+                           class="nav-link">
+                            Code Organization
+                        </a>
+                    </li>
+
+                    <li>
+                        <a href="QUARANTINE_GUIDELINES.html"
+                           class="nav-link">
+                            OpenShift Virtualization Test Stability, Quarantine and De-quarantine Guidelines
+                        </a>
+                    </li>
+
+                    <li>
+                        <a href="SOFTWARE_TEST_DESCRIPTION.html"
+                           class="nav-link">
+                            Software Test Description
+                        </a>
+                    </li>
+
+                </ul>
+            </div>
+
+            <div class="nav-group">
+                <h3 class="nav-group-title">Reference</h3>
+                <ul class="nav-group-pages">
+
+                    <li>
+                        <a href="ARCHITECTURE_SUPPORT.html"
+                           class="nav-link">
+                            Test Images Architecture Support
+                        </a>
+                    </li>
+
+                    <li>
+                        <a href="OWNERS.html"
+                           class="nav-link">
+                            OWNERS files
+                        </a>
+                    </li>
+
+                    <li>
+                        <a href="MAINTAINER_GUIDELINES.html"
+                           class="nav-link">
+                            Maintainer (Approver) Guidelines
+                        </a>
+                    </li>
+
+                    <li>
+                        <a href="AI_CONTRIBUTION_POLICY.html"
+                           class="nav-link active" aria-current="page">
+                            AI Contribution Policy
+                        </a>
+                    </li>
+
+                </ul>
+            </div>
+
+        </nav>
+    </aside>
+
+    <div class="main-wrapper">
+        <header class="top-bar">
+            <div class="top-bar-left">
+                <button class="sidebar-toggle" id="sidebar-toggle" aria-label="Toggle sidebar" aria-expanded="false">
+                    <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                        <path d="M3 5h14M3 10h14M3 15h14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                    </svg>
+                </button>
+                <a href="index.html" class="top-bar-title">openshift-virtualization-tests</a>
+            </div>
+            <div class="top-bar-spacer"></div>
+            <div class="top-bar-right">
+                <button class="top-bar-search-btn" id="search-trigger" aria-label="Search">
+                    <kbd>&#8984;K</kbd> Search
+                </button>
+                <a href="https://github.com/rnetser/openshift-virtualization-tests" target="_blank" rel="noopener" class="docsite-badge" title="documentation">
+                    ⚡ pi<span class="brand-accent">-docsite</span>
+                </a>
+
+                <a href="https://github.com/rnetser/openshift-virtualization-tests" target="_blank" rel="noopener noreferrer" class="top-bar-github" id="github-link" data-repo-url="https://github.com/rnetser/openshift-virtualization-tests">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
+                    <span class="github-stars" id="github-stars" title="GitHub stars"></span>
+                </a>
+
+                <button class="theme-toggle" id="theme-toggle" aria-label="Toggle theme">
+                    <svg class="icon-sun" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                        <circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+                    </svg>
+                    <svg class="icon-moon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                        <path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/>
+                    </svg>
+                </button>
+            </div>
+        </header>
+
+        <main class="content">
+
+            <article class="article">
+                <div class="article-body">
+                    <!-- SECURITY: |safe is intentional. Content is AI-generated markdown
+                         converted to HTML server-side by the markdown library, not
+                         user-supplied input. XSS risk is minimal and accepted since
+                         the AI generates the content, not end users. -->
+                    <h1 id="ai-contribution-policy">AI Contribution Policy</h1>
+<h2 id="overview">Overview</h2>
+<p>This policy establishes guidelines for contributions that involve Artificial
+Intelligence (AI) tools, including Large Language Models (LLMs), code generation
+tools, and AI-assisted development environments.</p>
+<p>This is a living document that will evolve as AI technology and legal frameworks
+mature. It is based on the <a href="https://github.com/kubevirt/community/blob/main/ai-contribution-policy.md">KubeVirt AI Contribution Policy</a>.</p>
+<h2 id="motivation">Motivation</h2>
+<p>AI tools can meaningfully accelerate test development, documentation, and code
+review. This policy encourages their responsible use while ensuring transparency
+and maintaining quality standards.</p>
+<h3 id="contributor-accountability">Contributor Accountability</h3>
+<p>AI tools can produce plausible but incorrect test logic, over-engineered
+scaffolding, or code that bypasses project conventions. Contributors are expected to:</p>
+<ul>
+<li>Thoroughly review and understand every line of AI-generated code before submission</li>
+<li>Refine AI output to meet project standards (see <a href="CONTRIBUTING.md"><code>CONTRIBUTING.md</code></a>)</li>
+<li>Take full ownership of all submitted content regardless of origin</li>
+</ul>
+<p>Low-effort submissions that appear to be unreviewed AI output may be rejected
+without detailed feedback. This is particularly relevant for AI-assisted test
+implementations, where subtle logical errors can produce tests that pass but
+validate nothing.</p>
+<h3 id="legal-and-copyright-rationale">Legal and Copyright Rationale</h3>
+<p>Copyright law around AI-generated content continues to evolve. Disclosure helps:</p>
+<ul>
+<li>Maintain the integrity of the project's licensing</li>
+<li>Identify content that may originate from AI training data with unclear licenses</li>
+<li>Enable the community to track and refine practices as legal guidance develops</li>
+</ul>
+<p>For further reading, see the <a href="https://openinfra.org/legal/ai-policy/">OpenInfra Foundation AI Policy</a>
+and <a href="https://www.redhat.com/en/blog/ai-assisted-development-and-open-source-navigating-legal-issues">AI-Assisted Development and Open Source: Navigating Legal Issues</a>.</p>
+<h2 id="disclosure-requirements">Disclosure Requirements</h2>
+<h3 id="disclosure">Disclosure</h3>
+<p>All contributors <strong>SHOULD</strong> disclose AI tool use when submitting code,
+documentation, or other content to this project.</p>
+<p>Disclosure <strong>SHOULD</strong> take the form of a trailer line in the commit message.
+The preferred format for this project is:</p>
+<div class="highlight"><pre><span></span><code>Assisted-by: Claude Sonnet 4.6 &lt;noreply@anthropic.com&gt;
+</code></pre></div>
+
+<p>Including the model name is <strong>RECOMMENDED</strong> to provide a precise record of the tool used.</p>
+<p>All commits <strong>MUST</strong> also include a <code>Signed-off-by</code> trailer per the project's
+DCO requirements:</p>
+<div class="highlight"><pre><span></span><code>Signed-off-by: Your Name &lt;your@email.com&gt;
+</code></pre></div>
+
+<h3 id="scope-of-disclosure">Scope of Disclosure</h3>
+<p>Disclosure is expected when AI tools have materially contributed to the submitted content.</p>
+<p><strong>Requires disclosure:</strong></p>
+<ul>
+<li>AI wrote a function, class, fixture, or significant code block you included</li>
+<li>AI suggested an algorithm, test design, or architectural approach you adopted</li>
+<li>AI generated tests, docstrings, or commit messages you used</li>
+<li>AI-assisted debugging that shaped the final implementation</li>
+</ul>
+<p><strong>Does not require disclosure:</strong></p>
+<ul>
+<li>General Q&amp;A or learning, even if it informed your approach</li>
+<li>IDE autocomplete (line completions, IntelliSense)</li>
+<li>Using AI to explain existing code</li>
+<li>Asking AI to review human-written code</li>
+<li>Spell-checking or minor corrections</li>
+<li>Content substantially rewritten such that the original AI output is unrecognizable</li>
+</ul>
+<p>When in doubt, err on the side of disclosure — transparency benefits the community.</p>
+<h2 id="recommended-uses">Recommended Uses</h2>
+<p>AI tools work well as development assistants for tasks such as:</p>
+<ul>
+<li><strong>Test scaffolding</strong>: Generating boilerplate fixtures, conftest structure, and initial test stubs</li>
+<li><strong>Test authoring</strong>: Writing test cases, test data, and coverage for known scenarios</li>
+<li><strong>STD drafting</strong>: Writing Software Test Description docstrings from feature requirements</li>
+<li><strong>Refactoring</strong>: Suggesting improvements to existing test or utility code</li>
+<li><strong>Documentation</strong>: Drafting technical documentation and inline comments</li>
+<li><strong>Debugging</strong>: Identifying potential issues and suggesting fixes</li>
+<li><strong>Research</strong>: Exploring test approaches and best practices</li>
+<li><strong>Review assistance</strong>: Checking compliance with project coding standards</li>
+</ul>
+<p>This list is not exhaustive — contributors are encouraged to find other productive uses and share them with the community.</p>
+<h2 id="contributor-responsibilities">Contributor Responsibilities</h2>
+<p>Contributors are responsible for ensuring all submitted content — regardless of
+origin — meets project standards as defined in <a href="CONTRIBUTING.md"><code>CONTRIBUTING.md</code></a> and
+<a href="CODING_AND_STYLE_GUIDE.md"><code>CODING_AND_STYLE_GUIDE.md</code></a>, which cover:</p>
+<ul>
+<li>Coding conventions, type hints, and import rules</li>
+<li>Test design workflow (STP → STD → Implementation)</li>
+<li>Fixture guidelines and marker requirements</li>
+<li>Linter compliance (no suppressions permitted)</li>
+<li>Search-first development (reuse before writing new code)</li>
+</ul>
+<p>AI tools <strong>MUST NOT</strong> be used to bypass these standards. In particular:</p>
+<ul>
+<li>❌ Do not accept AI output that adds <code># noqa</code>, <code># type: ignore</code>, or linter suppressions</li>
+<li>❌ Do not submit AI-generated tests without verifying marker completeness</li>
+<li>❌ Do not submit AI-generated STD placeholders that skip the required docstring format</li>
+<li>❌ Do not let AI generate raw YAML dicts or <code>subprocess.run</code> calls where project abstractions exist</li>
+</ul>
+<h2 id="legal-and-licensing-considerations">Legal and Licensing Considerations</h2>
+<p>Contributors must ensure that:</p>
+<ul>
+<li>AI tool terms of service do not conflict with this project's license</li>
+<li>No copyrighted material is inadvertently included in AI-generated output</li>
+<li>The Developer's Certificate of Origin (DCO) can be legitimately signed</li>
+<li>Use of AI tools complies with your employer's policies</li>
+</ul>
+<h2 id="review-process">Review Process</h2>
+<p>Reviewers evaluate AI-assisted contributions by the same criteria as all others:</p>
+<ul>
+<li>Code quality and adherence to project standards</li>
+<li>Correct test logic and coverage of the intended scenario</li>
+<li>Appropriate fixture scope, markers, and dependency declarations</li>
+<li>Security implications and long-term maintainability</li>
+</ul>
+<p>Reviewers <strong>MAY</strong> request clarification on AI-assisted changes where the
+contributor's understanding of the code is not evident from the PR.</p>
+<h2 id="ai-tool-configuration">AI Tool Configuration</h2>
+<p>This project uses <a href="../AGENTS.md"><code>AGENTS.md</code></a> as its AI agent configuration
+file, compatible with the emerging <a href="https://agents.md">AGENT.md</a>
+standard. AI coding tools that support project-level configuration files should
+be pointed at <code>AGENTS.md</code> for project-specific guidance.</p>
+<h2 id="policy-evolution">Policy Evolution</h2>
+<p>This policy will be reviewed and updated to reflect changes in AI capabilities,
+legal developments, and community experience.</p>
+<h2 id="questions-and-clarifications">Questions and Clarifications</h2>
+<p>For questions about this policy:</p>
+<ol>
+<li>Open an issue in the <a href="https://github.com/RedHatQE/openshift-virtualization-tests/issues">project repository</a></li>
+<li>Discuss with maintainers via a PR or issue comment</li>
+</ol>
+<h2 id="references">References</h2>
+<ul>
+<li><a href="https://github.com/kubevirt/community/blob/main/ai-contribution-policy.md">KubeVirt AI Contribution Policy</a></li>
+<li><a href="https://www.linuxfoundation.org/legal/generative-ai">Linux Foundation Generative AI Guidelines</a></li>
+<li><a href="https://openinfra.org/legal/ai-policy/">OpenInfra Foundation AI Policy</a></li>
+<li><a href="https://www.qemu.org/docs/master/devel/code-provenance.html#use-of-ai-content-generators">QEMU Code Provenance Policy</a></li>
+<li><a href="https://agents.md">AGENT.md Standard</a></li>
+</ul>
+                </div>
+            </article>
+            <nav class="page-nav">
+
+                <a href="MAINTAINER_GUIDELINES.html" class="page-nav-link page-nav-prev">
+                    <span class="page-nav-label">Previous</span>
+                    <span class="page-nav-title">Maintainer (Approver) Guidelines</span>
+                </a>
+
+
+                <div></div>
+
+            </nav>
+
+            <aside class="toc-sidebar">
+                <div class="toc-container">
+                    <h3>On this page</h3>
+                    <div class="toc">
+<ul>
+<li><a href="#overview">Overview</a></li>
+<li><a href="#motivation">Motivation</a><ul>
+<li><a href="#contributor-accountability">Contributor Accountability</a></li>
+<li><a href="#legal-and-copyright-rationale">Legal and Copyright Rationale</a></li>
+</ul>
+</li>
+<li><a href="#disclosure-requirements">Disclosure Requirements</a><ul>
+<li><a href="#disclosure">Disclosure</a></li>
+<li><a href="#scope-of-disclosure">Scope of Disclosure</a></li>
+</ul>
+</li>
+<li><a href="#recommended-uses">Recommended Uses</a></li>
+<li><a href="#contributor-responsibilities">Contributor Responsibilities</a></li>
+<li><a href="#legal-and-licensing-considerations">Legal and Licensing Considerations</a></li>
+<li><a href="#review-process">Review Process</a></li>
+<li><a href="#ai-tool-configuration">AI Tool Configuration</a></li>
+<li><a href="#policy-evolution">Policy Evolution</a></li>
+<li><a href="#questions-and-clarifications">Questions and Clarifications</a></li>
+<li><a href="#references">References</a></li>
+</ul>
+</div>
+
+                </div>
+            </aside>
+
+
+        </main>
+
+        <footer class="page-footer">
+
+            Built from <code>docs/*.md</code> by <code>pi-docsite</code>
+            <span class="footer-sep">&middot;</span>
+            <span class="footer-llm">LLM-friendly: <a href="llms.txt">llms.txt</a> &middot; <a href="llms-full.txt">llms-full.txt</a></span>
+        </footer>
+    </div>
+
+    <div class="sidebar-overlay" id="sidebar-overlay"></div>
+
+    <script src="assets/theme.js?v=66bf87bdd9"></script>
+
+    <script src="assets/search.js?v=66bf87bdd9"></script>
+    <script src="assets/copy.js?v=66bf87bdd9"></script>
+    <script src="assets/callouts.js?v=66bf87bdd9"></script>
+    <script src="assets/scrollspy.js?v=66bf87bdd9"></script>
+    <script src="assets/codelabels.js?v=66bf87bdd9"></script>
+    <script src="assets/github.js?v=66bf87bdd9"></script>
+    <script>
+(function() {
+    var toggle = document.getElementById('sidebar-toggle');
+    var sidebar = document.getElementById('sidebar');
+    var overlay = document.getElementById('sidebar-overlay');
+    if (toggle && sidebar) {
+        toggle.addEventListener('click', function() {
+            sidebar.classList.toggle('open');
+            if (overlay) overlay.classList.toggle('open');
+            var expanded = sidebar.classList.contains('open');
+            toggle.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+        });
+    }
+    if (overlay) {
+        overlay.addEventListener('click', function() {
+            sidebar.classList.remove('open');
+            overlay.classList.remove('open');
+            if (toggle) toggle.setAttribute('aria-expanded', 'false');
+        });
+    }
+})();
+</script>
+<script>
+(function() {
+    var sidebar = document.querySelector('.sidebar-nav') || document.querySelector('.sidebar');
+    if (!sidebar) return;
+
+    // Restore scroll position
+    var saved = sessionStorage.getItem('sidebar-scroll');
+    if (saved) sidebar.scrollTop = parseInt(saved, 10);
+
+    // Save scroll position before navigating
+    sidebar.addEventListener('scroll', function() {
+        sessionStorage.setItem('sidebar-scroll', sidebar.scrollTop.toString());
+    });
+
+    // Also scroll active link into view if no saved position
+    if (!saved) {
+        var active = sidebar.querySelector('.nav-link.active');
+        if (active) {
+            active.scrollIntoView({ block: 'center', behavior: 'instant' });
+        }
+    }
+})();
+</script>
+<!-- generated by pi-docsite -->
+</body>
+</html>

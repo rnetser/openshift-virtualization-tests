@@ -1,4 +1,4 @@
-## Install openshift-virtualization tests
+# Install openshift-virtualization tests
 
 Installation tests allow us to use either the `production` or `osbs` catalogsource for deployment.
 

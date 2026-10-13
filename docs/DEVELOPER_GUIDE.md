@@ -16,7 +16,7 @@ The project is structured as follows:
 Please refer to [pytest-testconfig](https://github.com/wojole/pytest-testconfig) for more information.
 
 
-# Contribution
+## Contribution
 To contribute code to the project:
 
 ## Pull requests
@@ -52,7 +52,7 @@ The project follows Red Hat Openshift Virtualization versions lifecycle.
 If needed, once your PR is merged to `main`, cherry-pick your PR to the relevant branch(es).
 
 
-# Development
+## Development
 
 
 ## Prerequisites

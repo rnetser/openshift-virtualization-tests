@@ -1227,6 +1227,15 @@ wheels = [
 ]
 
 [[package]]
+name = "markdown"
+version = "3.11"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/f8/4f/700155c8c20d9e655dd0732b5fc3c7614f291b9148da271d7388e50bf774/markdown-3.11.tar.gz", hash = "sha256:180224db6aed87ba9ce1f2781ebcd5826253de8ff637112090e24b84502bbf9f", size = 485623, upload-time = "2026-09-25T13:46:23.473Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/ec/1e/32971905a7ab47f8b66866ed949fa48b104ba1c4a6fa57794c4f2c4b2cb8/markdown-3.11-py3-none-any.whl", hash = "sha256:cd6c89e7eb308c8b332ed673215a52d208a43f8bacc030b1419376129408719e", size = 111296, upload-time = "2026-09-25T13:46:22.163Z" },
+]
+
+[[package]]
 name = "markdown-it-py"
 version = "4.2.0"
 source = { registry = "https://pypi.org/simple" }
@@ -1542,6 +1551,7 @@ utilities-test = [
 dev = [
     { name = "ipdb" },
     { name = "ipython" },
+    { name = "pi-docsite" },
     { name = "pygithub" },
     { name = "pytest-repeat" },
 ]
@@ -1606,6 +1616,7 @@ provides-extras = ["utilities-test"]
 dev = [
     { name = "ipdb", specifier = ">=0.13.13" },
     { name = "ipython", specifier = ">=8.12.3" },
+    { name = "pi-docsite", specifier = ">=4.8.5" },
     { name = "pygithub", specifier = ">=2.9.1" },
     { name = "pytest-repeat", specifier = ">=0.9.4" },
 ]
@@ -1731,6 +1742,20 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/42/92/cc564bf6381ff43ce1f4d06852fc19a2f11d180f23dc32d9588bee2f149d/pexpect-4.9.0.tar.gz", hash = "sha256:ee7d41123f3c9911050ea2c2dac107568dc43b2d3b0c7557a33212c398ead30f", size = 166450, upload-time = "2023-11-25T09:07:26.339Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/9e/c3/059298687310d527a58bb01f3b1965787ee3b40dce76752eda8b44e9a2c5/pexpect-4.9.0-py2.py3-none-any.whl", hash = "sha256:7236d1e080e4936be2dc3e326cec0af72acf9212a7e1d060210e70a47e253523", size = 63772, upload-time = "2023-11-25T06:56:14.81Z" },
+]
+
+[[package]]
+name = "pi-docsite"
+version = "4.10.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "jinja2" },
+    { name = "markdown" },
+    { name = "pygments" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/05/e0/aab43bde15e06c3a2f60256f5d94ebd19483a8a8d37497600bf9a5b694d9/pi_docsite-4.10.0.tar.gz", hash = "sha256:04ac9a0fd9e82ca541dd49c36138a7427e6f5831ee6fc29324e2ad2ecb51e672", size = 61910, upload-time = "2026-10-12T17:22:40.044Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/39/3e/6842ca10c55a796de452836c8186ee476537cc05761b4cabbf243bbecbda/pi_docsite-4.10.0-py3-none-any.whl", hash = "sha256:8d61a8315af3a81d8fd7965c1c9005c3132eb188d67aa9c0384fdeeea1fd8b3f", size = 54165, upload-time = "2026-10-12T17:22:38.654Z" },
 ]
 
 [[package]]

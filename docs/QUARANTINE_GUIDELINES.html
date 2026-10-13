@@ -1,0 +1,572 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OpenShift Virtualization Test Stability, Quarantine and De-quarantine Guidelines - openshift-virtualization-tests</title>
+    <meta name="description" content="Tests for OpenShift Virtualization">
+    <link rel="stylesheet" href="assets/style.css?v=66bf87bdd9">
+    <script>try{var t=localStorage.getItem('theme');if(t==='dark')document.documentElement.setAttribute('data-theme','dark')}catch(e){}</script>
+    <link rel="alternate" type="text/plain" title="LLM Documentation Index" href="llms.txt">
+    <link rel="alternate" type="text/plain" title="LLM Full Documentation" href="llms-full.txt">
+</head>
+<body>
+    <aside class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+            <a href="index.html" class="sidebar-logo">openshift-virtualization-tests</a>
+            <p class="sidebar-tagline">Tests for OpenShift Virtualization</p>
+        </div>
+
+        <div class="sidebar-search">
+            <input type="text" id="search-input" placeholder="Search... (⌘K)" autocomplete="off" readonly>
+            <div id="search-results" class="search-results"></div>
+        </div>
+
+        <nav class="sidebar-nav">
+
+            <div class="nav-group">
+                <h3 class="nav-group-title">Getting Started</h3>
+                <ul class="nav-group-pages">
+
+                    <li>
+                        <a href="GETTING_STARTED.html"
+                           class="nav-link">
+                            Getting started
+                        </a>
+                    </li>
+
+                    <li>
+                        <a href="CONTRIBUTING.html"
+                           class="nav-link">
+                            Welcome to openshift-virtualization-tests contributing guide
+                        </a>
+                    </li>
+
+                    <li>
+                        <a href="DEVELOPER_GUIDE.html"
+                           class="nav-link">
+                            Project Structure
+                        </a>
+                    </li>
+
+                </ul>
+            </div>
+
+            <div class="nav-group">
+                <h3 class="nav-group-title">Running Tests</h3>
+                <ul class="nav-group-pages">
+
+                    <li>
+                        <a href="RUNNING_TESTS.html"
+                           class="nav-link">
+                            Running the tests
+                        </a>
+                    </li>
+
+                    <li>
+                        <a href="INSTALL_AND_UPGRADE.html"
+                           class="nav-link">
+                            Install openshift-virtualization tests
+                        </a>
+                    </li>
+
+                    <li>
+                        <a href="MULTIARCH.html"
+                           class="nav-link">
+                            Multi-Architecture (Heterogeneous) Clusters
+                        </a>
+                    </li>
+
+                    <li>
+                        <a href="CONTAINERIZE_TESTS.html"
+                           class="nav-link">
+                            Building and pushing openshift-virtualization-tests container image
+                        </a>
+                    </li>
+
+                </ul>
+            </div>
+
+            <div class="nav-group">
+                <h3 class="nav-group-title">Guidelines</h3>
+                <ul class="nav-group-pages">
+
+                    <li>
+                        <a href="CODING_AND_STYLE_GUIDE.html"
+                           class="nav-link">
+                            Coding standards
+                        </a>
+                    </li>
+
+                    <li>
+                        <a href="CODE_ORGANIZATION.html"
+                           class="nav-link">
+                            Code Organization
+                        </a>
+                    </li>
+
+                    <li>
+                        <a href="QUARANTINE_GUIDELINES.html"
+                           class="nav-link active" aria-current="page">
+                            OpenShift Virtualization Test Stability, Quarantine and De-quarantine Guidelines
+                        </a>
+                    </li>
+
+                    <li>
+                        <a href="SOFTWARE_TEST_DESCRIPTION.html"
+                           class="nav-link">
+                            Software Test Description
+                        </a>
+                    </li>
+
+                </ul>
+            </div>
+
+            <div class="nav-group">
+                <h3 class="nav-group-title">Reference</h3>
+                <ul class="nav-group-pages">
+
+                    <li>
+                        <a href="ARCHITECTURE_SUPPORT.html"
+                           class="nav-link">
+                            Test Images Architecture Support
+                        </a>
+                    </li>
+
+                    <li>
+                        <a href="OWNERS.html"
+                           class="nav-link">
+                            OWNERS files
+                        </a>
+                    </li>
+
+                    <li>
+                        <a href="MAINTAINER_GUIDELINES.html"
+                           class="nav-link">
+                            Maintainer (Approver) Guidelines
+                        </a>
+                    </li>
+
+                    <li>
+                        <a href="AI_CONTRIBUTION_POLICY.html"
+                           class="nav-link">
+                            AI Contribution Policy
+                        </a>
+                    </li>
+
+                </ul>
+            </div>
+
+        </nav>
+    </aside>
+
+    <div class="main-wrapper">
+        <header class="top-bar">
+            <div class="top-bar-left">
+                <button class="sidebar-toggle" id="sidebar-toggle" aria-label="Toggle sidebar" aria-expanded="false">
+                    <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                        <path d="M3 5h14M3 10h14M3 15h14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                    </svg>
+                </button>
+                <a href="index.html" class="top-bar-title">openshift-virtualization-tests</a>
+            </div>
+            <div class="top-bar-spacer"></div>
+            <div class="top-bar-right">
+                <button class="top-bar-search-btn" id="search-trigger" aria-label="Search">
+                    <kbd>&#8984;K</kbd> Search
+                </button>
+                <a href="https://github.com/rnetser/openshift-virtualization-tests" target="_blank" rel="noopener" class="docsite-badge" title="documentation">
+                    ⚡ pi<span class="brand-accent">-docsite</span>
+                </a>
+
+                <a href="https://github.com/rnetser/openshift-virtualization-tests" target="_blank" rel="noopener noreferrer" class="top-bar-github" id="github-link" data-repo-url="https://github.com/rnetser/openshift-virtualization-tests">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
+                    <span class="github-stars" id="github-stars" title="GitHub stars"></span>
+                </a>
+
+                <button class="theme-toggle" id="theme-toggle" aria-label="Toggle theme">
+                    <svg class="icon-sun" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                        <circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+                    </svg>
+                    <svg class="icon-moon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                        <path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/>
+                    </svg>
+                </button>
+            </div>
+        </header>
+
+        <main class="content">
+
+            <article class="article">
+                <div class="article-body">
+                    <!-- SECURITY: |safe is intentional. Content is AI-generated markdown
+                         converted to HTML server-side by the markdown library, not
+                         user-supplied input. XSS risk is minimal and accepted since
+                         the AI generates the content, not end users. -->
+                    <h1 id="openshift-virtualization-test-stability-quarantine-and-de-quarantine-guidelines">OpenShift Virtualization Test Stability, Quarantine and De-quarantine Guidelines</h1>
+<h2 id="introduction">Introduction</h2>
+<p>This document establishes mandatory procedures for achieving and maintaining dependable <strong>GREEN</strong> test lanes for OpenShift Virtualization Tests (AKA: tier2).</p>
+<p><strong>Why This Matters:</strong></p>
+<ul>
+<li>Unreliable test results hinder continuous delivery</li>
+<li>Manual investigation wastes significant QE time</li>
+<li>Reduced capacity for new feature development and automation</li>
+<li>Mistrust in test results causes release delays</li>
+</ul>
+<p><strong>Goal</strong>: Enhance testing efficiency and reliability while maintaining full test coverage and high product quality.</p>
+<h2 id="current-challenges">Current Challenges</h2>
+<ul>
+<li><strong>Inconsistent test results</strong>: Uncertainty and delays in release decisions</li>
+<li><strong>Repeated lane failures</strong>: Block continuous delivery and release schedules</li>
+<li><strong>Manual investigation overhead</strong>: Time spent determining if failures are bugs or test instability</li>
+<li><strong>Manual verification burden</strong>: Time on manual testing instead of new automation</li>
+<li><strong>Troubleshooting waste</strong>: Chasing intermittent issues consumes resources</li>
+</ul>
+<h2 id="milestone-and-branch-management">Milestone and Branch Management</h2>
+<h3 id="y-stream-main-branch-extra-caution-required">Y-Stream (<code>main</code> Branch) - EXTRA CAUTION REQUIRED</h3>
+<p><strong>For <code>main</code> branch (upcoming y-stream release), quarantining requires EXTRA CARE until Code Freeze (CF).</strong></p>
+<ul>
+<li>Product code may contain bugs until CF</li>
+<li>Stabilization period expected between Feature Freeze and Blockers Only phase</li>
+<li>Extra inspection is needed for ALL quarantine decisions</li>
+<li>Handle test failures with care. Distinguish between product bugs and test issues</li>
+</ul>
+<h3 id="z-stream-green-expectation">Z-Stream - GREEN Expectation</h3>
+<p>Z-stream lanes <strong>MUST BE GREEN</strong>:</p>
+<ul>
+<li>No new major features should be introduced</li>
+<li>No API changes should be introduced</li>
+<li>Any failures are likely regressions requiring immediate attention</li>
+</ul>
+<h2 id="workflow-for-green-lanes">Workflow for GREEN Lanes</h2>
+<h3 id="step-1-review-process">Step 1: Review Process</h3>
+<p><strong>MANDATORY</strong>: Conduct a review of all failing tests across different lanes until all are GREEN.</p>
+<p><strong>Review checklist:</strong></p>
+<ul>
+<li>[ ] Identify all failing tests in all lanes</li>
+<li>[ ] Group failures by test or pattern</li>
+<li>[ ] Check for known issues in Jira</li>
+<li>[ ] Analyze new failures immediately</li>
+</ul>
+<h3 id="step-2-test-failure-analysis-tfa">Step 2: Test Failure Analysis (TFA)</h3>
+<p>For each failure, determine the root cause category and take appropriate action.
+Make sure to:</p>
+<ul>
+<li>Be specific about what failed and why</li>
+<li>Avoid generic messages like "Test failed" or "Assertion error"</li>
+<li>If a product bug was opened, link to the bug in the analysis message</li>
+</ul>
+<h4 id="category-1-product-bug">Category 1: Product Bug</h4>
+<p><strong>Identification</strong>: Failure is due to an actual product defect.</p>
+<p><strong>Actions:</strong></p>
+<ul>
+<li>Open a bug in Jira with the appropriate priority (and a fix version if not opened on the next y-stream release).</li>
+<li>Use <code>pytest_jira</code> integration to skip test conditionally when bug is open.  If needed, use <code>is_jira_open</code> for conditional skip.</li>
+</ul>
+<p>Conditional skip for product bug:</p>
+<div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">pytest</span>
+
+<span class="nd">@pytest</span><span class="o">.</span><span class="n">mark</span><span class="o">.</span><span class="n">jira</span><span class="p">(</span><span class="s2">"CNV-12345"</span><span class="p">,</span> <span class="n">run</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>  <span class="c1"># Skips if the bug is open</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">test_feature_a</span><span class="p">():</span>
+    <span class="k">pass</span>
+</code></pre></div>
+
+<h4 id="category-2-automation-issue">Category 2: Automation Issue</h4>
+<p><strong>Identification</strong>: Failure is due to test code or test framework issue.</p>
+<p><strong>Actions:</strong></p>
+<ul>
+<li>Open a task in Jira under the team's backlog</li>
+<li>
+<p><strong>Manual Verification MANDATORY</strong>: Verify that the scenario passes manually before marking analysis as complete
+  Manual verification is needed to make sure the tested feature does work as expected before quarantining the test.</p>
+</li>
+<li>
+<p>Include ALL failure analysis information and logs in Jira</p>
+</li>
+</ul>
+<p>Quarantine for automation issue:</p>
+<p>Apply pytest's <code>xfail</code> marker with <code>run=False</code>, for example:</p>
+<div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">pytest</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">utilities.constants.pytest</span><span class="w"> </span><span class="kn">import</span> <span class="n">QUARANTINED</span>
+
+
+<span class="nd">@pytest</span><span class="o">.</span><span class="n">mark</span><span class="o">.</span><span class="n">xfail</span><span class="p">(</span>
+    <span class="n">reason</span><span class="o">=</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">QUARANTINED</span><span class="si">}</span><span class="s2">: VM is going into running state which it shouldn't, CNV-123"</span><span class="p">,</span>
+    <span class="n">run</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">test_my_failing_test</span><span class="p">():</span>
+    <span class="o">...</span>
+</code></pre></div>
+
+<p><strong>Benefit</strong>: Provides pytest summary insights:</p>
+<div class="highlight"><pre><span></span><code>1 deselected, 2 passed, 1 quarantined, ...
+</code></pre></div>
+
+<p><strong>Jira Requirements:</strong></p>
+<ul>
+<li>Title starts with <code>[stabilization]</code></li>
+<li>Labels: <code>quarantined-test</code></li>
+<li>Priority based on test importance</li>
+<li>Complete failure analysis documentation</li>
+<li>List any specific actions that should be taken when working on de-quarantining the test</li>
+<li>If backport is needed, make sure to add the info in the ticket</li>
+</ul>
+<h4 id="category-3-system-environment-issue">Category 3: System / Environment Issue</h4>
+<p><strong>Identification</strong>: Failure is due to infrastructure, environment, or external dependencies.</p>
+<p><strong>Actions:</strong></p>
+<ul>
+<li><strong>CANNOT QUARANTINE</strong> - Open a ticket to devops</li>
+<li><strong>Manual Verification MANDATORY</strong>: Verify that the scenario passes manually before marking analysis as complete</li>
+<li>Perform additional analysis</li>
+</ul>
+<p><strong>Additional Analysis Required:</strong></p>
+<ol>
+<li>Can the failure be avoided by running test on specific hardware?</li>
+<li>Can the failure be caught during cluster sanity checks?</li>
+<li>Open an issue to update cluster sanity to include environment requirements that prevent this failure</li>
+</ol>
+<p><strong>System Issue Examples:</strong></p>
+<ul>
+<li>Artifactory connection problems</li>
+<li>Network infrastructure issues</li>
+<li>Resource constraints</li>
+</ul>
+<h3 id="step-3-quarantine-decision">Step 3: Quarantine Decision</h3>
+<p>Determine if a test requires quarantine is based on:</p>
+<ul>
+<li>Failure is not a product bug</li>
+<li>Repeated failures (twice or more in the past 10 runs)</li>
+<li>Root cause requiring extended analysis</li>
+<li>Tests should be migrated between tiers (e.g., tier2 → tier1)</li>
+<li>
+<p>Automation issue that cannot be fixed immediately</p>
+</li>
+<li>
+<p><strong>Gating test failures</strong> - As gating tests have higher priority, they should be fixed as soon as possible</p>
+</li>
+</ul>
+<h3 id="when-not-to-quarantine">When NOT to Quarantine</h3>
+<p><strong>DO NOT quarantine</strong>:</p>
+<ul>
+<li><strong>System issues</strong> - Based on your analysis, open a ticket to DevOps</li>
+<li><strong>Automation blockers</strong> - Tests that MUST be executed before a release (use blocker tickets instead)</li>
+</ul>
+<h3 id="blocker-tickets-vs-quarantine">Blocker Tickets vs. Quarantine</h3>
+<p>Understanding this distinction is critical:</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Aspect</th>
+<th>Blocker Tickets</th>
+<th>Quarantine</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Use Case</strong></td>
+<td>Tests MUST run before release</td>
+<td>Automation issues, can be temporarily disabled</td>
+</tr>
+<tr>
+<td><strong>Urgency</strong></td>
+<td>Fix immediately (within current sprint)</td>
+<td>Fix based on priority (may be future sprint)</td>
+</tr>
+<tr>
+<td><strong>Release Impact</strong></td>
+<td>Blocks release until resolved</td>
+<td>Does not block release</td>
+</tr>
+<tr>
+<td><strong>Tracking</strong></td>
+<td>Blocker bug in Jira</td>
+<td>Task with <code>xfail</code> marker</td>
+</tr>
+<tr>
+<td><strong>Fix Timeline</strong></td>
+<td>Current sprint</td>
+<td>Based on priority</td>
+</tr>
+</tbody>
+</table></div>
+<h3 id="implementation">Implementation</h3>
+<p><strong>Tools:</strong></p>
+<ul>
+<li><code>pytest.mark.xfail</code> - For quarantine marking</li>
+<li><code>pytest_jira</code> - For conditional skipping when bugs are open</li>
+<li><code>pytest-repeat</code> - For stability verification (de-quarantine)</li>
+</ul>
+<p><strong>Selecting quarantined tests:</strong></p>
+<p>Tests marked with <code>@pytest.mark.xfail(reason=f"{QUARANTINED}: ...", run=False)</code> automatically
+receive a <code>quarantined</code> pytest marker during collection. This enables:</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># Run only quarantined tests (e.g., to verify fixes)</span>
+pytest<span class="w"> </span>-m<span class="w"> </span>quarantined
+
+<span class="c1"># Exclude quarantined tests</span>
+pytest<span class="w"> </span>-m<span class="w"> </span><span class="s2">"not quarantined"</span>
+
+<span class="c1"># Combine with other markers</span>
+pytest<span class="w"> </span>-m<span class="w"> </span><span class="s2">"quarantined and storage"</span>
+</code></pre></div>
+
+<h3 id="pull-request-requirements">Pull Request Requirements</h3>
+<p>When submitting quarantine PR:</p>
+<ul>
+<li><strong>Title</strong>: Must start with <code>Quarantine:</code></li>
+<li><strong>Description</strong>: Include a link to Jira ticket and brief explanation</li>
+<li><strong>Backporting</strong>: If needed, make sure to backport the quarantine PR to other branches.</li>
+</ul>
+<p><strong>GitHub Label</strong>: <code>quarantine</code> label will be added automatically</p>
+<h2 id="de-quarantine-and-re-inclusion-process">De-Quarantine and Re-inclusion Process</h2>
+<ul>
+<li>De-quarantine work must be included in each sprint based on tests priority</li>
+</ul>
+<h3 id="re-inclusion-criteria">Re-inclusion Criteria</h3>
+<p>Tests can <strong>ONLY</strong> be re-included after demonstrating stability:</p>
+<ul>
+<li>Test must be verified in Jenkins on a cluster identical (as much as possible) to the one where the failure occurred</li>
+<li><strong>25 consecutive successful runs via Jenkins</strong> using <code>pytest-repeat</code></li>
+<li>Number can be adjusted based on test flakiness, characteristics and risk; this must be discussed within the sig</li>
+</ul>
+<p><strong>Local Verification Command:</strong></p>
+<div class="highlight"><pre><span></span><code>pytest<span class="w"> </span>--repeat-scope<span class="o">=</span>session<span class="w"> </span>--count<span class="o">=</span><span class="m">25</span><span class="w"> </span>&lt;path<span class="w"> </span>to<span class="w"> </span><span class="nb">test</span><span class="w"> </span>module&gt;
+</code></pre></div>
+
+<h3 id="de-quarantine-checklist">De-Quarantine Checklist</h3>
+<p>Complete ALL items before re-including test:</p>
+<ul>
+<li>[ ] Root cause identified and fixed</li>
+<li>[ ] Test fix implemented and verified locally</li>
+<li>[ ] <strong>Assert messages enhanced</strong> with meaningful information from original failure - if needed</li>
+<li>[ ] <code>xfail</code> marker removed from test</li>
+<li>[ ] Jenkins verification passes (by default: 25 consecutive runs)</li>
+</ul>
+<p>Once the PR is merged:</p>
+<ul>
+<li>[ ] The test is included in an active test lane</li>
+<li>[ ] Jira ticket updated with:</li>
+<li>[ ] Root cause explanation</li>
+<li>[ ] Fix description</li>
+<li>[ ] Verification results</li>
+<li>[ ] Closed with appropriate resolution</li>
+<li>[ ] If the fix needs to be backported to other branches, each backport PR must be verified using the same verification process</li>
+</ul>
+                </div>
+            </article>
+            <nav class="page-nav">
+
+                <a href="CODE_ORGANIZATION.html" class="page-nav-link page-nav-prev">
+                    <span class="page-nav-label">Previous</span>
+                    <span class="page-nav-title">Code Organization</span>
+                </a>
+
+
+                <a href="SOFTWARE_TEST_DESCRIPTION.html" class="page-nav-link page-nav-next">
+                    <span class="page-nav-label">Next</span>
+                    <span class="page-nav-title">Software Test Description</span>
+                </a>
+
+            </nav>
+
+            <aside class="toc-sidebar">
+                <div class="toc-container">
+                    <h3>On this page</h3>
+                    <div class="toc">
+<ul>
+<li><a href="#introduction">Introduction</a></li>
+<li><a href="#current-challenges">Current Challenges</a></li>
+<li><a href="#milestone-and-branch-management">Milestone and Branch Management</a><ul>
+<li><a href="#y-stream-main-branch-extra-caution-required">Y-Stream (main Branch) - EXTRA CAUTION REQUIRED</a></li>
+<li><a href="#z-stream-green-expectation">Z-Stream - GREEN Expectation</a></li>
+</ul>
+</li>
+<li><a href="#workflow-for-green-lanes">Workflow for GREEN Lanes</a><ul>
+<li><a href="#step-1-review-process">Step 1: Review Process</a></li>
+<li><a href="#step-2-test-failure-analysis-tfa">Step 2: Test Failure Analysis (TFA)</a></li>
+<li><a href="#step-3-quarantine-decision">Step 3: Quarantine Decision</a></li>
+<li><a href="#when-not-to-quarantine">When NOT to Quarantine</a></li>
+<li><a href="#blocker-tickets-vs-quarantine">Blocker Tickets vs. Quarantine</a></li>
+<li><a href="#implementation">Implementation</a></li>
+<li><a href="#pull-request-requirements">Pull Request Requirements</a></li>
+</ul>
+</li>
+<li><a href="#de-quarantine-and-re-inclusion-process">De-Quarantine and Re-inclusion Process</a><ul>
+<li><a href="#re-inclusion-criteria">Re-inclusion Criteria</a></li>
+<li><a href="#de-quarantine-checklist">De-Quarantine Checklist</a></li>
+</ul>
+</li>
+</ul>
+</div>
+
+                </div>
+            </aside>
+
+
+        </main>
+
+        <footer class="page-footer">
+
+            Built from <code>docs/*.md</code> by <code>pi-docsite</code>
+            <span class="footer-sep">&middot;</span>
+            <span class="footer-llm">LLM-friendly: <a href="llms.txt">llms.txt</a> &middot; <a href="llms-full.txt">llms-full.txt</a></span>
+        </footer>
+    </div>
+
+    <div class="sidebar-overlay" id="sidebar-overlay"></div>
+
+    <script src="assets/theme.js?v=66bf87bdd9"></script>
+
+    <script src="assets/search.js?v=66bf87bdd9"></script>
+    <script src="assets/copy.js?v=66bf87bdd9"></script>
+    <script src="assets/callouts.js?v=66bf87bdd9"></script>
+    <script src="assets/scrollspy.js?v=66bf87bdd9"></script>
+    <script src="assets/codelabels.js?v=66bf87bdd9"></script>
+    <script src="assets/github.js?v=66bf87bdd9"></script>
+    <script>
+(function() {
+    var toggle = document.getElementById('sidebar-toggle');
+    var sidebar = document.getElementById('sidebar');
+    var overlay = document.getElementById('sidebar-overlay');
+    if (toggle && sidebar) {
+        toggle.addEventListener('click', function() {
+            sidebar.classList.toggle('open');
+            if (overlay) overlay.classList.toggle('open');
+            var expanded = sidebar.classList.contains('open');
+            toggle.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+        });
+    }
+    if (overlay) {
+        overlay.addEventListener('click', function() {
+            sidebar.classList.remove('open');
+            overlay.classList.remove('open');
+            if (toggle) toggle.setAttribute('aria-expanded', 'false');
+        });
+    }
+})();
+</script>
+<script>
+(function() {
+    var sidebar = document.querySelector('.sidebar-nav') || document.querySelector('.sidebar');
+    if (!sidebar) return;
+
+    // Restore scroll position
+    var saved = sessionStorage.getItem('sidebar-scroll');
+    if (saved) sidebar.scrollTop = parseInt(saved, 10);
+
+    // Save scroll position before navigating
+    sidebar.addEventListener('scroll', function() {
+        sessionStorage.setItem('sidebar-scroll', sidebar.scrollTop.toString());
+    });
+
+    // Also scroll active link into view if no saved position
+    if (!saved) {
+        var active = sidebar.querySelector('.nav-link.active');
+        if (active) {
+            active.scrollIntoView({ block: 'center', behavior: 'instant' });
+        }
+    }
+})();
+</script>
+<!-- generated by pi-docsite -->
+</body>
+</html>

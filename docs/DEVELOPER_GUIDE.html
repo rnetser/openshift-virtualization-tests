@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Project Structure - openshift-virtualization-tests</title>
+    <meta name="description" content="Tests for OpenShift Virtualization">
+    <link rel="stylesheet" href="assets/style.css?v=66bf87bdd9">
+    <script>try{var t=localStorage.getItem('theme');if(t==='dark')document.documentElement.setAttribute('data-theme','dark')}catch(e){}</script>
+    <link rel="alternate" type="text/plain" title="LLM Documentation Index" href="llms.txt">
+    <link rel="alternate" type="text/plain" title="LLM Full Documentation" href="llms-full.txt">
+</head>
+<body>
+    <aside class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+            <a href="index.html" class="sidebar-logo">openshift-virtualization-tests</a>
+            <p class="sidebar-tagline">Tests for OpenShift Virtualization</p>
+        </div>
+
+        <div class="sidebar-search">
+            <input type="text" id="search-input" placeholder="Search... (⌘K)" autocomplete="off" readonly>
+            <div id="search-results" class="search-results"></div>
+        </div>
+
+        <nav class="sidebar-nav">
+
+            <div class="nav-group">
+                <h3 class="nav-group-title">Getting Started</h3>
+                <ul class="nav-group-pages">
+
+                    <li>
+                        <a href="GETTING_STARTED.html"
+                           class="nav-link">
+                            Getting started
+                        </a>
+                    </li>
+
+                    <li>
+                        <a href="CONTRIBUTING.html"
+                           class="nav-link">
+                            Welcome to openshift-virtualization-tests contributing guide
+                        </a>
+                    </li>
+
+                    <li>
+                        <a href="DEVELOPER_GUIDE.html"
+                           class="nav-link active" aria-current="page">
+                            Project Structure
+                        </a>
+                    </li>
+
+                </ul>
+            </div>
+
+            <div class="nav-group">
+                <h3 class="nav-group-title">Running Tests</h3>
+                <ul class="nav-group-pages">
+
+                    <li>
+                        <a href="RUNNING_TESTS.html"
+                           class="nav-link">
+                            Running the tests
+                        </a>
+                    </li>
+
+                    <li>
+                        <a href="INSTALL_AND_UPGRADE.html"
+                           class="nav-link">
+                            Install openshift-virtualization tests
+                        </a>
+                    </li>
+
+                    <li>
+                        <a href="MULTIARCH.html"
+                           class="nav-link">
+                            Multi-Architecture (Heterogeneous) Clusters
+                        </a>
+                    </li>
+
+                    <li>
+                        <a href="CONTAINERIZE_TESTS.html"
+                           class="nav-link">
+                            Building and pushing openshift-virtualization-tests container image
+                        </a>
+                    </li>
+
+                </ul>
+            </div>
+
+            <div class="nav-group">
+                <h3 class="nav-group-title">Guidelines</h3>
+                <ul class="nav-group-pages">
+
+                    <li>
+                        <a href="CODING_AND_STYLE_GUIDE.html"
+                           class="nav-link">
+                            Coding standards
+                        </a>
+                    </li>
+
+                    <li>
+                        <a href="CODE_ORGANIZATION.html"
+                           class="nav-link">
+                            Code Organization
+                        </a>
+                    </li>
+
+                    <li>
+                        <a href="QUARANTINE_GUIDELINES.html"
+                           class="nav-link">
+                            OpenShift Virtualization Test Stability, Quarantine and De-quarantine Guidelines
+                        </a>
+                    </li>
+
+                    <li>
+                        <a href="SOFTWARE_TEST_DESCRIPTION.html"
+                           class="nav-link">
+                            Software Test Description
+                        </a>
+                    </li>
+
+                </ul>
+            </div>
+
+            <div class="nav-group">
+                <h3 class="nav-group-title">Reference</h3>
+                <ul class="nav-group-pages">
+
+                    <li>
+                        <a href="ARCHITECTURE_SUPPORT.html"
+                           class="nav-link">
+                            Test Images Architecture Support
+                        </a>
+                    </li>
+
+                    <li>
+                        <a href="OWNERS.html"
+                           class="nav-link">
+                            OWNERS files
+                        </a>
+                    </li>
+
+                    <li>
+                        <a href="MAINTAINER_GUIDELINES.html"
+                           class="nav-link">
+                            Maintainer (Approver) Guidelines
+                        </a>
+                    </li>
+
+                    <li>
+                        <a href="AI_CONTRIBUTION_POLICY.html"
+                           class="nav-link">
+                            AI Contribution Policy
+                        </a>
+                    </li>
+
+                </ul>
+            </div>
+
+        </nav>
+    </aside>
+
+    <div class="main-wrapper">
+        <header class="top-bar">
+            <div class="top-bar-left">
+                <button class="sidebar-toggle" id="sidebar-toggle" aria-label="Toggle sidebar" aria-expanded="false">
+                    <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                        <path d="M3 5h14M3 10h14M3 15h14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                    </svg>
+                </button>
+                <a href="index.html" class="top-bar-title">openshift-virtualization-tests</a>
+            </div>
+            <div class="top-bar-spacer"></div>
+            <div class="top-bar-right">
+                <button class="top-bar-search-btn" id="search-trigger" aria-label="Search">
+                    <kbd>&#8984;K</kbd> Search
+                </button>
+                <a href="https://github.com/rnetser/openshift-virtualization-tests" target="_blank" rel="noopener" class="docsite-badge" title="documentation">
+                    ⚡ pi<span class="brand-accent">-docsite</span>
+                </a>
+
+                <a href="https://github.com/rnetser/openshift-virtualization-tests" target="_blank" rel="noopener noreferrer" class="top-bar-github" id="github-link" data-repo-url="https://github.com/rnetser/openshift-virtualization-tests">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
+                    <span class="github-stars" id="github-stars" title="GitHub stars"></span>
+                </a>
+
+                <button class="theme-toggle" id="theme-toggle" aria-label="Toggle theme">
+                    <svg class="icon-sun" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                        <circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+                    </svg>
+                    <svg class="icon-moon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                        <path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/>
+                    </svg>
+                </button>
+            </div>
+        </header>
+
+        <main class="content">
+
+            <article class="article">
+                <div class="article-body">
+                    <!-- SECURITY: |safe is intentional. Content is AI-generated markdown
+                         converted to HTML server-side by the markdown library, not
+                         user-supplied input. XSS risk is minimal and accepted since
+                         the AI generates the content, not end users. -->
+                    <h1 id="project-structure">Project Structure</h1>
+<p>openshift-virtualization-tests is a public repository under the <a href="https://github.com/RedHatQE">RedHatQE organization</a> on GitHub.</p>
+<p>The project is structured as follows:</p>
+<ul>
+<li><a href="../tests">tests</a>: Base directory for pytest tests</li>
+<li>Each component has its own directory</li>
+<li>Each feature has its own directory</li>
+<li><a href="../utilities">utilities</a>: Base directory for utility functions</li>
+<li>Each module contains a set of utility functions related to a specific topic, for example:<ul>
+<li><a href="../utilities/infra.py">infra</a>: Infrastructure-related (cluster resources) utility functions</li>
+<li><a href="../utilities/constants/">constants</a>: Shared constants package — see <a href="CODE_ORGANIZATION.md#constants-utilitiesconstants">Code Organization</a></li>
+</ul>
+</li>
+<li><a href="../tests/fixtures/">tests/fixtures</a>: Shared pytest fixture implementations — see <a href="CODE_ORGANIZATION.md#fixtures-testsfixtures-and-conftestpy">Code Organization</a></li>
+<li><a href="../docs">docs</a>: Documentation — including <a href="CODE_ORGANIZATION.md">Code Organization</a> for constants, utilities, and fixtures</li>
+<li><a href="../tests/global_config.py">py_config</a> contains tests-specific configuration which can be controlled from the command line.
+Please refer to <a href="https://github.com/wojole/pytest-testconfig">pytest-testconfig</a> for more information.</li>
+</ul>
+<h2 id="contribution">Contribution</h2>
+<p>To contribute code to the project:</p>
+<h2 id="pull-requests">Pull requests</h2>
+<ul>
+<li>Fork the project and work on your forked repository</li>
+<li>Before submitting a new pull request:</li>
+<li>Make sure you follow the <a href="CODING_AND_STYLE_GUIDE.md">Coding and Style Guide</a></li>
+<li>Check the <a href="#prerequisites">prerequisites</a> section under the <a href="#development">Development</a> section</li>
+<li>PRs that are not ready for review (but needed to be pushed for any reason) should be set as <code>Draft</code> in GitHub.</li>
+<li>When a PR is ready for review, mark it as ready for review.</li>
+<li>PRs should be relatively small; if needed, the PRs should be split and depend on each other.</li>
+<li>Small PRs will get quicker review.</li>
+<li>Small PRs comments will be fixed quicker and merged quicker.</li>
+<li>Both the reviewer and the committer will benefit from this.</li>
+<li>When a refactor is needed as part of the current PR, the refactor should be done in another PR and the current PR should be rebased on it.</li>
+<li>Please address each comment in code review</li>
+<li>If a comment is addressed and accepted:<ul>
+<li>The author should comment “done” and add 👍 if they agree with the resolution.</li>
+<li>The author can then mark that comment as <code>resolved</code>.</li>
+</ul>
+</li>
+<li>If a comment was addressed and rejected or additional discussion is needed, add your input and do not resolve the comment.</li>
+<li>To minimize the number of comments, please try to address all comments in one PR.</li>
+<li>The repository is using <a href="https://www.coderabbit.ai/">CodeRabbit</a> for PR reviews; all comments must be addressed in the PR.</li>
+<li>Before a PR can be merged:</li>
+<li>PRs must be verified and marked with "verified" label.<ul>
+<li>PRs must be reviewed and approved (by adding <code>/lgtm</code> comment or using GitHubs' approve) by at least two reviewers other than the committer.
+  For the PR to be merged, the accepted reviewers are the ones that appear in the modified code's <code>OWNERS</code> file or root approvers.</li>
+<li>PRs must be approved (by adding <code>/approve</code> comment) by at least one of the approvers in the root <code>OWNERS</code> file.
+  If the <code>OWNERS</code> file relevant to the modified code contains <code>root-approvers: False</code>, the approvers in the root <code>OWNERS</code> file are not required to approve the PR.</li>
+</ul>
+</li>
+<li>All CI checks must pass.<ul>
+<li>If <code>can-be-merged</code> check is marked as failed, check the job to see the reason(s).</li>
+</ul>
+</li>
+</ul>
+<h2 id="branching-strategy">Branching strategy</h2>
+<p>The project follows Red Hat Openshift Virtualization versions lifecycle.
+If needed, once your PR is merged to <code>main</code>, cherry-pick your PR to the relevant branch(es).</p>
+<h2 id="development">Development</h2>
+<h2 id="prerequisites">Prerequisites</h2>
+<ul>
+<li>Make sure you have <a href="https://pre-commit.com/">pre-commit</a> package installed</li>
+<li>Make sure you have <a href="https://tox.readthedocs.io/en/latest/">tox</a> package installed</li>
+</ul>
+<h2 id="coding-standards-and-style-guide">Coding standards and style guide</h2>
+<ul>
+<li>Refer to the <a href="CODING_AND_STYLE_GUIDE.md">coding_and_style guide</a> for style guide rules.</li>
+</ul>
+<h2 id="interacting-with-kubernetesopenshift-apis">Interacting with Kubernetes/OpenShift APIs</h2>
+<p>The project utilizes <a href="https://github.com/RedHatQE/openshift-python-wrapper">openshift-python-wrapper</a>.
+Please refer to the <a href="https://github.com/RedHatQE/openshift-python-wrapper/blob/main/README.md">documentation</a>
+and the <a href="https://github.com/RedHatQE/openshift-python-wrapper/tree/main/examples">examples</a> for more information.</p>
+<h2 id="how-to-verify-your-patch">How to verify your patch</h2>
+<p>Determining the depth of verification steps for each patch is left for the
+author and their reviewer. It's required that the procedure used to verify a
+patch is listed in comments to the review request.</p>
+<h3 id="check-the-code">Check the code</h3>
+<p>We use check tools that are defined in .pre-commit-config.yaml file
+To install pre-commit:</p>
+<div class="highlight"><pre><span></span><code>pip<span class="w"> </span>install<span class="w"> </span>pre-commit<span class="w"> </span>--user
+pre-commit<span class="w"> </span>install
+</code></pre></div>
+
+<p>Run pre-commit:</p>
+<div class="highlight"><pre><span></span><code>pre-commit<span class="w"> </span>run<span class="w"> </span>--all-files
+</code></pre></div>
+
+<p>pre-commit will try to fix the errors.
+If some errors where fixed, git add &amp; git commit is needed again.
+commit-msg uses gitlint (<a href="https://jorisroovers.com/gitlint/">https://jorisroovers.com/gitlint/</a>)</p>
+<h3 id="tox">tox</h3>
+<p>CI uses <a href="https://tox.readthedocs.io/en/latest/">tox</a> and will run the code under tox.ini
+To check for issues locally run:</p>
+<div class="highlight"><pre><span></span><code>tox
+</code></pre></div>
+
+<h3 id="commit-message">Commit message</h3>
+<p>It is essential to have a good commit message if you want your change to be reviewed.</p>
+<ul>
+<li>Write a short one-line summary</li>
+<li>Use the present tense (fix instead of fixed)</li>
+<li>Use the past tense when describing the status before this commit</li>
+<li>Add a link to the related jira card (required for any significant automation work)</li>
+<li><code>jira-ticket: https://issues.redhat.com/browse/&lt;jira_id&gt;</code></li>
+<li>The card will be automatically closed once PR is merged</li>
+</ul>
+<h3 id="request-a-test-execution-plan">Request a test execution plan</h3>
+<p>Comment on your GitHub PR:</p>
+<div class="highlight"><pre><span></span><code>/test-plan
+</code></pre></div>
+
+<p>This triggers CodeRabbit to analyze the PR's changed files and post an inline review comment with a test execution plan (smoke/gating impact, affected tests to run).</p>
+<h3 id="re-run-smoke-tests">Re-run smoke tests</h3>
+<p>Comment on your GitHub PR (OWNER / MEMBER / COLLABORATOR only):</p>
+<div class="highlight"><pre><span></span><code>/rerun-smoke
+</code></pre></div>
+
+<p>This adds the <code>retest-smoke</code> label so Jenkins job <code>github-events-listener</code> can pick up a smoke re-run (Jenkins typically removes the label after processing).
+If <code>retest-smoke</code> is already on the PR and was added less than 4 hours ago, the workflow skips re-adding the label and logs guidance to check that Jenkins job.
+If the label is still present and older than 4 hours, the workflow removes and re-adds it so Jenkins sees a fresh labeled event.
+A thumbs-up on the comment means the workflow accepted the request and added or refreshed the label.
+If the request is skipped (4-hour cooldown, or label present without usable label history), the thumbs-up is replaced with 👎 — check the workflow Action logs and Jenkins job <code>github-events-listener</code>.</p>
+<h3 id="run-the-tests-via-a-jenkins-job">Run the tests via a Jenkins job</h3>
+<h4 id="build-and-push-a-container-with-your-changes">Build and push a container with your changes</h4>
+<p>Comment on your GitHub PR:</p>
+<div class="highlight"><pre><span></span><code>/build-and-push-container
+</code></pre></div>
+
+<p>You can add additional arguments when creating the container. Supported arguments can be found in the Dockerfile
+and Makefile of the openshift-virtualization-tests repository.</p>
+<p>For example, this command will create a container with the openshift-virtualization-tests PR it was run against and a specific commit of
+a wrapper PR:</p>
+<div class="highlight"><pre><span></span><code>/build-and-push-container<span class="w"> </span>--build-arg<span class="w"> </span><span class="nv">OPENSHIFT_PYTHON_WRAPPER_COMMIT</span><span class="o">=</span>&lt;commit_hash&gt;
+</code></pre></div>
+
+<p>Container created with the <code>/build-and-push-container</code> command is automatically pushed to quay and can be used by
+Jenkins test jobs for verification (see <code>Run the Jenkins test jobs for openshift-virtualization-tests</code> section for more details).</p>
+<h4 id="run-the-jenkins-test-jobs-for-openshift-virtualization-tests">Run the Jenkins test jobs for openshift-virtualization-tests</h4>
+<p>Open relevant test jobs in jenkins
+Click on Build with Parameters.
+Under <code>CLUSTER_NAME</code> enter your cluster's name.
+Under <code>IMAGE_TAG</code> enter your image tag, example: openshift-virtualization-tests-github:pr-&lt;pr_number&gt;
+This same field can be used to test a specific container created from an openshift-virtualization-tests PR.</p>
+<p>To pass parameters to pytest command add them to <code>PYTEST_PARAMS</code>.
+for example <code>-k 'network'</code> will run only tests that match 'network' keyword</p>
+                </div>
+            </article>
+            <nav class="page-nav">
+
+                <a href="CONTRIBUTING.html" class="page-nav-link page-nav-prev">
+                    <span class="page-nav-label">Previous</span>
+                    <span class="page-nav-title">Welcome to openshift-virtualization-tests contributing guide</span>
+                </a>
+
+
+                <a href="RUNNING_TESTS.html" class="page-nav-link page-nav-next">
+                    <span class="page-nav-label">Next</span>
+                    <span class="page-nav-title">Running the tests</span>
+                </a>
+
+            </nav>
+
+            <aside class="toc-sidebar">
+                <div class="toc-container">
+                    <h3>On this page</h3>
+                    <div class="toc">
+<ul>
+<li><a href="#contribution">Contribution</a></li>
+<li><a href="#pull-requests">Pull requests</a></li>
+<li><a href="#branching-strategy">Branching strategy</a></li>
+<li><a href="#development">Development</a></li>
+<li><a href="#prerequisites">Prerequisites</a></li>
+<li><a href="#coding-standards-and-style-guide">Coding standards and style guide</a></li>
+<li><a href="#interacting-with-kubernetesopenshift-apis">Interacting with Kubernetes/OpenShift APIs</a></li>
+<li><a href="#how-to-verify-your-patch">How to verify your patch</a><ul>
+<li><a href="#check-the-code">Check the code</a></li>
+<li><a href="#tox">tox</a></li>
+<li><a href="#commit-message">Commit message</a></li>
+<li><a href="#request-a-test-execution-plan">Request a test execution plan</a></li>
+<li><a href="#re-run-smoke-tests">Re-run smoke tests</a></li>
+<li><a href="#run-the-tests-via-a-jenkins-job">Run the tests via a Jenkins job</a></li>
+</ul>
+</li>
+</ul>
+</div>
+
+                </div>
+            </aside>
+
+
+        </main>
+
+        <footer class="page-footer">
+
+            Built from <code>docs/*.md</code> by <code>pi-docsite</code>
+            <span class="footer-sep">&middot;</span>
+            <span class="footer-llm">LLM-friendly: <a href="llms.txt">llms.txt</a> &middot; <a href="llms-full.txt">llms-full.txt</a></span>
+        </footer>
+    </div>
+
+    <div class="sidebar-overlay" id="sidebar-overlay"></div>
+
+    <script src="assets/theme.js?v=66bf87bdd9"></script>
+
+    <script src="assets/search.js?v=66bf87bdd9"></script>
+    <script src="assets/copy.js?v=66bf87bdd9"></script>
+    <script src="assets/callouts.js?v=66bf87bdd9"></script>
+    <script src="assets/scrollspy.js?v=66bf87bdd9"></script>
+    <script src="assets/codelabels.js?v=66bf87bdd9"></script>
+    <script src="assets/github.js?v=66bf87bdd9"></script>
+    <script>
+(function() {
+    var toggle = document.getElementById('sidebar-toggle');
+    var sidebar = document.getElementById('sidebar');
+    var overlay = document.getElementById('sidebar-overlay');
+    if (toggle && sidebar) {
+        toggle.addEventListener('click', function() {
+            sidebar.classList.toggle('open');
+            if (overlay) overlay.classList.toggle('open');
+            var expanded = sidebar.classList.contains('open');
+            toggle.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+        });
+    }
+    if (overlay) {
+        overlay.addEventListener('click', function() {
+            sidebar.classList.remove('open');
+            overlay.classList.remove('open');
+            if (toggle) toggle.setAttribute('aria-expanded', 'false');
+        });
+    }
+})();
+</script>
+<script>
+(function() {
+    var sidebar = document.querySelector('.sidebar-nav') || document.querySelector('.sidebar');
+    if (!sidebar) return;
+
+    // Restore scroll position
+    var saved = sessionStorage.getItem('sidebar-scroll');
+    if (saved) sidebar.scrollTop = parseInt(saved, 10);
+
+    // Save scroll position before navigating
+    sidebar.addEventListener('scroll', function() {
+        sessionStorage.setItem('sidebar-scroll', sidebar.scrollTop.toString());
+    });
+
+    // Also scroll active link into view if no saved position
+    if (!saved) {
+        var active = sidebar.querySelector('.nav-link.active');
+        if (active) {
+            active.scrollIntoView({ block: 'center', behavior: 'instant' });
+        }
+    }
+})();
+</script>
+<!-- generated by pi-docsite -->
+</body>
+</html>

@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Coding standards - openshift-virtualization-tests</title>
+    <meta name="description" content="Tests for OpenShift Virtualization">
+    <link rel="stylesheet" href="assets/style.css?v=66bf87bdd9">
+    <script>try{var t=localStorage.getItem('theme');if(t==='dark')document.documentElement.setAttribute('data-theme','dark')}catch(e){}</script>
+    <link rel="alternate" type="text/plain" title="LLM Documentation Index" href="llms.txt">
+    <link rel="alternate" type="text/plain" title="LLM Full Documentation" href="llms-full.txt">
+</head>
+<body>
+    <aside class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+            <a href="index.html" class="sidebar-logo">openshift-virtualization-tests</a>
+            <p class="sidebar-tagline">Tests for OpenShift Virtualization</p>
+        </div>
+
+        <div class="sidebar-search">
+            <input type="text" id="search-input" placeholder="Search... (⌘K)" autocomplete="off" readonly>
+            <div id="search-results" class="search-results"></div>
+        </div>
+
+        <nav class="sidebar-nav">
+
+            <div class="nav-group">
+                <h3 class="nav-group-title">Getting Started</h3>
+                <ul class="nav-group-pages">
+
+                    <li>
+                        <a href="GETTING_STARTED.html"
+                           class="nav-link">
+                            Getting started
+                        </a>
+                    </li>
+
+                    <li>
+                        <a href="CONTRIBUTING.html"
+                           class="nav-link">
+                            Welcome to openshift-virtualization-tests contributing guide
+                        </a>
+                    </li>
+
+                    <li>
+                        <a href="DEVELOPER_GUIDE.html"
+                           class="nav-link">
+                            Project Structure
+                        </a>
+                    </li>
+
+                </ul>
+            </div>
+
+            <div class="nav-group">
+                <h3 class="nav-group-title">Running Tests</h3>
+                <ul class="nav-group-pages">
+
+                    <li>
+                        <a href="RUNNING_TESTS.html"
+                           class="nav-link">
+                            Running the tests
+                        </a>
+                    </li>
+
+                    <li>
+                        <a href="INSTALL_AND_UPGRADE.html"
+                           class="nav-link">
+                            Install openshift-virtualization tests
+                        </a>
+                    </li>
+
+                    <li>
+                        <a href="MULTIARCH.html"
+                           class="nav-link">
+                            Multi-Architecture (Heterogeneous) Clusters
+                        </a>
+                    </li>
+
+                    <li>
+                        <a href="CONTAINERIZE_TESTS.html"
+                           class="nav-link">
+                            Building and pushing openshift-virtualization-tests container image
+                        </a>
+                    </li>
+
+                </ul>
+            </div>
+
+            <div class="nav-group">
+                <h3 class="nav-group-title">Guidelines</h3>
+                <ul class="nav-group-pages">
+
+                    <li>
+                        <a href="CODING_AND_STYLE_GUIDE.html"
+                           class="nav-link active" aria-current="page">
+                            Coding standards
+                        </a>
+                    </li>
+
+                    <li>
+                        <a href="CODE_ORGANIZATION.html"
+                           class="nav-link">
+                            Code Organization
+                        </a>
+                    </li>
+
+                    <li>
+                        <a href="QUARANTINE_GUIDELINES.html"
+                           class="nav-link">
+                            OpenShift Virtualization Test Stability, Quarantine and De-quarantine Guidelines
+                        </a>
+                    </li>
+
+                    <li>
+                        <a href="SOFTWARE_TEST_DESCRIPTION.html"
+                           class="nav-link">
+                            Software Test Description
+                        </a>
+                    </li>
+
+                </ul>
+            </div>
+
+            <div class="nav-group">
+                <h3 class="nav-group-title">Reference</h3>
+                <ul class="nav-group-pages">
+
+                    <li>
+                        <a href="ARCHITECTURE_SUPPORT.html"
+                           class="nav-link">
+                            Test Images Architecture Support
+                        </a>
+                    </li>
+
+                    <li>
+                        <a href="OWNERS.html"
+                           class="nav-link">
+                            OWNERS files
+                        </a>
+                    </li>
+
+                    <li>
+                        <a href="MAINTAINER_GUIDELINES.html"
+                           class="nav-link">
+                            Maintainer (Approver) Guidelines
+                        </a>
+                    </li>
+
+                    <li>
+                        <a href="AI_CONTRIBUTION_POLICY.html"
+                           class="nav-link">
+                            AI Contribution Policy
+                        </a>
+                    </li>
+
+                </ul>
+            </div>
+
+        </nav>
+    </aside>
+
+    <div class="main-wrapper">
+        <header class="top-bar">
+            <div class="top-bar-left">
+                <button class="sidebar-toggle" id="sidebar-toggle" aria-label="Toggle sidebar" aria-expanded="false">
+                    <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                        <path d="M3 5h14M3 10h14M3 15h14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                    </svg>
+                </button>
+                <a href="index.html" class="top-bar-title">openshift-virtualization-tests</a>
+            </div>
+            <div class="top-bar-spacer"></div>
+            <div class="top-bar-right">
+                <button class="top-bar-search-btn" id="search-trigger" aria-label="Search">
+                    <kbd>&#8984;K</kbd> Search
+                </button>
+                <a href="https://github.com/rnetser/openshift-virtualization-tests" target="_blank" rel="noopener" class="docsite-badge" title="documentation">
+                    ⚡ pi<span class="brand-accent">-docsite</span>
+                </a>
+
+                <a href="https://github.com/rnetser/openshift-virtualization-tests" target="_blank" rel="noopener noreferrer" class="top-bar-github" id="github-link" data-repo-url="https://github.com/rnetser/openshift-virtualization-tests">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
+                    <span class="github-stars" id="github-stars" title="GitHub stars"></span>
+                </a>
+
+                <button class="theme-toggle" id="theme-toggle" aria-label="Toggle theme">
+                    <svg class="icon-sun" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                        <circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+                    </svg>
+                    <svg class="icon-moon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                        <path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/>
+                    </svg>
+                </button>
+            </div>
+        </header>
+
+        <main class="content">
+
+            <article class="article">
+                <div class="article-body">
+                    <!-- SECURITY: |safe is intentional. Content is AI-generated markdown
+                         converted to HTML server-side by the markdown library, not
+                         user-supplied input. XSS risk is minimal and accepted since
+                         the AI generates the content, not end users. -->
+                    <h2 id="general">General</h2>
+<ul>
+<li>Remember <a href="https://www.python.org/dev/peps/pep-0020/">The Zen of Python</a></li>
+<li>The repository styleguide is based on the <a href="https://google.github.io/styleguide/pyguide.html">Google Python Style Guide</a>.</li>
+<li>The repository uses <a href="https://pre-commit.com/">pre-commit</a> to enforce the styleguide.</li>
+</ul>
+<h2 id="documentation">Documentation</h2>
+<ul>
+<li>Use <a href="https://google.github.io/styleguide/pyguide.html#381-docstrings">Google-format</a> for docstrings.</li>
+<li>Add docstrings to document functions, classes, and modules.</li>
+<li>Avoid inline comments; Write self-explanatory code that can be easily understood.
+Only add comments when necessary. For example, when using complex regex.</li>
+</ul>
+<h2 id="typing">Typing</h2>
+<ul>
+<li>Add typing to new code; typing is enforced using <a href="https://mypy-lang.org/">mypy</a></li>
+<li>Rules are defined in <a href="../pyproject.toml#L10">pyproject.toml</a></li>
+<li>For more information, see <a href="https://docs.python.org/3/library/typing.html">typing</a></li>
+</ul>
+<h1 id="coding-standards">Coding standards</h1>
+<ul>
+<li>Reduce duplicate code, before writing new function search for it, probably someone already wrote it or one that should serve your needs.</li>
+<li>
+<p>The project uses external packages that may already have a functionality that does what you need.
+    To see the available packages, see the <a href="../pyproject.toml">pyproject.toml</a> file.</p>
+</li>
+<li>
+<p>Variables:</p>
+</li>
+<li>When using a variable more than once, save it and reuse.</li>
+<li>Use descriptive names for tests, variables, functions, classes, etc.</li>
+<li>Meaningful names are better than short names.</li>
+<li>Do not use single-letter names.</li>
+<li>When applicable, to reduce load and unnecessary calls, use <a href="https://docs.python.org/3/library/functools.html#functools.cache">caching</a>.</li>
+<li>avoid saving object attributes to variables, but rather use them directly.</li>
+<li>Example:
+  ```python
+  # Bad
+  myattribute = foo.myattribute
+  my_func(arg1=myattribute)</li>
+</ul>
+<p># Good
+  my_func(arg1=foo.myattribute)
+  ```</p>
+<ul>
+<li>Keep functions and fixtures close to where they're used, if needed to move them later for more modules to use them.  See <a href="#directory-structure">Directory structure</a> for more information.</li>
+<li>Call functions using argument names to make it clear what is being passed and easier refactoring.</li>
+<li>Imports: Always use absolute paths</li>
+<li>
+<p>Imports: when possible, avoid importing a module but rather import specific functions.  This should not come at the expense of readability and context.
+  If needed, import the module and use the module name to call the function.</p>
+</li>
+<li>
+<p>Do not import from <code>conftest.py</code> files. These files must contain fixtures only and not utility functions, constants, etc.</p>
+</li>
+<li>Scopes and encapsulation:</li>
+<li>Use closures and nested functions only when it solves a problem that has no other elegant solution.</li>
+<li>Avoid using nested functions to implement encapsulation and scope "protection."</li>
+<li>When there is a need to preserve the state, have encapsulation or scope protection, use classes.</li>
+<li>Code extensibility should not come at the expense of readability; remember that someone else will need to look/use/maintain the code.</li>
+<li>Avoid complex solutions when there is no explicit-foreseen use case ahead.</li>
+<li>Keep focus on current requirements; do not prepare code for the future just because it may be useful.</li>
+<li>Reason well for code structure when it is not obvious</li>
+<li>Every function, variable, fixture, etc. written in the code - must be used, or else removed.</li>
+<li>Log enough to make you debug and understand the flow easy, but do not spam the log with unhelpful info.
+    Error logs should be detailed with what failed, status and so on.</li>
+</ul>
+<h2 id="directory-structure">Directory structure</h2>
+<ul>
+<li>Each feature should have its own subdirectory under the relevant component's subdirectory. Directories should be named according to the feature.</li>
+<li>To improved readability, easier navigation, and maintenance:</li>
+<li>Feature tests can be split into multiple files.</li>
+<li>Feature tests can be split into multiple subdirectories.</li>
+<li>
+<p>Tests are to be placed in <code>test_&lt;functionality&gt;.py</code> file; this is where the actual tests are written.
+  <code>&lt;functionality_name&gt;</code> describes the functionality tested in this test file.</p>
+</li>
+<li>
+<p>If helper utils are needed, they should be placed in the test's subdirectory.</p>
+</li>
+<li>If specific fixtures are needed, they should be placed in a <code>conftest.py</code> file under the test's subdirectory, or in <a href="../tests/fixtures/"><code>tests/fixtures/</code></a> when shared across teams — see <a href="CODE_ORGANIZATION.md#fixtures-testsfixtures-and-conftestpy">Code Organization</a>.</li>
+</ul>
+<h2 id="conftest">conftest</h2>
+<p>See <a href="CODE_ORGANIZATION.md#fixtures-testsfixtures-and-conftestpy">Code Organization</a> for the full fixture layout.</p>
+<ul>
+<li>Top level <a href="../conftest.py">conftest.py</a> contains pytest hooks and <code>pytest_plugins</code> registration.</li>
+<li>General tests <a href="../tests/conftest.py">conftest.py</a> contains fixtures that are used in multiple tests by multiple teams.</li>
+<li>Shared fixture implementations belong in <a href="../tests/fixtures/"><code>tests/fixtures/&lt;team&gt;/&lt;topic&gt;.py</code></a> and are registered via <code>pytest_plugins</code> in the root <code>conftest.py</code>.</li>
+<li>If needed, create new <code>conftest.py</code> files in the relevant directories for feature-local fixtures only.</li>
+</ul>
+<h2 id="fixtures">Fixtures</h2>
+<ul>
+<li>Ordering: Always call pytest native fixtures first, then session-scoped fixtures and then any other fixtures.</li>
+<li>Fixtures should handle setup (and the teardown, if needed) needed for the test(s), including the creation of resources, for example.</li>
+<li>Tests which call fixtures but without using their return value should be called using <code>@pytest.mark.usefixtures(&lt;fixture name&gt;)</code></li>
+<li>Fixtures should do one action/functionality only.
+For example, instead of:</li>
+</ul>
+<div class="highlight"><pre><span></span><code><span class="nd">@pytest</span><span class="o">.</span><span class="n">fixture</span><span class="p">()</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">network_vm</span><span class="p">():</span>
+    <span class="k">with</span> <span class="n">NetworkAttachmentDefinition</span><span class="p">(</span><span class="n">name</span><span class="o">=...</span><span class="p">)</span> <span class="k">as</span> <span class="n">nad</span><span class="p">:</span>
+      <span class="k">with</span> <span class="n">VirtualMachine</span><span class="p">(</span><span class="n">name</span><span class="o">=..</span><span class="p">)</span> <span class="k">as</span> <span class="n">vm</span><span class="p">:</span>
+        <span class="k">yield</span> <span class="n">vm</span>
+</code></pre></div>
+
+<p>Do:</p>
+<div class="highlight"><pre><span></span><code><span class="nd">@pytest</span><span class="o">.</span><span class="n">fixture</span><span class="p">()</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">network_attachment_definition</span><span class="p">():</span>
+    <span class="k">with</span> <span class="n">NetworkAttachmentDefinition</span><span class="p">(</span><span class="n">name</span><span class="o">=...</span><span class="p">)</span> <span class="k">as</span> <span class="n">nad</span><span class="p">:</span>
+      <span class="k">yield</span> <span class="n">nad</span>
+
+<span class="nd">@pytest</span><span class="o">.</span><span class="n">fixture</span><span class="p">(</span><span class="n">network_attachment_definition</span><span class="p">)</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">model_inference_service</span><span class="p">(</span><span class="n">network_attachment_definition</span><span class="p">):</span>
+    <span class="k">with</span> <span class="n">VirtualMachine</span><span class="p">(</span><span class="n">name</span><span class="o">=..</span><span class="p">)</span> <span class="k">as</span> <span class="n">vm</span><span class="p">:</span>
+        <span class="k">yield</span> <span class="n">vm</span>
+</code></pre></div>
+
+<ul>
+<li>Pytest reports failures in fixtures as <code>ERROR</code></li>
+<li>A fixture name should be a noun that describes what the fixture provides (i.e., returns or yields), rather than a verb.
+For example:</li>
+<li>If a test needs a storage secret, the fixture should be called 'storage_secret' and not 'create_secret'.</li>
+<li>If a test needs a directory to store user data, the fixture should be called 'user_data_dir' and not 'create_directory'.</li>
+<li>If there's more than one fixture with the same functionality, but with a different scope, add <code>_scope_&lt;scope&gt;</code> as a suffix to the fixture name.`</li>
+<li>
+<p>Note fixture scope, test execution times can be reduced by selecting the right scope.
+Pytest default fixture invocation is "function", meaning the code in the fixture will be executed every time the fixture is called.
+Broader scopes (class, module etc) will invoke the code only once within the given scope and all tests within the scope will use the same instance.</p>
+</li>
+<li>
+<p>Use request.param to pass parameters from test/s to fixtures; use a dict structure for readability.  For example:</p>
+</li>
+</ul>
+<div class="highlight"><pre><span></span><code>@pytest.mark.parametrize(
+  "my_secret",
+    [
+      pytest.param({"name": "my-secret", "data-dict": {"key": "value"}}}),
+    ]
+  )
+def test_secret(my_secret):
+    pass
+
+@pytest.fixture()
+def my_secret(request):
+  secret = Secret(name=request.param["name"], data_dict=request.param["data-dict"])
+</code></pre></div>
+
+<h2 id="tests">Tests</h2>
+<ul>
+<li>Pytest reports test failures as <code>FAILED</code>.</li>
+<li>Each test should have a clear purpose and should be easy to understand.</li>
+<li>Each test should verify a single aspect of the product.</li>
+<li>Preferably, each test should be independent of other tests.</li>
+<li>When there's a dependency between tests use pytest dependency plugin to mark the relevant hierarchy between tests (https://github.com/RKrahl/pytest-dependency)</li>
+<li>
+<p>When adding a new test, apply relevant marker(s) which may apply.
+  Check <a href="../pytest.ini">pytest.ini</a> for available markers; additional markers can always be added when needed.</p>
+</li>
+<li>
+<p>Classes are good to group related tests together, for example, when they share a fixture.
+  You should NOT group unrelated tests in one class (because it is misleading the reader).</p>
+</li>
+</ul>
+                </div>
+            </article>
+            <nav class="page-nav">
+
+                <a href="CONTAINERIZE_TESTS.html" class="page-nav-link page-nav-prev">
+                    <span class="page-nav-label">Previous</span>
+                    <span class="page-nav-title">Building and pushing openshift-virtualization-tests container image</span>
+                </a>
+
+
+                <a href="CODE_ORGANIZATION.html" class="page-nav-link page-nav-next">
+                    <span class="page-nav-label">Next</span>
+                    <span class="page-nav-title">Code Organization</span>
+                </a>
+
+            </nav>
+
+            <aside class="toc-sidebar">
+                <div class="toc-container">
+                    <h3>On this page</h3>
+                    <div class="toc">
+<ul>
+<li><a href="#general">General</a></li>
+<li><a href="#documentation">Documentation</a></li>
+<li><a href="#typing">Typing</a></li>
+<li><a href="#directory-structure">Directory structure</a></li>
+<li><a href="#conftest">conftest</a></li>
+<li><a href="#fixtures">Fixtures</a></li>
+<li><a href="#tests">Tests</a></li>
+</ul>
+</div>
+
+                </div>
+            </aside>
+
+
+        </main>
+
+        <footer class="page-footer">
+
+            Built from <code>docs/*.md</code> by <code>pi-docsite</code>
+            <span class="footer-sep">&middot;</span>
+            <span class="footer-llm">LLM-friendly: <a href="llms.txt">llms.txt</a> &middot; <a href="llms-full.txt">llms-full.txt</a></span>
+        </footer>
+    </div>
+
+    <div class="sidebar-overlay" id="sidebar-overlay"></div>
+
+    <script src="assets/theme.js?v=66bf87bdd9"></script>
+
+    <script src="assets/search.js?v=66bf87bdd9"></script>
+    <script src="assets/copy.js?v=66bf87bdd9"></script>
+    <script src="assets/callouts.js?v=66bf87bdd9"></script>
+    <script src="assets/scrollspy.js?v=66bf87bdd9"></script>
+    <script src="assets/codelabels.js?v=66bf87bdd9"></script>
+    <script src="assets/github.js?v=66bf87bdd9"></script>
+    <script>
+(function() {
+    var toggle = document.getElementById('sidebar-toggle');
+    var sidebar = document.getElementById('sidebar');
+    var overlay = document.getElementById('sidebar-overlay');
+    if (toggle && sidebar) {
+        toggle.addEventListener('click', function() {
+            sidebar.classList.toggle('open');
+            if (overlay) overlay.classList.toggle('open');
+            var expanded = sidebar.classList.contains('open');
+            toggle.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+        });
+    }
+    if (overlay) {
+        overlay.addEventListener('click', function() {
+            sidebar.classList.remove('open');
+            overlay.classList.remove('open');
+            if (toggle) toggle.setAttribute('aria-expanded', 'false');
+        });
+    }
+})();
+</script>
+<script>
+(function() {
+    var sidebar = document.querySelector('.sidebar-nav') || document.querySelector('.sidebar');
+    if (!sidebar) return;
+
+    // Restore scroll position
+    var saved = sessionStorage.getItem('sidebar-scroll');
+    if (saved) sidebar.scrollTop = parseInt(saved, 10);
+
+    // Save scroll position before navigating
+    sidebar.addEventListener('scroll', function() {
+        sessionStorage.setItem('sidebar-scroll', sidebar.scrollTop.toString());
+    });
+
+    // Also scroll active link into view if no saved position
+    if (!saved) {
+        var active = sidebar.querySelector('.nav-link.active');
+        if (active) {
+            active.scrollIntoView({ block: 'center', behavior: 'instant' });
+        }
+    }
+})();
+</script>
+<!-- generated by pi-docsite -->
+</body>
+</html>

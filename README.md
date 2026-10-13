@@ -13,6 +13,11 @@ Browse the full [**Documentation Site**](https://redhatqe.github.io/openshift-vi
 
 For developer and contributor docs, see the [docs/](docs/) directory.
 
+The documentation site is generated from the Markdown sources by
+[pi-docsite](https://pypi.org/project/pi-docsite/). After changing `docs/*.md` or
+`docs/nav.json`, the pre-commit hook regenerates and stages the site automatically
+on commit (manual: `scripts/regen_docs.sh`).
+
 ## Getting started and running the tests
 Please follow the [Getting Started Guide](docs/GETTING_STARTED.md) and [Run the tests](docs/RUNNING_TESTS.md) on how to run the tests.
 
