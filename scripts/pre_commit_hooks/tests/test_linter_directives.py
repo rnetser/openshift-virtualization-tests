@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from textwrap import dedent
 
 from pytest import mark, raises
 
@@ -419,3 +420,66 @@ approval_url = "https://github.com/example/review/9"
 
     assert len(violations) == 1, "a copied suppression must require its own exception record"
     assert violations[0].line_number == 1, "the copied directive must identify its own source line"
+
+
+def test_manifest_update_skips_staged_source_that_fails_to_parse() -> None:
+    """A staged file with malformed Python is skipped instead of crashing the check."""
+    violations = check_manifest_update(
+        indexed_source="exceptions = []\n",
+        head_source=None,
+        staged_sources={Path("utilities/broken.py"): ("def broken(:\n", None)},
+    )
+
+    assert violations == [], "malformed staged source must be skipped without raising"
+
+
+def test_manifest_update_rejects_retained_record_for_renamed_away_path() -> None:
+    """A rename must not leave the approved record for the old path behind."""
+    indexed_source = dedent(
+        """
+        [[exceptions]]
+        rule = "noqa"
+        path = "utilities/old_name.py"
+        directive = "# noqa: E123"
+        source_fingerprint = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        reason = "approved exception"
+        approval_url = "https://example.com/approval"
+        """
+    )
+    head_source = indexed_source
+
+    violations = check_manifest_update(
+        indexed_source=indexed_source,
+        head_source=head_source,
+        staged_sources={Path("utilities/new_name.py"): ("print('x')\n", None)},
+        renamed_away_paths=frozenset({Path("utilities/old_name.py")}),
+    )
+
+    assert [violation.message for violation in violations] == [
+        "linter-directives: this path was renamed; remove the obsolete exception record for utilities/old_name.py"
+    ], "retaining the old-path record across a rename must fail policy"
+
+
+def test_manifest_update_allows_obsolete_record_for_ordinary_deletion() -> None:
+    """Records for paths deleted outright remain ordinary cleanup territory."""
+    indexed_source = dedent(
+        """
+        [[exceptions]]
+        rule = "noqa"
+        path = "utilities/gone.py"
+        directive = "# noqa: E123"
+        source_fingerprint = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        reason = "approved exception"
+        approval_url = "https://example.com/approval"
+        """
+    )
+    head_source = indexed_source
+
+    violations = check_manifest_update(
+        indexed_source=indexed_source,
+        head_source=head_source,
+        staged_sources={},
+        renamed_away_paths=frozenset(),
+    )
+
+    assert violations == [], "a record for a deleted path must not be flagged as a rename leftover"

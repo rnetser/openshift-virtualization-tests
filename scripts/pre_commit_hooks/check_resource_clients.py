@@ -227,9 +227,12 @@ def imported_module_names(
 
     Args:
         tree: Parsed Python module.
+        module_name: Absolute module name of ``tree``, used to resolve
+            relative imports to their absolute candidate module names.
 
     Returns:
-        Imported module names, excluding relative imports.
+        Imported module names; relative imports are resolved to their
+        absolute candidate module names rather than excluded.
     """
     modules: set[tuple[str, ...]] = set()
     for node in _scope_statements(statements=tree.body):

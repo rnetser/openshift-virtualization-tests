@@ -11,6 +11,10 @@ from pytest import MonkeyPatch, fail, mark
 from scripts.pre_commit_hooks import check_policy
 from scripts.pre_commit_hooks.check_policy import (
     _added_lines_by_path,
+    _diff_header_path,
+    _git_header_token,
+    _git_quoted_token,
+    _git_unquote,
     _parse_staged_entries,
     _parse_staged_status,
     _staged_changes,
@@ -957,6 +961,8 @@ diff --git a/second.py b/second.py
 
     def mocked_run_command(**kwargs):
         command = kwargs["command"]
+        if command[:3] == ["git", "ls-files", "--stage"]:
+            return True, "", ""
         if "--name-status" in command:
             return True, "M\0first.py\0M\0second.py\0", ""
         if command[:2] == ["git", "diff"]:
@@ -993,6 +999,8 @@ index 0000000..1111111 100644
 
     def run_command(**kwargs):
         command = kwargs["command"]
+        if command[:3] == ["git", "ls-files", "--stage"]:
+            return True, "", ""
         if "--name-status" in command:
             return True, "M\0example.py\0", ""
         if command[:2] == ["git", "diff"]:
@@ -1026,6 +1034,8 @@ index 0000000..1111111 100644
 
     def run_command(**kwargs):
         command = kwargs["command"]
+        if command[:3] == ["git", "ls-files", "--stage"]:
+            return True, "", ""
         if "--name-status" in command:
             return True, "M\0example.py\0", ""
         if command[:2] == ["git", "diff"]:
@@ -1081,6 +1091,8 @@ index 0000000..1111111 100644
 
     def run_command(**kwargs):
         command = kwargs["command"]
+        if command[:3] == ["git", "ls-files", "--stage"]:
+            return True, "", ""
         if "--name-status" in command:
             return True, f"M\0{path}\0", ""
         if command[:2] == ["git", "diff"]:
@@ -1100,6 +1112,32 @@ index 0000000..1111111 100644
     assert main(arguments=[path]) == 1, "quoted staged path violation should make the check fail"
 
 
+def test_main_fails_closed_when_diff_header_cannot_be_mapped(monkeypatch: MonkeyPatch) -> None:
+    """A staged file whose diff header is unmappable is checked on every line."""
+    path = "example.py"
+    staged_source = "value = 1\npytest.skip(reason='legacy')\n"
+
+    def run_command(**kwargs):
+        command = kwargs["command"]
+        if command[:3] == ["git", "ls-files", "--stage"]:
+            return True, "", ""
+        if "--name-status" in command:
+            return True, f"M\0{path}\0", ""
+        if command[:2] == ["git", "diff"]:
+            return True, 'diff --git "a/unterminated\n', ""
+        if command[:2] == ["git", "show"] and command[-1] == f":0:{path}":
+            return True, staged_source, ""
+        if command[:2] == ["git", "show"] and command[-1] == f"HEAD:{path}":
+            return True, staged_source, ""
+        if command[:2] == ["git", "show"] and command[-1].endswith("exceptions.toml"):
+            return True, "exceptions = []\n", ""
+        fail(f"unexpected command: {command}")
+
+    monkeypatch.setattr(target=check_policy, name="run_command", value=run_command)
+
+    assert main(arguments=[path]) == 1, "unmappable diffs must check every staged line, not skip them"
+
+
 def test_added_lines_parser_ignores_header_like_added_source() -> None:
     """Added source resembling a file header cannot redirect diff parsing."""
     diff = """diff --git a/example.py b/example.py
@@ -1113,6 +1151,62 @@ index 0000000..1111111 100644
 
     assert _added_lines_by_path(diff=diff) == {Path("example.py"): frozenset({1, 2})}, (
         "header-like added source should not redirect parsing"
+    )
+
+
+def test_added_lines_parser_maps_rename_only_diffs() -> None:
+    """An exact-rename diff maps its target with no added lines."""
+    diff = """diff --git a/old.py b/renamed.py
+similarity index 100%
+rename from old.py
+rename to renamed.py
+"""
+
+    assert _added_lines_by_path(diff=diff) == {Path("renamed.py"): frozenset()}, (
+        "a resolvable rename header must map the target path instead of leaving it unmappable"
+    )
+
+
+def test_git_unquote_decodes_c_quoted_paths() -> None:
+    """C-quoted paths decode to their raw characters, including octal bytes."""
+    assert _git_unquote(quoted='"\\303\\251.py"') == "é.py", "octal byte escapes must decode to UTF-8 characters"
+    assert _git_unquote(quoted='"tab\\there"') == "tab\there", "simple escapes must decode"
+    assert _git_unquote(quoted='"quote\\" and backslash\\\\"') == 'quote" and backslash\\', (
+        "escaped quotes and backslashes must decode"
+    )
+    assert _git_unquote(quoted="bare.py") == "bare.py", "unquoted paths pass through unchanged"
+
+
+def test_git_unquote_preserves_invalid_utf8_bytes() -> None:
+    """Invalid UTF-8 bytes survive decoding instead of collapsing to U+FFFD."""
+    assert _git_unquote(quoted='"\\377"') == "\udcff", "undecodable bytes must round-trip via surrogateescape"
+
+
+def test_git_quoted_token_splits_and_rejects_malformed_tokens() -> None:
+    """Quoted tokens split on their closing quote and reject unterminated quotes."""
+    assert _git_quoted_token(text='"a\\"b" rest') == ('"a\\"b"', " rest"), "escaped quotes must not terminate the token"
+    assert _git_quoted_token(text='"unterminated') is None, "unterminated quotes must be rejected"
+
+
+def test_git_header_token_splits_bare_and_quoted_tokens() -> None:
+    """Header tokens split on spaces when bare and on quotes when quoted."""
+    assert _git_header_token(text="b/plain.py") == ("b/plain.py", ""), "bare tokens run to the end"
+    assert _git_header_token(text='"b/qu oted.py" tail') == ('"b/qu oted.py"', " tail"), (
+        "quoted tokens may contain spaces"
+    )
+
+
+def test_diff_header_path_decodes_each_side_independently() -> None:
+    """Mixed quoted and bare header paths both resolve to the target path."""
+    assert _diff_header_path(diff_line='diff --git "a/ol\\303\\251.py" b/plain.py') == Path("plain.py"), (
+        "a quoted old path with a bare new path must resolve"
+    )
+    assert _diff_header_path(diff_line='diff --git a/plain.py "b/ne\\303\\251.py"') == Path("neé.py"), (
+        "a bare old path with a quoted new path must decode the target"
+    )
+    assert _diff_header_path(diff_line="diff --git a/x.py b/y.py") == Path("y.py"), "bare headers must resolve"
+    assert _diff_header_path(diff_line='diff --git "a/unterminated b/y.py') is None, (
+        "unterminated quoted headers must be rejected"
     )
 
 
@@ -1226,20 +1320,15 @@ def test_staged_entries_preserve_rename_baseline_but_not_copy_baseline() -> None
 
 def test_staged_status_models_deleted_paths() -> None:
     """Name-status parsing keeps deleted paths explicit, including renames."""
-    paths, deleted_paths = _parse_staged_status(
-        "M\0keep.py\0D\0gone.py\0R100\0old.py\0new.py\0C100\0source.py\0copy.py\0"
-    )
+    deleted_paths = _parse_staged_status("M\0keep.py\0D\0gone.py\0R100\0old.py\0new.py\0C100\0source.py\0copy.py\0")
 
-    assert paths == {Path(path) for path in ("keep.py", "gone.py", "old.py", "new.py", "source.py", "copy.py")}, (
-        "status parsing should retain all paths named by Git, including a copy source"
-    )
     assert deleted_paths == {Path(path) for path in ("gone.py", "old.py")}, (
         "status parsing should retain deleted paths, including renamed sources"
     )
 
 
 def test_staged_status_parsing_is_independent_of_git_entry_order() -> None:
-    """Status parsing returns the same path sets regardless of Git entry order."""
+    """Status parsing returns the same deleted-path set regardless of entry order."""
     first = _parse_staged_status(status_output="M\0first.py\0D\0second.py\0")
     second = _parse_staged_status(status_output="D\0second.py\0M\0first.py\0")
 
@@ -1701,3 +1790,73 @@ def test_check_python_source_preserves_shadowing_after_wildcard_pytest_import() 
     assert _violation_signatures(check_python_source(file_path=Path("example.py"), source=source)) == [
         (4, "pytest.skip() is forbidden")
     ], "wildcard imports must retain lexical shadowing behavior"
+
+
+def test_git_unquote_preserves_raw_surrogate_characters() -> None:
+    """A raw surrogate character in a quoted token round-trips without crashing."""
+    assert _git_unquote(quoted='"\udcff.py"') == "\udcff.py", (
+        "raw surrogate characters must survive decoding instead of raising UnicodeEncodeError"
+    )
+
+
+def test_added_lines_parser_counts_only_physical_newlines() -> None:
+    """Unicode line separators inside diff content must not shift line numbers."""
+    diff = (
+        "diff --git a/tests/network/test_example.py b/tests/network/test_example.py\n"
+        "--- a/tests/network/test_example.py\n"
+        "+++ b/tests/network/test_example.py\n"
+        "@@ -1,2 +1,3 @@\n"
+        "+text = 'before\u2028after'\n"
+        "+pytest.skip(reason='hidden')\n"
+        "+value = 1\n"
+    )
+
+    added_lines = _added_lines_by_path(diff=diff)
+
+    assert added_lines[Path("tests/network/test_example.py")] == frozenset({1, 2, 3}), (
+        "only physical newline characters may delimit diff lines; a Unicode line separator "
+        "inside added content must not drift subsequent line numbers"
+    )
+
+
+def test_changed_alias_binding_activates_requirement_marker_check() -> None:
+    """Changing an alias binding activates the requirement check at its unchanged application."""
+    source = dedent(
+        """
+        import pytest
+
+        marker = pytest.mark.sriov
+
+        @marker
+        def test_sriov_feature():
+            assert value, "value must be true"
+        """
+    )
+
+    violations = check_python_source(
+        file_path=Path("tests/network/test_example.py"),
+        source=source,
+        added_lines={4},
+    )
+
+    assert violations, "a changed alias binding must activate the requirement-marker check at its application"
+
+
+def test_branch_ambiguous_alias_does_not_satisfy_requirement() -> None:
+    """An alias whose binding is branch-dependent provides no marker coverage."""
+    source = dedent(
+        """
+        import pytest
+
+        special = pytest.mark.special_infra if condition else pytest.mark.smoke
+
+        @special
+        @pytest.mark.sriov
+        def test_sriov_feature():
+            assert value, "value must be true"
+        """
+    )
+
+    violations = check_python_source(file_path=Path("tests/network/test_example.py"), source=source)
+
+    assert violations, "a branch-ambiguous alias must not satisfy the marker requirement"

@@ -5,42 +5,60 @@ from __future__ import annotations
 from ast import (
     AST,
     Add,
+    AnnAssign,
     Assert,
+    Assign,
     AsyncFor,
     AsyncFunctionDef,
     AsyncWith,
     Attribute,
+    AugAssign,
     Await,
     BinOp,
     Call,
     ClassDef,
     Compare,
     Constant,
+    Delete,
     DictComp,
     Eq,
+    For,
     FormattedValue,
     FunctionDef,
     GeneratorExp,
+    If,
     ImportFrom,
     JoinedStr,
+    List,
     ListComp,
+    Load,
+    Match,
     Module,
     Name,
     NotEq,
+    Set,
     SetComp,
+    Starred,
+    Try,
+    TryStar,
+    Tuple,
+    While,
+    With,
     arguments,
+    expr,
     iter_child_nodes,
     parse,
+    stmt,
     walk,
 )
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from scripts.pre_commit_hooks.ast_names import simple_name_resolver
+from scripts.pre_commit_hooks.ast_names import simple_name_resolver, walrus_bound_names
 from scripts.pre_commit_hooks.policy_types import PolicyViolation
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Collection, Iterable
+    from collections.abc import Callable, Collection, Iterable, Iterator
 
     from scripts.pre_commit_hooks.ast_names import NameResolver
 
@@ -52,6 +70,27 @@ _UNKNOWN_CONSTANT = object()
 _MAX_CONSTANT_DEPTH = 12
 _MAX_CONSTANT_STRING_LENGTH = 4_096
 _MAX_CONSTANT_INTEGER_BITS = 256
+# Markers that require @pytest.mark.special_infra per AGENTS.md ("special_infra
+# marker REQUIRED for special hardware/configuration"). Keep in sync with the
+# AGENTS.md list and pytest.ini marker definitions.
+_SPECIAL_INFRA_REQUIRED_MARKERS = frozenset({
+    "gpu",
+    "sriov",
+    "bgp",
+    "ibm_bare_metal",
+    "dpdk",
+    "swap",
+    "cpu_manager",
+    "numa",
+    "hugepages",
+    "jumbo_frame",
+    "rwx_default_storage",
+    "descheduler",
+    "high_resource_vm",
+})
+_SPECIAL_INFRA_MESSAGE = (
+    "test-basics: marker {marker} requires @pytest.mark.special_infra at module, class, or test level"
+)
 
 
 def _resolve_constant_expression(node: AST, depth: int = 0) -> object:
@@ -238,6 +277,279 @@ class _BasicsVisitor:
         self._visit(node=tree)
 
 
+def _expression_marker_chains(expression: AST, resolver: NameResolver) -> set[tuple[str, ...]]:
+    """Resolve marker chains an expression applies directly and unconditionally.
+
+    Only the decorated call target, marker-list elements, and plain marker
+    references count. Conditional expressions (ternaries, boolean operators)
+    and markers nested inside call arguments are not direct applications, so
+    they provide no coverage (fail closed).
+    """
+    if isinstance(expression, Call):
+        return _expression_marker_chains(expression=expression.func, resolver=resolver)
+    if isinstance(expression, (List, Set, Tuple)):
+        chains: set[tuple[str, ...]] = set()
+        for element in expression.elts:
+            chains.update(_expression_marker_chains(expression=element, resolver=resolver))
+        return chains
+    if isinstance(expression, Attribute) or (isinstance(expression, Name) and isinstance(expression.ctx, Load)):
+        element_chains = resolver(node=expression)
+        if len(element_chains) > 1:
+            # A branch-dependent binding may resolve to a different marker at
+            # runtime; the element provides no coverage (fail closed).
+            return set()
+        return set(element_chains)
+    return set()
+
+
+def _direct_application_nodes(expression: AST) -> Iterator[Name | Attribute]:
+    """Yield nodes that directly apply markers for ``expression``.
+
+    Mirrors :func:`_expression_marker_chains`: the decorated call target,
+    marker-list elements, and plain marker references. Markers nested inside
+    call arguments are data, not applications, and are not yielded.
+    """
+    if isinstance(expression, Call):
+        yield from _direct_application_nodes(expression=expression.func)
+    elif isinstance(expression, (List, Set, Tuple)):
+        for element in expression.elts:
+            yield from _direct_application_nodes(expression=element)
+    elif isinstance(expression, Attribute) or (isinstance(expression, Name) and isinstance(expression.ctx, Load)):
+        yield expression
+
+
+def _has_dynamic_pytestmark_mutation(source_tree: Module, top_level: set[int]) -> bool:
+    """Return whether module-scope ``pytestmark`` is dynamically mutated.
+
+    Assignments nested in module-level control flow, walrus mutations, and
+    deletion make the effective marker set ambiguous, so module ``pytestmark``
+    coverage must fail closed. Function- and class-local ``pytestmark`` names
+    are ordinary variables and do not affect module coverage.
+    """
+
+    def statement_mutates(statement: stmt) -> bool:
+        if isinstance(statement, (AnnAssign, Assign, AugAssign)):
+            targets = statement.targets if isinstance(statement, Assign) else [statement.target]
+            if any("pytestmark" in _assignment_target_names(target=target) for target in targets):
+                return id(statement) not in top_level
+        if isinstance(statement, Delete):
+            if any("pytestmark" in _assignment_target_names(target=target) for target in statement.targets):
+                return True
+        # Walrus targets local to nested functions, lambdas, or classes are
+        # ordinary local variables; only module-scope mutations count.
+        return "pytestmark" in walrus_bound_names(node=statement)
+
+    def visit_statement(statement: stmt) -> bool:
+        if isinstance(statement, (AsyncFunctionDef, ClassDef, FunctionDef)):
+            return False
+        if statement_mutates(statement=statement):
+            return True
+        if isinstance(statement, (If, While)):
+            return any(visit_statement(statement=nested) for nested in [*statement.body, *statement.orelse])
+        if isinstance(statement, (AsyncFor, For)):
+            return any(visit_statement(statement=nested) for nested in statement.body)
+        if isinstance(statement, (Try, TryStar)):
+            nested_statements: list[stmt] = [*statement.body, *statement.orelse, *statement.finalbody]
+            for handler in statement.handlers:
+                nested_statements.extend(handler.body)
+            return any(visit_statement(statement=nested) for nested in nested_statements)
+        if isinstance(statement, With):
+            return any(visit_statement(statement=nested) for nested in statement.body)
+        if isinstance(statement, Match):
+            return any(visit_statement(statement=nested) for case in statement.cases for nested in case.body)
+        return False
+
+    return any(visit_statement(statement=statement) for statement in source_tree.body)
+
+
+def _scope_marker_chains(
+    node: AST,
+    parents: dict[AST, AST],
+    source_tree: Module,
+    resolver: NameResolver,
+) -> set[tuple[str, ...]]:
+    """Resolve the marker chains covering the scope of the given node.
+
+    Coverage follows the AGENTS.md rule: a marker is satisfied at module,
+    class, or test level. The returned chains come from the module-level
+    ``pytestmark`` assignment and from the decorators of the node's enclosing
+    test, class, and module scopes.
+
+    Args:
+        node: Node whose enclosing scopes are inspected.
+        parents: Parent map built from the module AST.
+        source_tree: Parsed Python module.
+        resolver: Alias-aware AST name resolver.
+
+    Returns:
+        Resolved marker chains that apply to the node's scope.
+    """
+    chains: set[tuple[str, ...]] = set()
+    effective_mark: AST | None = None
+    augmented_marks: list[AST] = []
+    top_level_mark_statements: set[int] = set()
+    for statement in source_tree.body:
+        if isinstance(statement, (AnnAssign, Assign, AugAssign)):
+            targets = statement.targets if isinstance(statement, Assign) else [statement.target]
+        else:
+            continue
+        if not any(isinstance(target, Name) and target.id == "pytestmark" for target in targets):
+            continue
+        top_level_mark_statements.add(id(statement))
+        if statement.value is None:
+            continue
+        if isinstance(statement, AugAssign):
+            # An augmented assignment extends the current marker list.
+            augmented_marks.append(statement.value)
+        else:
+            # A later plain assignment overwrites earlier ones, including any
+            # augmented extensions; only the effective value applies.
+            effective_mark = statement.value
+            augmented_marks = []
+    if _has_dynamic_pytestmark_mutation(source_tree=source_tree, top_level=top_level_mark_statements):
+        # A conditional or dynamic reassignment makes the effective module
+        # marker ambiguous; fail closed and drop module pytestmark coverage.
+        effective_mark = None
+        augmented_marks = []
+    if effective_mark is not None:
+        chains.update(_expression_marker_chains(expression=effective_mark, resolver=resolver))
+    for augmented_mark in augmented_marks:
+        chains.update(_expression_marker_chains(expression=augmented_mark, resolver=resolver))
+    scope: AST = node
+    while scope is not source_tree:
+        scope = parents[scope]
+        if isinstance(scope, (AsyncFunctionDef, ClassDef, FunctionDef)):
+            for decorator in scope.decorator_list:
+                chains.update(_expression_marker_chains(expression=decorator, resolver=resolver))
+    return chains
+
+
+def _assignment_target_names(target: expr) -> frozenset[str]:
+    """Return names bound by an assignment target, including destructuring.
+
+    Args:
+        target: Assignment target expression.
+
+    Returns:
+        Names the target binds; attribute and subscript targets bind nothing.
+    """
+    if isinstance(target, Name):
+        return frozenset({target.id})
+    if isinstance(target, Starred):
+        return _assignment_target_names(target=target.value)
+    if isinstance(target, (List, Tuple)):
+        names: set[str] = set()
+        for element in target.elts:
+            names.update(_assignment_target_names(target=element))
+        return frozenset(names)
+    return frozenset()
+
+
+def _marker_application_expressions(source_tree: Module) -> list[AST]:
+    """Collect expressions where pytest applies markers.
+
+    Markers are applied by decorators on tests and classes and by
+    module-scope ``pytestmark`` assignments (including augmented ones).
+    Function-local ``pytestmark`` names are ordinary variables, and alias
+    definitions such as ``sriov = pytest.mark.sriov`` are plain bindings —
+    neither is an application.
+    """
+    expressions: list[AST] = []
+    for node in walk(source_tree):
+        if isinstance(node, (AsyncFunctionDef, ClassDef, FunctionDef)):
+            expressions.extend(node.decorator_list)
+
+    def visit_statement(statement: stmt) -> None:
+        if isinstance(statement, (AsyncFunctionDef, ClassDef, FunctionDef)):
+            # Function and class bodies are separate scopes; a local
+            # ``pytestmark`` is an ordinary variable, not module metadata.
+            return
+        if isinstance(statement, (AnnAssign, Assign, AugAssign)):
+            targets = statement.targets if isinstance(statement, Assign) else [statement.target]
+            if statement.value is not None and any(
+                "pytestmark" in _assignment_target_names(target=target) for target in targets
+            ):
+                expressions.append(statement.value)
+            return
+        if isinstance(statement, (If, While)):
+            for nested in [*statement.body, *statement.orelse]:
+                visit_statement(statement=nested)
+        elif isinstance(statement, (AsyncFor, For)):
+            for nested in statement.body:
+                visit_statement(statement=nested)
+        elif isinstance(statement, (Try, TryStar)):
+            nested_statements: list[stmt] = [*statement.body, *statement.orelse, *statement.finalbody]
+            for handler in statement.handlers:
+                nested_statements.extend(handler.body)
+            for nested in nested_statements:
+                visit_statement(statement=nested)
+        elif isinstance(statement, Match):
+            for case in statement.cases:
+                for nested in case.body:
+                    visit_statement(statement=nested)
+        elif isinstance(statement, With):
+            for nested in statement.body:
+                visit_statement(statement=nested)
+
+    for statement in source_tree.body:
+        visit_statement(statement=statement)
+    return expressions
+
+
+def _special_infra_violations(
+    file_path: Path,
+    source_tree: Module,
+    resolver: NameResolver,
+    added_lines: Collection[int] | None,
+    dependency_intersects: NodeOrDependencyIntersects | None = None,
+) -> list[PolicyViolation]:
+    """Flag requirement markers added without the special_infra marker.
+
+    Tests declaring hardware, configuration, or resource requirement markers
+    (for example gpu, sriov, hugepages) must also carry
+    ``@pytest.mark.special_infra`` at module, class, or test level — the
+    marker must cover the requirement marker's own scope, not an unrelated
+    test in the same file. Only newly added marker applications are flagged
+    so legacy files can still be edited.
+
+    Args:
+        file_path: Repository-relative source path.
+        source_tree: Parsed Python module.
+        resolver: Alias-aware AST name resolver.
+        added_lines: Added index lines, or ``None`` to inspect all markers.
+
+    Returns:
+        Violations for added requirement markers lacking special_infra.
+    """
+    parents = {child: parent for parent in walk(source_tree) for child in iter_child_nodes(parent)}
+    intersects = dependency_intersects or (lambda node, dependency: _intersects(node=node, added_lines=added_lines))
+    violations: list[PolicyViolation] = []
+    for expression in _marker_application_expressions(source_tree=source_tree):
+        for node in _direct_application_nodes(expression=expression):
+            for chain in resolver(node=node):
+                if (
+                    len(chain) == 3
+                    and chain[:2] == ("pytest", "mark")
+                    and chain[2] in _SPECIAL_INFRA_REQUIRED_MARKERS
+                    and intersects(node, node)
+                ):
+                    covering_chains = _scope_marker_chains(
+                        node=node,
+                        parents=parents,
+                        source_tree=source_tree,
+                        resolver=resolver,
+                    )
+                    if not any(covering == ("pytest", "mark", "special_infra") for covering in covering_chains):
+                        violations.append(
+                            PolicyViolation(
+                                file_path=file_path,
+                                line_number=node.lineno,
+                                message=_SPECIAL_INFRA_MESSAGE.format(marker=chain[2]),
+                            )
+                        )
+    return violations
+
+
 def check_test_basics(
     file_path: Path,
     source: str,
@@ -247,7 +559,15 @@ def check_test_basics(
     tree: Module | None = None,
     node_or_dependency_intersects: NodeOrDependencyIntersects | None = None,
 ) -> list[PolicyViolation]:
-    """Check relative imports and scoped mechanical Python basics.
+    """Check relative imports, mechanical Python basics, and test marker policy.
+
+    Covers relative imports in all files, the scoped mechanical rules, and —
+    for files under ``tests/`` — the requirement-marker policy: a newly added
+    hardware/configuration/resource marker must be paired with
+    ``@pytest.mark.special_infra`` covering its module, class, or test scope.
+    Requirement-marker violations are filtered by added lines and by the
+    bindings their application sites depend on, so changing an alias that
+    supplies a marker re-checks its unchanged applications.
 
     Args:
         file_path: Repository-relative source path.
@@ -272,6 +592,16 @@ def check_test_basics(
         if isinstance(node, ImportFrom) and node.level > 0 and _intersects(node=node, added_lines=added_lines)
     ]
     resolver = resolve_name or simple_name_resolver(tree=source_tree)
+    if file_path.parts[:1] == ("tests",):
+        violations.extend(
+            _special_infra_violations(
+                file_path=file_path,
+                source_tree=source_tree,
+                resolver=resolver,
+                added_lines=added_lines,
+                dependency_intersects=node_or_dependency_intersects,
+            )
+        )
     intersects = node_or_dependency_intersects or (
         lambda node, _dependency: _intersects(node=node, added_lines=added_lines)
     )

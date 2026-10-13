@@ -2040,3 +2040,472 @@ def test_behavior():
             "restore its implementation rather than changing __test__"
         ),
     ], "every applicable transition violation must be reported, not only the first"
+
+
+def test_annotated_shadow_of_mark_root_does_not_satisfy_the_direct_requirement() -> None:
+    """An annotated reassignment of ``mark`` cannot pass as the pytest marker."""
+    source = '''"""Jira: https://issues.redhat.com/browse/CNV-88909"""
+from pytest import mark
+
+mark: object = framework.mark
+
+__test__ = False
+
+@mark.manual
+def test_placeholder():
+    """Placeholder scenario.
+
+    Jira: https://issues.redhat.com/browse/CNV-88909  # <skip-jira-utils-check>
+
+    Preconditions:
+    - the component is available
+    Steps:
+    - implement the scenario
+    Expected:
+    - the scenario is covered
+    """
+'''
+
+    violations = check_test_std(
+        file_path=Path("tests/network/test_behavior.py"),
+        indexed_source=source,
+        head_source=None,
+    )
+
+    assert [violation.message for violation in violations] == [
+        "test-std/test_placeholder: declare @pytest.mark.manual on this test"
+    ], "an annotated shadow of the mark root must not satisfy the manual requirement"
+
+
+def test_conditional_shadow_of_pytest_root_does_not_satisfy_the_direct_requirement() -> None:
+    """A control-flow-nested rebinding of ``pytest`` cannot pass as the pytest marker."""
+    source = '''"""Jira: https://issues.redhat.com/browse/CNV-88909"""
+import pytest
+
+if condition:
+    pytest = framework_pytest
+
+__test__ = False
+
+@pytest.mark.manual
+def test_placeholder():
+    """Placeholder scenario.
+
+    Jira: https://issues.redhat.com/browse/CNV-88909  # <skip-jira-utils-check>
+
+    Preconditions:
+    - the component is available
+    Steps:
+    - implement the scenario
+    Expected:
+    - the scenario is covered
+    """
+'''
+
+    violations = check_test_std(
+        file_path=Path("tests/network/test_behavior.py"),
+        indexed_source=source,
+        head_source=None,
+    )
+
+    assert [violation.message for violation in violations] == [
+        "test-std/test_placeholder: declare @pytest.mark.manual on this test"
+    ], "a conditional shadow of the pytest root must not satisfy the manual requirement"
+
+
+def test_with_item_shadow_of_mark_root_does_not_satisfy_the_direct_requirement() -> None:
+    """A ``with ... as mark`` rebinding cannot pass as the pytest marker."""
+    source = '''"""Jira: https://issues.redhat.com/browse/CNV-88909"""
+from pytest import mark
+
+with context as mark:
+    pass
+
+__test__ = False
+
+@mark.manual
+def test_placeholder():
+    """Placeholder scenario.
+
+    Jira: https://issues.redhat.com/browse/CNV-88909  # <skip-jira-utils-check>
+
+    Preconditions:
+    - the component is available
+    Steps:
+    - implement the scenario
+    Expected:
+    - the scenario is covered
+    """
+'''
+
+    violations = check_test_std(
+        file_path=Path("tests/network/test_behavior.py"),
+        indexed_source=source,
+        head_source=None,
+    )
+
+    assert [violation.message for violation in violations] == [
+        "test-std/test_placeholder: declare @pytest.mark.manual on this test"
+    ], "a with-item shadow of the mark root must not satisfy the manual requirement"
+
+
+def test_function_definition_shadow_of_mark_root_does_not_satisfy_the_direct_requirement() -> None:
+    """A module-scope function named ``mark`` cannot pass as the pytest marker."""
+    source = '''"""Jira: https://issues.redhat.com/browse/CNV-88909"""
+from pytest import mark
+
+def mark():
+    return None
+
+__test__ = False
+
+@mark.manual
+def test_placeholder():
+    """Placeholder scenario.
+
+    Jira: https://issues.redhat.com/browse/CNV-88909  # <skip-jira-utils-check>
+
+    Preconditions:
+    - the component is available
+    Steps:
+    - implement the scenario
+    Expected:
+    - the scenario is covered
+    """
+'''
+
+    violations = check_test_std(
+        file_path=Path("tests/network/test_behavior.py"),
+        indexed_source=source,
+        head_source=None,
+    )
+
+    assert [violation.message for violation in violations] == [
+        "test-std/test_placeholder: declare @pytest.mark.manual on this test"
+    ], "a function shadow of the mark root must not satisfy the manual requirement"
+
+
+def test_destructured_shadow_of_mark_root_does_not_satisfy_the_direct_requirement() -> None:
+    """A destructured assignment rebinding ``mark`` cannot pass as the pytest marker."""
+    source = '''"""Jira: https://issues.redhat.com/browse/CNV-88909"""
+from pytest import mark
+
+value, mark = 1, framework_mark
+
+__test__ = False
+
+@mark.manual
+def test_placeholder():
+    """Placeholder scenario.
+
+    Jira: https://issues.redhat.com/browse/CNV-88909  # <skip-jira-utils-check>
+
+    Preconditions:
+    - the component is available
+    Steps:
+    - implement the scenario
+    Expected:
+    - the scenario is covered
+    """
+'''
+
+    violations = check_test_std(
+        file_path=Path("tests/network/test_behavior.py"),
+        indexed_source=source,
+        head_source=None,
+    )
+
+    assert [violation.message for violation in violations] == [
+        "test-std/test_placeholder: declare @pytest.mark.manual on this test"
+    ], "a destructured shadow of the mark root must not satisfy the manual requirement"
+
+
+def test_except_as_shadow_of_mark_root_does_not_satisfy_the_direct_requirement() -> None:
+    """An ``except ... as mark`` rebinding cannot pass as the pytest marker."""
+    source = '''"""Jira: https://issues.redhat.com/browse/CNV-88909"""
+from pytest import mark
+
+try:
+    pass
+except Exception as mark:
+    pass
+
+__test__ = False
+
+@mark.manual
+def test_placeholder():
+    """Placeholder scenario.
+
+    Jira: https://issues.redhat.com/browse/CNV-88909  # <skip-jira-utils-check>
+
+    Preconditions:
+    - the component is available
+    Steps:
+    - implement the scenario
+    Expected:
+    - the scenario is covered
+    """
+'''
+
+    violations = check_test_std(
+        file_path=Path("tests/network/test_behavior.py"),
+        indexed_source=source,
+        head_source=None,
+    )
+
+    assert [violation.message for violation in violations] == [
+        "test-std/test_placeholder: declare @pytest.mark.manual on this test"
+    ], "an except-as shadow of the mark root must not satisfy the manual requirement"
+
+
+def test_mutually_exclusive_pytest_branches_fail_closed() -> None:
+    """Mutually exclusive pytest bindings merge to an unrelated shadow."""
+    source = '''"""Jira: https://issues.redhat.com/browse/CNV-88909"""
+if condition:
+    pytest = framework_pytest
+else:
+    import pytest
+
+__test__ = False
+
+@pytest.mark.manual
+def test_placeholder():
+    """Placeholder scenario.
+
+    Jira: https://issues.redhat.com/browse/CNV-88909  # <skip-jira-utils-check>
+
+    Preconditions:
+    - the component is available
+    Steps:
+    - implement the scenario
+    Expected:
+    - the scenario is covered
+    """
+'''
+
+    violations = check_test_std(
+        file_path=Path("tests/network/test_behavior.py"),
+        indexed_source=source,
+        head_source=None,
+    )
+
+    assert [violation.message for violation in violations] == [
+        "test-std/test_placeholder: declare @pytest.mark.manual on this test"
+    ], "mutually exclusive pytest bindings must fail closed"
+
+
+def test_empty_loop_path_does_not_satisfy_the_direct_requirement() -> None:
+    """A pytest binding inside a loop that may not run cannot pass as the marker."""
+    source = '''"""Jira: https://issues.redhat.com/browse/CNV-88909"""
+from framework import mark
+
+for _ in items:
+    from pytest import mark
+
+__test__ = False
+
+@mark.manual
+def test_placeholder():
+    """Placeholder scenario.
+
+    Jira: https://issues.redhat.com/browse/CNV-88909  # <skip-jira-utils-check>
+
+    Preconditions:
+    - the component is available
+    Steps:
+    - implement the scenario
+    Expected:
+    - the scenario is covered
+    """
+'''
+
+    violations = check_test_std(
+        file_path=Path("tests/network/test_behavior.py"),
+        indexed_source=source,
+        head_source=None,
+    )
+
+    assert [violation.message for violation in violations] == [
+        "test-std/test_placeholder: declare @pytest.mark.manual on this test"
+    ], "an empty-loop path must not satisfy the manual requirement"
+
+
+def test_try_body_rebinding_does_not_satisfy_the_direct_requirement() -> None:
+    """A try body that may rebind the marker root cannot pass as the marker."""
+    source = '''"""Jira: https://issues.redhat.com/browse/CNV-88909"""
+from pytest import mark
+
+try:
+    mark = framework_mark
+except Exception:
+    pass
+
+__test__ = False
+
+@mark.manual
+def test_placeholder():
+    """Placeholder scenario.
+
+    Jira: https://issues.redhat.com/browse/CNV-88909  # <skip-jira-utils-check>
+
+    Preconditions:
+    - the component is available
+    Steps:
+    - implement the scenario
+    Expected:
+    - the scenario is covered
+    """
+'''
+
+    violations = check_test_std(
+        file_path=Path("tests/network/test_behavior.py"),
+        indexed_source=source,
+        head_source=None,
+    )
+
+    assert [violation.message for violation in violations] == [
+        "test-std/test_placeholder: declare @pytest.mark.manual on this test"
+    ], "a try-body rebinding path must not satisfy the manual requirement"
+
+
+def test_class_body_shadow_of_mark_root_does_not_satisfy_the_direct_requirement() -> None:
+    """A class-local rebinding of ``mark`` cannot pass as the pytest marker."""
+    source = '''"""Jira: https://issues.redhat.com/browse/CNV-88909"""
+from pytest import mark
+
+__test__ = False
+
+class TestBehavior:
+    mark = framework_mark
+
+    @mark.manual
+    def test_placeholder(self):
+        """Placeholder scenario.
+
+        Jira: https://issues.redhat.com/browse/CNV-88909  # <skip-jira-utils-check>
+
+        Preconditions:
+        - the component is available
+        Steps:
+        - implement the scenario
+        Expected:
+        - the scenario is covered
+        """
+'''
+
+    violations = check_test_std(
+        file_path=Path("tests/network/test_behavior.py"),
+        indexed_source=source,
+        head_source=None,
+    )
+
+    assert [violation.message for violation in violations] == [
+        "test-std/TestBehavior.test_placeholder: declare @pytest.mark.manual on this test"
+    ], "a class-body shadow of the mark root must not satisfy the manual requirement"
+
+
+def test_walrus_shadow_of_mark_root_does_not_satisfy_the_direct_requirement() -> None:
+    """A module-scope walrus rebinding of ``mark`` cannot pass as the pytest marker."""
+    source = '''"""Jira: https://issues.redhat.com/browse/CNV-88909"""
+from pytest import mark
+
+(mark := framework_mark)
+
+__test__ = False
+
+@mark.manual
+def test_placeholder():
+    """Placeholder scenario.
+
+    Jira: https://issues.redhat.com/browse/CNV-88909  # <skip-jira-utils-check>
+
+    Preconditions:
+    - the component is available
+    Steps:
+    - implement the scenario
+    Expected:
+    - the scenario is covered
+    """
+'''
+
+    violations = check_test_std(
+        file_path=Path("tests/network/test_behavior.py"),
+        indexed_source=source,
+        head_source=None,
+    )
+
+    assert [violation.message for violation in violations] == [
+        "test-std/test_placeholder: declare @pytest.mark.manual on this test"
+    ], "a module-scope walrus shadow of the mark root must not satisfy the manual requirement"
+
+
+def test_deleted_mark_root_does_not_satisfy_the_direct_requirement() -> None:
+    """Deleting ``mark`` at module scope invalidates its imported coverage."""
+    source = '''"""Jira: https://issues.redhat.com/browse/CNV-88909"""
+from pytest import mark
+
+del mark
+
+__test__ = False
+
+@mark.manual
+def test_placeholder():
+    """Placeholder scenario.
+
+    Jira: https://issues.redhat.com/browse/CNV-88909  # <skip-jira-utils-check>
+
+    Preconditions:
+    - the component is available
+    Steps:
+    - implement the scenario
+    Expected:
+    - the scenario is covered
+    """
+'''
+
+    violations = check_test_std(
+        file_path=Path("tests/network/test_behavior.py"),
+        indexed_source=source,
+        head_source=None,
+    )
+
+    assert [violation.message for violation in violations] == [
+        "test-std/test_placeholder: declare @pytest.mark.manual on this test"
+    ], "deleting the mark root at module scope must not satisfy the manual requirement"
+
+
+def test_match_case_shadow_of_mark_root_does_not_satisfy_the_direct_requirement() -> None:
+    """A match-case rebinding of ``mark`` cannot pass as the pytest marker."""
+    source = '''"""Jira: https://issues.redhat.com/browse/CNV-88909"""
+from pytest import mark
+
+match value:
+    case _:
+        mark = framework_mark
+
+__test__ = False
+
+@mark.manual
+def test_placeholder():
+    """Placeholder scenario.
+
+    Jira: https://issues.redhat.com/browse/CNV-88909  # <skip-jira-utils-check>
+
+    Preconditions:
+    - the component is available
+    Steps:
+    - implement the scenario
+    Expected:
+    - the scenario is covered
+    """
+'''
+
+    violations = check_test_std(
+        file_path=Path("tests/network/test_behavior.py"),
+        indexed_source=source,
+        head_source=None,
+    )
+
+    assert [violation.message for violation in violations] == [
+        "test-std/test_placeholder: declare @pytest.mark.manual on this test"
+    ], "a match-case shadow of the mark root must not satisfy the manual requirement"

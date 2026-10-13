@@ -263,6 +263,7 @@ def check_manifest_update(
     head_source: str | None,
     file_path: Path = EXCEPTIONS_PATH,
     staged_sources: Mapping[Path, tuple[str, str | None]] | None = None,
+    renamed_away_paths: frozenset[Path] = frozenset(),
 ) -> list[PolicyViolation]:
     """Validate staged exception records and protect existing approval metadata.
 
@@ -272,6 +273,8 @@ def check_manifest_update(
         file_path: Path used in policy violations.
         staged_sources: Staged Python source and its path-specific ``HEAD``
             baseline. Every new record must match a new directive occurrence.
+        renamed_away_paths: Head paths renamed in this commit. Retained
+            records for these paths must be removed alongside the rename.
 
     Returns:
         Malformed metadata, modified approval, or orphan-record violations.
@@ -357,6 +360,17 @@ def check_manifest_update(
                     message=f"linter-directives: {guidance}: {path} {directive!r}",
                 )
             )
+    for retained_path in sorted({Path(record.path) for record in indexed} & renamed_away_paths):
+        violations.append(
+            PolicyViolation(
+                file_path=file_path,
+                line_number=None,
+                message=(
+                    "linter-directives: this path was renamed; remove the obsolete exception record "
+                    f"for {retained_path}"
+                ),
+            )
+        )
     return violations
 
 

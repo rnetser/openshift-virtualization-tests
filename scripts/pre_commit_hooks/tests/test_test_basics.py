@@ -396,3 +396,540 @@ def test_non_policy_paths_are_ignored() -> None:
     )
 
     assert violations == [], "documentation snippets should retain their existing source policy behavior"
+
+
+def test_requirement_markers_demand_special_infra() -> None:
+    """Requirement markers without special_infra are rejected in test files."""
+    source = dedent(
+        """
+        import pytest
+
+        @pytest.mark.sriov
+        def test_sriov_feature():
+            assert value, "value must be true"
+        """
+    )
+
+    violations = check_test_basics(file_path=Path("tests/network/test_example.py"), source=source)
+
+    assert [(violation.line_number, violation.message) for violation in violations] == [
+        (4, "test-basics: marker sriov requires @pytest.mark.special_infra at module, class, or test level"),
+    ], "requirement markers must be paired with special_infra"
+
+
+def test_special_infra_marker_satisfies_the_requirement() -> None:
+    """A module-level special_infra marker satisfies the requirement-marker policy."""
+    source = dedent(
+        """
+        import pytest
+
+        pytestmark = pytest.mark.special_infra
+
+        @pytest.mark.sriov
+        def test_sriov_feature():
+            assert value, "value must be true"
+        """
+    )
+
+    violations = check_test_basics(file_path=Path("tests/network/test_example.py"), source=source)
+
+    assert violations == [], "special_infra at module level satisfies the marker requirement"
+
+
+def test_requirement_marker_outside_tests_root_is_not_flagged() -> None:
+    """Requirement markers in non-test paths are not subject to the special_infra rule."""
+    source = dedent(
+        """
+        import pytest
+
+        @pytest.mark.sriov
+        def test_sriov_feature():
+            assert value, "value must be true"
+        """
+    )
+
+    violations = check_test_basics(file_path=Path("utilities/example.py"), source=source)
+
+    assert violations == [], "the special_infra rule applies only to the tests directory"
+
+
+def test_pre_existing_requirement_marker_is_not_flagged_without_added_lines() -> None:
+    """Only newly added requirement markers are subject to the special_infra rule."""
+    source = dedent(
+        """
+        import pytest
+
+        @pytest.mark.sriov
+        def test_sriov_feature():
+            assert value, "value must be true"
+        """
+    )
+
+    violations = check_test_basics(
+        file_path=Path("tests/network/test_example.py"),
+        source=source,
+        added_lines=frozenset({5}),
+    )
+
+    assert violations == [], "legacy requirement markers must not block unrelated edits"
+
+
+def test_special_infra_on_unrelated_test_does_not_satisfy_requirement() -> None:
+    """A special_infra marker on a different test does not cover a requirement marker."""
+    source = dedent(
+        """
+        import pytest
+
+        @pytest.mark.sriov
+        def test_sriov_feature():
+            assert value, "value must be true"
+
+        @pytest.mark.special_infra
+        def test_unrelated_feature():
+            assert value, "value must be true"
+        """
+    )
+
+    violations = check_test_basics(file_path=Path("tests/network/test_example.py"), source=source)
+
+    assert [(violation.line_number, violation.message) for violation in violations] == [
+        (4, "test-basics: marker sriov requires @pytest.mark.special_infra at module, class, or test level"),
+    ], "special_infra must cover the requirement marker's own test, class, or module scope"
+
+
+def test_special_infra_on_enclosing_class_satisfies_requirement() -> None:
+    """A class-level special_infra marker covers requirement markers on its tests."""
+    source = dedent(
+        """
+        import pytest
+
+        @pytest.mark.special_infra
+        class TestSriov:
+            @pytest.mark.sriov
+            def test_sriov_feature(self):
+                assert value, "value must be true"
+        """
+    )
+
+    violations = check_test_basics(file_path=Path("tests/network/test_example.py"), source=source)
+
+    assert violations == [], "class-level special_infra must cover the class's tests"
+
+
+def test_special_infra_on_same_test_satisfies_requirement() -> None:
+    """A test-level special_infra marker covers that test's requirement marker."""
+    source = dedent(
+        """
+        import pytest
+
+        @pytest.mark.special_infra
+        @pytest.mark.sriov
+        def test_sriov_feature():
+            assert value, "value must be true"
+        """
+    )
+
+    violations = check_test_basics(file_path=Path("tests/network/test_example.py"), source=source)
+
+    assert violations == [], "test-level special_infra must cover that test's requirement markers"
+
+
+def test_overwritten_pytestmark_does_not_satisfy_requirement() -> None:
+    """An overwritten module-level special_infra marker no longer covers requirement markers."""
+    source = dedent(
+        """
+        import pytest
+
+        pytestmark = pytest.mark.special_infra
+        pytestmark = pytest.mark.smoke
+
+        @pytest.mark.sriov
+        def test_sriov_feature():
+            assert value, "value must be true"
+        """
+    )
+
+    violations = check_test_basics(file_path=Path("tests/network/test_example.py"), source=source)
+
+    assert violations, "only the effective (last) pytestmark assignment may satisfy the requirement"
+
+
+def test_requirement_marker_alias_decorator_is_checked() -> None:
+    """A requirement marker reached through an assigned alias is still checked."""
+    source = dedent(
+        """
+        import pytest
+
+        sriov_alias = pytest.mark.sriov
+
+        @sriov_alias
+        def test_sriov_feature():
+            assert value, "value must be true"
+        """
+    )
+
+    violations = check_test_basics(file_path=Path("tests/network/test_example.py"), source=source)
+
+    assert violations, "a requirement marker applied through an alias must still require special_infra"
+
+
+def test_special_infra_alias_in_pytestmark_satisfies_requirement() -> None:
+    """A module-level special_infra alias assigned to pytestmark covers requirement markers."""
+    source = dedent(
+        """
+        import pytest
+
+        special = pytest.mark.special_infra
+        pytestmark = special
+
+        @pytest.mark.sriov
+        def test_sriov_feature():
+            assert value, "value must be true"
+        """
+    )
+
+    violations = check_test_basics(file_path=Path("tests/network/test_example.py"), source=source)
+
+    assert violations == [], "a special_infra alias in pytestmark must satisfy the marker requirement"
+
+
+def test_special_infra_alias_decorator_satisfies_requirement() -> None:
+    """A special_infra alias used as a decorator covers the decorated test."""
+    source = dedent(
+        """
+        import pytest
+
+        special = pytest.mark.special_infra
+
+        @special
+        @pytest.mark.sriov
+        def test_sriov_feature():
+            assert value, "value must be true"
+        """
+    )
+
+    violations = check_test_basics(file_path=Path("tests/network/test_example.py"), source=source)
+
+    assert violations == [], "a special_infra alias decorator must satisfy the marker requirement"
+
+
+def test_conditional_pytestmark_reassignment_fails_closed() -> None:
+    """A conditional pytestmark reassignment removes module-level marker coverage."""
+    source = dedent(
+        """
+        import pytest
+
+        pytestmark = pytest.mark.special_infra
+        if condition:
+            pytestmark = pytest.mark.smoke
+
+        @pytest.mark.sriov
+        def test_sriov_feature():
+            assert value, "value must be true"
+        """
+    )
+
+    violations = check_test_basics(file_path=Path("tests/network/test_example.py"), source=source)
+
+    assert violations, "conditional pytestmark reassignment must fail closed for module-level coverage"
+
+
+def test_conditional_pytestmark_value_does_not_satisfy_requirement() -> None:
+    """A conditional module-level marker value provides no coverage."""
+    source = dedent(
+        """
+        import pytest
+
+        pytestmark = pytest.mark.special_infra if condition else pytest.mark.smoke
+
+        @pytest.mark.sriov
+        def test_sriov_feature():
+            assert value, "value must be true"
+        """
+    )
+
+    violations = check_test_basics(file_path=Path("tests/network/test_example.py"), source=source)
+
+    assert violations, "a conditional pytestmark value must not satisfy the marker requirement"
+
+
+def test_conditional_decorator_does_not_satisfy_requirement() -> None:
+    """A conditional decorator expression provides no coverage."""
+    source = dedent(
+        """
+        import pytest
+
+        special = pytest.mark.special_infra
+
+        @(special if condition else pytest.mark.smoke)
+        @pytest.mark.sriov
+        def test_sriov_feature():
+            assert value, "value must be true"
+        """
+    )
+
+    violations = check_test_basics(file_path=Path("tests/network/test_example.py"), source=source)
+
+    assert violations, "a conditional decorator must not satisfy the marker requirement"
+
+
+def test_alias_definition_is_not_flagged_when_application_is_covered() -> None:
+    """An alias definition is not itself a requirement-marker application."""
+    source = dedent(
+        """
+        import pytest
+
+        sriov = pytest.mark.sriov
+        special = pytest.mark.special_infra
+
+        @special
+        @sriov
+        def test_sriov_feature():
+            assert value, "value must be true"
+        """
+    )
+
+    violations = check_test_basics(file_path=Path("tests/network/test_example.py"), source=source)
+
+    assert violations == [], "a covered alias application must not be flagged at its definition"
+
+
+def test_augmented_pytestmark_satisfies_requirement() -> None:
+    """An augmented module-level special_infra assignment covers requirement markers."""
+    source = dedent(
+        """
+        import pytest
+
+        pytestmark = []
+        pytestmark += [pytest.mark.special_infra]
+
+        @pytest.mark.sriov
+        def test_sriov_feature():
+            assert value, "value must be true"
+        """
+    )
+
+    violations = check_test_basics(file_path=Path("tests/network/test_example.py"), source=source)
+
+    assert violations == [], "an augmented special_infra pytestmark must satisfy the marker requirement"
+
+
+def test_walrus_pytestmark_mutation_fails_closed() -> None:
+    """A walrus-operator pytestmark mutation drops module-level coverage."""
+    source = dedent(
+        """
+        import pytest
+
+        pytestmark = pytest.mark.special_infra
+        (pytestmark := pytest.mark.smoke)
+
+        @pytest.mark.sriov
+        def test_sriov_feature():
+            assert value, "value must be true"
+        """
+    )
+
+    violations = check_test_basics(file_path=Path("tests/network/test_example.py"), source=source)
+
+    assert violations, "a walrus pytestmark mutation must fail closed for module-level coverage"
+
+
+def test_deleted_pytestmark_fails_closed() -> None:
+    """Deleting pytestmark drops module-level marker coverage."""
+    source = dedent(
+        """
+        import pytest
+
+        pytestmark = pytest.mark.special_infra
+        del pytestmark
+
+        @pytest.mark.sriov
+        def test_sriov_feature():
+            assert value, "value must be true"
+        """
+    )
+
+    violations = check_test_basics(file_path=Path("tests/network/test_example.py"), source=source)
+
+    assert violations, "a deleted pytestmark must fail closed for module-level coverage"
+
+
+def test_function_local_pytestmark_is_not_an_application() -> None:
+    """A function-local pytestmark variable is not module marker metadata."""
+    source = dedent(
+        """
+        import pytest
+
+        def helper():
+            pytestmark = pytest.mark.sriov
+            return pytestmark
+
+        @pytest.mark.smoke
+        def test_unrelated():
+            assert value, "value must be true"
+        """
+    )
+
+    violations = check_test_basics(file_path=Path("tests/network/test_example.py"), source=source)
+
+    assert violations == [], "a function-local pytestmark variable must not be treated as an application"
+
+
+def test_marker_nested_in_decorator_arguments_does_not_satisfy_requirement() -> None:
+    """A marker passed as decorator data is not a direct application."""
+    source = dedent(
+        """
+        import pytest
+
+        @pytest.mark.parametrize("marker", [pytest.mark.special_infra])
+        @pytest.mark.sriov
+        def test_sriov_feature():
+            assert value, "value must be true"
+        """
+    )
+
+    violations = check_test_basics(file_path=Path("tests/network/test_example.py"), source=source)
+
+    assert violations, "a marker nested in decorator arguments must not satisfy the marker requirement"
+
+
+def test_function_local_pytestmark_does_not_drop_module_coverage() -> None:
+    """A function-local pytestmark variable does not invalidate module coverage."""
+    source = dedent(
+        """
+        import pytest
+
+        pytestmark = pytest.mark.special_infra
+
+        def helper():
+            pytestmark = pytest.mark.smoke
+            return pytestmark
+
+        @pytest.mark.sriov
+        def test_sriov_feature():
+            assert value, "value must be true"
+        """
+    )
+
+    violations = check_test_basics(file_path=Path("tests/network/test_example.py"), source=source)
+
+    assert violations == [], "a function-local pytestmark variable must not drop module-level coverage"
+
+
+def test_match_case_pytestmark_application_is_checked() -> None:
+    """A pytestmark assignment inside a match case is a marker application."""
+    source = dedent(
+        """
+        import pytest
+
+        match value:
+            case 1:
+                pytestmark = pytest.mark.sriov
+            case _:
+                pytestmark = pytest.mark.smoke
+
+        def test_sriov_feature():
+            assert value, "value must be true"
+        """
+    )
+
+    violations = check_test_basics(file_path=Path("tests/network/test_example.py"), source=source)
+
+    assert violations, "a pytestmark application inside a match case must require special_infra"
+
+
+def test_try_star_pytestmark_application_is_checked() -> None:
+    """A pytestmark assignment inside an except-star handler is a marker application."""
+    source = dedent(
+        """
+        import pytest
+
+        try:
+            pass
+        except* ValueError:
+            pytestmark = pytest.mark.sriov
+
+        def test_sriov_feature():
+            assert value, "value must be true"
+        """
+    )
+
+    violations = check_test_basics(file_path=Path("tests/network/test_example.py"), source=source)
+
+    assert violations, "a pytestmark application inside an except-star handler must require special_infra"
+
+
+def test_lambda_local_walrus_pytestmark_keeps_module_coverage() -> None:
+    """A walrus inside a lambda is local and does not drop module coverage."""
+    source = dedent(
+        """
+        import pytest
+
+        pytestmark = pytest.mark.special_infra
+        callback = lambda: (pytestmark := pytest.mark.smoke)
+
+        @pytest.mark.sriov
+        def test_sriov_feature():
+            assert value, "value must be true"
+        """
+    )
+
+    violations = check_test_basics(file_path=Path("tests/network/test_example.py"), source=source)
+
+    assert violations == [], "a lambda-local walrus must not drop module-level pytestmark coverage"
+
+
+def test_requirement_marker_nested_in_decorator_arguments_is_not_applied() -> None:
+    """A marker inside parametrize arguments is data, not an application."""
+    source = dedent(
+        """
+        import pytest
+
+        @pytest.mark.parametrize(argnames="mode", argvalues=[pytest.mark.sriov])
+        def test_feature(mode):
+            assert mode, "mode must be truthy"
+        """
+    )
+
+    violations = check_test_basics(file_path=Path("tests/network/test_example.py"), source=source)
+
+    assert violations == [], "a marker nested in decorator arguments must not count as applied"
+
+
+def test_destructured_pytestmark_assignment_is_an_application() -> None:
+    """A tuple destructuring that binds pytestmark applies its markers."""
+    source = dedent(
+        """
+        import pytest
+
+        pytestmark, label = [pytest.mark.sriov, "network"]
+
+        def test_feature():
+            assert value, "value must be true"
+        """
+    )
+
+    violations = check_test_basics(file_path=Path("tests/network/test_example.py"), source=source)
+
+    assert violations, "a destructuring assignment binding pytestmark must apply its markers"
+
+
+def test_nested_destructured_pytestmark_mutation_fails_closed() -> None:
+    """A control-flow destructuring binding pytestmark drops module coverage."""
+    source = dedent(
+        """
+        import pytest
+
+        pytestmark = pytest.mark.special_infra
+        if value:
+            pytestmark, label = [pytest.mark.smoke, "x"]
+
+        @pytest.mark.sriov
+        def test_feature():
+            assert value, "value must be true"
+        """
+    )
+
+    violations = check_test_basics(file_path=Path("tests/network/test_example.py"), source=source)
+
+    assert violations, "a nested destructuring binding pytestmark must drop module coverage"

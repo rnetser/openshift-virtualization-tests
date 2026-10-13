@@ -157,8 +157,10 @@ reviews:
           Module/class-only links and historical `RFE:` labels do NOT satisfy a new
           test's traceability requirement.
 
-          A `Jira:` line MUST also contain `# <skip-jira-utils-check>` on the same line
-          so the jira-utils checker ignores the traceability reference:
+          Every Jira URL in a new test's docstring MUST also contain
+          `# <skip-jira-utils-check>` on the same line — regardless of whether the
+          line uses a `Jira:` label — so the jira-utils checker ignores the
+          traceability reference:
           `Jira: https://redhat.atlassian.net/browse/CNV-87822  # <skip-jira-utils-check>`
           The skip marker is not required for `STP:` lines. Flag invalid or missing
           traceability, including a missing Jira skip marker, as HIGH severity.

@@ -52,7 +52,6 @@ from dataclasses import dataclass, field
 from importlib import import_module
 from pathlib import Path
 from re import compile as re_compile
-from shlex import split as shell_split
 from sys import argv
 from sys import modules as system_modules
 from typing import TYPE_CHECKING, cast
@@ -88,12 +87,17 @@ run_command = cast(
 
 @dataclass(frozen=True, slots=True)
 class StagedChanges:
-    """Describe the staged result; deleted paths are intentionally skipped."""
+    """Describe the staged result.
 
-    paths: frozenset[Path]
+    Deleted source files are skipped for source analysis, but their paths stay
+    visible to path-policy checks and manifest-deletion validation.
+    """
+
     changed_paths: frozenset[Path]
     deleted_paths: frozenset[Path]
     renamed_paths: frozenset[Path]
+    renamed_away_paths: frozenset[Path]
+    symlinked_paths: frozenset[Path]
     added_lines: dict[Path, frozenset[int]]
     sources: dict[Path, str]
     head_sources: dict[Path, str] = field(default_factory=dict)
@@ -133,6 +137,12 @@ class _DiffState:
 
 _HUNK_HEADER = re_compile(pattern=r"^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@")
 _STAGED_DIFF_OPTIONS = ("--cached", "--unified=0", "--no-color", "--no-ext-diff", "--no-textconv")
+_SYMLINKED_PYTHON_MESSAGE = (
+    "policy: staged Python symlinks are not allowed; commit the real file so its source is checked"
+)
+_SYMLINKED_MANIFEST_MESSAGE = (
+    "policy: the exception manifest must be a real file; commit the actual manifest so its records are checked"
+)
 
 
 @dataclass(slots=True)
@@ -743,14 +753,140 @@ def _git_output(command: list[str]) -> str:
     return stdout
 
 
+_GIT_SIMPLE_ESCAPES = {
+    "a": 0x07,
+    "b": 0x08,
+    "f": 0x0C,
+    "n": 0x0A,
+    "r": 0x0D,
+    "t": 0x09,
+    "v": 0x0B,
+    "\\": 0x5C,
+    '"': 0x22,
+}
+
+
+def _git_unquote(quoted: str) -> str:
+    """Decode a Git C-quoted path to its raw path.
+
+    Git quotes paths that contain non-ASCII bytes or special characters by
+    wrapping them in double quotes and encoding bytes as C escapes such as
+    ``\\303\\251``. ``shlex`` does not decode these escapes, so quoted paths
+    must be decoded explicitly. Invalid UTF-8 byte sequences are preserved
+    with ``surrogateescape`` so distinct paths never collide on a replacement
+    character.
+
+    Args:
+        quoted: A Git-quoted path including its surrounding double quotes, or
+            an already unquoted path.
+
+    Returns:
+        The decoded path.
+    """
+    if not (quoted.startswith('"') and quoted.endswith('"')):
+        return quoted
+    body = quoted[1:-1]
+    raw = bytearray()
+    index = 0
+    while index < len(body):
+        char = body[index]
+        index += 1
+        if char != "\\":
+            raw.extend(char.encode(encoding="utf-8", errors="surrogateescape"))
+            continue
+        if index >= len(body):
+            raw.append(0x5C)
+            break
+        escape = body[index]
+        index += 1
+        if escape in _GIT_SIMPLE_ESCAPES:
+            raw.append(_GIT_SIMPLE_ESCAPES[escape])
+            continue
+        octal_digits = ""
+        if escape in "01234567":
+            octal_digits = escape
+            while index < len(body) and len(octal_digits) < 3 and body[index] in "01234567":
+                octal_digits += body[index]
+                index += 1
+        if octal_digits:
+            raw.append(int(octal_digits, base=8))
+        else:
+            raw.extend(("\\" + escape).encode(encoding="utf-8", errors="surrogateescape"))
+    return raw.decode(encoding="utf-8", errors="surrogateescape")
+
+
+def _git_quoted_token(text: str) -> tuple[str, str] | None:
+    """Split one C-quoted token from the start of a Git diff header.
+
+    Args:
+        text: Header remainder starting at the opening double quote.
+
+    Returns:
+        The quoted token including quotes and the remaining text, or ``None``
+        when no closing quote is found.
+    """
+    index = 1
+    while index < len(text):
+        if text[index] == "\\":
+            index += 2
+            continue
+        if text[index] == '"':
+            token_end = index + 1
+            return text[:token_end], text[token_end:]
+        index += 1
+    return None
+
+
+def _git_header_token(text: str) -> tuple[str, str] | None:
+    """Split one path token (quoted or bare) from a diff-header remainder.
+
+    Git quotes each header path independently, so a valid header can mix a
+    quoted and a bare path. A bare token ends at the first space, which Git
+    guarantees because paths containing spaces are always quoted in
+    ``diff --git`` headers.
+
+    Args:
+        text: Header remainder starting at the token.
+
+    Returns:
+        The token (quotes included when quoted) and the remaining text after
+        it, or ``None`` for an unterminated quoted token.
+    """
+    if text.startswith('"'):
+        return _git_quoted_token(text=text)
+    space_index = text.find(" ")
+    if space_index == -1:
+        return text, ""
+    separator = space_index + 1
+    return text[:space_index], text[separator:]
+
+
 def _diff_header_path(diff_line: str) -> Path | None:
-    try:
-        fields = shell_split(s=diff_line)
-    except ValueError:
+    prefix = "diff --git "
+    if not diff_line.startswith(prefix):
         return None
-    if len(fields) != 4 or not fields[3].startswith("b/"):
+    prefix_length = len(prefix)
+    rest = diff_line[prefix_length:]
+    first = _git_header_token(text=rest)
+    if first is None:
         return None
-    return Path(fields[3][2:])
+    first_token, first_remainder = first
+    if first_token.startswith('"'):
+        if not first_remainder.startswith(" "):
+            return None
+        second_text = first_remainder[1:]
+    else:
+        second_text = first_remainder
+    second = _git_header_token(text=second_text)
+    if second is None:
+        return None
+    second_token, trailing = second
+    if trailing:
+        return None
+    right = _git_unquote(quoted=second_token)
+    if not right.startswith("b/"):
+        return None
+    return Path(right[2:])
 
 
 def _process_diff_control_line(
@@ -763,6 +899,10 @@ def _process_diff_control_line(
         state.current_path = path or _diff_header_path(diff_line=diff_line)
         state.current_line = None
         state.in_hunk = False
+        if state.current_path is not None:
+            # A resolvable header maps the file even when the diff carries no
+            # hunks (an exact rename), so the file is not treated as unmappable.
+            added_lines.setdefault(state.current_path, set())
         return True
     if not state.in_hunk and diff_line.startswith("+++ "):
         if path is None and state.current_path is None and diff_line.startswith("+++ b/"):
@@ -803,7 +943,7 @@ def _added_lines_by_path(
 ) -> dict[Path, frozenset[int]]:
     added_lines: dict[Path, set[int]] = {} if path is None else {path: set()}
     state = _DiffState(current_path=path)
-    for diff_line in diff.splitlines():
+    for diff_line in diff.split("\n"):
         _process_diff_line(
             diff_line=diff_line,
             state=state,
@@ -840,57 +980,110 @@ def _parse_staged_entries(status_output: str) -> tuple[_StagedEntry, ...]:
     return tuple(entries)
 
 
-def _parse_staged_status(status_output: str) -> tuple[frozenset[Path], frozenset[Path]]:
+def _parse_staged_status(status_output: str) -> frozenset[Path]:
+    """Return staged paths whose index state is a deletion.
+
+    Renamed-away head paths count as deletions; all other paths (including
+    copy and rename sources) remain available to callers via the parsed
+    entries.
+
+    Args:
+        status_output: NUL-separated ``git diff --cached --name-status -z`` output.
+
+    Returns:
+        Paths deleted from the index, including renamed-away head paths.
+    """
     entries = _parse_staged_entries(status_output=status_output)
-    paths = {entry.path for entry in entries}
     deleted_paths = {entry.path for entry in entries if entry.status == "D"}
-    for entry in entries:
-        if entry.source_path is not None:
-            paths.add(entry.source_path)
-        if entry.status == "R" and entry.head_path is not None:
-            deleted_paths.add(entry.head_path)
-    return frozenset(paths), frozenset(deleted_paths)
+    deleted_paths.update(entry.head_path for entry in entries if entry.status == "R" and entry.head_path is not None)
+    return frozenset(deleted_paths)
+
+
+def _parse_index_stage_records(output: str) -> list[tuple[str, Path]]:
+    """Parse ``git ls-files --stage -z`` output into index mode and path pairs."""
+    records: list[tuple[str, Path]] = []
+    for record in output.split("\0"):
+        metadata, separator, raw_path = record.partition("\t")
+        if separator:
+            records.append((metadata.split(" ", maxsplit=1)[0], Path(raw_path)))
+    return records
+
+
+def _symlinked_staged_paths(staged_paths: Collection[Path]) -> frozenset[Path]:
+    """Return staged paths whose index entry is a symbolic link.
+
+    A staged symlink's ``git show`` blob is only the link target text, not
+    the Python source that executes after checkout, so symlinked Python must
+    be rejected rather than checked.
+
+    Args:
+        staged_paths: Paths staged in the current index snapshot.
+
+    Returns:
+        The subset of staged paths stored with Git's symlink mode ``120000``.
+    """
+    output = _git_output(command=["git", "ls-files", "--stage", "-z", "--"])
+    symlinked: set[Path] = set()
+    for mode, path in _parse_index_stage_records(output=output):
+        if mode == "120000" and path in staged_paths:
+            symlinked.add(path)
+    return frozenset(symlinked)
 
 
 def _staged_changes() -> StagedChanges:
     status_output = _git_output(command=["git", "diff", "--cached", "--name-status", "-z", "--"])
     entries = _parse_staged_entries(status_output=status_output)
-    staged_paths, deleted_paths = _parse_staged_status(status_output=status_output)
+    deleted_paths = _parse_staged_status(status_output=status_output)
     changed_paths = frozenset(entry.path for entry in entries)
     renamed_paths = frozenset(entry.path for entry in entries if entry.status == "R")
+    renamed_away_paths = frozenset(
+        entry.head_path for entry in entries if entry.status == "R" and entry.head_path is not None
+    )
     active_entries = [entry for entry in entries if entry.status != "D"]
     if not active_entries:
         return StagedChanges(
-            paths=staged_paths,
             changed_paths=changed_paths,
             deleted_paths=deleted_paths,
             renamed_paths=renamed_paths,
+            renamed_away_paths=renamed_away_paths,
+            symlinked_paths=frozenset(),
             added_lines={},
             sources={},
             head_sources={},
             copied_paths=frozenset(),
         )
 
+    symlinked_paths = _symlinked_staged_paths(staged_paths={entry.path for entry in active_entries})
     python_entries = [entry for entry in active_entries if entry.path.suffix == ".py"]
     staged_diff = _git_output(command=["git", "diff", *_STAGED_DIFF_OPTIONS, "--"]) if python_entries else ""
     added_lines = _added_lines_by_path(diff=staged_diff)
+    known_paths = {entry.path for entry in entries}
+    known_paths.update(entry.source_path for entry in entries if entry.source_path is not None)
+    # A diff-header path that matches no staged status entry means the header
+    # could not be decoded to a staged path; drop the mapping so the file is
+    # treated as unmappable and checked line by line (fail closed).
+    for unknown_path in set(added_lines) - known_paths:
+        del added_lines[unknown_path]
     source_paths = {
-        entry.path for entry in active_entries if entry.path.suffix == ".py" or entry.path == EXCEPTIONS_PATH
+        entry.path
+        for entry in active_entries
+        if (entry.path.suffix == ".py" or entry.path == EXCEPTIONS_PATH) and entry.path not in symlinked_paths
     }
     sources = {path: _git_output(command=["git", "show", f":0:{path}"]) for path in source_paths}
     copied_paths = frozenset(entry.path for entry in active_entries if entry.status == "C")
     for copied_path in copied_paths & sources.keys():
-        added_lines[copied_path] = frozenset(range(1, len(sources[copied_path].splitlines()) + 1))
+        added_lines[copied_path] = frozenset(range(1, len(sources[copied_path].split("\n")) + 1))
     head_sources = {
         entry.path: _git_output(command=["git", "show", f"HEAD:{entry.head_path}"])
         for entry in active_entries
         if entry.path in source_paths and entry.head_path is not None
     }
     return StagedChanges(
-        paths=staged_paths,
         changed_paths=changed_paths,
         deleted_paths=deleted_paths,
         renamed_paths=renamed_paths,
+        renamed_away_paths=renamed_away_paths,
+        symlinked_paths=symlinked_paths,
         added_lines=added_lines,
         sources=sources,
         head_sources=head_sources,
@@ -899,11 +1092,15 @@ def _staged_changes() -> StagedChanges:
 
 
 def _index_source_reader() -> _IndexSourceReader:
-    tracked = _git_output(command=["git", "ls-files", "-z", "--", "libs", "tests", "utilities"])
+    tracked = _git_output(command=["git", "ls-files", "--stage", "-z", "--", "libs", "tests", "utilities"])
     paths: dict[tuple[str, ...], Path] = {}
-    for raw_path in tracked.split("\0"):
-        path = Path(raw_path)
-        if not raw_path or path.suffix != ".py":
+    for mode, path in _parse_index_stage_records(output=tracked):
+        if mode == "120000":
+            # A tracked symlink stores only its link-target text; skip it so
+            # local-module resolution fails closed instead of parsing the
+            # target path string as Python.
+            continue
+        if path.suffix != ".py":
             continue
         module_name = path.with_suffix("").parts
         if module_name[-1] == "__init__":
@@ -1397,7 +1594,12 @@ def check_python_source(
     head_source: str | None = None,
     resource_classes: Collection[tuple[str, ...]] | None = None,
 ) -> list[PolicyViolation]:
-    """Check Python source for forbidden construction and skip patterns.
+    """Check Python source against every source-level policy.
+
+    Covers forbidden skip patterns, relative imports, mechanical
+    Python-basics checks, Resource client requirements, and cache-client
+    comment requirements. Linter directives are validated separately by
+    ``check_linter_directives`` in the staged entry-point flow.
 
     Args:
         file_path: Path used in violation messages.
@@ -1497,7 +1699,11 @@ def check_file(
 
 
 def main(arguments: Sequence[str] | None = None) -> int:
-    """Check the filenames supplied by pre-commit.
+    """Run policy checks over the staged index and the supplied filenames.
+
+    Path-policy and manifest checks always cover the whole staged index,
+    while Python source and STD checks are limited to the filenames
+    pre-commit supplies in ``arguments``.
 
     Args:
         arguments: Filenames to check, or ``None`` to use command-line arguments.
@@ -1509,7 +1715,9 @@ def main(arguments: Sequence[str] | None = None) -> int:
     staged_changes = _staged_changes()
     file_paths = [Path(file_name) for file_name in file_names]
     staged_python_sources = {
-        path: (source, staged_changes.head_sources.get(path))
+        # Renamed paths get no HEAD baseline so their directives count as new
+        # and the manifest record can be migrated to the new path.
+        path: (source, None if path in staged_changes.renamed_paths else staged_changes.head_sources.get(path))
         for path, source in staged_changes.sources.items()
         if path.suffix == ".py"
     }
@@ -1536,10 +1744,20 @@ def main(arguments: Sequence[str] | None = None) -> int:
 
     violations = [
         violation
-        for changed_path in sorted(staged_changes.changed_paths)
+        for staged_path in sorted(staged_changes.changed_paths | staged_changes.deleted_paths)
         for path_check in (check_site_path, check_top_level_test_path)
-        if (violation := path_check(file_path=changed_path)) is not None
+        if (violation := path_check(file_path=staged_path)) is not None
     ]
+    violations.extend(
+        PolicyViolation(
+            file_path=symlinked_path,
+            line_number=None,
+            message=_SYMLINKED_MANIFEST_MESSAGE if symlinked_path == EXCEPTIONS_PATH else _SYMLINKED_PYTHON_MESSAGE,
+        )
+        for symlinked_path in sorted(
+            path for path in staged_changes.symlinked_paths if path.suffix == ".py" or path == EXCEPTIONS_PATH
+        )
+    )
     manifest_deleted = EXCEPTIONS_PATH in staged_changes.deleted_paths
     if manifest_deleted:
         violations.append(
@@ -1550,13 +1768,30 @@ def main(arguments: Sequence[str] | None = None) -> int:
             )
         )
     for file_path in file_paths:
-        if file_path in staged_changes.deleted_paths:
+        if file_path in staged_changes.deleted_paths or file_path in staged_changes.symlinked_paths:
+            # Symlinked paths already carry a rejection violation and must
+            # not fall back to reading their worktree target.
             continue
         source = staged_changes.sources.get(file_path)
         head_source = staged_changes.head_sources.get(file_path)
-        added_lines: Collection[int] | None = staged_changes.added_lines.get(file_path, frozenset())
-        if file_path in staged_changes.changed_paths and source is not None and not added_lines and head_source is None:
-            added_lines = None
+        staged_added_lines = staged_changes.added_lines.get(file_path)
+        if staged_added_lines is None:
+            if file_path in staged_changes.sources:
+                # A staged file whose diff could not be mapped (binary content
+                # or an undecodable diff header); fail closed and check every line.
+                added_lines: Collection[int] | None = None
+            else:
+                # Not staged; nothing is being committed for this path.
+                added_lines = frozenset()
+        else:
+            added_lines = staged_added_lines
+            if (
+                file_path in staged_changes.changed_paths
+                and source is not None
+                and not added_lines
+                and head_source is None
+            ):
+                added_lines = None
         violations.extend(
             check_file(
                 file_path=file_path,
@@ -1569,8 +1804,14 @@ def main(arguments: Sequence[str] | None = None) -> int:
         )
 
     manifest_changed = EXCEPTIONS_PATH in staged_changes.sources
+    manifest_symlinked = EXCEPTIONS_PATH in staged_changes.symlinked_paths
     exceptions_source: str | None = staged_changes.sources.get(EXCEPTIONS_PATH)
-    if (staged_python_sources or manifest_changed) and exceptions_source is None and not manifest_deleted:
+    if (
+        not manifest_symlinked
+        and (staged_python_sources or manifest_changed)
+        and exceptions_source is None
+        and not manifest_deleted
+    ):
         try:
             exceptions_source = _git_output(command=["git", "show", f":0:{EXCEPTIONS_PATH}"])
         except RuntimeError as error:
@@ -1598,6 +1839,7 @@ def main(arguments: Sequence[str] | None = None) -> int:
                     indexed_source=exceptions_source,
                     head_source=manifest_head_source,
                     staged_sources=staged_python_sources,
+                    renamed_away_paths=staged_changes.renamed_away_paths,
                 )
             )
         try:

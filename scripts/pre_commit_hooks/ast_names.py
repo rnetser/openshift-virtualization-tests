@@ -12,8 +12,11 @@ from ast import (
     FunctionDef,
     Import,
     ImportFrom,
+    Lambda,
     Module,
     Name,
+    NamedExpr,
+    iter_child_nodes,
 )
 from typing import TYPE_CHECKING
 
@@ -59,6 +62,29 @@ def resolve_syntax(node: AST, bindings: dict[str, tuple[str, ...]]) -> tuple[str
         return None
     root, *suffix = name
     return (*bindings.get(root, (root,)), *suffix)
+
+
+def walrus_bound_names(node: AST) -> frozenset[str]:
+    """Return names bound by walrus operators in the node's own scope.
+
+    Assignment expressions bind in their containing scope, so walrus targets
+    nested inside functions, lambdas, or class bodies are local to those
+    scopes and are excluded.
+
+    Args:
+        node: Statement or expression to scan.
+
+    Returns:
+        Names bound at the node's own scope level by ``:=`` operators.
+    """
+    names: set[str] = set()
+    if isinstance(node, NamedExpr) and isinstance(node.target, Name):
+        names.add(node.target.id)
+    for child in iter_child_nodes(node):
+        if isinstance(child, (AsyncFunctionDef, ClassDef, FunctionDef, Lambda)):
+            continue
+        names.update(walrus_bound_names(node=child))
+    return frozenset(names)
 
 
 def import_bindings(tree: Module) -> dict[str, tuple[str, ...]]:

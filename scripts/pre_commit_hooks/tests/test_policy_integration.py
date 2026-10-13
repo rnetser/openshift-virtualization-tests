@@ -10,6 +10,7 @@ from pyhelper_utils.shell import run_command
 from pytest import mark, raises
 
 from scripts.pre_commit_hooks import check_policy
+from scripts.pre_commit_hooks.check_linter_directives import compute_source_fingerprint
 from scripts.pre_commit_hooks.check_policy import main
 from scripts.pre_commit_hooks.tests.git_repository import commit_all, initialize_git_repository, stage_paths
 
@@ -163,6 +164,23 @@ def test_main_handles_rename_copy_and_deletion_statuses(tmp_path: Path, monkeypa
 
     assert main(arguments=["old.py", "renamed.py", "copied.py", "gone.py"]) == 0, (
         "renames and copies should check their new content while deletions are ignored"
+    )
+
+
+def test_rename_only_diff_does_not_audit_legacy_violations(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
+    """An exact rename maps its target without auditing unchanged legacy lines."""
+    initialize_git_repository(repository_root=tmp_path)
+    (tmp_path / "old.py").write_text(data="pytest.skip(reason='legacy')\nvalue = 1\n", encoding="utf-8")
+    manifest_path = tmp_path / "scripts/pre_commit_hooks/exceptions.toml"
+    manifest_path.parent.mkdir(parents=True, exist_ok=True)
+    manifest_path.write_text(data="exceptions = []\n", encoding="utf-8")
+    commit_all(repository_root=tmp_path)
+
+    run_command(command=["git", "mv", "old.py", "renamed.py"], cwd=tmp_path, check=True, verify_stderr=False)
+    monkeypatch.chdir(path=tmp_path)
+
+    assert main(arguments=["renamed.py"]) == 0, (
+        "a rename without content changes must not fail on pre-existing violations"
     )
 
 
@@ -373,3 +391,102 @@ def test_main_rejects_staged_docs_site_symlink_when_filenames_are_empty(
     monkeypatch.chdir(path=tmp_path)
 
     assert main(arguments=[]) == 1, "staged generated-site symlinks must be rejected without hook filenames"
+
+
+def test_main_rejects_staged_python_symlink(
+    tmp_path: Path,
+    monkeypatch: MonkeyPatch,
+    capsys: CaptureFixture[str],
+) -> None:
+    """A staged Python symlink is rejected because its target source is not checked."""
+    initialize_git_repository(repository_root=tmp_path)
+    target_path = tmp_path / "shared.py"
+    target_path.write_text(data="pytest.skip(reason='hidden behind a symlink')\n", encoding="utf-8")
+    manifest_path = tmp_path / "scripts/pre_commit_hooks/exceptions.toml"
+    manifest_path.parent.mkdir(parents=True, exist_ok=True)
+    manifest_path.write_text(data="exceptions = []\n", encoding="utf-8")
+    commit_all(repository_root=tmp_path)
+
+    link_path = tmp_path / "tests" / "network" / "linked.py"
+    link_path.parent.mkdir(parents=True, exist_ok=True)
+    link_path.symlink_to(target_path)
+    stage_paths(repository_root=tmp_path, paths=("tests/network/linked.py",))
+    monkeypatch.chdir(path=tmp_path)
+
+    assert main(arguments=["tests/network/linked.py"]) == 1, (
+        "staged Python symlinks must be rejected instead of checking the link target text"
+    )
+    captured = capsys.readouterr().err
+    assert "staged Python symlinks are not allowed" in captured, "the symlink rejection must be reported"
+    assert "pytest.skip" not in captured, "the worktree target behind a staged symlink must not be read or analyzed"
+
+
+def test_main_allows_manifest_record_migration_for_renamed_python_file(
+    tmp_path: Path,
+    monkeypatch: MonkeyPatch,
+) -> None:
+    """Renaming a Python file must allow migrating its suppression record to the new path."""
+    initialize_git_repository(repository_root=tmp_path)
+    source = "value = 1  # noqa\n"
+    fingerprint = compute_source_fingerprint(source=source, line_number=1, directive="# noqa")
+    example_path = tmp_path / "utilities" / "example.py"
+    example_path.parent.mkdir(parents=True)
+    example_path.write_text(data=source, encoding="utf-8")
+    manifest_path = tmp_path / "scripts/pre_commit_hooks/exceptions.toml"
+    manifest_path.parent.mkdir(parents=True, exist_ok=True)
+    manifest_path.write_text(data="exceptions = []\n", encoding="utf-8")
+    commit_all(repository_root=tmp_path)
+
+    example_path.with_name("renamed.py")
+    run_command(
+        command=["git", "mv", "utilities/example.py", "utilities/renamed.py"],
+        cwd=tmp_path,
+        check=True,
+        verify_stderr=False,
+    )
+    manifest_path.write_text(
+        data=f'''[[exceptions]]
+rule = "noqa"
+path = "utilities/renamed.py"
+directive = "# noqa"
+source_fingerprint = "{fingerprint}"
+reason = "migrated with the renamed file"
+approval_url = "https://github.com/example/review/6"
+''',
+        encoding="utf-8",
+    )
+    stage_paths(repository_root=tmp_path, paths=("scripts/pre_commit_hooks/exceptions.toml",))
+    monkeypatch.chdir(path=tmp_path)
+
+    assert main(arguments=["utilities/renamed.py"]) == 0, (
+        "renaming a file must allow its approved suppression record to migrate to the new path"
+    )
+
+
+def test_main_skips_tracked_symlinked_modules_instead_of_crashing(
+    tmp_path: Path,
+    monkeypatch: MonkeyPatch,
+) -> None:
+    """A staged caller importing a tracked symlinked module fails closed instead of crashing."""
+    initialize_git_repository(repository_root=tmp_path)
+    target_path = tmp_path / "utilities" / "real_module.py"
+    target_path.parent.mkdir(parents=True)
+    target_path.write_text(data="class Helper:\n    pass\n", encoding="utf-8")
+    link_path = tmp_path / "utilities" / "linked_module.py"
+    link_path.symlink_to(target_path)
+    manifest_path = tmp_path / "scripts/pre_commit_hooks/exceptions.toml"
+    manifest_path.parent.mkdir(parents=True, exist_ok=True)
+    manifest_path.write_text(data="exceptions = []\n", encoding="utf-8")
+    commit_all(repository_root=tmp_path)
+
+    caller_path = tmp_path / "utilities" / "caller.py"
+    caller_path.write_text(
+        data="from utilities.linked_module import Helper\n\nHelper()\n",
+        encoding="utf-8",
+    )
+    stage_paths(repository_root=tmp_path, paths=("utilities/caller.py",))
+    monkeypatch.chdir(path=tmp_path)
+
+    assert main(arguments=["utilities/caller.py"]) == 0, (
+        "a tracked symlinked module must be skipped, not parsed as its link-target path string"
+    )

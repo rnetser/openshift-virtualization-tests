@@ -103,6 +103,7 @@ The project-policy checks are grouped as follows:
 
 - **Generated docs path rejection:** staged changes under generated `docs/site/` are rejected.
 - **Top-level test path rejection:** top-level test modules such as `tests/test_example.py` and `tests/example_test.py` are rejected.
+- **Staged symlink rejection:** staged Python symlinks and a symlinked `scripts/pre_commit_hooks/exceptions.toml` are rejected. The Git index stores only the link-target text for a symlink, not the source that runs after checkout, so the policy checks cannot examine what would actually execute. Commit the real file so its source is checked.
 
 Path checks inspect every staged path even when pre-commit supplies no filename arguments. Python source checks remain limited to supplied filenames.
 
@@ -118,10 +119,11 @@ changed import or alias activates that binding.
 #### Python-basics check
 
 Absolute imports are required. The relative-import check applies to added lines
-in every Python file, regardless of path. The six mechanical rules below are
+in every Python file, regardless of path. The seven rules below are
 scoped to added or changed source under `libs/`, `scripts/`, `tests/`, and
 `utilities/`, except that the `time.sleep()` rule applies to added or changed
-Python anywhere, including the root `conftest.py`:
+Python anywhere, including the root `conftest.py`. Rules 1-6 are Python
+mechanics; rule 7 adds a marker-policy requirement for `tests/` files:
 
 1. Replace `self.assert*` with pytest assertions.
 2. Give every `assert` a descriptive failure message.
@@ -129,6 +131,12 @@ Python anywhere, including the root `conftest.py`:
 4. Do not add or change `time.sleep()`; use `TimeoutSampler`.
 5. Do not compare to `True` or `False` with `==` or `!=`; use implicit truthiness.
 6. Compare to `None` with `is` or `is not`, not `==` or `!=`.
+7. In `tests/`, a newly added requirement marker (`gpu`, `sriov`, `bgp`,
+   `ibm_bare_metal`, `dpdk`, `swap`, `cpu_manager`, `numa`, `hugepages`,
+   `jumbo_frame`, `rwx_default_storage`, `descheduler`, `high_resource_vm`)
+   must be paired with `@pytest.mark.special_infra` at module, class, or test
+   level covering the marked test (see Test Requirements for the marker
+   semantics).
 
 These checks use a staged/index added-line ratchet: unchanged legacy violations
 are not generally flagged, but binding-sensitive checks may still report an
@@ -137,7 +145,7 @@ Resource constructor/class `.get()` call when a newly added or changed import or
 alias activates its binding. Removing the qualifying comment from an unchanged
 `cache_admin_client()` call is also checked against `HEAD`. The `time.sleep()`
 rule remains global to added or changed Python, including the root `conftest.py`;
-the other five basic rules
+the rules other than 4 and 7
 remain scoped to added or changed source under `libs/`, `scripts/`, `tests/`, and
 `utilities/`. This is not a full historical all-files audit. Resource
 constructor/class `.get(client=...)` requirements and `cache_admin_client()`

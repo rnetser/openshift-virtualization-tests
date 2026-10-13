@@ -8,6 +8,23 @@ point:
 uv run python scripts/pre_commit_hooks/check_policy.py
 ```
 
+## Installation and usage
+
+Install the Git hook once per clone (see
+[`docs/DEVELOPER_GUIDE.md`](../../docs/DEVELOPER_GUIDE.md) for the full setup):
+
+```bash
+uv run pre-commit install
+```
+
+Run the hook over the staged changes (Python source checks read the Git
+index, so stage the intended changes first — unstaged files are not checked):
+
+```bash
+uv run pre-commit run project-policy
+uv run pre-commit run project-policy --files <path>
+```
+
 Pre-commit supplies the filenames to the entry point. For staged files, the
 hook reads the Git index and compares the staged result with `HEAD`; it does
 not silently inspect an unstaged worktree version. Stage the intended source
@@ -22,13 +39,18 @@ classification.
 
 ## Path checks
 
-The hook has two separate path checks for staged paths:
+The hook has three separate path checks for staged paths:
 
 1. **Generated documentation path rejection:** changes under generated
    `docs/site/` are rejected.
 2. **Top-level test path rejection:** top-level test modules such as
    `tests/test_example.py` and `tests/example_test.py` are rejected. Put tests
    in a feature subdirectory under `tests/` instead.
+3. **Staged symlink rejection:** staged Python symlinks and a symlinked
+   `scripts/pre_commit_hooks/exceptions.toml` are rejected. The Git index
+   stores only the link-target text for a symlink, not the source that runs
+   after checkout, so the policy checks cannot examine what would actually
+   execute. Commit the real file so its source is checked.
 
 These path checks inspect every staged path even when pre-commit supplies no
 filename arguments. Python source checks remain limited to supplied filenames.
@@ -124,6 +146,14 @@ exception records are still rejected. An obsolete record may be deleted as
 cleanup. A valid-looking URL is not local approval, and the reviewer must
 verify the actual approval and reason.
 
+Renaming a Python file that carries an approved suppression requires
+migrating its record: add a new record for the new repository path (same rule,
+directive, source fingerprint, and approved metadata), stage it together with
+the rename, and delete the obsolete old-path record. Do not edit the existing
+record in place — the path is part of the record identity, and a rename makes
+the record new at the new path even when the directive and fingerprint are
+unchanged.
+
 Compute a fingerprint from the complete file and the directive's one-based
 line number. The helper must read the file with a context manager; use named
 arguments for the helper call:
@@ -158,10 +188,11 @@ checker does not create or infer approval metadata.
 
 The Python-basics check is separate from the path and pytest skip checks.
 Absolute imports are required, and the relative-import check applies to added
-lines in every Python file. The six mechanical rules below are scoped to added
+lines in every Python file. The seven rules below are scoped to added
 or changed source under `libs/`, `scripts/`, `tests/`, or `utilities/`, except
 that `time.sleep()` is rejected in added or changed Python anywhere, including
-the root `conftest.py`:
+the root `conftest.py`. Rules 1 through 6 are Python mechanics; rule 7 adds a
+marker-policy requirement for `tests/` files:
 
 1. Replace `unittest` `self.assert*` calls with pytest `assert` statements.
 2. Give every `assert` a descriptive failure message.
@@ -171,13 +202,18 @@ the root `conftest.py`:
 5. Do not compare values with `==` or `!=` to the boolean constants `True` or
    `False`; use implicit truthiness.
 6. Compare with `None` using `is` or `is not`, not `==` or `!=`.
+7. In `tests/`, a newly added requirement marker (`gpu`, `sriov`, `bgp`,
+   `ibm_bare_metal`, `dpdk`, `swap`, `cpu_manager`, `numa`, `hugepages`,
+   `jumbo_frame`, `rwx_default_storage`, `descheduler`, `high_resource_vm`)
+   must be paired with `@pytest.mark.special_infra` at module, class, or test
+   level.
 
 The check is a staged/index added-line ratchet: unchanged legacy violations are
 left alone unless a binding-sensitive check is activated by a newly added or
 changed import or alias. In particular, an unchanged `time.sleep()` may still
 be reported when its binding is activated; `time.sleep()` remains rejected on
-added or changed Python anywhere, including the root `conftest.py`. The other
-five basic rules remain scoped to added or changed source under `libs/`,
+added or changed Python anywhere, including the root `conftest.py`. The rules
+other than 4 and 7 remain scoped to added or changed source under `libs/`,
 `scripts/`, `tests/`, and `utilities/`. This is not a full historical all-files
 audit of every Python rule.
 
@@ -235,7 +271,9 @@ This check compares qualified test names between `HEAD` and the index. It
 covers product test modules under `tests/` and excludes tooling tests under
 `scripts/` and utility unit tests under `utilities/unittests/`. The structure
 check cannot prove prior STP/STD review, scenario coverage, epic validation, or
-approval order. Those remain PR review responsibilities, not local evidence or
+approval order, and it does not judge whether a scenario is negative (the
+`[NEGATIVE]` indicator) or verify that `Markers:` declarations match applied
+pytest markers. Those remain PR review responsibilities, not local evidence or
 an arbitrary same-PR approval gate.
 
 ## Staged operation and test command

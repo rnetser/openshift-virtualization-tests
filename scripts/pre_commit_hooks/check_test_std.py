@@ -6,29 +6,41 @@ from ast import (
     AST,
     AnnAssign,
     Assign,
+    AsyncFor,
     AsyncFunctionDef,
     Attribute,
+    AugAssign,
     Call,
     ClassDef,
     Constant,
+    Delete,
     Expr,
+    For,
     FunctionDef,
+    If,
     Import,
     ImportFrom,
+    Match,
     Module,
     Name,
     Pass,
+    Try,
+    TryStar,
+    While,
+    With,
     dump,
     get_docstring,
     iter_child_nodes,
     parse,
     stmt,
+    walk,
 )
 from dataclasses import dataclass
 from pathlib import Path
 from re import IGNORECASE, compile
 from typing import TYPE_CHECKING
 
+from scripts.pre_commit_hooks.ast_names import walrus_bound_names
 from scripts.pre_commit_hooks.policy_types import PolicyViolation
 
 if TYPE_CHECKING:
@@ -182,27 +194,121 @@ def _marker_roots(tree: Module) -> _MarkerRoots:
         resolves to (for example ``from pytest import mark as m`` binds ``m``
         to ``pytest.mark``), or to an unrelated sentinel when the last binding
         points elsewhere, so a shadowed root such as ``from framework import
-        pytest`` cannot satisfy the manual-marker requirement. Names with no
-        visible module-scope binding stay unbound and keep their by-name
-        meaning.
+        pytest`` cannot satisfy the manual-marker requirement. Mutually
+        exclusive ``if``/``else`` branches, loop bodies that may run zero
+        times, and try bodies that may fail into a handler all merge their
+        possible binding states and fail closed unless every path resolves to
+        the same pytest binding. Names with no visible module-scope binding stay unbound and keep
+        their by-name meaning.
     """
     bindings: dict[str, str] = {}
-    for statement in tree.body:
+
+    def bind_name(target_bindings: dict[str, str], name: str, binding: str) -> None:
+        target_bindings[name] = binding
+
+    def merge_branch_bindings(target: dict[str, str], paths: tuple[dict[str, str], ...]) -> None:
+        for name in {key for path in paths for key in path}:
+            values = {path.get(name) for path in paths}
+            if len(values) == 1:
+                value = next(iter(values))
+                if value is not None:
+                    bind_name(target_bindings=target, name=name, binding=value)
+            else:
+                bind_name(target_bindings=target, name=name, binding=_UNRELATED_BINDING)
+
+    def bind_statement(target_bindings: dict[str, str], statement: stmt) -> None:
+        for walrus_name in walrus_bound_names(node=statement):
+            bind_name(target_bindings=target_bindings, name=walrus_name, binding=_UNRELATED_BINDING)
         if isinstance(statement, Import):
             for alias in statement.names:
                 bound_name = alias.asname or alias.name.split(sep=".")[0]
                 from_pytest = alias.name == "pytest" or alias.name.startswith("pytest.")
-                bindings[bound_name] = (
-                    alias.name if alias.asname and from_pytest else (bound_name if from_pytest else _UNRELATED_BINDING)
+                bind_name(
+                    target_bindings=target_bindings,
+                    name=bound_name,
+                    binding=(
+                        alias.name
+                        if alias.asname and from_pytest
+                        else (bound_name if from_pytest else _UNRELATED_BINDING)
+                    ),
                 )
         elif isinstance(statement, ImportFrom):
             for alias in statement.names:
                 bound_name = alias.asname or alias.name
-                bindings[bound_name] = f"pytest.{alias.name}" if statement.module == "pytest" else _UNRELATED_BINDING
+                bind_name(
+                    target_bindings=target_bindings,
+                    name=bound_name,
+                    binding=f"pytest.{alias.name}" if statement.module == "pytest" else _UNRELATED_BINDING,
+                )
         elif isinstance(statement, Assign):
             for target in statement.targets:
-                if isinstance(target, Name):
-                    bindings[target.id] = _UNRELATED_BINDING
+                for target_name in [node.id for node in walk(target) if isinstance(node, Name)]:
+                    bind_name(target_bindings=target_bindings, name=target_name, binding=_UNRELATED_BINDING)
+        elif isinstance(statement, (AnnAssign, AugAssign)):
+            if isinstance(statement.target, Name):
+                bind_name(target_bindings=target_bindings, name=statement.target.id, binding=_UNRELATED_BINDING)
+        elif isinstance(statement, (AsyncFunctionDef, ClassDef, FunctionDef)):
+            bind_name(target_bindings=target_bindings, name=statement.name, binding=_UNRELATED_BINDING)
+        elif isinstance(statement, (AsyncFor, For, While)):
+            # The loop body may run zero or more times; merge the possible
+            # binding states and fail closed unless every path agrees.
+            run_bindings = dict(target_bindings)
+            if isinstance(statement, (AsyncFor, For)):
+                for target_name in [node.id for node in walk(statement.target) if isinstance(node, Name)]:
+                    bind_name(target_bindings=run_bindings, name=target_name, binding=_UNRELATED_BINDING)
+            for nested in [*statement.body, *statement.orelse]:
+                bind_statement(target_bindings=run_bindings, statement=nested)
+            skip_bindings = dict(target_bindings)
+            for nested in statement.orelse:
+                bind_statement(target_bindings=skip_bindings, statement=nested)
+            merge_branch_bindings(target=target_bindings, paths=(run_bindings, skip_bindings))
+        elif isinstance(statement, If):
+            # Mutually exclusive branches: merge possible bindings and fail
+            # closed unless every path resolves to the same value.
+            then_bindings = dict(target_bindings)
+            else_bindings = dict(target_bindings)
+            for nested in statement.body:
+                bind_statement(target_bindings=then_bindings, statement=nested)
+            for nested in statement.orelse:
+                bind_statement(target_bindings=else_bindings, statement=nested)
+            merge_branch_bindings(target=target_bindings, paths=(then_bindings, else_bindings))
+        elif isinstance(statement, (Try, TryStar)):
+            # The body may complete or fail into a handler; merge both paths.
+            body_bindings = dict(target_bindings)
+            for nested in [*statement.body, *statement.orelse, *statement.finalbody]:
+                bind_statement(target_bindings=body_bindings, statement=nested)
+            handler_bindings = dict(target_bindings)
+            for handler in statement.handlers:
+                if handler.name:
+                    bind_name(target_bindings=handler_bindings, name=handler.name, binding=_UNRELATED_BINDING)
+                for nested in handler.body:
+                    bind_statement(target_bindings=handler_bindings, statement=nested)
+            for nested in statement.finalbody:
+                bind_statement(target_bindings=handler_bindings, statement=nested)
+            merge_branch_bindings(target=target_bindings, paths=(body_bindings, handler_bindings))
+        elif isinstance(statement, Match):
+            # Cases are mutually exclusive; each case body may also not run.
+            case_paths: list[dict[str, str]] = []
+            for case in statement.cases:
+                case_bindings = dict(target_bindings)
+                for nested in case.body:
+                    bind_statement(target_bindings=case_bindings, statement=nested)
+                case_paths.append(case_bindings)
+            merge_branch_bindings(target=target_bindings, paths=(dict(target_bindings), *case_paths))
+        elif isinstance(statement, Delete):
+            # Deleting a marker root drops any coverage it provided.
+            for target_name in [node.id for node in walk(statement) if isinstance(node, Name)]:
+                bind_name(target_bindings=target_bindings, name=target_name, binding=_UNRELATED_BINDING)
+        elif isinstance(statement, With):
+            for item in statement.items:
+                if item.optional_vars is not None:
+                    for target_name in [node.id for node in walk(item.optional_vars) if isinstance(node, Name)]:
+                        bind_name(target_bindings=target_bindings, name=target_name, binding=_UNRELATED_BINDING)
+            for nested in statement.body:
+                bind_statement(target_bindings=target_bindings, statement=nested)
+
+    for statement in tree.body:
+        bind_statement(target_bindings=bindings, statement=statement)
     return _MarkerRoots(bindings=bindings)
 
 
@@ -218,12 +324,14 @@ def _definitions(tree: Module) -> list[_TestDefinition]:
         parents: tuple[str, ...],
         inherited_docs: tuple[str, ...],
         inherited_disabled: bool,
+        inherited_shadowed_roots: frozenset[str] = frozenset(),
     ) -> None:
         class_doc = get_docstring(node=node, clean=False) or ""
         class_scope_statements = _scope_statements(statements=node.body)
         class_disabled = inherited_disabled or _boolean_assignment(statements=class_scope_statements) is False
         class_parents = (*parents, node.name)
         class_docs = (class_doc, *inherited_docs)
+        shadowed_roots = inherited_shadowed_roots | _class_body_bound_names(statements=class_scope_statements)
         for child in class_scope_statements:
             if isinstance(child, ClassDef):
                 collect_class(
@@ -231,6 +339,7 @@ def _definitions(tree: Module) -> list[_TestDefinition]:
                     parents=class_parents,
                     inherited_docs=class_docs,
                     inherited_disabled=class_disabled,
+                    inherited_shadowed_roots=shadowed_roots,
                 )
             elif isinstance(child, (FunctionDef, AsyncFunctionDef)) and child.name.startswith("test_"):
                 function_disabled = (
@@ -244,7 +353,11 @@ def _definitions(tree: Module) -> list[_TestDefinition]:
                         docs=(get_docstring(node=child, clean=False) or "", *class_docs),
                         placeholder=_docstring_only(node=child),
                         disabled=class_disabled or function_disabled,
-                        manual=_has_manual_marker(node=child, marker_roots=marker_roots),
+                        manual=_has_manual_marker(
+                            node=child,
+                            marker_roots=marker_roots,
+                            shadowed_roots=shadowed_roots,
+                        ),
                     )
                 )
 
@@ -307,7 +420,58 @@ def _has_tracking_url(docstrings: Sequence[str]) -> bool:
     return False
 
 
-def _has_manual_marker(node: FunctionDef | AsyncFunctionDef, marker_roots: _MarkerRoots) -> bool:
+def _class_body_bound_names(statements: Sequence[stmt]) -> frozenset[str]:
+    """Return names rebound by a class body (excluding method-local scopes).
+
+    Decorators on methods execute in the class body, so a class-local
+    binding shadows the module-scope marker root for them; the check must
+    fail closed when the decorator root is among these names.
+    """
+    names: set[str] = set()
+
+    def visit_statement(statement: stmt) -> None:
+        if isinstance(statement, (AsyncFunctionDef, ClassDef, FunctionDef)):
+            names.add(statement.name)
+        elif isinstance(statement, (AnnAssign, Assign, AugAssign)):
+            targets = statement.targets if isinstance(statement, Assign) else [statement.target]
+            for target in targets:
+                names.update(node.id for node in walk(target) if isinstance(node, Name))
+        elif isinstance(statement, (AsyncFor, For)):
+            names.update(node.id for node in walk(statement.target) if isinstance(node, Name))
+            for nested in statement.body:
+                visit_statement(statement=nested)
+        elif isinstance(statement, (If, While)):
+            for nested in [*statement.body, *statement.orelse]:
+                visit_statement(statement=nested)
+        elif isinstance(statement, (Try, TryStar)):
+            nested_statements = [*statement.body, *statement.orelse, *statement.finalbody]
+            for handler in statement.handlers:
+                if handler.name:
+                    names.add(handler.name)
+                nested_statements.extend(handler.body)
+            for nested in nested_statements:
+                visit_statement(statement=nested)
+        elif isinstance(statement, Match):
+            for case in statement.cases:
+                for nested in case.body:
+                    visit_statement(statement=nested)
+        elif isinstance(statement, With):
+            for item in statement.items:
+                if item.optional_vars is not None:
+                    names.update(node.id for node in walk(item.optional_vars) if isinstance(node, Name))
+            for nested in statement.body:
+                visit_statement(statement=nested)
+
+    for statement in statements:
+        visit_statement(statement=statement)
+    return frozenset(names)
+
+
+def _has_manual_marker(
+    node: FunctionDef | AsyncFunctionDef,
+    marker_roots: _MarkerRoots,
+    shadowed_roots: frozenset[str] = frozenset(),
+) -> bool:
     """Return whether the test carries a direct ``@pytest.mark.manual`` decorator.
 
     The attribute chain must resolve to ``pytest.mark.manual`` through the
@@ -316,11 +480,14 @@ def _has_manual_marker(node: FunctionDef | AsyncFunctionDef, marker_roots: _Mark
     binding such as ``from pytest import mark as m`` used as ``@m.manual``.
     A root name bound at module scope to something other than the pytest
     marker chain (for example ``from framework import pytest`` or
-    ``from pytest import fixture as mark``) cannot satisfy the requirement.
+    ``from pytest import fixture as mark``) cannot satisfy the requirement,
+    nor can a root rebound by the enclosing class body.
 
     Args:
         node: Test function or method definition.
         marker_roots: Module-scope root bindings, from ``_marker_roots``.
+        shadowed_roots: Names rebound by enclosing class bodies; a decorator
+            root among them cannot be trusted (fail closed).
 
     Returns:
         ``True`` only when the decorator sits on the test itself; enclosing class or
@@ -335,7 +502,7 @@ def _has_manual_marker(node: FunctionDef | AsyncFunctionDef, marker_roots: _Mark
         if isinstance(target, Name):
             names.append(target.id)
         resolved = list(reversed(names))
-        if resolved and marker_roots.resolve(chain=resolved) == _MANUAL_MARKER:
+        if resolved and resolved[0] not in shadowed_roots and marker_roots.resolve(chain=resolved) == _MANUAL_MARKER:
             return True
     return False
 
