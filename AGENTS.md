@@ -93,73 +93,6 @@ The "no defensive programming" rule has these five exceptions:
 - ❌ **Using `hasattr()` for type discrimination** - Do NOT use `if hasattr(obj, 'some_method')` to detect type. Use `isinstance(obj, ExpectedType)` for explicit type checking.
 - ❌ **Version checking for pinned dependencies** - Do NOT check `if kubernetes_version >= X` when pyproject.toml pins the exact version. The lock file guarantees the version.
 
-### Pre-commit Python Policy Checks
-
-The policy hooks are invoked as `uv run python scripts/pre_commit_hooks/check_policy.py --check <family>` and receive filenames from pre-commit. The check families — `path-policy`, `linter-directives`, `python-source`, `test-std`, and `stp-links` — run as separate pre-commit hooks. For staged files they read the Git index and compare the staged result with `HEAD`; the exception manifest must remain present in the index and deleting it is rejected. Every new exception record must be staged in the same index snapshot as one matching newly introduced or modified suppression-directive occurrence. One record authorizes one occurrence. Existing `reason` and `approval_url` metadata must not be edited in place; obsolete records may be removed.
-
-The policy check families are grouped as follows:
-
-#### Path checks
-
-- **Generated docs path rejection:** staged changes under generated `docs/site/` are rejected.
-- **Top-level test path rejection:** top-level test modules such as `tests/test_example.py` and `tests/example_test.py` are rejected.
-- **Staged symlink rejection:** staged Python symlinks and a symlinked `scripts/pre_commit_hooks/exceptions.toml` are rejected. The Git index stores only the link-target text for a symlink, not the source that runs after checkout, so the policy checks cannot examine what would actually execute. Commit the real file so its source is checked.
-
-Path checks inspect every staged path even when pre-commit supplies no filename arguments. Python source checks remain limited to supplied filenames.
-
-#### STP links
-
-Every staged `STP:` reference must point to a document merged on the default
-branch of `RedHatQE/openshift-virtualization-tests-design-docs`. The merged
-set is fetched with `gh api` once per run; an unauthenticated or offline
-environment fails closed instead of passing unverified references.
-
-#### Pytest skip check
-
-The pytest skip check is separate from the path checks. Added Python source
-must not use `pytest.skip()`, `pytest.mark.skip`, or `pytest.mark.skipif`,
-including equivalent forbidden markers reached through a module-level
-`pytestmark`. Its added-line ratchet follows bindings, so an unchanged skip
-call, marker, or `pytestmark` may still be reported when a newly added or
-changed import or alias activates that binding.
-
-#### Python-basics check
-
-Absolute imports are required. The relative-import check applies to added lines
-in every Python file, regardless of path. The seven rules below are
-scoped to added or changed source under `libs/`, `scripts/`, `tests/`, and
-`utilities/`, except that the `time.sleep()` rule applies to added or changed
-Python anywhere, including the root `conftest.py`. Rules 1-6 are Python
-mechanics; rule 7 adds a marker-policy requirement for `tests/` files:
-
-1. Replace `self.assert*` with pytest assertions.
-2. Give every `assert` a descriptive failure message.
-3. Do not add `async def`, `await`, `async for`, or `async with`; use synchronous code.
-4. Do not add or change `time.sleep()`; use `TimeoutSampler`.
-5. Do not compare to `True` or `False` with `==` or `!=`; use implicit truthiness.
-6. Compare to `None` with `is` or `is not`, not `==` or `!=`.
-7. In `tests/`, a newly added requirement marker (`gpu`, `sriov`, `bgp`,
-   `ibm_bare_metal`, `dpdk`, `swap`, `cpu_manager`, `numa`, `hugepages`,
-   `jumbo_frame`, `rwx_default_storage`, `descheduler`, `high_resource_vm`)
-   must be paired with `@pytest.mark.special_infra` at module, class, or test
-   level covering the marked test (see Test Requirements for the marker
-   semantics).
-
-These checks use a staged/index added-line ratchet: unchanged legacy violations
-are not generally flagged, but binding-sensitive checks may still report an
-unchanged `time.sleep()`, pytest skip/`pytestmark`, direct `DynamicClient`, or
-Resource constructor/class `.get()` call when a newly added or changed import or
-alias activates its binding. Removing the qualifying comment from an unchanged
-`cache_admin_client()` call is also checked against `HEAD`. The `time.sleep()`
-rule remains global to added or changed Python, including the root `conftest.py`;
-the rules other than 4 and 7
-remain scoped to added or changed source under `libs/`, `scripts/`, `tests/`, and
-`utilities/`. This is not a full historical all-files audit. Resource
-constructor/class `.get(client=...)` requirements and `cache_admin_client()`
-comment enforcement remain together under [Resource clients](#resource-clients).
-Relative-import and other Python-source checks use the staged added-line scope
-where applicable.
-
 ### Test Design Workflow (MANDATORY)
 
 New feature tests MUST follow the STD-first workflow:
@@ -404,6 +337,12 @@ Add or update tests in `utilities/unittests/test_<module>.py`. New public functi
 When unit tests are not added, state why in the PR (`##### Special notes for reviewer:`) — e.g. "coverage-omitted `virt.py` helper; behavior covered by `test_migrate_snapshot_hotplugged_vm`".
 
 ## Essential Commands
+
+Pre-commit runs project policy hooks (`scripts/pre_commit_hooks/`) that
+mechanically enforce the rules above — forbidden constructs, marker policy,
+STD traceability, linter-directive exceptions, and STP link verification.
+They check the staged Git index (not the worktree), so stage intended changes
+before relying on them. See [`scripts/pre_commit_hooks/README.md`](scripts/pre_commit_hooks/README.md).
 
 ### Before Committing Verification (MANDATORY)
 
