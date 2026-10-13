@@ -9,12 +9,14 @@ Coding standards, conventions, and review guidelines for openshift-virtualizatio
 
 ## Strict Rules (MANDATORY)
 
-### Linter Suppressions PROHIBITED
+### Linter Suppressions
 
-- ❌ **NEVER** add `# noqa`, `# type: ignore`, `# pylint: disable`
-- ❌ **NEVER** disable linter/mypy rules to work around issues
-- ✅ **FIX THE CODE** - If linter complains, the code is wrong
-- If you think a rule is wrong: **ASK** the user for explicit approval
+- New linter suppression directives (`noqa`, `type-ignore`, and `pylint-disable`) are prohibited unless they have an exact, reviewed record in `scripts/pre_commit_hooks/exceptions.toml`.
+- The exception manifest starts as `exceptions = []`; each record must contain exactly `rule`, `path`, `directive`, `source_fingerprint`, `reason`, and `approval_url`.
+- `rule` is one of `noqa`, `type-ignore`, or `pylint-disable`. `approval_url` must be an HTTP(S) review URL, but its syntax is not proof of approval. Reviewers must verify the actual approval and reason; never fabricate approval records.
+- A manifest exception identity is the rule, repository-relative path, normalized directive text, and a SHA-256 fingerprint of the directive plus its smallest enclosing statement's attribute-free AST. The fingerprint is stable across line shifts when the statement and directive are unchanged. When semicolons place multiple simple statements on one line, a trailing directive fingerprints the rightmost statement on that line.
+- The HEAD-versus-index linter ratchet compares directive identities by rule, normalized directive text, and source fingerprint; manifest records additionally bind the exception to the path. Existing directives with an unchanged identity are consumed one occurrence at a time; newly introduced or modified directives require an exact exception record for each remaining occurrence. One exact record authorizes one matching occurrence only. Duplicate manifest records are rejected, and there is no occurrence field. Distinct contexts may share a fingerprint, but fingerprint equality does not authorize duplicate copied suppressions automatically; a copied suppression with the same full identity is not granted another allowance by the existing record.
+- Never disable linter or mypy rules to work around issues. **FIX THE CODE** when a rule reports a real defect; ask for explicit approval when a rule itself is wrong.
 
 ### Code Reuse (Search-First Development)
 
@@ -32,6 +34,13 @@ Before writing ANY new code:
 **External package examples:**
 - **Shell commands** — use `pyhelper_utils.shell.run_command`, NEVER use `subprocess.run` directly in test/utility code
 - **OpenShift resources** — use `ocp-resources` classes, NEVER construct raw YAML dicts
+
+### Resource clients
+
+- Resource constructors and `Resource` class `.get()` calls MUST include an explicit `client=` keyword whose value is syntactically non-`None`. This covers known `Resource` subclasses and local wrappers discovered by source analysis; it excludes specs, dictionaries, dictionary lookups, and instance `.get()` calls.
+- Do not construct `DynamicClient` directly. Reuse the client already passed through the call path; do not insert a new factory solely to satisfy this policy.
+- `cache_admin_client()` is allowed only when correctness requires it. Its call site must have a nonempty comment-only line immediately before the enclosing statement or an inline comment within that statement's header, including multiline calls, decorators, and defaults. Empty comments, trailing comments on prior code, and comments in the statement body do not qualify. The hook checks only comment presence; reviewers are responsible for verifying that the explanation is correct and states the actual reason.
+- Resource discovery parses the installed `ocp_resources` source and the staged/index snapshot of local source. It lazily follows imported local modules and transitive resource bases, never imports cluster-facing modules, and must not let worktree-only source affect staged-source classification.
 
 ### Python Requirements
 
@@ -84,6 +93,58 @@ The "no defensive programming" rule has these five exceptions:
 - ❌ **Using `hasattr()` for type discrimination** - Do NOT use `if hasattr(obj, 'some_method')` to detect type. Use `isinstance(obj, ExpectedType)` for explicit type checking.
 - ❌ **Version checking for pinned dependencies** - Do NOT check `if kubernetes_version >= X` when pyproject.toml pins the exact version. The lock file guarantees the version.
 
+### Pre-commit Python Policy Checks
+
+The `project-policy` hook is invoked as `uv run python scripts/pre_commit_hooks/check_policy.py` and receives filenames from pre-commit. For staged files it reads the Git index and compares the staged result with `HEAD`; the exception manifest must remain present in the index and deleting it is rejected. Every new exception record must be staged in the same index snapshot as one matching newly introduced or modified suppression-directive occurrence. One record authorizes one occurrence. Existing `reason` and `approval_url` metadata must not be edited in place; obsolete records may be removed.
+
+The project-policy checks are grouped as follows:
+
+#### Path checks
+
+- **Generated docs path rejection:** staged changes under generated `docs/site/` are rejected.
+- **Top-level test path rejection:** top-level test modules such as `tests/test_example.py` and `tests/example_test.py` are rejected.
+
+Path checks inspect every staged path even when pre-commit supplies no filename arguments. Python source checks remain limited to supplied filenames.
+
+#### Pytest skip check
+
+The pytest skip check is separate from the path checks. Added Python source
+must not use `pytest.skip()`, `pytest.mark.skip`, or `pytest.mark.skipif`,
+including equivalent forbidden markers reached through a module-level
+`pytestmark`. Its added-line ratchet follows bindings, so an unchanged skip
+call, marker, or `pytestmark` may still be reported when a newly added or
+changed import or alias activates that binding.
+
+#### Python-basics check
+
+Absolute imports are required. The relative-import check applies to added lines
+in every Python file, regardless of path. The six mechanical rules below are
+scoped to added or changed source under `libs/`, `scripts/`, `tests/`, and
+`utilities/`, except that the `time.sleep()` rule applies to added or changed
+Python anywhere, including the root `conftest.py`:
+
+1. Replace `self.assert*` with pytest assertions.
+2. Give every `assert` a descriptive failure message.
+3. Do not add `async def`, `await`, `async for`, or `async with`; use synchronous code.
+4. Do not add or change `time.sleep()`; use `TimeoutSampler`.
+5. Do not compare to `True` or `False` with `==` or `!=`; use implicit truthiness.
+6. Compare to `None` with `is` or `is not`, not `==` or `!=`.
+
+These checks use a staged/index added-line ratchet: unchanged legacy violations
+are not generally flagged, but binding-sensitive checks may still report an
+unchanged `time.sleep()`, pytest skip/`pytestmark`, direct `DynamicClient`, or
+Resource constructor/class `.get()` call when a newly added or changed import or
+alias activates its binding. Removing the qualifying comment from an unchanged
+`cache_admin_client()` call is also checked against `HEAD`. The `time.sleep()`
+rule remains global to added or changed Python, including the root `conftest.py`;
+the other five basic rules
+remain scoped to added or changed source under `libs/`, `scripts/`, `tests/`, and
+`utilities/`. This is not a full historical all-files audit. Resource
+constructor/class `.get(client=...)` requirements and `cache_admin_client()`
+comment enforcement remain together under [Resource clients](#resource-clients).
+Relative-import and other Python-source checks use the staged added-line scope
+where applicable.
+
 ### Test Design Workflow (MANDATORY)
 
 New feature tests MUST follow the STD-first workflow:
@@ -95,6 +156,8 @@ New feature tests MUST follow the STD-first workflow:
 - ❌ **NEVER** submit test implementation without prior STD review
 - ❌ **NEVER** skip the STD phase by submitting implementation directly
 - ✅ STD and implementation MAY be in the same PR if STD is clearly separated and reviewed first
+
+The pre-commit STD check compares qualified test names between `HEAD` and the index. Every new product test function or method must contain its own meaningful description, nonempty `Steps:`, and nonempty `Expected:` sections in its test docstring. Only `Preconditions:` may be inherited from an enclosing class or module docstring; a new test's tracking URL must appear in its own docstring, and every Jira URL there must carry `# <skip-jira-utils-check>` on that same line whether or not it carries a `Jira:` label. A nonempty effective `Preconditions:` section and a direct STP URL or allowed Jira/RFE URL are required. The hook accepts inherited shared preconditions, but it cannot infer which shared resources a test directly uses; reviewers must still apply the meaningful shared-resource requirement in [`docs/SOFTWARE_TEST_DESCRIPTION.md`](docs/SOFTWARE_TEST_DESCRIPTION.md) and name each directly used shared resource at test level. For an existing test, each Description, `Steps:`, `Expected:`, effective `Preconditions:`, and tracking URL that was valid in `HEAD` must remain valid in the index; unchanged legacy omissions remain allowed, and inherited preconditions or tracking URLs may move among allowed scopes. Docstring-only STD placeholders must have effective `__test__ = False` and must declare `@pytest.mark.manual` directly on the test; a marker on an enclosing class or module does not satisfy the requirement. The bare `@mark.manual` from `from pytest import mark` is accepted, as is an aliased binding such as `from pytest import mark as m` used as `@m.manual`; an unrelated attribute such as `@framework.mark.manual` is not. An implemented test must not keep the marker or effective `__test__ = False`; do not enable an existing placeholder without adding its implementation. A copied or renamed test has no `HEAD` baseline at its new path, so every definition there requires the full STD even when its qualified name is unchanged; an additional occurrence of a qualified name already present in the same path's `HEAD` baseline instead inherits that name's retention obligations. Tooling tests under `scripts/` and utility unit tests under `utilities/unittests/` are excluded. This structure check cannot prove prior STP/STD review, scenario coverage, epic validation, or approval order; those remain review and PR enforcement, not local evidence or an arbitrary same-PR gate.
 
 ### Coverage Tracking
 
@@ -224,7 +287,7 @@ When reviewing quarantine PRs, verify the **quarantine mechanism matches the fai
       if sample:
           break
   ```
-- **NEVER use `time.sleep()` in loops** - use `timeout_sampler` with appropriate wait time
+- **NEVER add or change `time.sleep()` in Python** - use `timeout_sampler` with appropriate wait time
 - **Do NOT duplicate TimeoutSampler logs** - the sampler already logs timeout duration and exceptions. Only log additional context (e.g., resource state, what was being waited for).
 
 **Assertions:**
@@ -255,7 +318,6 @@ Internal tooling and automation scripts live in `scripts/`. Each tool has its ow
 
 - ❌ **NEVER modify files under `docs/site/`** — they are auto-generated and overwritten on each regeneration
 - ❌ **NEVER include `docs/site/` changes in PRs** — reject any PR that modifies generated docs
-- ✅ To update, generate docs manually with docsfy and commit directly to `main` (not via PR)
 
 ### Constants Module Placement
 

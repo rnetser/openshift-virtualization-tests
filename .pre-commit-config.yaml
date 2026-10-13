@@ -43,13 +43,18 @@ repos:
         stages: [pre-commit]
       - id: detect-private-key
       - id: mixed-line-ending
+      - id: check-added-large-files
+        stages: [pre-commit]
+      - id: check-toml
+        stages: [pre-commit]
   - repo: https://github.com/PyCQA/flake8
     rev: "7.3.0"
     hooks:
       - id: flake8
         language_version: python3.14
         args: [--config=.flake8]
-        exclude: "(utilities/unittests/|utilities/junit_ai_utils\\.py|scripts/std_placeholder_stats/tests/|scripts/coderabbit_retry/tests/test_coderabbit_retry\\.py)"
+        # The Polarion Flake8 plugin requires product-test IDs; these are local hook unit tests.
+        exclude: "(utilities/unittests/|utilities/junit_ai_utils\\.py|scripts/std_placeholder_stats/tests/|scripts/coderabbit_retry/tests/test_coderabbit_retry\\.py|scripts/pre_commit_hooks/tests/)"
         additional_dependencies:
           [
             "git+https://github.com/RedHatQE/flake8-plugins.git@v1.0.0",
@@ -77,6 +82,17 @@ repos:
     rev: "v8.30.0"
     hooks:
       - id: gitleaks
+
+  - repo: local
+    hooks:
+      - id: project-policy
+        name: Check project policies
+        entry: uv run python scripts/pre_commit_hooks/check_policy.py
+        language: system
+        types: [file]
+        always_run: true
+        require_serial: true
+        stages: [pre-commit]
 
   - repo: https://github.com/pre-commit/mirrors-mypy
     rev: v2.3.1
