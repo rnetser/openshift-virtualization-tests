@@ -95,9 +95,9 @@ The "no defensive programming" rule has these five exceptions:
 
 ### Pre-commit Python Policy Checks
 
-The `project-policy` hook is invoked as `uv run python scripts/pre_commit_hooks/check_policy.py` and receives filenames from pre-commit. For staged files it reads the Git index and compares the staged result with `HEAD`; the exception manifest must remain present in the index and deleting it is rejected. Every new exception record must be staged in the same index snapshot as one matching newly introduced or modified suppression-directive occurrence. One record authorizes one occurrence. Existing `reason` and `approval_url` metadata must not be edited in place; obsolete records may be removed.
+The policy hooks are invoked as `uv run python scripts/pre_commit_hooks/check_policy.py --check <family>` and receive filenames from pre-commit. The check families — `path-policy`, `linter-directives`, `python-source`, `test-std`, and `stp-links` — run as separate pre-commit hooks. For staged files they read the Git index and compare the staged result with `HEAD`; the exception manifest must remain present in the index and deleting it is rejected. Every new exception record must be staged in the same index snapshot as one matching newly introduced or modified suppression-directive occurrence. One record authorizes one occurrence. Existing `reason` and `approval_url` metadata must not be edited in place; obsolete records may be removed.
 
-The project-policy checks are grouped as follows:
+The policy check families are grouped as follows:
 
 #### Path checks
 
@@ -106,6 +106,13 @@ The project-policy checks are grouped as follows:
 - **Staged symlink rejection:** staged Python symlinks and a symlinked `scripts/pre_commit_hooks/exceptions.toml` are rejected. The Git index stores only the link-target text for a symlink, not the source that runs after checkout, so the policy checks cannot examine what would actually execute. Commit the real file so its source is checked.
 
 Path checks inspect every staged path even when pre-commit supplies no filename arguments. Python source checks remain limited to supplied filenames.
+
+#### STP links
+
+Every staged `STP:` reference must point to a document merged on the default
+branch of `RedHatQE/openshift-virtualization-tests-design-docs`. The merged
+set is fetched with `gh api` once per run; an unauthenticated or offline
+environment fails closed instead of passing unverified references.
 
 #### Pytest skip check
 

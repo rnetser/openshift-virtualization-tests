@@ -15,22 +15,30 @@ if TYPE_CHECKING:
     from pytest import MonkeyPatch
 
 
-def test_project_policy_hook_always_runs_without_selected_files() -> None:
-    """The project-policy hook must run when pre-commit supplies no filenames."""
+def _policy_hook_blocks() -> list[str]:
+    """Return the local policy hook definition blocks."""
     config_path = Path(__file__).parents[3] / ".pre-commit-config.yaml"
     config = config_path.read_text(encoding="utf-8")
-    project_policy = config.split("      - id: project-policy\n", maxsplit=1)[1].split("\n  - repo:", maxsplit=1)[0]
+    local_hooks = config.split("  - repo: local", maxsplit=1)[1]
+    return [block for block in local_hooks.split("      - id: ")[1:] if block.startswith("check-")]
 
-    assert "always_run: true" in project_policy, "project-policy must run for manifest-only staged deletions"
+
+def test_policy_hooks_always_run_without_selected_files() -> None:
+    """Every policy hook must run when pre-commit supplies no filenames."""
+    hook_blocks = _policy_hook_blocks()
+
+    assert hook_blocks, "the local policy hooks must be defined"
+    for hook_block in hook_blocks:
+        assert "always_run: true" in hook_block, "policy hooks must run for manifest-only staged deletions"
 
 
-def test_project_policy_hook_requires_serial_execution() -> None:
-    """The project-policy hook must serialize status and diff parsing."""
-    config_path = Path(__file__).parents[3] / ".pre-commit-config.yaml"
-    config = config_path.read_text(encoding="utf-8")
-    project_policy = config.split("      - id: project-policy\n", maxsplit=1)[1].split("\n  - repo:", maxsplit=1)[0]
+def test_policy_hooks_require_serial_execution() -> None:
+    """Every policy hook must serialize status and diff parsing."""
+    hook_blocks = _policy_hook_blocks()
 
-    assert "require_serial: true" in project_policy, "project-policy status and diff parsing must run serially"
+    assert hook_blocks, "the local policy hooks must be defined"
+    for hook_block in hook_blocks:
+        assert "require_serial: true" in hook_block, "policy hook status and diff parsing must run serially"
 
 
 def test_main_accepts_exception_manifest_only_cleanup(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:

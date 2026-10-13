@@ -1,12 +1,16 @@
-# Project policy pre-commit hook
+# Project policy pre-commit hooks
 
-The `project-policy` hook enforces the approved source and test policies for
-changed files. It is configured in `.pre-commit-config.yaml` with this entry
-point:
+The policy hooks enforce the approved source and test policies for changed
+files. They are configured in `.pre-commit-config.yaml` as separate local
+hooks, one per check family, all sharing this entry point:
 
 ```text
-uv run python scripts/pre_commit_hooks/check_policy.py
+uv run python scripts/pre_commit_hooks/check_policy.py --check <family>
 ```
+
+The check families are `path-policy`, `linter-directives`, `python-source`,
+`test-std`, and `stp-links`. Without a `--check` selection the entry point
+runs every family.
 
 ## Installation and usage
 
@@ -21,8 +25,11 @@ Run the hook over the staged changes (Python source checks read the Git
 index, so stage the intended changes first — unstaged files are not checked):
 
 ```bash
-uv run pre-commit run project-policy
-uv run pre-commit run project-policy --files <path>
+uv run pre-commit run check-staged-paths
+uv run pre-commit run check-linter-directives
+uv run pre-commit run check-python-source
+uv run pre-commit run check-test-std
+uv run pre-commit run check-stp-links
 ```
 
 Pre-commit supplies the filenames to the entry point. For staged files, the
@@ -276,11 +283,22 @@ approval order, and it does not judge whether a scenario is negative (the
 pytest markers. Those remain PR review responsibilities, not local evidence or
 an arbitrary same-PR approval gate.
 
+## STP links
+
+The `check-stp-links` hook verifies that every staged `STP:` reference points
+to a document merged on the default branch of
+[openshift-virtualization-tests-design-docs](https://github.com/RedHatQE/openshift-virtualization-tests-design-docs).
+References are collected from added lines of the staged Python files
+pre-commit supplies; when a reference resolves to no merged document, the
+commit is rejected. The merged set is fetched once per run with
+`gh api` (an authenticated GitHub CLI is required); when the fetch fails, the
+check fails closed rather than passing unverified references.
+
 ## Staged operation and test command
 
 The hook intentionally compares only the relevant staged/index source with
 `HEAD`; it does not claim to audit all historical Python code. Even
-`uv run pre-commit run --all-files` makes this project-policy hook audit the
+`uv run pre-commit run --all-files` makes these policy hooks audit the
 staged/index diff only, so stage intended changes before relying on its result.
 The exception manifest must remain present in the index; deleting it is
 rejected. Stage each new exception record with its matching newly introduced or

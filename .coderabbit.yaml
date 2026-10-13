@@ -353,8 +353,7 @@ knowledge_base:
         - HIGH: Every STP feature scenario needs a corresponding STD.
           Exempt: regression scenarios excluded from the STP table,
           and scenarios inherited from a parent STP via child-STP.
-        - HIGH: STP negative/edge-case scenarios MUST have tests,
-          unless the PR documents an intentional exclusion with justification and a follow-up Jira link.
+        - HIGH: STP negative/edge-case scenarios MUST have tests.
         - HIGH: Modified tests referencing an STP must keep docstring
           and test body aligned with the STP scenario. Flag drift.
         - HIGH: Deleted STP/Jira/RFE-linked tests require PR

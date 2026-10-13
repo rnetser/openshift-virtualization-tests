@@ -50,6 +50,7 @@ from ast import (
 )
 from dataclasses import dataclass, field
 from importlib import import_module
+from json import loads
 from pathlib import Path
 from re import compile as re_compile
 from sys import argv
@@ -70,6 +71,12 @@ from scripts.pre_commit_hooks.check_resource_clients import (
     discover_resource_classes,
     imported_module_names,
 )
+from scripts.pre_commit_hooks.check_stp_links import (
+    STP_REPOSITORY,
+    check_stp_links,
+    stp_references,
+    unverified_stp_violation,
+)
 from scripts.pre_commit_hooks.check_test_basics import check_test_basics
 from scripts.pre_commit_hooks.check_test_std import check_test_std
 from scripts.pre_commit_hooks.policy_types import PolicyViolation
@@ -77,7 +84,6 @@ from scripts.pre_commit_hooks.policy_types import PolicyViolation
 if TYPE_CHECKING:
     from collections.abc import Callable, Collection, Sequence
 
-    from scripts.pre_commit_hooks.check_linter_directives import DirectiveException
 
 run_command = cast(
     "Callable[..., tuple[bool, str, str]]",
@@ -1698,50 +1704,77 @@ def check_file(
     return violations
 
 
-def main(arguments: Sequence[str] | None = None) -> int:
-    """Run policy checks over the staged index and the supplied filenames.
+_CHECK_FAMILIES = ("path-policy", "linter-directives", "python-source", "test-std", "stp-links")
 
-    Path-policy and manifest checks always cover the whole staged index,
-    while Python source and STD checks are limited to the filenames
-    pre-commit supplies in ``arguments``.
+
+def _parse_arguments(arguments: Sequence[str] | None) -> tuple[list[str], frozenset[str]]:
+    """Split command-line arguments into filenames and selected check families.
 
     Args:
-        arguments: Filenames to check, or ``None`` to use command-line arguments.
+        arguments: Raw arguments, or ``None`` to use command-line arguments.
 
     Returns:
-        Zero when all files comply, otherwise one.
+        Filenames and the selected check families; without an explicit
+        ``--check`` selection every family runs.
     """
-    file_names = argv[1:] if arguments is None else arguments
-    staged_changes = _staged_changes()
-    file_paths = [Path(file_name) for file_name in file_names]
-    staged_python_sources = {
-        # Renamed paths get no HEAD baseline so their directives count as new
-        # and the manifest record can be migrated to the new path.
-        path: (source, None if path in staged_changes.renamed_paths else staged_changes.head_sources.get(path))
-        for path, source in staged_changes.sources.items()
-        if path.suffix == ".py"
-    }
-    staged_python_paths = [path for path in file_paths if path in staged_python_sources]
-    imported_modules = {
-        module_name
-        for path in staged_python_paths
-        for module_name in imported_module_names(
-            tree=parse(source=staged_changes.sources[path], filename=str(path)),
-            module_name=_module_name(file_path=path),
-        )
-    }
-    relevant_modules = {
-        module_name
-        for module_name in imported_modules
-        if module_name and module_name[0] in {"libs", "tests", "utilities", "ocp_resources"}
-    }
-    resource_classes: Collection[tuple[str, ...]] = frozenset()
-    if relevant_modules:
-        resource_classes = discover_resource_classes(
-            source_reader=_index_source_reader(),
-            module_names=relevant_modules,
-        )
+    raw_arguments = list(argv[1:]) if arguments is None else list(arguments)
+    file_names: list[str] = []
+    selected: set[str] = set()
+    index = 0
+    while index < len(raw_arguments):
+        argument = raw_arguments[index]
+        if argument == "--check":
+            index += 1
+            if index >= len(raw_arguments):
+                raise SystemExit("check_policy: --check requires a check family name")
+            selected.add(raw_arguments[index])
+        else:
+            file_names.append(argument)
+        index += 1
+    unknown_families = selected - set(_CHECK_FAMILIES)
+    if unknown_families:
+        raise SystemExit(f"check_policy: unknown check family: {sorted(unknown_families)}")
+    return file_names, frozenset(selected) or frozenset(_CHECK_FAMILIES)
 
+
+def _resolved_added_lines(staged_changes: StagedChanges, file_path: Path) -> Collection[int] | None:
+    """Resolve the added-line filter for a path pre-commit supplied.
+
+    Args:
+        staged_changes: Parsed staged state.
+        file_path: Path pre-commit supplied.
+
+    Returns:
+        Added line numbers, ``None`` to check every line (fail closed), or an
+        empty collection when nothing is staged for the path.
+    """
+    staged_added_lines = staged_changes.added_lines.get(file_path)
+    if staged_added_lines is None:
+        if file_path in staged_changes.sources:
+            # A staged file whose diff could not be mapped (binary content
+            # or an undecodable diff header); fail closed and check every line.
+            return None
+        # Not staged; nothing is being committed for this path.
+        return frozenset()
+    if (
+        file_path in staged_changes.changed_paths
+        and staged_changes.sources.get(file_path) is not None
+        and not staged_added_lines
+        and staged_changes.head_sources.get(file_path) is None
+    ):
+        return None
+    return staged_added_lines
+
+
+def _path_policy_violations(staged_changes: StagedChanges) -> list[PolicyViolation]:
+    """Check staged path layout, staged symlinks, and manifest deletion.
+
+    Args:
+        staged_changes: Parsed staged state.
+
+    Returns:
+        Path-policy violations for the whole staged index.
+    """
     violations = [
         violation
         for staged_path in sorted(staged_changes.changed_paths | staged_changes.deleted_paths)
@@ -1758,8 +1791,7 @@ def main(arguments: Sequence[str] | None = None) -> int:
             path for path in staged_changes.symlinked_paths if path.suffix == ".py" or path == EXCEPTIONS_PATH
         )
     )
-    manifest_deleted = EXCEPTIONS_PATH in staged_changes.deleted_paths
-    if manifest_deleted:
+    if EXCEPTIONS_PATH in staged_changes.deleted_paths:
         violations.append(
             PolicyViolation(
                 file_path=EXCEPTIONS_PATH,
@@ -1767,44 +1799,28 @@ def main(arguments: Sequence[str] | None = None) -> int:
                 message="linter-directives: the exception manifest must not be deleted",
             )
         )
-    for file_path in file_paths:
-        if file_path in staged_changes.deleted_paths or file_path in staged_changes.symlinked_paths:
-            # Symlinked paths already carry a rejection violation and must
-            # not fall back to reading their worktree target.
-            continue
-        source = staged_changes.sources.get(file_path)
-        head_source = staged_changes.head_sources.get(file_path)
-        staged_added_lines = staged_changes.added_lines.get(file_path)
-        if staged_added_lines is None:
-            if file_path in staged_changes.sources:
-                # A staged file whose diff could not be mapped (binary content
-                # or an undecodable diff header); fail closed and check every line.
-                added_lines: Collection[int] | None = None
-            else:
-                # Not staged; nothing is being committed for this path.
-                added_lines = frozenset()
-        else:
-            added_lines = staged_added_lines
-            if (
-                file_path in staged_changes.changed_paths
-                and source is not None
-                and not added_lines
-                and head_source is None
-            ):
-                added_lines = None
-        violations.extend(
-            check_file(
-                file_path=file_path,
-                staged=False,
-                added_lines=added_lines,
-                source=source,
-                head_source=head_source,
-                resource_classes=resource_classes,
-            )
-        )
+    return violations
 
+
+def _linter_directives_violations(
+    staged_changes: StagedChanges,
+    staged_python_sources: dict[Path, tuple[str, str | None]],
+    staged_python_paths: list[Path],
+) -> list[PolicyViolation]:
+    """Validate the exception manifest and staged suppression directives.
+
+    Args:
+        staged_changes: Parsed staged state.
+        staged_python_sources: Staged Python sources with HEAD baselines.
+        staged_python_paths: Staged Python paths pre-commit supplied.
+
+    Returns:
+        Manifest validation and per-file directive violations.
+    """
+    violations: list[PolicyViolation] = []
     manifest_changed = EXCEPTIONS_PATH in staged_changes.sources
     manifest_symlinked = EXCEPTIONS_PATH in staged_changes.symlinked_paths
+    manifest_deleted = EXCEPTIONS_PATH in staged_changes.deleted_paths
     exceptions_source: str | None = staged_changes.sources.get(EXCEPTIONS_PATH)
     if (
         not manifest_symlinked
@@ -1824,7 +1840,6 @@ def main(arguments: Sequence[str] | None = None) -> int:
                     message="linter-directives: the exception manifest must exist in the Git index",
                 )
             )
-    exceptions: tuple[DirectiveException, ...] = ()
     if exceptions_source is not None:
         manifest_head_source = staged_changes.head_sources.get(EXCEPTIONS_PATH)
         if not manifest_changed and staged_python_sources:
@@ -1853,25 +1868,196 @@ def main(arguments: Sequence[str] | None = None) -> int:
                         message=f"linter-directives: fix malformed exception manifest: {error}",
                     )
                 )
-
+    else:
+        exceptions = ()
     for file_path in staged_python_paths:
-        indexed_source = staged_changes.sources[file_path]
-        head_source = staged_changes.head_sources.get(file_path)
         violations.extend(
             check_linter_directives(
                 file_path=file_path,
-                indexed_source=indexed_source,
-                head_source=head_source,
+                indexed_source=staged_changes.sources[file_path],
+                head_source=staged_changes.head_sources.get(file_path),
                 exceptions=exceptions,
             )
         )
+    return violations
+
+
+def _python_source_violations(
+    staged_changes: StagedChanges,
+    file_paths: list[Path],
+    staged_python_paths: list[Path],
+) -> list[PolicyViolation]:
+    """Check supplied files against every source-level policy.
+
+    Args:
+        staged_changes: Parsed staged state.
+        file_paths: Paths pre-commit supplied.
+        staged_python_paths: Staged Python paths pre-commit supplied.
+
+    Returns:
+        Source-level violations for the supplied files.
+    """
+    imported_modules = {
+        module_name
+        for path in staged_python_paths
+        for module_name in imported_module_names(
+            tree=parse(source=staged_changes.sources[path], filename=str(path)),
+            module_name=_module_name(file_path=path),
+        )
+    }
+    relevant_modules = {
+        module_name
+        for module_name in imported_modules
+        if module_name and module_name[0] in {"libs", "tests", "utilities", "ocp_resources"}
+    }
+    resource_classes: Collection[tuple[str, ...]] = frozenset()
+    if relevant_modules:
+        resource_classes = discover_resource_classes(
+            source_reader=_index_source_reader(),
+            module_names=relevant_modules,
+        )
+    violations: list[PolicyViolation] = []
+    for file_path in file_paths:
+        if file_path in staged_changes.deleted_paths or file_path in staged_changes.symlinked_paths:
+            # Symlinked paths already carry a rejection violation and must
+            # not fall back to reading their worktree target.
+            continue
         violations.extend(
-            check_test_std(
+            check_file(
                 file_path=file_path,
-                indexed_source=indexed_source,
-                head_source=None if file_path in staged_changes.renamed_paths else head_source,
+                staged=False,
+                added_lines=_resolved_added_lines(staged_changes=staged_changes, file_path=file_path),
+                source=staged_changes.sources.get(file_path),
+                head_source=staged_changes.head_sources.get(file_path),
+                resource_classes=resource_classes,
             )
         )
+    return violations
+
+
+def _test_std_violations(staged_changes: StagedChanges, staged_python_paths: list[Path]) -> list[PolicyViolation]:
+    """Check STD docstrings and manual markers for staged test files.
+
+    Args:
+        staged_changes: Parsed staged state.
+        staged_python_paths: Staged Python paths pre-commit supplied.
+
+    Returns:
+        STD violations for the staged test files.
+    """
+    return [
+        violation
+        for file_path in staged_python_paths
+        for violation in check_test_std(
+            file_path=file_path,
+            indexed_source=staged_changes.sources[file_path],
+            head_source=(
+                None if file_path in staged_changes.renamed_paths else staged_changes.head_sources.get(file_path)
+            ),
+        )
+    ]
+
+
+def _merged_stp_paths() -> frozenset[str]:
+    """Return design-docs paths merged on the default branch.
+
+    Returns:
+        Repository-relative paths present in the design-docs default branch tree.
+    """
+    tree_source = _git_output(command=["gh", "api", f"repos/{STP_REPOSITORY}/git/trees/main?recursive=1"])
+    tree = loads(tree_source)
+    if tree.get("truncated"):
+        raise RuntimeError("design-docs tree listing was truncated by the GitHub API")
+    return frozenset(entry["path"] for entry in tree["tree"])
+
+
+def _stp_links_violations(staged_changes: StagedChanges, staged_python_paths: list[Path]) -> list[PolicyViolation]:
+    """Reject staged STP references whose design-docs document is not merged.
+
+    Args:
+        staged_changes: Parsed staged state.
+        staged_python_paths: Staged Python paths pre-commit supplied.
+
+    Returns:
+        Violations for unmerged STP references; a fail-closed violation per
+        file when the merged set cannot be fetched.
+    """
+    file_references: dict[Path, dict[str, int]] = {}
+    for file_path in staged_python_paths:
+        if file_path.parts[:1] != ("tests",):
+            # STP references are a product-test concern; tooling sources and
+            # their embedded fixture URLs are not verified.
+            continue
+        references = stp_references(
+            indexed_source=staged_changes.sources[file_path],
+            added_lines=_resolved_added_lines(staged_changes=staged_changes, file_path=file_path),
+        )
+        if references:
+            file_references[file_path] = references
+    if not file_references:
+        return []
+    try:
+        merged_paths = _merged_stp_paths()
+    except RuntimeError as error:
+        return [unverified_stp_violation(file_path=file_path, error=str(error)) for file_path in file_references]
+    return [
+        violation
+        for file_path, references in file_references.items()
+        for violation in check_stp_links(file_path=file_path, references=references, merged_paths=merged_paths)
+    ]
+
+
+def main(arguments: Sequence[str] | None = None) -> int:
+    """Run policy checks over the staged index and the supplied filenames.
+
+    Each check family can be selected individually with ``--check <family>``
+    so pre-commit runs them as separate hooks; without a selection every
+    family runs. Path-policy and manifest checks always cover the whole
+    staged index, while Python source and STD checks are limited to the
+    filenames pre-commit supplies in ``arguments``.
+
+    Args:
+        arguments: Filenames and optional ``--check`` selections, or ``None``
+            to use command-line arguments.
+
+    Returns:
+        Zero when all files comply, otherwise one.
+    """
+    file_names, selected_checks = _parse_arguments(arguments=arguments)
+    staged_changes = _staged_changes()
+    file_paths = [Path(file_name) for file_name in file_names]
+    staged_python_sources = {
+        # Renamed paths get no HEAD baseline so their directives count as new
+        # and the manifest record can be migrated to the new path.
+        path: (source, None if path in staged_changes.renamed_paths else staged_changes.head_sources.get(path))
+        for path, source in staged_changes.sources.items()
+        if path.suffix == ".py"
+    }
+    staged_python_paths = [path for path in file_paths if path in staged_python_sources]
+
+    violations: list[PolicyViolation] = []
+    if "path-policy" in selected_checks:
+        violations.extend(_path_policy_violations(staged_changes=staged_changes))
+    if "linter-directives" in selected_checks:
+        violations.extend(
+            _linter_directives_violations(
+                staged_changes=staged_changes,
+                staged_python_sources=staged_python_sources,
+                staged_python_paths=staged_python_paths,
+            )
+        )
+    if "python-source" in selected_checks:
+        violations.extend(
+            _python_source_violations(
+                staged_changes=staged_changes,
+                file_paths=file_paths,
+                staged_python_paths=staged_python_paths,
+            )
+        )
+    if "test-std" in selected_checks:
+        violations.extend(_test_std_violations(staged_changes=staged_changes, staged_python_paths=staged_python_paths))
+    if "stp-links" in selected_checks:
+        violations.extend(_stp_links_violations(staged_changes=staged_changes, staged_python_paths=staged_python_paths))
 
     violations.sort(
         key=lambda violation: (
