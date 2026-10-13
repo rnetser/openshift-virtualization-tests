@@ -37,12 +37,14 @@ hook reads the Git index and compares the staged result with `HEAD`; it does
 not silently inspect an unstaged worktree version. Stage the intended source
 changes before relying on a staged policy result.
 
-The checks are static. Resource discovery parses the installed `ocp_resources`
-source and lazily parses only the staged/index snapshot of imported local
-modules under `libs/`, `tests/`, and `utilities/`, following transitive
-resource bases. It does not import cluster-facing modules or connect to a
-cluster or network, and worktree-only local source must not affect staged-source
-classification.
+The source-analysis checks are static. Resource discovery parses the installed
+`ocp_resources` source and lazily parses only the staged/index snapshot of
+imported local modules under `libs/`, `tests/`, and `utilities/`, following
+transitive resource bases. They do not import cluster-facing modules or
+connect to a cluster, and worktree-only local source must not affect
+staged-source classification. The only network access is `check-stp-links`,
+which contacts the design-docs repository through `gh api` when staged STP
+references exist.
 
 ## Path checks
 
