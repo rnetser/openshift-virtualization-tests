@@ -15,7 +15,7 @@ STP_REPOSITORY = "RedHatQE/openshift-virtualization-tests-design-docs"
 _STP_URL = compile(
     pattern=(
         rf"https?://github\.com/{STP_REPOSITORY}"
-        r"/blob/[^\s/]+/(?P<path>stps/[^\s)>\]]+)"
+        r"/(?:blob|tree)/[^\s/]+/(?P<path>stps/[^\s)>\]#?]+)"
     ),
     flags=IGNORECASE,
 )
@@ -25,9 +25,8 @@ _UNVERIFIED_MESSAGE = f"stp-links: could not verify STP documents against {STP_R
 
 def _reference_path(url: str) -> str:
     """Return the design-docs repository path referenced by ``url``."""
-    _, _, ref_and_path = url.partition("/blob/")
-    _, _, path = ref_and_path.partition("/")
-    return path
+    match = _STP_URL.match(string=url)
+    return match.group("path").rstrip("/") if match else ""
 
 
 def stp_references(indexed_source: str, added_lines: Collection[int] | None) -> dict[str, int]:

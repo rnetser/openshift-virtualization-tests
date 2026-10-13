@@ -86,7 +86,7 @@ repos:
   - repo: local
     hooks:
       - id: check-staged-paths
-        name: ban bad staged paths (site-packages, top-level tests) and staged symlinks
+        name: ban bad staged paths (generated docs/site, top-level tests) and staged symlinks
         entry: uv run python scripts/pre_commit_hooks/check_policy.py --check path-policy
         language: system
         types: [file]

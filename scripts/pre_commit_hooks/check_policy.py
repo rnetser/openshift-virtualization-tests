@@ -142,7 +142,14 @@ class _DiffState:
 
 
 _HUNK_HEADER = re_compile(pattern=r"^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@")
-_STAGED_DIFF_OPTIONS = ("--cached", "--unified=0", "--no-color", "--no-ext-diff", "--no-textconv")
+_STAGED_DIFF_OPTIONS = (
+    "--cached",
+    "--find-renames",
+    "--unified=0",
+    "--no-color",
+    "--no-ext-diff",
+    "--no-textconv",
+)
 _SYMLINKED_PYTHON_MESSAGE = (
     "policy: staged Python symlinks are not allowed; commit the real file so its source is checked"
 )
@@ -1037,7 +1044,7 @@ def _symlinked_staged_paths(staged_paths: Collection[Path]) -> frozenset[Path]:
 
 
 def _staged_changes() -> StagedChanges:
-    status_output = _git_output(command=["git", "diff", "--cached", "--name-status", "-z", "--"])
+    status_output = _git_output(command=["git", "diff", "--cached", "--find-renames", "--name-status", "-z", "--"])
     entries = _parse_staged_entries(status_output=status_output)
     deleted_paths = _parse_staged_status(status_output=status_output)
     changed_paths = frozenset(entry.path for entry in entries)
@@ -1162,12 +1169,6 @@ _DYNAMIC_CLIENT_NAMES = {
     ("kubernetes", "dynamic", "client", "DynamicClient"),
 }
 _FORBIDDEN_SKIP_MARKERS = (("pytest", "mark", "skip"), ("pytest", "mark", "skipif"))
-
-
-def _node_position(node: AST, *, end: bool = False) -> tuple[int, int]:
-    line = getattr(node, "end_lineno" if end else "lineno", 0) or 0
-    column = getattr(node, "end_col_offset" if end else "col_offset", 0) or 0
-    return line, column
 
 
 def _root_name(node: AST) -> Name | None:
@@ -1963,12 +1964,19 @@ def _merged_stp_paths() -> frozenset[str]:
 
     Returns:
         Repository-relative paths present in the design-docs default branch tree.
+
+    Raises:
+        RuntimeError: When the tree listing cannot be fetched or parsed.
     """
-    tree_source = _git_output(command=["gh", "api", f"repos/{STP_REPOSITORY}/git/trees/main?recursive=1"])
-    tree = loads(tree_source)
+    try:
+        tree_source = _git_output(command=["gh", "api", f"repos/{STP_REPOSITORY}/git/trees/main?recursive=1"])
+        tree = loads(tree_source)
+        entries = tree["tree"]
+    except (OSError, ValueError, KeyError, TypeError) as error:
+        raise RuntimeError(f"design-docs tree listing failed: {error}") from error
     if tree.get("truncated"):
         raise RuntimeError("design-docs tree listing was truncated by the GitHub API")
-    return frozenset(entry["path"] for entry in tree["tree"])
+    return frozenset(entry["path"] for entry in entries)
 
 
 def _stp_links_violations(staged_changes: StagedChanges, staged_python_paths: list[Path]) -> list[PolicyViolation]:

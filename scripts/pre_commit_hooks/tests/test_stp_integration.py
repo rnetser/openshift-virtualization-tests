@@ -159,3 +159,41 @@ def test_main_stp_links_ignores_non_test_paths(tmp_path: Path, monkeypatch: Monk
     assert main(arguments=["--check", "stp-links", "scripts/pre_commit_hooks/tests/test_fixture.py"]) == 0, (
         "STP references outside tests/ must not be verified"
     )
+
+
+def test_main_stp_links_fails_closed_on_malformed_tree_response(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
+    """A non-JSON design-docs response fails closed with the documented message."""
+    initialize_git_repository(repository_root=tmp_path)
+    _stage_stp_test_file(repository_root=tmp_path)
+    original_git_output = check_policy._git_output
+
+    def malformed_git_output(command: list[str]) -> str:
+        if command[0] == "gh":
+            return "<html>gateway error</html>"
+        return original_git_output(command=command)
+
+    monkeypatch.setattr(target=check_policy, name="_git_output", value=malformed_git_output)
+    monkeypatch.chdir(path=tmp_path)
+
+    assert main(arguments=["--check", "stp-links", "tests/network/test_example.py"]) == 1, (
+        "a malformed design-docs response must fail closed, not crash"
+    )
+
+
+def test_main_stp_links_fails_closed_on_missing_tree_key(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
+    """A design-docs response without a tree listing fails closed."""
+    initialize_git_repository(repository_root=tmp_path)
+    _stage_stp_test_file(repository_root=tmp_path)
+    original_git_output = check_policy._git_output
+
+    def keyless_git_output(command: list[str]) -> str:
+        if command[0] == "gh":
+            return '{"message": "Not Found"}'
+        return original_git_output(command=command)
+
+    monkeypatch.setattr(target=check_policy, name="_git_output", value=keyless_git_output)
+    monkeypatch.chdir(path=tmp_path)
+
+    assert main(arguments=["--check", "stp-links", "tests/network/test_example.py"]) == 1, (
+        "a response without a tree listing must fail closed, not crash"
+    )

@@ -562,3 +562,36 @@ def test_main_skips_tracked_symlinked_modules_instead_of_crashing(
     assert main(arguments=["utilities/caller.py"]) == 0, (
         "a tracked symlinked module must be skipped, not parsed as its link-target path string"
     )
+
+
+def test_main_grandfathers_renamed_suppressions_with_rename_detection_disabled(
+    tmp_path: Path,
+    monkeypatch: MonkeyPatch,
+) -> None:
+    """Rename grandfathering holds when the user disables diff.renames."""
+    initialize_git_repository(repository_root=tmp_path)
+    run_command(
+        command=["git", "config", "diff.renames", "false"],
+        cwd=tmp_path,
+        check=True,
+        verify_stderr=False,
+    )
+    example_path = tmp_path / "utilities" / "example.py"
+    example_path.parent.mkdir(parents=True)
+    example_path.write_text(data="value = 1  # noqa\n", encoding="utf-8")
+    manifest_path = tmp_path / "scripts/pre_commit_hooks/exceptions.toml"
+    manifest_path.parent.mkdir(parents=True, exist_ok=True)
+    manifest_path.write_text(data="exceptions = []\n", encoding="utf-8")
+    commit_all(repository_root=tmp_path)
+
+    run_command(
+        command=["git", "mv", "utilities/example.py", "utilities/renamed.py"],
+        cwd=tmp_path,
+        check=True,
+        verify_stderr=False,
+    )
+    monkeypatch.chdir(path=tmp_path)
+
+    assert main(arguments=["utilities/renamed.py"]) == 0, (
+        "explicit rename detection must keep grandfathering independent of diff.renames"
+    )

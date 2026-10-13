@@ -80,3 +80,25 @@ def test_unverified_stp_violation_reports_the_error() -> None:
     assert violation.message == f"stp-links: could not verify STP documents against {STP_REPOSITORY}: gh failed", (
         "the fail-closed violation must report the fetch error"
     )
+
+
+def test_check_stp_links_accepts_tree_directory_url() -> None:
+    """A merged STP directory link is accepted."""
+    tree_url = "https://github.com/RedHatQE/openshift-virtualization-tests-design-docs/tree/main/stps/sig-network"
+
+    violations = check_stp_links(
+        file_path=Path("tests/network/test_example.py"),
+        references={tree_url: 1},
+        merged_paths=frozenset({"stps/sig-network"}),
+    )
+
+    assert violations == [], "a merged STP directory reference must pass"
+
+
+def test_stp_references_excludes_fragment_from_url() -> None:
+    """A scenario anchor fragment is not part of the referenced path."""
+    anchored_url = f"{_MERGED_URL}#test-scenarios"
+
+    references = stp_references(indexed_source=f'"""STP: {anchored_url}\n"""\n', added_lines=None)
+
+    assert references == {_MERGED_URL: 1}, "the fragment must be stripped from the reference"
