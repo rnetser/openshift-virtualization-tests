@@ -421,45 +421,117 @@ def test_main_rejects_staged_python_symlink(
     assert "pytest.skip" not in captured, "the worktree target behind a staged symlink must not be read or analyzed"
 
 
-def test_main_allows_manifest_record_migration_for_renamed_python_file(
+def test_main_grandfathers_unchanged_suppressions_across_renames(
     tmp_path: Path,
     monkeypatch: MonkeyPatch,
 ) -> None:
-    """Renaming a Python file must allow migrating its suppression record to the new path."""
+    """Renaming a file keeps its unchanged suppressions grandfathered."""
     initialize_git_repository(repository_root=tmp_path)
-    source = "value = 1  # noqa\n"
-    fingerprint = compute_source_fingerprint(source=source, line_number=1, directive="# noqa")
     example_path = tmp_path / "utilities" / "example.py"
     example_path.parent.mkdir(parents=True)
-    example_path.write_text(data=source, encoding="utf-8")
+    example_path.write_text(data="value = 1  # noqa\n", encoding="utf-8")
     manifest_path = tmp_path / "scripts/pre_commit_hooks/exceptions.toml"
     manifest_path.parent.mkdir(parents=True, exist_ok=True)
     manifest_path.write_text(data="exceptions = []\n", encoding="utf-8")
     commit_all(repository_root=tmp_path)
 
-    example_path.with_name("renamed.py")
     run_command(
         command=["git", "mv", "utilities/example.py", "utilities/renamed.py"],
         cwd=tmp_path,
         check=True,
         verify_stderr=False,
     )
+    monkeypatch.chdir(path=tmp_path)
+
+    assert main(arguments=["utilities/renamed.py"]) == 0, (
+        "an unchanged suppression carried across a rename must stay grandfathered"
+    )
+
+
+def test_main_requires_new_record_for_suppression_added_during_rename(
+    tmp_path: Path,
+    monkeypatch: MonkeyPatch,
+) -> None:
+    """A suppression added while renaming a file needs a new-path record."""
+    initialize_git_repository(repository_root=tmp_path)
+    example_path = tmp_path / "utilities" / "example.py"
+    example_path.parent.mkdir(parents=True)
+    example_path.write_text(data="value = 1\n", encoding="utf-8")
+    manifest_path = tmp_path / "scripts/pre_commit_hooks/exceptions.toml"
+    manifest_path.parent.mkdir(parents=True, exist_ok=True)
+    manifest_path.write_text(data="exceptions = []\n", encoding="utf-8")
+    commit_all(repository_root=tmp_path)
+
+    run_command(
+        command=["git", "mv", "utilities/example.py", "utilities/renamed.py"],
+        cwd=tmp_path,
+        check=True,
+        verify_stderr=False,
+    )
+    renamed_path = tmp_path / "utilities" / "renamed.py"
+    source = "value = 1\nvalue = 2  # noqa\n"
+    renamed_path.write_text(data=source, encoding="utf-8")
+    stage_paths(repository_root=tmp_path, paths=("utilities/renamed.py",))
+    monkeypatch.chdir(path=tmp_path)
+
+    assert main(arguments=["utilities/renamed.py"]) == 1, (
+        "a suppression added during a rename must require a new-path record"
+    )
+
+    fingerprint = compute_source_fingerprint(source=source, line_number=2, directive="# noqa")
     manifest_path.write_text(
         data=f'''[[exceptions]]
 rule = "noqa"
 path = "utilities/renamed.py"
 directive = "# noqa"
 source_fingerprint = "{fingerprint}"
-reason = "migrated with the renamed file"
-approval_url = "https://github.com/example/review/6"
+reason = "added with the rename"
+approval_url = "https://github.com/example/review/7"
 ''',
         encoding="utf-8",
     )
     stage_paths(repository_root=tmp_path, paths=("scripts/pre_commit_hooks/exceptions.toml",))
-    monkeypatch.chdir(path=tmp_path)
 
     assert main(arguments=["utilities/renamed.py"]) == 0, (
-        "renaming a file must allow its approved suppression record to migrate to the new path"
+        "a new-path record must authorize the suppression added during the rename"
+    )
+
+
+def test_main_rejects_retained_old_path_record_after_rename(
+    tmp_path: Path,
+    monkeypatch: MonkeyPatch,
+) -> None:
+    """Renaming a file must not leave the old-path exception record behind."""
+    initialize_git_repository(repository_root=tmp_path)
+    example_path = tmp_path / "utilities" / "example.py"
+    example_path.parent.mkdir(parents=True)
+    example_path.write_text(data="value = 1  # noqa\n", encoding="utf-8")
+    fingerprint = compute_source_fingerprint(source="value = 1  # noqa\n", line_number=1, directive="# noqa")
+    manifest_path = tmp_path / "scripts/pre_commit_hooks/exceptions.toml"
+    manifest_path.parent.mkdir(parents=True, exist_ok=True)
+    manifest_path.write_text(
+        data=f'''[[exceptions]]
+rule = "noqa"
+path = "utilities/example.py"
+directive = "# noqa"
+source_fingerprint = "{fingerprint}"
+reason = "legacy suppression"
+approval_url = "https://github.com/example/review/8"
+''',
+        encoding="utf-8",
+    )
+    commit_all(repository_root=tmp_path)
+
+    run_command(
+        command=["git", "mv", "utilities/example.py", "utilities/renamed.py"],
+        cwd=tmp_path,
+        check=True,
+        verify_stderr=False,
+    )
+    monkeypatch.chdir(path=tmp_path)
+
+    assert main(arguments=["utilities/renamed.py"]) == 1, (
+        "retaining the old-path record across a rename must fail manifest policy"
     )
 
 

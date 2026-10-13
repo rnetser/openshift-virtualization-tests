@@ -2027,9 +2027,10 @@ def main(arguments: Sequence[str] | None = None) -> int:
     staged_changes = _staged_changes()
     file_paths = [Path(file_name) for file_name in file_names]
     staged_python_sources = {
-        # Renamed paths get no HEAD baseline so their directives count as new
-        # and the manifest record can be migrated to the new path.
-        path: (source, None if path in staged_changes.renamed_paths else staged_changes.head_sources.get(path))
+        # Renamed paths keep their old-path HEAD baseline so unchanged
+        # suppressions remain grandfathered; only genuinely new directives
+        # need new-path records, and renamed-away records must be removed.
+        path: (source, staged_changes.head_sources.get(path))
         for path, source in staged_changes.sources.items()
         if path.suffix == ".py"
     }

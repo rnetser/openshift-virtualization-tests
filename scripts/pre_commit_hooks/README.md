@@ -155,13 +155,13 @@ exception records are still rejected. An obsolete record may be deleted as
 cleanup. A valid-looking URL is not local approval, and the reviewer must
 verify the actual approval and reason.
 
-Renaming a Python file that carries an approved suppression requires
-migrating its record: add a new record for the new repository path (same rule,
-directive, source fingerprint, and approved metadata), stage it together with
-the rename, and delete the obsolete old-path record. Do not edit the existing
-record in place — the path is part of the record identity, and a rename makes
-the record new at the new path even when the directive and fingerprint are
-unchanged.
+Renaming a Python file preserves the `HEAD` baseline of its old path, so
+unchanged suppressions stay grandfathered — no new records are needed for
+them. A suppression that is added or modified while renaming needs a new
+record for the new repository path, and every old-path record must be deleted
+as part of the same staged change (retained old-path records are rejected).
+Do not edit an existing record in place — the path is part of the record
+identity.
 
 Compute a fingerprint from the complete file and the directive's one-based
 line number. The helper must read the file with a context manager; use named
