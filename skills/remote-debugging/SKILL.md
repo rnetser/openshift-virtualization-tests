@@ -65,9 +65,9 @@ The debugger speaks plain pdb over a TCP socket. Drive it with `nc` fed through 
 commands can be sent programmatically:
 
 ```bash
-# Resolve "$port" first (see "Finding the port"). Client files live in a private directory so
-# other local users can neither pre-create the paths (mkdir is atomic and fails closed if the
-# path already exists) nor read debugger output (mode 700).
+# Resolve "$port" first (see "Finding the port"). Client files live in a private directory;
+# another local user may pre-create the path and block setup — mkdir is atomic and fails closed
+# if the path already exists. The directory mode 700 prevents reading debugger output.
 CLIENT_DIR="/tmp/remote-pdb-${port}-$$"
 mkdir -m 700 "$CLIENT_DIR" || exit 1
 FIFO="$CLIENT_DIR/in"
@@ -88,6 +88,21 @@ searches only your current namespace and will not find the pod:
 ```bash
 oc port-forward -n "$pod_namespace" "pod/$pod_name" "$port:$port" &
 FORWARD_PID=$!
+for _ in {1..30}; do
+    if ! kill -0 "$FORWARD_PID" 2>/dev/null; then
+        echo "oc port-forward exited before becoming ready" >&2
+        exit 1
+    fi
+    if nc -z localhost "$port" 2>/dev/null; then
+        break
+    fi
+    sleep 1
+done
+if ! kill -0 "$FORWARD_PID" 2>/dev/null || ! nc -z localhost "$port" 2>/dev/null; then
+    echo "Timed out waiting for oc port-forward" >&2
+    kill "$FORWARD_PID" 2>/dev/null
+    exit 1
+fi
 nc localhost "$port"
 kill "$FORWARD_PID"
 ```
