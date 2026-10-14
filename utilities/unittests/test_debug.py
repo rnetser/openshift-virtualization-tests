@@ -195,6 +195,12 @@ class TestRemoteBreakpoint:
         with pytest.raises(bdb.BdbQuit, match="connection lost"):
             remote_breakpoint()
 
+    def test_unresolvable_caller_frame_raises_runtime_error(self, monkeypatch: pytest.MonkeyPatch):
+        monkeypatch.setenv("CNV_REMOTE_PDB", "1")
+        monkeypatch.setattr(utilities.debug.inspect, "currentframe", lambda: None)
+        with pytest.raises(RuntimeError, match="Could not resolve the caller frame"):
+            remote_breakpoint()
+
 
 class TestRemotePostMortem:
     def test_interaction_receives_exception_traceback(self, monkeypatch: pytest.MonkeyPatch):
