@@ -65,11 +65,14 @@ The debugger speaks plain pdb over a TCP socket. Drive it with `nc` fed through 
 commands can be sent programmatically:
 
 ```bash
-# Resolve "$port" first (see "Finding the port"), then create owner-only client files.
-# Paths are scoped by port so concurrent agents debugging different runs never collide.
-FIFO="/tmp/remote-pdb-${port}-in"
-OUT="/tmp/remote-pdb-${port}-out"
-umask 077 && rm -f "$FIFO" "$OUT" && mkfifo -m 600 "$FIFO" && touch "$OUT"
+# Resolve "$port" first (see "Finding the port"). Client files live in a private directory so
+# other local users can neither pre-create the paths (mkdir is atomic and fails closed if the
+# path already exists) nor read debugger output (mode 700).
+CLIENT_DIR="/tmp/remote-pdb-${port}-$$"
+mkdir -m 700 "$CLIENT_DIR" || exit 1
+FIFO="$CLIENT_DIR/in"
+OUT="$CLIENT_DIR/out"
+umask 077 && mkfifo -m 600 "$FIFO" && touch "$OUT"
 
 # Attach to the listener (default 127.0.0.1). Record the wrapper PID — cleanup needs it:
 nohup bash -c "exec tail -f $FIFO | exec nc 127.0.0.1 $port > $OUT 2>&1" < /dev/null > /dev/null 2>&1 &
@@ -83,8 +86,10 @@ For pod runs, forward the port first — pass the pod's namespace, or `oc port-f
 searches only your current namespace and will not find the pod:
 
 ```bash
-oc port-forward -n "$pod_namespace" "pod/$pod_name" "$port:$port"
+oc port-forward -n "$pod_namespace" "pod/$pod_name" "$port:$port" &
+FORWARD_PID=$!
 nc localhost "$port"
+kill "$FORWARD_PID"
 ```
 
 ## Driving the session
@@ -106,11 +111,11 @@ Terminate the attach pipeline by PID when the session ends — the wrapper and b
 blocked reading the FIFO, and removing the FIFO path does not stop it. Never use `pkill` in any form: broad
 `-f` patterns containing the FIFO path or `nc 127.0.0.1 4444` match your own shell's command line
 and kill your own session (exit 143), and even exact-name matching (`pkill -x nc`) signals every
-matching process, not just this client. Remove the port-scoped FIFO and output files afterwards.
+matching process, not just this client. Remove the private client directory (`rm -rf "$CLIENT_DIR"`) afterwards.
 
 ## Gotchas learned the hard way
 
-- The FIFO and output files live under `/tmp`, outside any repository — debugger output can
+- The client directory lives under `/tmp`, outside any repository — debugger output can
   never be committed by accident.
 
 - Killing the shell that spawned `tail | nc` orphans both children — the socket stays open and
