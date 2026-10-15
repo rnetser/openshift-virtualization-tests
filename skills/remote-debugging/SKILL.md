@@ -88,17 +88,20 @@ searches only your current namespace and will not find the pod:
 ```bash
 oc port-forward -n "$pod_namespace" "pod/$pod_name" "$port:$port" &
 FORWARD_PID=$!
+# Readiness must not open a TCP connection: RemotePdb accepts a single client, and a
+# connecting probe (e.g. nc -z) would consume the debugger session. Inspect the local
+# listening socket without connecting instead.
 for _ in {1..30}; do
     if ! kill -0 "$FORWARD_PID" 2>/dev/null; then
         echo "oc port-forward exited before becoming ready" >&2
         exit 1
     fi
-    if nc -z localhost "$port" 2>/dev/null; then
+    if ss -ltn 2>/dev/null | grep -q ":$port "; then
         break
     fi
     sleep 1
 done
-if ! kill -0 "$FORWARD_PID" 2>/dev/null || ! nc -z localhost "$port" 2>/dev/null; then
+if ! kill -0 "$FORWARD_PID" 2>/dev/null || ! ss -ltn 2>/dev/null | grep -q ":$port "; then
     echo "Timed out waiting for oc port-forward" >&2
     kill "$FORWARD_PID" 2>/dev/null
     exit 1

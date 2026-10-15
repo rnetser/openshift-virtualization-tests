@@ -296,17 +296,20 @@ separate terminal) as shown, and stop it when the session ends:
 port=4444  # replace with the numeric listener port from the run's "RemotePdb session open at" line
 oc port-forward -n "$pod_namespace" "pod/$pod_name" "$port:$port" &
 forward_pid=$!
+# Readiness must not open a TCP connection: RemotePdb accepts a single client, and a
+# connecting probe (e.g. nc -z) would consume the debugger session. Inspect the local
+# listening socket without connecting instead.
 for _ in {1..30}; do
     if ! kill -0 "$forward_pid" 2>/dev/null; then
         echo "oc port-forward exited before becoming ready" >&2
         exit 1
     fi
-    if nc -z localhost "$port" 2>/dev/null; then
+    if ss -ltn 2>/dev/null | grep -q ":$port "; then
         break
     fi
     sleep 1
 done
-if ! kill -0 "$forward_pid" 2>/dev/null || ! nc -z localhost "$port" 2>/dev/null; then
+if ! kill -0 "$forward_pid" 2>/dev/null || ! ss -ltn 2>/dev/null | grep -q ":$port "; then
     echo "Timed out waiting for oc port-forward" >&2
     kill "$forward_pid" 2>/dev/null
     exit 1
