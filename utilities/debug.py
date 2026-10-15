@@ -1,8 +1,9 @@
 """Remote pdb debugger helpers for test runs.
 
 Ported from RedHatQE/mtv-api-tests PR #733
-(https://github.com/RedHatQE/mtv-api-tests/pull/733, `utilities/debug.py` by
-myakove), adapted to this repository (CNV_REMOTE_PDB gate variable).
+(https://github.com/RedHatQE/mtv-api-tests/pull/733, by myakove) — source:
+https://github.com/RedHatQE/mtv-api-tests/blob/main/utilities/debug.py —
+adapted to this repository (CNV_REMOTE_PDB gate variable).
 
 Opt-in via the CNV_REMOTE_PDB environment variable: without it every helper in
 this module is a no-op and runs behave exactly as before. Enabled runs expose a

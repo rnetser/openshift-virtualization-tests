@@ -2,7 +2,9 @@
 
 Agent-harness skills vendored with this repository. Each subdirectory is a skill (a
 `SKILL.md` with YAML frontmatter: `name`, `description`) that automates a workflow for
-AI agents working on this repo.
+AI agents working on this repo. The skills concept and the `remote-debugging` skill are
+ported from [mtv-api-tests PR #733](https://github.com/RedHatQE/mtv-api-tests/pull/733)
+(by myakove — source: https://github.com/RedHatQE/mtv-api-tests/tree/main/skills).
 
 ## Available skills
 

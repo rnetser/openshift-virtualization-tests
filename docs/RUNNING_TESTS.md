@@ -250,7 +250,9 @@ pytest.mark.skip_must_gather_collection
 Set `CNV_REMOTE_PDB=1` to enable a remote [pdb](https://docs.python.org/3/library/pdb.html) debugger reachable over a socket,
 for interactive debugging of test runs by humans or AI agents. Without the variable, debugging is completely disabled
 and the helpers below are no-ops. (Feature ported from
-[mtv-api-tests PR #733](https://github.com/RedHatQE/mtv-api-tests/pull/733), adapted to this repository.)
+[mtv-api-tests PR #733](https://github.com/RedHatQE/mtv-api-tests/pull/733) — source:
+[mtv-api-tests README, Remote Debugging](https://github.com/RedHatQE/mtv-api-tests/blob/main/README.md) —
+adapted to this repository.)
 
 Run with `-s` so the listening message is not swallowed by pytest output capture, and use a single worker (`-n 0`)
 when debugging — parallel xdist workers listen on distinct ports (`4444 +` worker index), but a debugger session per

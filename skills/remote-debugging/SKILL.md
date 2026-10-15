@@ -5,7 +5,8 @@ description: "Debug openshift-virtualization-tests test runs end to end. Trigger
 
 # Remote Debugger Client (openshift-virtualization-tests)
 
-Ported from RedHatQE/mtv-api-tests PR #733 (skills/remote-debugging, by myakove),
+Ported from RedHatQE/mtv-api-tests PR #733 (by myakove — source:
+https://github.com/RedHatQE/mtv-api-tests/blob/main/skills/remote-debugging/SKILL.md),
 adapted to this repository.
 
 Use this skill when the user asks to debug a test run — from placing the breakpoint to

@@ -1064,7 +1064,8 @@ def pytest_exception_interact(node: Item | Collector, call: CallInfo[Any], repor
                 LOGGER.warning(f"Failed to collect logs: {test_name}: {current_exception} {traceback.format_exc()}")
 
     # Remote post-mortem debugger (CNV_REMOTE_PDB). Ported from RedHatQE/mtv-api-tests PR #733
-    # (conftest.py, by myakove), adapted to this repository. Runs after must-gather collection so
+    # (by myakove — source: https://github.com/RedHatQE/mtv-api-tests/blob/main/conftest.py),
+    # adapted to this repository. Runs after must-gather collection so
     # diagnostics are gathered before the session blocks waiting for a debugger connection. Skipped
     # when --pdb is active so the local terminal debugger takes precedence, and skipped
     # for BdbQuit so quitting a code breakpoint fails that test without opening another

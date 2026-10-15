@@ -1,7 +1,8 @@
 """Unit tests for utilities.debug remote debugger helpers.
 
 Test structure adapted from the debugging helpers ported from
-RedHatQE/mtv-api-tests PR #733 (by myakove).
+RedHatQE/mtv-api-tests PR #733 (by myakove — source:
+https://github.com/RedHatQE/mtv-api-tests/blob/main/utilities/debug.py).
 """
 
 import bdb
