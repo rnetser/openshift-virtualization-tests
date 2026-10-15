@@ -279,14 +279,16 @@ If you pass `--pdb`, the local terminal debugger takes precedence.
 ### Attaching
 
 ```bash
-nc 127.0.0.1 4444        # or: rlwrap nc 127.0.0.1 4444 / telnet 127.0.0.1 4444
+host=127.0.0.1 port=4444  # from the run's "RemotePdb session open at <host>:<port>" line
+nc "$host" "$port"        # or: rlwrap nc "$host" "$port" / telnet "$host" "$port"
 ```
 
 Send `c` to continue the run. `q` — or dropping the connection — quits the debugger: at a code
 breakpoint the current test fails with `BdbQuit` and the run continues; at a failure post-mortem the whole
 test session exits (matching pytest's native `--pdb` quit behavior).
 
-The debugger binds to `127.0.0.1` only — it is never exposed on the cluster network. To debug a run inside a
+The debugger binds to a loopback address only (`127.0.0.1` unless `REMOTE_PDB_HOST` selects
+another loopback address) — it is never exposed on the cluster network. To debug a run inside a
 containerized/pod run, the pod must run with `CNV_REMOTE_PDB=1` — add it to the container `env`
 (or prefix the pytest command with `CNV_REMOTE_PDB=1`) before starting the run. Then forward
 the port:

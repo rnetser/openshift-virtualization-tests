@@ -21,9 +21,9 @@ hit, or a test failed with post-mortem debugging enabled).
    when the debugging session is done.
 2. **Tell the user to run**: `CNV_REMOTE_PDB=1 uv run pytest <args> -s -n 0`.
 3. **Watch for the hit**: poll the run's output for the line
-   `RemotePdb session open at 127.0.0.1:<port>, waiting for connection ...` — it means the
-   breakpoint was reached and the process is blocked. Its port is the attach port (step 1 of
-   "Finding the port" below).
+   `RemotePdb session open at <host>:<port>, waiting for connection ...` — it means the
+   breakpoint was reached and the process is blocked. Its host and port are the attach
+   address (step 1 of "Finding the listener address" below).
 4. **Attach and debug** (see "Attaching"), end with `c` (continue the run) or `q` (quit —
    at a breakpoint the current test fails, at a post-mortem the session exits).
 5. **Remove the breakpoint** from the code afterwards.
@@ -46,13 +46,14 @@ blocks after must-gather collection — go straight to watching for the session-
 - The test process is frozen while attached; the cluster keeps moving server-side. Inspect, do
   not idle inside migration polling loops.
 
-## Finding the port
+## Finding the listener address
 
-Resolve the listener port before attaching, in this order:
+Resolve the listener host and port before attaching, in this order:
 
 1. **The run's own output** (authoritative, requires `-s`): the line
-   `RemotePdb session open at 127.0.0.1:<port>, waiting for connection ...` — grep the run's
-   output or ask the user to paste it.
+   `RemotePdb session open at <host>:<port>, waiting for connection ...` — grep the run's
+   output or ask the user to paste it. The host is `127.0.0.1` unless `REMOTE_PDB_HOST`
+   selected another loopback address; use the printed value, not an assumption.
 2. **The user's configuration**: ask which `REMOTE_PDB_PORT` was set and which pytest-xdist
    worker hit the breakpoint/failure (worker `gwN` listens on `base + N`).
 3. **Probe listening sockets**: `ss -ltn | grep -E ':44[0-9]{2}'` shows debugger listeners in
@@ -66,7 +67,7 @@ The debugger speaks plain pdb over a TCP socket. Drive it with `nc` fed through 
 commands can be sent programmatically:
 
 ```bash
-# Resolve "$port" first (see "Finding the port"). Client files live in a private directory;
+# Resolve "$host" and "$port" first (see "Finding the listener address"). Client files live in a private directory;
 # another local user may pre-create the path and block setup — mkdir is atomic and fails closed
 # if the path already exists. The directory mode 700 prevents reading debugger output.
 CLIENT_DIR="/tmp/remote-pdb-${port}-$$"
@@ -75,8 +76,9 @@ FIFO="$CLIENT_DIR/in"
 OUT="$CLIENT_DIR/out"
 umask 077 && mkfifo -m 600 "$FIFO" && touch "$OUT"
 
-# Attach to the listener (default 127.0.0.1). Record the wrapper PID — cleanup needs it:
-nohup bash -c "exec tail -f $FIFO | exec nc 127.0.0.1 $port > $OUT 2>&1" < /dev/null > /dev/null 2>&1 &
+# Attach to the listener ($host defaults to 127.0.0.1 — see "Finding the listener address").
+# Record the wrapper PID — cleanup needs it:
+nohup bash -c "exec tail -f $FIFO | exec nc $host $port > $OUT 2>&1" < /dev/null > /dev/null 2>&1 &
 CLIENT_PID=$!
 
 # Send a command, wait ~1-2s, read the output:
