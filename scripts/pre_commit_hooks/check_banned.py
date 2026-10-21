@@ -135,7 +135,7 @@ def _banned_construct_violations_for_path(file_path: Path) -> list[PolicyViolati
         return [
             PolicyViolation(
                 file_path=file_path,
-                line_number=getattr(error, "lineno", None),
+                line_number=error.lineno,
                 message=f"could not be parsed: {error.msg}",
             )
         ]

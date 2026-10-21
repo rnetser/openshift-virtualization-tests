@@ -256,13 +256,19 @@ def test_main_check_selection_limits_families(tmp_path: Path) -> None:
     assert main(arguments=["--check", "banned-constructs", str(violating)]) == 1, "the constructs family checks imports"
 
 
-def test_main_without_selection_runs_every_family(tmp_path: Path) -> None:
+def test_main_without_selection_runs_every_family(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
     """Without --check every family runs."""
+    monkeypatch.chdir(tmp_path)
     top_level_test = tmp_path / "tests" / "test_example.py"
     top_level_test.parent.mkdir()
     top_level_test.write_text(encoding="utf-8", data="from . import sibling\n")
 
-    assert main(arguments=[str(top_level_test)]) == 1, "every family runs without a selection"
+    assert main(arguments=["tests/test_example.py"]) == 1, "every family runs without a selection"
+    captured = capsys.readouterr()
+    assert "feature subdirectory" in captured.err, "the paths family runs without a selection"
+    assert "relative imports are forbidden" in captured.err, "the constructs family runs without a selection"
 
 
 def test_main_rejects_unknown_check_family() -> None:
