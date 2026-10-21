@@ -99,6 +99,7 @@ repos:
         name: ban top-level test files and Python symlinks (whole repository)
         entry: python -m scripts.pre_commit_hooks.check_banned --check banned-paths
         language: python
+        types_or: [file, symlink]
         always_run: true
         require_serial: true
         stages: [pre-commit]

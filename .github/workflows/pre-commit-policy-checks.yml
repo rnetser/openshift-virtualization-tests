@@ -47,6 +47,11 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          for hook_id in check-banned-paths check-banned-constructs check-staged-paths check-linter-directives check-python-source check-test-std check-stp-links; do
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            hook_ids=(check-banned-paths check-banned-constructs)
+          else
+            hook_ids=(check-banned-paths check-banned-constructs check-staged-paths check-linter-directives check-python-source check-test-std check-stp-links)
+          fi
+          for hook_id in "${hook_ids[@]}"; do
             pre-commit run "${hook_id}" --all-files
           done
