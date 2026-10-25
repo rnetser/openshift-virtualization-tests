@@ -626,14 +626,8 @@ class TestHotPlugInterfaceToVmWithSecondaryInterface:
     @pytest.mark.parametrize(
         "guest_interface_name",
         [
-            pytest.param(
-                "eth2",
-                marks=(pytest.mark.polarion("CNV-10136")),
-            ),
-            pytest.param(
-                SECONDARY_SETUP_INTERFACE_NAME,
-                marks=(pytest.mark.polarion("CNV-10150")),
-            ),
+            "eth2",
+            SECONDARY_SETUP_INTERFACE_NAME,
         ],
     )
     @pytest.mark.ipv4
