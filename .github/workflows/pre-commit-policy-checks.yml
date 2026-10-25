@@ -1,11 +1,18 @@
 name: Pre-commit Policy Checks
 
 on:
-  # Policy checks run only for pull requests targeting main; release-branch
-  # (cnv-4.x) PRs are intentionally not enforced by this workflow.
+  # Policy checks run for pull requests targeting main and the release
+  # branches whose trees are verified clean (4.21+, 5.x). The 4.19/4.20
+  # trees contain legacy violations (relative imports in kubemacpool tests)
+  # that the whole-repo tier would false-fail on, so they stay excluded.
+  # 4.23 is the final 4.x release; future branches are 5.x only.
   pull_request:
     branches:
       - main
+      - cnv-4.21
+      - cnv-4.22
+      - cnv-4.23
+      - "cnv-5.*"
 
   # Manual dispatch: the staged-diff tier cannot be reproduced outside a
   # pull request (on main the staged diff is empty, so the staged-only
@@ -55,16 +62,21 @@ jobs:
         if: github.event_name == 'pull_request'
         run: uv sync --locked
 
-      # Stage the pull request diff: the merge base of main and HEAD, so
-      # the staged index equals the pull request changes and the staged
-      # hooks run with their exact local semantics. checkout@v7 with
-      # fetch-depth: 0 already provides origin/main.
+      # Stage the pull request diff: the merge base of the PR's target
+      # branch and HEAD, so the staged index equals the pull request
+      # changes and the staged hooks run with their exact local semantics.
+      # checkout@v7 with fetch-depth: 0 already provides the target branch.
+      # The base ref is passed through env (not interpolated into the run
+      # script) to keep shell injection out of the command text.
       - name: Stage the pull request diff
         if: github.event_name == 'pull_request'
+        env:
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
         run: |
-          BASE_SHA="$(git merge-base origin/main HEAD)"
+          BASE_BRANCH="origin/${BASE_REF}"
+          BASE_SHA="$(git merge-base "${BASE_BRANCH}" HEAD)"
           git reset --soft "${BASE_SHA}"
-          echo "Policy checks run against the staged diff versus ${BASE_SHA}:"
+          echo "Policy checks run against the staged diff versus ${BASE_BRANCH} (${BASE_SHA}):"
           git diff --cached --stat
 
       - name: Run policy checks
