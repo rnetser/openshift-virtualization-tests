@@ -38,10 +38,13 @@ uv run pre-commit run check-stp-links
 ```
 
 The stateless whole-file checks need no staged index and no project
-environment, so they run directly on the worktree:
+environment, so they run directly on the worktree with an ephemeral
+pre-commit (`pre-commit run` accepts a single hook ID, so use one
+invocation per hook):
 
 ```bash
-uv run pre-commit run check-banned-paths check-banned-constructs
+uvx pre-commit run check-banned-paths
+uvx pre-commit run check-banned-constructs
 ```
 
 Pre-commit supplies the filenames to the entry point. For staged files, the
