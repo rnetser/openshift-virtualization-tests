@@ -108,6 +108,25 @@ def test_absolute_import_is_allowed() -> None:
     )
 
 
+def test_relative_dynamic_import_through_rebound_alias_is_banned() -> None:
+    """Relative dynamic imports are caught even when the alias is rebound later."""
+    source = dedent(
+        """
+        from importlib import import_module as load
+
+        sibling = load(".sibling")
+        load = print
+        """
+    )
+
+    violations = banned_construct_violations(file_path=Path("tests/network/test_example.py"), source=source)
+
+    assert len(violations) == 1, "the relative dynamic import is rejected despite the later rebinding"
+    assert violations[0].message == "relative imports are forbidden; use absolute imports", (
+        "the rejection names the relative import rule"
+    )
+
+
 def test_relative_dynamic_import_is_banned() -> None:
     """Relative dynamic imports are rejected in the whole-file flow."""
     source = dedent(

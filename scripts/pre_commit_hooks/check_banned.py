@@ -16,7 +16,7 @@ under ``scripts/pre_commit_hooks/``.
 
 from __future__ import annotations
 
-from ast import Call, parse, walk
+from ast import AST, Call, parse, walk
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -26,6 +26,7 @@ from scripts.pre_commit_hooks.check_policy import (
     check_top_level_test_path,
     is_dynamic_client_call,
     module_name,
+    resolved_names,
     scopes,
 )
 from scripts.pre_commit_hooks.check_test_basics import (
@@ -97,16 +98,26 @@ def banned_construct_violations(file_path: Path, source: str) -> list[PolicyViol
         Violations for banned constructs, ordered by source location.
     """
     tree = parse(source=source, filename=str(file_path))
-    violations = [
-        violation
-        for violation in check_test_basics(file_path=file_path, source=source, added_lines=None, tree=tree)
-        if violation.message in _BANNED_CONSTRUCT_MESSAGES
-    ]
     file_scopes = scopes(
         tree=tree,
         module_name=module_name(file_path=file_path),
         is_package=file_path.name == "__init__.py",
     )
+
+    def resolve_name(node: AST) -> frozenset[tuple[str, ...]]:
+        return resolved_names(node=node, scopes=file_scopes)
+
+    violations = [
+        violation
+        for violation in check_test_basics(
+            file_path=file_path,
+            source=source,
+            added_lines=None,
+            tree=tree,
+            resolve_name=resolve_name,
+        )
+        if violation.message in _BANNED_CONSTRUCT_MESSAGES
+    ]
     violations.extend(
         PolicyViolation(file_path=file_path, line_number=node.lineno, message=DYNAMIC_CLIENT_MESSAGE)
         for node in walk(tree)
