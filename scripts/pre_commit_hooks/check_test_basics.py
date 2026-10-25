@@ -65,12 +65,12 @@ if TYPE_CHECKING:
     NodeOrDependencyIntersects = Callable[[AST, AST], bool]
 
 _CHECKED_ROOTS = frozenset({"libs", "scripts", "tests", "utilities"})
-_RELATIVE_IMPORT_MESSAGE = "relative imports are forbidden; use absolute imports"
-_ASYNC_FUNCTION_MESSAGE = "test-basics: async functions are forbidden; use synchronous code"
-_ASYNC_COMPREHENSION_MESSAGE = "test-basics: async comprehensions are forbidden; use a synchronous comprehension"
-_AWAIT_MESSAGE = "test-basics: await is forbidden; use synchronous code"
-_ASYNC_FOR_MESSAGE = "test-basics: async for is forbidden; use a synchronous loop"
-_ASYNC_WITH_MESSAGE = "test-basics: async with is forbidden; use a synchronous context manager"
+RELATIVE_IMPORT_MESSAGE = "relative imports are forbidden; use absolute imports"
+ASYNC_FUNCTION_MESSAGE = "test-basics: async functions are forbidden; use synchronous code"
+ASYNC_COMPREHENSION_MESSAGE = "test-basics: async comprehensions are forbidden; use a synchronous comprehension"
+AWAIT_MESSAGE = "test-basics: await is forbidden; use synchronous code"
+ASYNC_FOR_MESSAGE = "test-basics: async for is forbidden; use a synchronous loop"
+ASYNC_WITH_MESSAGE = "test-basics: async with is forbidden; use a synchronous context manager"
 _UNKNOWN_CONSTANT = object()
 _MAX_CONSTANT_DEPTH = 12
 _MAX_CONSTANT_STRING_LENGTH = 4_096
@@ -229,7 +229,7 @@ class _BasicsVisitor:
             self.added_lines is None or node.lineno in self.added_lines
         )
         if function_is_added_async:
-            self._add(node=node, message=_ASYNC_FUNCTION_MESSAGE)
+            self._add(node=node, message=ASYNC_FUNCTION_MESSAGE)
             return
         for statement in node.body:
             self._visit(node=statement)
@@ -251,14 +251,14 @@ class _BasicsVisitor:
         ):
             self._add(
                 node=node,
-                message=_ASYNC_COMPREHENSION_MESSAGE,
+                message=ASYNC_COMPREHENSION_MESSAGE,
             )
         elif isinstance(node, Await) and _intersects(node=node, added_lines=self.added_lines):
-            self._add(node=node, message=_AWAIT_MESSAGE)
+            self._add(node=node, message=AWAIT_MESSAGE)
         elif isinstance(node, AsyncFor) and (self.added_lines is None or node.lineno in self.added_lines):
-            self._add(node=node, message=_ASYNC_FOR_MESSAGE)
+            self._add(node=node, message=ASYNC_FOR_MESSAGE)
         elif isinstance(node, AsyncWith) and (self.added_lines is None or node.lineno in self.added_lines):
-            self._add(node=node, message=_ASYNC_WITH_MESSAGE)
+            self._add(node=node, message=ASYNC_WITH_MESSAGE)
         elif isinstance(node, Call) and _intersects(node=node, added_lines=self.added_lines):
             if (
                 isinstance(node.func, Attribute)
@@ -591,7 +591,7 @@ def check_test_basics(
         PolicyViolation(
             file_path=file_path,
             line_number=node.lineno,
-            message=_RELATIVE_IMPORT_MESSAGE,
+            message=RELATIVE_IMPORT_MESSAGE,
         )
         for node in walk(source_tree)
         if isinstance(node, ImportFrom) and node.level > 0 and _intersects(node=node, added_lines=added_lines)
@@ -611,7 +611,7 @@ def check_test_basics(
         lambda node, _dependency: _intersects(node=node, added_lines=added_lines)
     )
     violations.extend(
-        PolicyViolation(file_path=file_path, line_number=node.lineno, message=_RELATIVE_IMPORT_MESSAGE)
+        PolicyViolation(file_path=file_path, line_number=node.lineno, message=RELATIVE_IMPORT_MESSAGE)
         for node in walk(source_tree)
         if isinstance(node, Call)
         and _is_relative_dynamic_import(node=node, resolver=resolver)

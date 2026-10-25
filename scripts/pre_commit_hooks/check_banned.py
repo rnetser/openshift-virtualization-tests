@@ -17,40 +17,38 @@ from __future__ import annotations
 
 from ast import Call, parse, walk
 from pathlib import Path
-from sys import argv
-from sys import modules as system_modules
 from typing import TYPE_CHECKING
 
 from scripts.pre_commit_hooks.check_linter_directives import EXCEPTIONS_PATH
 from scripts.pre_commit_hooks.check_policy import (
-    _is_dynamic_client_call,
-    _module_name,
-    _scopes,
+    DYNAMIC_CLIENT_MESSAGE,
     check_top_level_test_path,
+    is_dynamic_client_call,
+    module_name,
+    scopes,
 )
 from scripts.pre_commit_hooks.check_test_basics import (
-    _ASYNC_COMPREHENSION_MESSAGE,
-    _ASYNC_FOR_MESSAGE,
-    _ASYNC_FUNCTION_MESSAGE,
-    _ASYNC_WITH_MESSAGE,
-    _AWAIT_MESSAGE,
-    _RELATIVE_IMPORT_MESSAGE,
+    ASYNC_COMPREHENSION_MESSAGE,
+    ASYNC_FOR_MESSAGE,
+    ASYNC_FUNCTION_MESSAGE,
+    ASYNC_WITH_MESSAGE,
+    AWAIT_MESSAGE,
+    RELATIVE_IMPORT_MESSAGE,
     check_test_basics,
 )
-from scripts.pre_commit_hooks.policy_types import PolicyViolation
+from scripts.pre_commit_hooks.policy_types import PolicyViolation, parse_check_arguments, report_violations
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
 _CHECK_FAMILIES = ("banned-paths", "banned-constructs")
-_DYNAMIC_CLIENT_MESSAGE = "reuse the DynamicClient passed through the call path instead of constructing one"
 _BANNED_CONSTRUCT_MESSAGES = frozenset({
-    _RELATIVE_IMPORT_MESSAGE,
-    _ASYNC_FUNCTION_MESSAGE,
-    _ASYNC_COMPREHENSION_MESSAGE,
-    _AWAIT_MESSAGE,
-    _ASYNC_FOR_MESSAGE,
-    _ASYNC_WITH_MESSAGE,
+    RELATIVE_IMPORT_MESSAGE,
+    ASYNC_FUNCTION_MESSAGE,
+    ASYNC_COMPREHENSION_MESSAGE,
+    AWAIT_MESSAGE,
+    ASYNC_FOR_MESSAGE,
+    ASYNC_WITH_MESSAGE,
 })
 _SYMLINKED_PYTHON_MESSAGE = "policy: Python symlinks are not allowed; commit the real file so its source is checked"
 _SYMLINKED_MANIFEST_MESSAGE = (
@@ -85,8 +83,9 @@ def banned_construct_violations(file_path: Path, source: str) -> list[PolicyViol
 
     Reuses the staged-flow rule implementations over every line (the
     whole-file equivalent of an empty added-lines filter) and keeps only
-    the rules that hold for the entire repository: relative imports,
-    async/await, and direct ``DynamicClient`` construction. Ratcheted
+    the rules that hold for the entire repository: relative imports and
+    direct ``DynamicClient`` construction, plus async/await in the code
+    roots (``libs/``, ``scripts/``, ``tests/``, ``utilities/``). Ratcheted
     rules such as ``time.sleep`` replacement stay staged-only.
 
     Args:
@@ -99,18 +98,18 @@ def banned_construct_violations(file_path: Path, source: str) -> list[PolicyViol
     tree = parse(source=source, filename=str(file_path))
     violations = [
         violation
-        for violation in check_test_basics(file_path=file_path, source=source, added_lines=None)
+        for violation in check_test_basics(file_path=file_path, source=source, added_lines=None, tree=tree)
         if violation.message in _BANNED_CONSTRUCT_MESSAGES
     ]
-    scopes = _scopes(
+    file_scopes = scopes(
         tree=tree,
-        module_name=_module_name(file_path=file_path),
+        module_name=module_name(file_path=file_path),
         is_package=file_path.name == "__init__.py",
     )
     violations.extend(
-        PolicyViolation(file_path=file_path, line_number=node.lineno, message=_DYNAMIC_CLIENT_MESSAGE)
+        PolicyViolation(file_path=file_path, line_number=node.lineno, message=DYNAMIC_CLIENT_MESSAGE)
         for node in walk(tree)
-        if isinstance(node, Call) and _is_dynamic_client_call(node=node, scopes=scopes)
+        if isinstance(node, Call) and is_dynamic_client_call(node=node, scopes=file_scopes)
     )
     return sorted(violations, key=lambda violation: violation.line_number or 0)
 
@@ -141,40 +140,6 @@ def _banned_construct_violations_for_path(file_path: Path) -> list[PolicyViolati
         ]
 
 
-def _parse_arguments(arguments: Sequence[str] | None) -> tuple[list[str], frozenset[str]]:
-    """Split command-line arguments into filenames and selected check families.
-
-    Args:
-        arguments: Raw arguments, or ``None`` to use command-line arguments.
-
-    Returns:
-        Filenames and the selected check families; without an explicit
-        ``--check`` selection every family runs.
-
-    Raises:
-        SystemExit: When ``--check`` is missing a family name or names an
-            unknown family.
-    """
-    raw_arguments = list(argv[1:]) if arguments is None else list(arguments)
-    file_names: list[str] = []
-    selected: set[str] = set()
-    index = 0
-    while index < len(raw_arguments):
-        argument = raw_arguments[index]
-        if argument == "--check":
-            index += 1
-            if index >= len(raw_arguments):
-                raise SystemExit("check_banned: --check requires a check family name")
-            selected.add(raw_arguments[index])
-        else:
-            file_names.append(argument)
-        index += 1
-    unknown_families = selected - set(_CHECK_FAMILIES)
-    if unknown_families:
-        raise SystemExit(f"check_banned: unknown check family: {sorted(unknown_families)}")
-    return file_names, frozenset(selected) or frozenset(_CHECK_FAMILIES)
-
-
 def main(arguments: Sequence[str] | None = None) -> int:
     """Run whole-file policy checks over the filenames pre-commit supplies.
 
@@ -189,7 +154,11 @@ def main(arguments: Sequence[str] | None = None) -> int:
     Returns:
         Zero when all files comply, otherwise one.
     """
-    file_names, selected_checks = _parse_arguments(arguments=arguments)
+    file_names, selected_checks = parse_check_arguments(
+        program_name="check_banned",
+        check_families=_CHECK_FAMILIES,
+        arguments=arguments,
+    )
     violations: list[PolicyViolation] = []
     for file_name in file_names:
         file_path = Path(file_name)
@@ -197,17 +166,7 @@ def main(arguments: Sequence[str] | None = None) -> int:
             violations.extend(banned_path_violations(file_path=file_path))
         if "banned-constructs" in selected_checks and file_path.suffix == ".py":
             violations.extend(_banned_construct_violations_for_path(file_path=file_path))
-    violations.sort(
-        key=lambda violation: (
-            violation.file_path.as_posix(),
-            violation.line_number is None,
-            violation.line_number or 0,
-            violation.message,
-        )
-    )
-    for violation in violations:
-        print(violation, file=system_modules["sys"].stderr)
-    return int(bool(violations))
+    return report_violations(violations=violations)
 
 
 if __name__ == "__main__":

@@ -62,8 +62,14 @@ environment, so they run everywhere: locally, on pre-commit.ci (which
 checks the whole committed tree with `--all-files`), and in the
 [`Pre-commit Policy Checks`](../../.github/workflows/pre-commit-policy-checks.yml)
 workflow. They only enforce rules that hold for the entire repository:
-top-level test modules, Python symlinks, relative imports, async/await,
-and direct `DynamicClient` construction.
+top-level test modules, Python symlinks, relative imports, and direct
+`DynamicClient` construction; async/await is enforced in the code roots
+(`libs/`, `scripts/`, `tests/`, `utilities/`) via `check_test_basics`.
+
+The stateless entry point (`check_banned.py`) must stay importable in a
+stdlib-only pre-commit hook environment, so `check_policy.py` imports
+`pyhelper_utils.shell` lazily inside its `run_command` wrapper — the one
+deliberate exception to the imports-at-the-top-of-the-module rule.
 
 **Staged-diff checks** (the `check_policy.py` families) compare the staged
 index with `HEAD` and need the project environment (`uv`, `ocp_resources`)
@@ -75,6 +81,10 @@ empty, so these hooks are listed in the `ci: skip` section of
 GitHub Actions workflow instead. That workflow stages the pull request
 diff against the base branch (`git reset --soft` to the merge base) so the
 hooks run with their exact local semantics over the pull request changes.
+On manual `workflow_dispatch` runs only the two stateless whole-file hooks
+execute: outside a pull request the staged diff is empty, so the staged-
+diff tier would pass vacuously, and environment setup plus diff staging are
+skipped for dispatched runs.
 
 ## Path checks
 

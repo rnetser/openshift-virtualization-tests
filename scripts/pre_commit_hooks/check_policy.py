@@ -53,8 +53,6 @@ from importlib import import_module
 from json import loads
 from pathlib import Path
 from re import compile as re_compile
-from sys import argv
-from sys import modules as system_modules
 from typing import TYPE_CHECKING, cast
 
 from scripts.pre_commit_hooks.ast_names import dotted_name
@@ -79,7 +77,7 @@ from scripts.pre_commit_hooks.check_stp_links import (
 )
 from scripts.pre_commit_hooks.check_test_basics import check_test_basics
 from scripts.pre_commit_hooks.check_test_std import check_test_std
-from scripts.pre_commit_hooks.policy_types import PolicyViolation
+from scripts.pre_commit_hooks.policy_types import PolicyViolation, parse_check_arguments, report_violations
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Collection, Sequence
@@ -758,7 +756,7 @@ class _ScopeBuilder:
             self._visit(node=statement, scope=class_scope)
 
 
-def _scopes(
+def scopes(
     tree: Module,
     module_name: tuple[str, ...] = (),
     is_package: bool = False,
@@ -766,7 +764,7 @@ def _scopes(
     return _ScopeBuilder(tree=tree, module_name=module_name, is_package=is_package).build()
 
 
-def _module_name(file_path: Path) -> tuple[str, ...]:
+def module_name(file_path: Path) -> tuple[str, ...]:
     parts = file_path.with_suffix("").parts
     return parts[:-1] if parts and parts[-1] == "__init__" else parts
 
@@ -1180,6 +1178,7 @@ def check_top_level_test_path(file_path: Path) -> PolicyViolation | None:
     return None
 
 
+DYNAMIC_CLIENT_MESSAGE = "reuse the DynamicClient passed through the call path instead of constructing one"
 _DYNAMIC_CLIENT_NAMES = {
     ("kubernetes", "dynamic", "DynamicClient"),
     ("kubernetes", "dynamic", "client", "DynamicClient"),
@@ -1262,7 +1261,7 @@ def _resolved_names(
     return frozenset(resolved)
 
 
-def _is_dynamic_client_call(node: Call, scopes: _Scopes) -> bool:
+def is_dynamic_client_call(node: Call, scopes: _Scopes) -> bool:
     return bool(_resolved_names(node=node.func, scopes=scopes) & ({("DynamicClient",)} | _DYNAMIC_CLIENT_NAMES))
 
 
@@ -1442,8 +1441,8 @@ def _check_module_pytestmark(
 
 
 def _call_message(node: Call, scopes: _Scopes) -> str | None:
-    if _is_dynamic_client_call(node=node, scopes=scopes):
-        return "reuse the DynamicClient passed through the call path instead of constructing one"
+    if is_dynamic_client_call(node=node, scopes=scopes):
+        return DYNAMIC_CLIENT_MESSAGE
     if _is_pytest_skip_call(node=node, scopes=scopes):
         return "pytest.skip() is forbidden"
     return None
@@ -1561,31 +1560,33 @@ def _check_source_tree(
     head_source: str | None,
     resource_classes: Collection[tuple[str, ...]] | None,
 ) -> list[PolicyViolation]:
-    module_name = _module_name(file_path=file_path)
+    module_name_parts = module_name(file_path=file_path)
     is_package = file_path.name == "__init__.py"
-    scopes = _scopes(tree=tree, module_name=module_name, is_package=is_package)
+    scopes_result = scopes(tree=tree, module_name=module_name_parts, is_package=is_package)
 
     def resolve_name(node: AST) -> frozenset[tuple[str, ...]]:
-        return _resolved_names(node=node, scopes=scopes)
+        return _resolved_names(node=node, scopes=scopes_result)
 
     def node_or_dependency_intersects(node: AST, dependency: AST) -> bool:
         return _node_or_dependency_intersects_added_lines(
             node=node,
             dependency=dependency,
             added_lines=added_lines,
-            scopes=scopes,
+            scopes=scopes_result,
         )
 
     head_tree = parse(source=head_source, filename=str(file_path)) if head_source is not None else None
     head_scopes = (
-        _scopes(tree=head_tree, module_name=module_name, is_package=is_package) if head_tree is not None else None
+        scopes(tree=head_tree, module_name=module_name_parts, is_package=is_package) if head_tree is not None else None
     )
 
     def head_resolve_name(node: AST) -> frozenset[tuple[str, ...]]:
         return _resolved_names(node=node, scopes=head_scopes) if head_scopes is not None else frozenset()
 
-    violations = _check_module_assignments(file_path=file_path, tree=tree, added_lines=added_lines, scopes=scopes)
-    violations += _check_ast_nodes(file_path=file_path, tree=tree, added_lines=added_lines, scopes=scopes)
+    violations = _check_module_assignments(
+        file_path=file_path, tree=tree, added_lines=added_lines, scopes=scopes_result
+    )
+    violations += _check_ast_nodes(file_path=file_path, tree=tree, added_lines=added_lines, scopes=scopes_result)
     violations += check_resource_clients(
         file_path=file_path,
         source=source,
@@ -1722,36 +1723,6 @@ def check_file(
 
 
 _CHECK_FAMILIES = ("path-policy", "linter-directives", "python-source", "test-std", "stp-links")
-
-
-def _parse_arguments(arguments: Sequence[str] | None) -> tuple[list[str], frozenset[str]]:
-    """Split command-line arguments into filenames and selected check families.
-
-    Args:
-        arguments: Raw arguments, or ``None`` to use command-line arguments.
-
-    Returns:
-        Filenames and the selected check families; without an explicit
-        ``--check`` selection every family runs.
-    """
-    raw_arguments = list(argv[1:]) if arguments is None else list(arguments)
-    file_names: list[str] = []
-    selected: set[str] = set()
-    index = 0
-    while index < len(raw_arguments):
-        argument = raw_arguments[index]
-        if argument == "--check":
-            index += 1
-            if index >= len(raw_arguments):
-                raise SystemExit("check_policy: --check requires a check family name")
-            selected.add(raw_arguments[index])
-        else:
-            file_names.append(argument)
-        index += 1
-    unknown_families = selected - set(_CHECK_FAMILIES)
-    if unknown_families:
-        raise SystemExit(f"check_policy: unknown check family: {sorted(unknown_families)}")
-    return file_names, frozenset(selected) or frozenset(_CHECK_FAMILIES)
 
 
 def _resolved_added_lines(staged_changes: StagedChanges, file_path: Path) -> Collection[int] | None:
@@ -1915,11 +1886,11 @@ def _python_source_violations(
         Source-level violations for the supplied files.
     """
     imported_modules = {
-        module_name
+        imported
         for path in staged_python_paths
-        for module_name in imported_module_names(
+        for imported in imported_module_names(
             tree=parse(source=staged_changes.sources[path], filename=str(path)),
-            module_name=_module_name(file_path=path),
+            module_name=module_name(file_path=path),
         )
     }
     relevant_modules = {
@@ -2047,7 +2018,11 @@ def main(arguments: Sequence[str] | None = None) -> int:
     Returns:
         Zero when all files comply, otherwise one.
     """
-    file_names, selected_checks = _parse_arguments(arguments=arguments)
+    file_names, selected_checks = parse_check_arguments(
+        program_name="check_policy",
+        check_families=_CHECK_FAMILIES,
+        arguments=arguments,
+    )
     staged_changes = _staged_changes()
     file_paths = [Path(file_name) for file_name in file_names]
     staged_python_sources = {
@@ -2084,17 +2059,7 @@ def main(arguments: Sequence[str] | None = None) -> int:
     if "stp-links" in selected_checks:
         violations.extend(_stp_links_violations(staged_changes=staged_changes, staged_python_paths=staged_python_paths))
 
-    violations.sort(
-        key=lambda violation: (
-            violation.file_path.as_posix(),
-            violation.line_number is None,
-            violation.line_number or 0,
-            violation.message,
-        )
-    )
-    for violation in violations:
-        print(violation, file=system_modules["sys"].stderr)
-    return int(bool(violations))
+    return report_violations(violations=violations)
 
 
 if __name__ == "__main__":

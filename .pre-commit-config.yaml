@@ -5,7 +5,8 @@ ci:
   # The staged-diff policy hooks read the Git index and need the project
   # environment (uv, ocp_resources, gh, network), none of which pre-commit.ci
   # provides; they are enforced by the "Pre-commit Policy Checks" GitHub
-  # Actions workflow (see .github/workflows/pre-commit-policy-checks.yml).
+  # Actions workflow (see .github/workflows/pre-commit-policy-checks.yml —
+  # keep the hook lists in both files in sync when adding staged-diff hooks).
   # The stateless check-banned-* hooks have no such needs and DO run on
   # pre-commit.ci. check-jsonschema fetches a remote schema file, which
   # pre-commit.ci also cannot do.
@@ -104,10 +105,13 @@ repos:
         require_serial: true
         stages: [pre-commit]
       - id: check-banned-constructs
-        name: ban DynamicClient construction, relative imports, and async/await (whole repository)
+        # DynamicClient construction and relative imports are banned in the
+        # whole repository; async/await is enforced in the code roots
+        # (libs/, scripts/, tests/, utilities/) by check_test_basics.
+        name: ban DynamicClient construction and relative imports (whole repository) and async/await (code roots)
         entry: python -m scripts.pre_commit_hooks.check_banned --check banned-constructs
         language: python
-        types: [python]
+        types_or: [python, symlink]
         always_run: true
         require_serial: true
         stages: [pre-commit]
