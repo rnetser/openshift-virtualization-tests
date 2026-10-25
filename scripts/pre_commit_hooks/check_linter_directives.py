@@ -320,7 +320,7 @@ def check_manifest_update(
                     head_source=source_at_head,
                 )
             )
-        except SyntaxError, _InvalidDirectiveError:
+        except (SyntaxError, _InvalidDirectiveError):
             continue
 
     violations: list[PolicyViolation] = []

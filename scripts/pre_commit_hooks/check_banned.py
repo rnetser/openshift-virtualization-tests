@@ -4,7 +4,8 @@ Unlike ``check_policy.py``, these checks read no Git state: pre-commit
 supplies filenames and each file is read from the worktree, so the checks
 also run on pre-commit.ci, which executes ``pre-commit run --all-files``
 over a clean committed checkout. Only rules that hold for the entire
-repository are enforced here; staged-diff ratchets and checks that need the
+repository (plus async/await in the code roots) are enforced here;
+staged-diff ratchets and checks that need the
 project environment or network access stay in ``check_policy.py`` and run
 in the "Pre-commit Policy Checks" GitHub Actions workflow.
 

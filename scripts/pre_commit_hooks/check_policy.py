@@ -212,7 +212,7 @@ def _scope_statements(statements: Sequence[stmt]) -> tuple[stmt, ...]:
 
 
 @dataclass(frozen=True, slots=True)
-class _Scopes:
+class Scopes:
     root: _Scope
     node_scopes: dict[AST, _Scope]
     node_phases: dict[AST, int]
@@ -238,8 +238,8 @@ class _ScopeBuilder:
         self._loop_exits: list[_LoopExits] = []
         self._visit(node=tree, scope=self.root)
 
-    def build(self) -> _Scopes:
-        return _Scopes(
+    def build(self) -> Scopes:
+        return Scopes(
             root=self.root,
             node_scopes=self.node_scopes,
             node_phases=self.node_phases,
@@ -760,11 +760,29 @@ def scopes(
     tree: Module,
     module_name: tuple[str, ...] = (),
     is_package: bool = False,
-) -> _Scopes:
+) -> Scopes:
+    """Build the scope analysis for one module's AST.
+
+    Args:
+        tree: Parsed module AST to analyze.
+        module_name: Dotted module name parts of the file being analyzed.
+        is_package: Whether the file is a package ``__init__.py``.
+
+    Returns:
+        Scope bindings for every node in the tree.
+    """
     return _ScopeBuilder(tree=tree, module_name=module_name, is_package=is_package).build()
 
 
 def module_name(file_path: Path) -> tuple[str, ...]:
+    """Derive the dotted module name parts for a repository path.
+
+    Args:
+        file_path: Repository-relative Python file path.
+
+    Returns:
+        Module name parts, with the ``__init__`` suffix dropped for packages.
+    """
     parts = file_path.with_suffix("").parts
     return parts[:-1] if parts and parts[-1] == "__init__" else parts
 
@@ -1192,7 +1210,7 @@ def _root_name(node: AST) -> Name | None:
     return node if isinstance(node, Name) else None
 
 
-def _bindings_for_name(name: str, reference: AST, scopes: _Scopes) -> tuple[_Binding, ...]:
+def _bindings_for_name(name: str, reference: AST, scopes: Scopes) -> tuple[_Binding, ...]:
     reference_scope = scopes.node_scopes.get(reference, scopes.root)
     current_scope: _Scope | None = reference_scope
     root_name = _root_name(node=reference)
@@ -1225,7 +1243,7 @@ def _bindings_for_name(name: str, reference: AST, scopes: _Scopes) -> tuple[_Bin
 
 def _resolved_names(
     node: AST,
-    scopes: _Scopes,
+    scopes: Scopes,
     resolving: frozenset[AST] = frozenset(),
 ) -> frozenset[tuple[str, ...]]:
     if isinstance(node, NamedExpr):
@@ -1261,17 +1279,26 @@ def _resolved_names(
     return frozenset(resolved)
 
 
-def is_dynamic_client_call(node: Call, scopes: _Scopes) -> bool:
+def is_dynamic_client_call(node: Call, scopes: Scopes) -> bool:
+    """Check whether a call node constructs a ``DynamicClient``.
+
+    Args:
+        node: Call node to classify.
+        scopes: Scope analysis of the enclosing module.
+
+    Returns:
+        True when the call resolves to ``DynamicClient`` or a known alias.
+    """
     return bool(_resolved_names(node=node.func, scopes=scopes) & ({("DynamicClient",)} | _DYNAMIC_CLIENT_NAMES))
 
 
-def _is_pytest_skip_call(node: Call, scopes: _Scopes) -> bool:
+def _is_pytest_skip_call(node: Call, scopes: Scopes) -> bool:
     return ("pytest", "skip") in _resolved_names(node=node.func, scopes=scopes)
 
 
 def _is_forbidden_skip_decorator(
     node: expr,
-    scopes: _Scopes,
+    scopes: Scopes,
     resolving: frozenset[AST] = frozenset(),
 ) -> bool:
     marker = node.func if isinstance(node, Call) else node
@@ -1294,7 +1321,7 @@ def _pytestmark_value_children(node: expr) -> tuple[expr, ...]:
 
 def _is_forbidden_bound_name(
     node: expr,
-    scopes: _Scopes,
+    scopes: Scopes,
     resolving: frozenset[AST],
 ) -> bool:
     if not isinstance(node, Name):
@@ -1319,7 +1346,7 @@ def _is_forbidden_bound_name(
 
 def _is_forbidden_pytestmark_value(
     node: expr,
-    scopes: _Scopes,
+    scopes: Scopes,
     resolving: frozenset[AST] = frozenset(),
 ) -> bool:
     if _is_forbidden_skip_decorator(node=node, scopes=scopes, resolving=resolving):
@@ -1333,7 +1360,7 @@ def _is_forbidden_pytestmark_value(
 def _name_intersects_added_lines(
     node: Name,
     added_lines: Collection[int],
-    scopes: _Scopes,
+    scopes: Scopes,
     resolving: frozenset[AST],
 ) -> bool:
     return any(
@@ -1361,7 +1388,7 @@ def _value_children(node: AST) -> tuple[AST, ...]:
 def _value_intersects_added_lines(
     node: AST,
     added_lines: Collection[int] | None,
-    scopes: _Scopes,
+    scopes: Scopes,
     resolving: frozenset[AST] = frozenset(),
 ) -> bool:
     if added_lines is None:
@@ -1404,7 +1431,7 @@ def _node_or_dependency_intersects_added_lines(
     node: AST,
     dependency: AST,
     added_lines: Collection[int] | None,
-    scopes: _Scopes,
+    scopes: Scopes,
 ) -> bool:
     return _node_intersects_added_lines(node=node, added_lines=added_lines) or _value_intersects_added_lines(
         node=dependency, added_lines=added_lines, scopes=scopes
@@ -1415,7 +1442,7 @@ def _pytestmark_is_added(
     node: stmt,
     value: expr,
     added_lines: Collection[int] | None,
-    scopes: _Scopes,
+    scopes: Scopes,
 ) -> bool:
     return _node_or_dependency_intersects_added_lines(
         node=node, dependency=value, added_lines=added_lines, scopes=scopes
@@ -1426,7 +1453,7 @@ def _check_module_pytestmark(
     file_path: Path,
     node: stmt,
     added_lines: Collection[int] | None,
-    scopes: _Scopes,
+    scopes: Scopes,
 ) -> PolicyViolation | None:
     value = _pytestmark_value(node=node)
     if value is None or not _is_forbidden_pytestmark_value(node=value, scopes=scopes):
@@ -1440,7 +1467,7 @@ def _check_module_pytestmark(
     )
 
 
-def _call_message(node: Call, scopes: _Scopes) -> str | None:
+def _call_message(node: Call, scopes: Scopes) -> str | None:
     if is_dynamic_client_call(node=node, scopes=scopes):
         return DYNAMIC_CLIENT_MESSAGE
     if _is_pytest_skip_call(node=node, scopes=scopes):
@@ -1448,7 +1475,7 @@ def _call_message(node: Call, scopes: _Scopes) -> str | None:
     return None
 
 
-def _pytest_param_marker_message(node: Call, scopes: _Scopes) -> str | None:
+def _pytest_param_marker_message(node: Call, scopes: Scopes) -> str | None:
     if ("pytest", "param") not in _resolved_names(node=node.func, scopes=scopes):
         return None
     marks = next((keyword.value for keyword in node.keywords if keyword.arg == "marks"), None)
@@ -1461,7 +1488,7 @@ def _check_call(
     file_path: Path,
     node: Call,
     added_lines: Collection[int] | None,
-    scopes: _Scopes,
+    scopes: Scopes,
 ) -> PolicyViolation | None:
     message = _call_message(node=node, scopes=scopes)
     dependency: AST = node.func
@@ -1487,7 +1514,7 @@ def _check_decorators(
     file_path: Path,
     node: ClassDef | FunctionDef | AsyncFunctionDef,
     added_lines: Collection[int] | None,
-    scopes: _Scopes,
+    scopes: Scopes,
 ) -> list[PolicyViolation]:
     return [
         PolicyViolation(
@@ -1507,7 +1534,7 @@ def _check_ast_node(
     file_path: Path,
     node: AST,
     added_lines: Collection[int] | None,
-    scopes: _Scopes,
+    scopes: Scopes,
 ) -> list[PolicyViolation]:
     if isinstance(node, Call):
         violation = _check_call(file_path=file_path, node=node, added_lines=added_lines, scopes=scopes)
@@ -1521,7 +1548,7 @@ def _check_module_assignments(
     file_path: Path,
     tree: Module,
     added_lines: Collection[int] | None,
-    scopes: _Scopes,
+    scopes: Scopes,
 ) -> list[PolicyViolation]:
     assignment_types = (Assign, AnnAssign, AugAssign)
     return [
@@ -1544,7 +1571,7 @@ def _check_ast_nodes(
     file_path: Path,
     tree: Module,
     added_lines: Collection[int] | None,
-    scopes: _Scopes,
+    scopes: Scopes,
 ) -> list[PolicyViolation]:
     violations: list[PolicyViolation] = []
     for node in walk(tree):

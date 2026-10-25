@@ -37,6 +37,13 @@ uv run pre-commit run check-test-std
 uv run pre-commit run check-stp-links
 ```
 
+The stateless whole-file checks need no staged index and no project
+environment, so they run directly on the worktree:
+
+```bash
+uv run pre-commit run check-banned-paths check-banned-constructs
+```
+
 Pre-commit supplies the filenames to the entry point. For staged files, the
 hook reads the Git index and compares the staged result with `HEAD`; it does
 not silently inspect an unstaged worktree version. Stage the intended source

@@ -42,8 +42,9 @@ jobs:
           cache-dependency-glob: "uv.lock"
 
       # uv tool install is the uv-managed mechanism for running pre-commit,
-      # which is not a project dependency (the policy hooks must not depend
-      # on the project environment).
+      # which is not a project dependency: the stateless check-banned-*
+      # hooks must run without the project environment, so pre-commit is
+      # installed as a standalone tool.
       - name: Install pre-commit
         run: uv tool install pre-commit
 
@@ -77,9 +78,12 @@ jobs:
             hook_ids=(check-banned-paths check-banned-constructs)
           else
             # Keep this list in sync with the ci: skip section of
-            # .pre-commit-config.yaml (the staged-diff hooks pre-commit.ci
-            # cannot run) plus the stateless check-banned-* hooks.
-            hook_ids=(check-banned-paths check-banned-constructs check-staged-paths check-linter-directives check-python-source check-test-std check-stp-links)
+            # .pre-commit-config.yaml (the hooks pre-commit.ci cannot run)
+            # plus the stateless check-banned-* hooks. The two lists
+            # intentionally differ: this workflow adds the stateless
+            # check-banned-* hooks and also runs check-jsonschema (the
+            # runner has network access for its remote schema fetch).
+            hook_ids=(check-banned-paths check-banned-constructs check-jsonschema check-staged-paths check-linter-directives check-python-source check-test-std check-stp-links)
           fi
           for hook_id in "${hook_ids[@]}"; do
             pre-commit run "${hook_id}" --all-files
