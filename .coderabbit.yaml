@@ -118,6 +118,16 @@ reviews:
   # Abort review if PR is closed
   abort_on_close: true
 
+  # Automatic approvals: CodeRabbit approves the PR once the latest commit
+  # has a completed review, all its review comments are resolved, no
+  # pre-merge checks are failing, and the PR's merge risk is within the
+  # configured limit. allow_author_approval: false also blocks authors
+  # from using @coderabbitai approve and resolve on their own PRs.
+  auto_approvals:
+    enabled: true
+    allow_author_approval: false
+    max_merge_risk: low
+
   # Pre-merge checks for PR quality
   pre_merge_checks:
     title:
