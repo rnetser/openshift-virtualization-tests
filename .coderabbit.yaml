@@ -118,6 +118,13 @@ reviews:
   # Abort review if PR is closed
   abort_on_close: true
 
+  # Automatic approvals: CodeRabbit approves the PR once all its review
+  # comments are resolved and no pre-merge checks are failing.
+  # Authors cannot approve their own PRs via @coderabbitai approve.
+  auto_approvals:
+    enabled: true
+    allow_author_approval: false
+
   # Pre-merge checks for PR quality
   pre_merge_checks:
     title:
