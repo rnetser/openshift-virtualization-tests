@@ -598,9 +598,12 @@ knowledge_base:
     filePatterns:
       - "AGENTS.md"
       - "docs/AI_CONTRIBUTION_POLICY.md"
-      - "docs/CODING_AND_STYLE_GUIDE.md"
-      - "docs/SOFTWARE_TEST_DESCRIPTION.md"
-      - "docs/QUARANTINE_GUIDELINES.md"
+      - files: "docs/CODING_AND_STYLE_GUIDE.md"
+        applyTo: "**"
+      - files: "docs/SOFTWARE_TEST_DESCRIPTION.md"
+        applyTo: "tests/**"
+      - files: "docs/QUARANTINE_GUIDELINES.md"
+        applyTo: "tests/**"
 
   # Enable learning from repository patterns
   learnings:
