@@ -608,10 +608,6 @@ knowledge_base:
   # Enable learning from repository patterns
   learnings:
     scope: auto
-    # Days admins have to approve or reject a new learning before it is
-    # applied automatically. 0 (default) applies immediately; 7 gives a grace
-    # period to reject unvetted learnings from a single review cycle.
-    approval_delay: 7
 
   # Enable learning from issues
   issues:
