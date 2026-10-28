@@ -56,7 +56,7 @@ uv run --with pylero scripts/polarion_backfill/polarion_jira_backfill.py \
 
 `--open-pr` applies the changes as PRs instead of editing the working tree:
 
-- **The tool never runs on local code.** By default it clones `upstream/main`
+- **The tool does not run on local code by default.** It clones `upstream/main`
   fresh from GitHub into a temporary directory under `/tmp` (override with
   `--clone-dir`; kept after the run with `--keep-clone` or when `--clone-dir`
   is given). The local checkout passed via `--tests-repo` is used only to

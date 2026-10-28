@@ -12,13 +12,13 @@ re-hit the API (which may disappear as the code-first adoption proceeds).
 
 Usage:
     # Show what would change, no API calls if mapping cache exists
-    uv run --with pylero tools/polarion_jira_backfill.py --tests-repo ~/git/openshift-virtualization-tests --dry-run
+    uv run --with pylero scripts/polarion_backfill/polarion_jira_backfill.py --tests-repo ~/git/openshift-virtualization-tests --dry-run
 
     # Apply changes
-    uv run --with pylero tools/polarion_jira_backfill.py --tests-repo ~/git/openshift-virtualization-tests --apply
+    uv run --with pylero scripts/polarion_backfill/polarion_jira_backfill.py --tests-repo ~/git/openshift-virtualization-tests --apply
 
     # Only fetch/refresh the mapping (no file edits)
-    uv run --with pylero tools/polarion_jira_backfill.py --tests-repo ~/git/openshift-virtualization-tests --mapping-only
+    uv run --with pylero scripts/polarion_backfill/polarion_jira_backfill.py --tests-repo ~/git/openshift-virtualization-tests --mapping-only
 
 Requires a pylero config (~/.pylero or ./.pylero) with credentials for
 https://polarion.engineering.redhat.com/polarion. For the Red Hat internal
@@ -230,13 +230,13 @@ class PolarionMapper:
                 jiras.append(match.group(1))
 
         for hl in req.hyperlinks:
-            uri = getattr(hl, "uri", "") or ""
-            _add(match=JIRA_URL_RE.search(uri))
+            _add(match=JIRA_URL_RE.search(hl.uri))
 
+        pylero_exceptions = importlib.import_module(name="pylero.exceptions")
         try:
             cf = req.get_custom_field(key="jiraurl")
-        except Exception:
-            cf = None
+        except pylero_exceptions.PyleroLibException:
+            cf = None  # custom field not defined on this requirement
         value = getattr(cf, "value", None)
         if isinstance(value, str) and value:
             _add(match=JIRA_URL_RE.search(value))
@@ -418,8 +418,8 @@ def compute_new_source(result: FileResult) -> tuple[str | None, list[str]]:
             comment_lines = "".join(f"{indent}{text}\n" for text in comment_texts if text)
             blank = "\n" if comment_lines else ""
             doc_text = (
-                f'{indent}"""\n{_jira_lines(new_jiras, indent)}'
-                f"{_polarion_lines(func.polarion_ids, indent)}"
+                f'{indent}"""\n{_jira_lines(jira_ids=new_jiras, indent=indent)}'
+                f"{_polarion_lines(polarion_ids=func.polarion_ids, indent=indent)}"
                 f'{blank}{comment_lines}{indent}"""\n'
             )
             edits.append((idx, line, doc_text + line))
@@ -437,14 +437,19 @@ def compute_new_source(result: FileResult) -> tuple[str | None, list[str]]:
         if not to_add:
             continue
 
-        # The Polarion ID moves from the marker to the docstring.
-        _remove_polarion_markers(func=func, lines=lines, edits=edits)
-
         indent = _indent_of(source_lines=lines, lineno=doc.lineno)
         # The docstring may start on the same line as the opening quotes.
         doc_line = lines[doc.lineno - 1]
-        quote = "'''" if doc_line.lstrip().startswith("'''") else '"""'
-        quote_pos = doc_line.index(quote)
+        quote_match = re.match(r"\s*(?:[rRuU]+)?('''|\"\"\")", doc_line)
+        if not quote_match:
+            # Not a triple-quoted docstring (e.g. 'text'): leave it untouched.
+            LOGGER.warning("%s: %s has a non-triple-quoted docstring, skipping", result.path, func.name)
+            continue
+        quote = quote_match.group(1)
+        quote_pos = quote_match.start(1)
+
+        # The Polarion ID moves from the marker to the docstring.
+        _remove_polarion_markers(func=func, lines=lines, edits=edits)
 
         # If the docstring already has a Jira line, insert the new Jira
         # line(s) directly after the LAST existing one (grouped together,
@@ -460,7 +465,11 @@ def compute_new_source(result: FileResult) -> tuple[str | None, list[str]]:
                 # the closing quotes.
                 has_following = any(lines[i].strip() for i in range(last + 1, doc_end - 1))
                 blank = "\n" if has_following else ""
-                insertion = _jira_lines(to_add, indent) + _polarion_lines(polarions_to_add, indent) + blank
+                insertion = (
+                    _jira_lines(jira_ids=to_add, indent=indent)
+                    + _polarion_lines(polarion_ids=polarions_to_add, indent=indent)
+                    + blank
+                )
                 edits.append((last, lines[last], lines[last] + insertion))
                 added.extend(to_add)
                 continue
@@ -476,9 +485,9 @@ def compute_new_source(result: FileResult) -> tuple[str | None, list[str]]:
             ending = "\n" if had_newline else ""
             blank = "\n" if body else ""
             new_doc_line = (
-                f"{head}\n{_jira_lines(to_add, indent)}"
-                f"{_polarion_lines(polarions_to_add, indent)}{blank}"
-                f'{indent}{body}\n{indent}"""{ending}'
+                f"{head}\n{_jira_lines(jira_ids=to_add, indent=indent)}"
+                f"{_polarion_lines(polarion_ids=polarions_to_add, indent=indent)}{blank}"
+                f"{indent}{body}\n{indent}{quote}{ending}"
             )
             idx = doc.lineno - 1
             edits.append((idx, lines[idx], new_doc_line))
@@ -492,7 +501,11 @@ def compute_new_source(result: FileResult) -> tuple[str | None, list[str]]:
                 # Opening quotes alone on the line: insert lines after it.
                 # Blank line between Jira/Polarion and the text, unless docstring is empty.
                 blank = "\n" if doc_value.strip() else ""
-                insertion = _jira_lines(to_add, indent) + _polarion_lines(polarions_to_add, indent) + blank
+                insertion = (
+                    _jira_lines(jira_ids=to_add, indent=indent)
+                    + _polarion_lines(polarion_ids=polarions_to_add, indent=indent)
+                    + blank
+                )
                 line = lines[idx]
                 edits.append((idx, line, line + insertion))
             else:
@@ -500,8 +513,8 @@ def compute_new_source(result: FileResult) -> tuple[str | None, list[str]]:
                 head = doc_line[: quote_pos + 3]
                 rest = after_quote.lstrip()
                 new_doc_line = (
-                    f"{head}\n{_jira_lines(to_add, indent)}"
-                    f"{_polarion_lines(polarions_to_add, indent)}"
+                    f"{head}\n{_jira_lines(jira_ids=to_add, indent=indent)}"
+                    f"{_polarion_lines(polarion_ids=polarions_to_add, indent=indent)}"
                     f"{indent}\n{indent}{rest}"
                 )
                 edits.append((idx, lines[idx], new_doc_line))
@@ -524,14 +537,6 @@ def compute_new_source(result: FileResult) -> tuple[str | None, list[str]]:
         raise RuntimeError(f"{result.path}: edit produced invalid syntax: {exc}") from exc
 
     return new_source, added
-
-
-def apply_to_file(result: FileResult, dry_run: bool) -> list[str]:
-    """Insert Jira lines into test function docstrings (in place)."""
-    new_source, added = compute_new_source(result=result)
-    if new_source is not None and not dry_run:
-        result.path.write_text(new_source)
-    return added
 
 
 def _jira_for_function(func: TestFunction, result: FileResult) -> list[str]:
@@ -749,7 +754,7 @@ def _github_slug(url: str) -> str | None:
     return match.group(1) if match else None
 
 
-def clone_upstream(tests_repo: Path, base: str, clone_dir: Path, fork_remote_name: str) -> Path:
+def clone_upstream(tests_repo: Path, base: str, clone_dir: Path, fork_remote_name: str) -> tuple[Path, str]:
     """Freshly clone the upstream repo (base branch) into clone_dir.
 
     The local checkout is used only to discover the upstream and fork remote
@@ -774,9 +779,12 @@ def clone_upstream(tests_repo: Path, base: str, clone_dir: Path, fork_remote_nam
         ]
     )
 
-    # Add the fork as a push remote in the clone.
+    # Add the fork as a push remote in the clone. Return the remote name to
+    # use for pushes FROM THE CLONE (the local checkout's name may differ).
+    clone_fork_remote = "origin"
     if fork_url and fork_url != upstream_url:
         _git(tests_repo=clone_dir, git_args=["remote", "add", "fork", fork_url])
+        clone_fork_remote = "fork"
 
     # Ensure a commit identity exists (fresh clone may lack global git config).
     name = _git(tests_repo=clone_dir, git_args=["config", "--get", "user.name"], check=False).stdout.strip()
@@ -788,7 +796,7 @@ def clone_upstream(tests_repo: Path, base: str, clone_dir: Path, fork_remote_nam
         _git(tests_repo=clone_dir, git_args=["config", "user.name", login])
         _git(tests_repo=clone_dir, git_args=["config", "user.email", f"{login}@users.noreply.github.com"])
 
-    return clone_dir
+    return clone_dir, clone_fork_remote
 
 
 def _pre_commit_cmd() -> list[str] | None:
@@ -900,6 +908,7 @@ def open_prs(
             _git(
                 tests_repo=tests_repo,
                 git_args=[
+                    "push",
                     *(["-f"] if force_push else []),
                     "-u",
                     fork_remote,
@@ -1098,6 +1107,11 @@ def main(argv: list[str] | None = None) -> int:
     else:
         base = args.pr_base or _detect_default_base(args.tests_repo)
         fork_remote = args.pr_remote or _detect_fork_remote(args.tests_repo)
+        if args.open_pr and fork_remote == "origin":
+            parser.error(
+                "--open-pr needs a fork remote: add a 'fork' remote to your "
+                "checkout or pass --pr-remote <name> (refusing to push to origin)"
+            )
         if args.clone_dir and args.clone_dir.exists() and any(args.clone_dir.iterdir()):
             parser.error(f"--clone-dir exists and is not empty: {args.clone_dir}")
         cleanup_clone = not (args.keep_clone or args.clone_dir)
@@ -1112,7 +1126,12 @@ def main(argv: list[str] | None = None) -> int:
             clone_dir,
         )
         try:
-            work_repo = clone_upstream(args.tests_repo, base, clone_dir, fork_remote)
+            work_repo, fork_remote = clone_upstream(
+                tests_repo=args.tests_repo,
+                base=base,
+                clone_dir=clone_dir,
+                fork_remote_name=fork_remote,
+            )
         except RuntimeError as exc:
             LOGGER.error("clone failed: %s", exc)
             if cleanup_clone:
@@ -1234,6 +1253,11 @@ def _run_backfill(args: argparse.Namespace, work_repo: Path, base: str | None, f
             base = args.pr_base or _detect_default_base(args.tests_repo)
         if fork_remote is None:
             fork_remote = args.pr_remote or _detect_fork_remote(args.tests_repo)
+        if fork_remote == "origin":
+            raise RuntimeError(
+                "--open-pr needs a fork remote: add a 'fork' remote to your "
+                "checkout or pass --pr-remote <name> (refusing to push to origin)"
+            )
         groups = plan_pr_groups(changed=changed, tests_repo=work_repo, max_files_per_pr=args.max_files_per_pr)
         if args.max_prs is not None and len(groups) > args.max_prs:
             max_prs = args.max_prs
