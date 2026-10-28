@@ -440,10 +440,10 @@ def compute_new_source(result: FileResult) -> tuple[str | None, list[str]]:
         indent = _indent_of(source_lines=lines, lineno=doc.lineno)
         # The docstring may start on the same line as the opening quotes.
         doc_line = lines[doc.lineno - 1]
-        quote_match = re.match(r"\s*(?:[rRuU]+)?('''|\"\"\")", doc_line)
+        quote_match = re.match(pattern=r"\s*(?:[rRuU]+)?('''|\"\"\")", string=doc_line)
         if not quote_match:
             # Not a triple-quoted docstring (e.g. 'text'): leave it untouched.
-            LOGGER.warning("%s: %s has a non-triple-quoted docstring, skipping", result.path, func.name)
+            LOGGER.warning(f"{result.path}: {func.name} has a non-triple-quoted docstring, skipping")
             continue
         quote = quote_match.group(1)
         quote_pos = quote_match.start(1)
@@ -1254,10 +1254,11 @@ def _run_backfill(args: argparse.Namespace, work_repo: Path, base: str | None, f
         if fork_remote is None:
             fork_remote = args.pr_remote or _detect_fork_remote(args.tests_repo)
         if fork_remote == "origin":
-            raise RuntimeError(
+            LOGGER.error(
                 "--open-pr needs a fork remote: add a 'fork' remote to your "
                 "checkout or pass --pr-remote <name> (refusing to push to origin)"
             )
+            return 1
         groups = plan_pr_groups(changed=changed, tests_repo=work_repo, max_files_per_pr=args.max_files_per_pr)
         if args.max_prs is not None and len(groups) > args.max_prs:
             max_prs = args.max_prs
