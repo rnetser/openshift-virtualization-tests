@@ -451,12 +451,12 @@ def _load_batch_file(batch_path: Path) -> tuple[list[ManualTestResult], dict[str
                 assert isinstance(attr_key, str) and isinstance(attr_value, str), (
                     "validated above; keeps type-checkers honest"
                 )
-                normalized_key = attr_key.strip()
-                # Attribute keys are upper-case identifiers — catch duplicates
-                # that differ only in case or padding.
-                if normalized_key.upper() in seen_keys:
+                # Attribute keys are upper-case identifiers — normalize on load
+                # so hand-edited lowercase keys reach every consumer correctly.
+                normalized_key = attr_key.strip().upper()
+                if normalized_key in seen_keys:
                     raise click.ClickException(f"Duplicate attribute key in batch metadata: {normalized_key}")
-                seen_keys.add(normalized_key.upper())
+                seen_keys.add(normalized_key)
                 # Strip so hand-edited padding cannot reach the Datadog tags.
                 normalized_attrs.append({"key": normalized_key, "value": attr_value.strip()})
             metadata["attributes"] = normalized_attrs

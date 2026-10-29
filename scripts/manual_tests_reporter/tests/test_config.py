@@ -69,6 +69,14 @@ class TestLoadConfigExplicitPath:
         with pytest.raises(ClickException, match="YAML parsed a boolean"):
             load_config(config_path=config_path)
 
+    def test_duplicate_config_key_rejected(self, tmp_path: Path) -> None:
+        """Verify duplicate mapping keys in the config file are rejected, not last-wins."""
+        config_path = tmp_path / "config.yaml"
+        config_path.write_text(data="team: NETWORK\nteam: STORAGE\n", encoding="utf-8")
+
+        with pytest.raises(ClickException, match="not valid YAML"):
+            load_config(config_path=config_path)
+
     def test_non_string_key_rejected(self, tmp_path: Path) -> None:
         """Verify a non-string YAML key fails cleanly instead of crashing."""
         config_path = tmp_path / "config.yaml"

@@ -10,6 +10,7 @@ on:
       - 'tox.ini'
       - 'pyproject.toml'
       - 'uv.lock'
+      - '.github/workflows/scripts-unit-tests.yml'
 
   workflow_dispatch:
 
@@ -52,6 +53,7 @@ jobs:
         with:
           enable-cache: true
           cache-dependency-glob: "uv.lock"
+          python-version: "3.14"
 
       - name: Install uv-tox
         run: uv tool install tox --with tox-uv

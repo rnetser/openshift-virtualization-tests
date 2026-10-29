@@ -20,6 +20,33 @@ import click
 import yaml
 from yaml import YAMLError
 
+
+class _UniqueKeySafeLoader(yaml.SafeLoader):
+    """Safe YAML loader that rejects duplicate mapping keys."""
+
+
+def _construct_unique_mapping(
+    loader: _UniqueKeySafeLoader,
+    node: yaml.MappingNode,
+    deep: bool = False,
+) -> dict:
+    seen_keys: set[object] = set()
+    for key_node, _value_node in node.value:
+        key = loader.construct_object(node=key_node, deep=deep)
+        if key in seen_keys:
+            raise yaml.constructor.ConstructorError(
+                problem=f"duplicate key {key!r}",
+                problem_mark=key_node.start_mark,
+            )
+        seen_keys.add(key)
+    return loader.construct_mapping(node, deep=deep)
+
+
+_UniqueKeySafeLoader.add_constructor(
+    tag=yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG,
+    constructor=_construct_unique_mapping,
+)
+
 DEFAULT_CONFIG_PATH: Path | None
 try:
     DEFAULT_CONFIG_PATH = Path.home() / ".config" / "manual_tests_reporter" / "config.yaml"
@@ -82,7 +109,7 @@ def load_config(config_path: Path | None) -> tuple[dict[str, str], str]:
 
     try:
         with effective_path.open(encoding="utf-8") as handle:
-            raw_config = yaml.safe_load(stream=handle)
+            raw_config = yaml.load(stream=handle, Loader=_UniqueKeySafeLoader)
     except OSError as exc:
         raise click.ClickException(f"Cannot read config file {source}: {exc}") from exc
     except UnicodeDecodeError as exc:
