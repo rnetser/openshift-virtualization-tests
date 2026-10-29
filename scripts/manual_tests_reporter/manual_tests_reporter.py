@@ -459,14 +459,18 @@ def _merge_batch_metadata(
     if not team and batch_team:
         team = batch_team
         click.echo(message=f"Using team from batch file: {team}")
+    saved_attrs = batch_metadata.get("attributes")
+    restored = False
+    if isinstance(saved_attrs, list) and saved_attrs and not cluster_attrs:
+        cluster_attrs = saved_attrs
+        restored = True
+        click.echo(message=f"Restored {len(saved_attrs)} attributes from batch file.")
     batch_bundle = batch_metadata.get("bundle")
-    if not bundle and batch_bundle:
+    # Saved attributes already carry BUNDLE; promoting the metadata bundle to
+    # an explicit override would re-derive CNV_XY_VER and discard the saved value.
+    if not bundle and batch_bundle and not restored:
         bundle = batch_bundle
         click.echo(message=f"Using bundle from batch file: {bundle}")
-    saved_attrs = batch_metadata.get("attributes")
-    if isinstance(saved_attrs, list) and not cluster_attrs:
-        cluster_attrs = saved_attrs
-        click.echo(message=f"Restored {len(saved_attrs)} attributes from batch file.")
     return team, bundle, cluster_attrs
 
 

@@ -112,12 +112,11 @@ def get_cluster_attributes() -> ClusterAttributes:
 
     # OCP version
     # AttributeError/KeyError: ClusterVersion status.desired absent on a
-    # cluster that is still rolling out; ApiException: unreachable cluster;
-    # ValueError: malformed apiServerURL (e.g. invalid IPv6 URL).
+    # cluster that is still rolling out; ApiException: unreachable cluster.
     try:
         cluster_version = get_clusterversion(client=client)
         attrs.ocp_version = cluster_version.instance.status.desired.version
-    except (AttributeError, KeyError, TypeError, ValueError, ApiException) as exc:
+    except (AttributeError, KeyError, TypeError, ApiException) as exc:
         LOGGER.warning(f"Failed to get OCP version: {exc}")
 
     # CNV version (HCO)
@@ -143,14 +142,15 @@ def get_cluster_attributes() -> ClusterAttributes:
 
     # Cluster name and domain
     # AttributeError/KeyError: infrastructureName/apiServerURL absent while
-    # the Infrastructure CR status is still populating; ApiException: unreachable cluster.
+    # the Infrastructure CR status is still populating; ApiException: unreachable cluster;
+    # ValueError: malformed apiServerURL (e.g. invalid IPv6 URL) from urlparse.
     try:
         infra = get_infrastructure(admin_client=client)
         attrs.cluster_name = infra.instance.status.infrastructureName
         api_url = infra.instance.status.apiServerURL
         if api_url:
             attrs.cluster_domain = _extract_domain_from_api_url(api_url=api_url)
-    except (AttributeError, KeyError, TypeError, ApiException) as exc:
+    except (AttributeError, KeyError, TypeError, ValueError, ApiException) as exc:
         LOGGER.warning(f"Failed to get cluster infrastructure info: {exc}")
 
     # Default storage class

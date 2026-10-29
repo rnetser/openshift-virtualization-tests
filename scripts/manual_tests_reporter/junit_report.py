@@ -183,7 +183,9 @@ def build_junit_xml(
             ElementTree.SubElement(
                 properties,
                 "property",
-                attrib={"name": "polarion-testcase-id", "value": _sanitize_xml_text(text=polarion_id)},
+                # Datadog only ingests <property> names of the form dd_tags[key];
+                # any other name is dropped during ingestion.
+                attrib={"name": "dd_tags[polarion-testcase-id]", "value": _sanitize_xml_text(text=polarion_id)},
             )
 
         if result.status == "FAILED":

@@ -128,8 +128,8 @@ class TestBuildJunitXml:
         assert properties is not None, "Expected: run attributes and Polarion ID become testcase properties"
         props = {prop.get("name"): prop.get("value") for prop in properties.findall("property")}
         assert props["team"] == "NETWORK", f"Expected 'NETWORK', got {props['team']!r}"
-        assert props["polarion-testcase-id"] == "MOCK-1234", (
-            f"Expected 'MOCK-1234', got {props['polarion-testcase-id']!r}"
+        assert props["dd_tags[polarion-testcase-id]"] == "MOCK-1234", (
+            f"Expected 'MOCK-1234', got {props['dd_tags[polarion-testcase-id]']!r}"
         )
 
     def test_classname_split(self) -> None:

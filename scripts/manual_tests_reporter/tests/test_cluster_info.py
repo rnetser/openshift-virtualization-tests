@@ -117,3 +117,23 @@ class TestGetClusterAttributes:
         assert attrs.cluster_name is None, "Expected: failed queries leave fields as None"
         assert attrs.storage_class is None, "Expected: failed queries leave fields as None"
         assert attrs.channel is None, "Expected: failed queries leave fields as None"
+
+    def test_malformed_api_server_url_degrades_to_warning(self) -> None:
+        """Verify a malformed apiServerURL fails soft instead of aborting the run."""
+        infra_mock = MagicMock()
+        infra_mock.instance.status.infrastructureName = "bm15a"
+        infra_mock.instance.status.apiServerURL = "https://[::1"
+
+        with (
+            patch(target=f"{CLUSTER_INFO_MODULE}.cache_admin_client", return_value=MagicMock()),
+            patch(target=f"{CLUSTER_INFO_MODULE}.get_cluster_architecture", side_effect=ApiException(status=403)),
+            patch(target=f"{CLUSTER_INFO_MODULE}.get_clusterversion", side_effect=ApiException(status=403)),
+            patch(target=f"{CLUSTER_INFO_MODULE}.HyperConverged", side_effect=ApiException(status=403)),
+            patch(target=f"{CLUSTER_INFO_MODULE}.get_infrastructure", return_value=infra_mock),
+            patch(target=f"{CLUSTER_INFO_MODULE}.get_default_storage_class", side_effect=ApiException(status=403)),
+            patch(target=f"{CLUSTER_INFO_MODULE}.Subscription", side_effect=ApiException(status=403)),
+        ):
+            attrs = get_cluster_attributes()
+
+        assert attrs.cluster_name == "bm15a", f"Expected 'bm15a', got {attrs.cluster_name!r}"
+        assert attrs.cluster_domain is None, "Expected: malformed URL degrades to None, not a traceback"

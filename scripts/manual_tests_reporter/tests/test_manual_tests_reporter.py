@@ -435,6 +435,26 @@ class TestMergeBatchMetadata:
         assert bundle == "v4.22.0", f"Expected 'v4.22.0', got {bundle!r}"
         assert merged_attrs is None, f"Expected None, got {merged_attrs!r}"
 
+    def test_restored_attributes_prevent_bundle_override(self) -> None:
+        """Verify a restored retry file's saved CNV version is not re-derived from its bundle."""
+        saved_attrs = [
+            {"key": "BUNDLE", "value": "v4.22.0"},
+            {"key": "CNV_XY_VER", "value": "4.21"},
+        ]
+
+        _team, bundle, restored_attrs = _merge_batch_metadata(
+            batch_metadata={"bundle": "v4.22.0", "attributes": saved_attrs},
+            team=None,
+            bundle=None,
+            cluster_attrs=None,
+        )
+
+        assert bundle is None, (
+            "Expected: metadata bundle is not promoted when saved attributes were restored, "
+            "so the saved CNV_XY_VER is not re-derived"
+        )
+        assert restored_attrs == saved_attrs, f"Expected {saved_attrs!r}, got {restored_attrs!r}"
+
     def test_saved_attributes_restored_only_without_cluster_attrs(self) -> None:
         """Verify saved attributes are restored only when no cluster attrs were resolved."""
         saved_attrs = [{"key": "TEAM", "value": "NETWORK"}]
@@ -1115,5 +1135,5 @@ class TestBatchUpload:
 
         assert result.exit_code == 0, result.output
         assert uploaded_xml, "Expected: one uploaded report"
-        assert "polarion-testcase-id" in uploaded_xml[0], "Expected: Polarion property in the uploaded XML"
+        assert "dd_tags[polarion-testcase-id]" in uploaded_xml[0], "Expected: Polarion property in the uploaded XML"
         assert "MOCK-4321" in uploaded_xml[0], "Expected: collected Polarion ID in the uploaded XML"
