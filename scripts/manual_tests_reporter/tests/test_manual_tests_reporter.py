@@ -17,7 +17,9 @@ from click import ClickException
 from click.testing import CliRunner
 from pyhelper_utils.shell import run_command
 
+from scripts.manual_tests_reporter import config as reporter_module_config
 from scripts.manual_tests_reporter import manual_tests_reporter as reporter_module
+from scripts.manual_tests_reporter.config import CONFIG_KEY_TO_ATTRIBUTE_KEY, load_config
 from scripts.manual_tests_reporter.junit_report import DatadogUploadError, ManualTestResult
 from scripts.manual_tests_reporter.manual_tests_reporter import (
     _build_run_attributes,
@@ -404,10 +406,106 @@ class TestLoadBatchFileAttributes:
 
 
 class TestMergeBatchMetadata:
+    def test_batch_attributes_empty_value_rejected(self, tmp_path: Path) -> None:
+        """Verify a batch attribute with an empty value fails cleanly."""
+        batch_path = tmp_path / "batch.yaml"
+        batch_path.write_text(
+            data=(
+                "results:\n"
+                "  - test: tests/net/test_a.py::TestA::test_one\n"
+                "    status: passed\n"
+                "metadata:\n"
+                "  attributes:\n"
+                "    - key: ARCH\n"
+                "      value: ''\n"
+            ),
+            encoding="utf-8",
+        )
+        with pytest.raises(ClickException, match="non-empty string key and value"):
+            _load_batch_file(batch_path=batch_path)
+
+    def test_batch_attributes_duplicate_key_rejected(self, tmp_path: Path) -> None:
+        """Verify duplicate batch attribute keys fail cleanly."""
+        batch_path = tmp_path / "batch.yaml"
+        batch_path.write_text(
+            data=(
+                "results:\n"
+                "  - test: tests/net/test_a.py::TestA::test_one\n"
+                "    status: passed\n"
+                "metadata:\n"
+                "  attributes:\n"
+                "    - key: TEAM\n"
+                "      value: NETWORK\n"
+                "    - key: TEAM\n"
+                "      value: STORAGE\n"
+            ),
+            encoding="utf-8",
+        )
+        with pytest.raises(ClickException, match="Duplicate attribute key"):
+            _load_batch_file(batch_path=batch_path)
+
+    def test_batch_attributes_non_list_rejected(self, tmp_path: Path) -> None:
+        """Verify a non-list attributes value in batch metadata fails cleanly."""
+        batch_path = tmp_path / "batch.yaml"
+        batch_path.write_text(
+            data=(
+                "results:\n"
+                "  - test: tests/net/test_a.py::TestA::test_one\n"
+                "    status: passed\n"
+                "metadata:\n"
+                "  attributes:\n"
+                "    TEAM: NETWORK\n"
+            ),
+            encoding="utf-8",
+        )
+        with pytest.raises(ClickException, match="Invalid attributes type"):
+            _load_batch_file(batch_path=batch_path)
+
+    def test_batch_attributes_case_duplicate_rejected(self, tmp_path: Path) -> None:
+        """Verify attribute keys differing only in case fail as duplicates."""
+        batch_path = tmp_path / "batch.yaml"
+        batch_path.write_text(
+            data=(
+                "results:\n"
+                "  - test: tests/net/test_a.py::TestA::test_one\n"
+                "    status: passed\n"
+                "metadata:\n"
+                "  attributes:\n"
+                "    - key: TEAM\n"
+                "      value: NETWORK\n"
+                "    - key: team\n"
+                "      value: STORAGE\n"
+            ),
+            encoding="utf-8",
+        )
+        with pytest.raises(ClickException, match="Duplicate attribute key"):
+            _load_batch_file(batch_path=batch_path)
+
+    def test_batch_attributes_values_stripped(self, tmp_path: Path) -> None:
+        """Verify hand-edited padding in attribute keys and values is stripped."""
+        batch_path = tmp_path / "batch.yaml"
+        batch_path.write_text(
+            data=(
+                "results:\n"
+                "  - test: tests/net/test_a.py::TestA::test_one\n"
+                "    status: passed\n"
+                "metadata:\n"
+                "  attributes:\n"
+                "    - key: ' TEAM '\n"
+                "      value: ' NETWORK '\n"
+            ),
+            encoding="utf-8",
+        )
+        _results, metadata = _load_batch_file(batch_path=batch_path)
+
+        assert metadata["attributes"] == [{"key": "TEAM", "value": "NETWORK"}], (
+            "Expected: padded key and value stripped on load"
+        )
+
     def test_cli_values_not_overridden_by_batch_metadata(self) -> None:
         """Verify CLI-provided team/bundle/cluster attrs win over batch metadata."""
         cluster_attrs = [{"key": "CLUSTER_NAME", "value": "bm15a"}]
-        team, bundle, merged_attrs = _merge_batch_metadata(
+        team, bundle, merged_attrs, restored = _merge_batch_metadata(
             batch_metadata={
                 "team": "STORAGE",
                 "bundle": "v4.21.0",
@@ -421,10 +519,11 @@ class TestMergeBatchMetadata:
         assert team == "NETWORK", f"Expected 'NETWORK', got {team!r}"
         assert bundle == "v4.22.0", f"Expected 'v4.22.0', got {bundle!r}"
         assert merged_attrs == cluster_attrs, f"Expected {cluster_attrs!r}, got {merged_attrs!r}"
+        assert restored is False, "Expected: cluster attrs present, so nothing restored"
 
     def test_batch_metadata_fills_missing_cli_values(self) -> None:
         """Verify batch metadata fills team/bundle when the CLI provided none."""
-        team, bundle, merged_attrs = _merge_batch_metadata(
+        team, bundle, merged_attrs, restored = _merge_batch_metadata(
             batch_metadata={"team": "NETWORK", "bundle": "v4.22.0"},
             team=None,
             bundle=None,
@@ -434,6 +533,7 @@ class TestMergeBatchMetadata:
         assert team == "NETWORK", f"Expected 'NETWORK', got {team!r}"
         assert bundle == "v4.22.0", f"Expected 'v4.22.0', got {bundle!r}"
         assert merged_attrs is None, f"Expected None, got {merged_attrs!r}"
+        assert restored is False, "Expected: no saved attributes to restore"
 
     def test_restored_attributes_prevent_bundle_override(self) -> None:
         """Verify a restored retry file's saved CNV version is not re-derived from its bundle."""
@@ -442,7 +542,7 @@ class TestMergeBatchMetadata:
             {"key": "CNV_XY_VER", "value": "4.21"},
         ]
 
-        _team, bundle, restored_attrs = _merge_batch_metadata(
+        _team, bundle, restored_attrs, restored = _merge_batch_metadata(
             batch_metadata={"bundle": "v4.22.0", "attributes": saved_attrs},
             team=None,
             bundle=None,
@@ -454,18 +554,20 @@ class TestMergeBatchMetadata:
             "so the saved CNV_XY_VER is not re-derived"
         )
         assert restored_attrs == saved_attrs, f"Expected {saved_attrs!r}, got {restored_attrs!r}"
+        assert restored is True, "Expected: saved attributes restored"
 
     def test_restored_attributes_missing_bundle_filled_from_metadata(self) -> None:
         """Verify a restored attributes list without BUNDLE gets it filled from batch metadata."""
         saved_attrs = [{"key": "TEAM", "value": "NETWORK"}]
 
-        _team, bundle, restored_attrs = _merge_batch_metadata(
+        _team, bundle, restored_attrs, restored = _merge_batch_metadata(
             batch_metadata={"bundle": "v4.22.0", "attributes": saved_attrs},
             team=None,
             bundle=None,
             cluster_attrs=None,
         )
 
+        assert restored is True, "Expected: saved attributes restored"
         assert bundle is None, "Expected: bundle stays unset (no explicit override)"
         assert restored_attrs is not None, "Expected: restored attributes list"
         assert {"key": "BUNDLE", "value": "v4.22.0"} in restored_attrs, (
@@ -476,22 +578,24 @@ class TestMergeBatchMetadata:
         """Verify saved attributes are restored only when no cluster attrs were resolved."""
         saved_attrs = [{"key": "TEAM", "value": "NETWORK"}]
 
-        _team, _bundle, restored_attrs = _merge_batch_metadata(
+        _team, _bundle, restored_attrs, restored = _merge_batch_metadata(
             batch_metadata={"attributes": saved_attrs},
             team=None,
             bundle=None,
             cluster_attrs=None,
         )
         assert restored_attrs == saved_attrs, f"Expected {saved_attrs!r}, got {restored_attrs!r}"
+        assert restored is True, "Expected: saved attributes restored"
 
         cluster_attrs = [{"key": "CLUSTER_NAME", "value": "bm15a"}]
-        _team, _bundle, kept_attrs = _merge_batch_metadata(
+        _team, _bundle, kept_attrs, kept_restored = _merge_batch_metadata(
             batch_metadata={"attributes": saved_attrs},
             team=None,
             bundle=None,
             cluster_attrs=cluster_attrs,
         )
         assert kept_attrs == cluster_attrs, f"Expected {cluster_attrs!r}, got {kept_attrs!r}"
+        assert kept_restored is False, "Expected: cluster attrs present, so nothing restored"
 
 
 class TestBatchUnmatchedWarning:
@@ -1112,6 +1216,764 @@ class TestTeamInference:
         assert result.exit_code == 0, result.output
         assert "Inferred team: STORAGE" in result.output, "Expected: team inferred from the tests directory"
         assert "TEAM = STORAGE" in result.output, "Expected: inferred team reaches the run attributes"
+
+
+class TestConfigFileIntegration:
+    def _write_config(self, tmp_path: Path, content: str) -> Path:
+        """Write a config file and return its path."""
+        config_path = tmp_path / "config.yaml"
+        config_path.write_text(data=content, encoding="utf-8")
+        return config_path
+
+    def _write_batch(self, tmp_path: Path) -> tuple[Path, Path]:
+        """Write a minimal tests dir and batch file with one passing result."""
+        tests_dir = write_minimal_tests_dir(tmp_path=tmp_path)
+        batch_path = tmp_path / "batch.yaml"
+        batch_path.write_text(
+            data=("results:\n  - test: tests/test_manual_minimal.py::test_minimal\n    status: passed\n"),
+            encoding="utf-8",
+        )
+        return tests_dir, batch_path
+
+    def test_all_attribute_config_keys_reach_run_attributes(self, tmp_path: Path) -> None:
+        """Verify every accepted attribute config key has CLI wiring (drift guard)."""
+        tests_dir, batch_path = self._write_batch(tmp_path=tmp_path)
+        # Generate the config and expectations from the key map so a new
+        # CONFIG_KEY_TO_ATTRIBUTE_KEY entry fails this test until it is wired
+        # through the CLI options and reaches the run attributes.
+        config_lines = []
+        expected_lines = []
+        for config_key, attr_key in sorted(CONFIG_KEY_TO_ATTRIBUTE_KEY.items()):
+            value = f"val-{config_key}"
+            config_lines.append(f"{config_key}: {value}")
+            # TEAM and TIER values are uppercased when applied
+            expected_value = value.upper() if attr_key in ("TEAM", "TIER") else value
+            expected_lines.append(f"{attr_key} = {expected_value}")
+        config_lines.append("service: drift-guard-service")
+        config_path = self._write_config(
+            tmp_path=tmp_path,
+            content="\n".join(config_lines) + "\n",
+        )
+
+        result = CliRunner().invoke(
+            cli=main,
+            args=[
+                "--tests-dir",
+                str(tests_dir),
+                "--config",
+                str(config_path),
+                "--batch-file",
+                str(batch_path),
+                "--dry-run",
+            ],
+        )
+
+        assert result.exit_code == 0, result.output
+        for expected in expected_lines:
+            assert expected in result.output, f"Expected: {expected!r} in the dry-run output"
+        assert "Datadog service: drift-guard-service" in result.output, (
+            "Expected: drift-guard service in the dry-run output"
+        )
+
+    def test_all_attribute_config_keys_reach_replay_gap_fill(self, tmp_path: Path) -> None:
+        """Verify every accepted attribute config key has replay gap-fill wiring (drift guard)."""
+        tests_dir, batch_path = self._write_batch(tmp_path=tmp_path)
+        # A partial saved list (TEAM only): the replay branch must gap-fill
+        # every other attribute key from the generated config.
+        batch_path.write_text(
+            data=(
+                "metadata:\n"
+                "  attributes:\n"
+                "    - key: TEAM\n"
+                "      value: NETWORK\n"
+                "results:\n"
+                "  - test: tests/test_manual_minimal.py::test_minimal\n"
+                "    status: passed\n"
+            ),
+            encoding="utf-8",
+        )
+        config_lines = []
+        expected_lines = []
+        for config_key, attr_key in sorted(CONFIG_KEY_TO_ATTRIBUTE_KEY.items()):
+            value = f"val-{config_key}"
+            config_lines.append(f"{config_key}: {value}")
+            # TEAM comes from the saved attributes, not the config; TIER is uppercased
+            expected_value = value.upper() if attr_key == "TIER" else value
+            expected_lines.append(f"{attr_key} = {expected_value}")
+        config_path = self._write_config(
+            tmp_path=tmp_path,
+            content="\n".join(config_lines) + "\n",
+        )
+
+        result = CliRunner().invoke(
+            cli=main,
+            args=[
+                "--tests-dir",
+                str(tests_dir),
+                "--config",
+                str(config_path),
+                "--batch-file",
+                str(batch_path),
+                "--dry-run",
+            ],
+        )
+
+        assert result.exit_code == 0, result.output
+        assert "TEAM = NETWORK" in result.output, "Expected: saved TEAM stands over the config team"
+        for expected in expected_lines:
+            if expected.startswith("TEAM ="):
+                continue
+            assert expected in result.output, f"Expected: {expected!r} in the dry-run output"
+
+    def test_config_supplies_required_attributes(self, tmp_path: Path) -> None:
+        """Verify a config file supplies every required attribute without CLI flags."""
+        tests_dir, batch_path = self._write_batch(tmp_path=tmp_path)
+        config_path = self._write_config(
+            tmp_path=tmp_path,
+            content=(
+                "team: NETWORK\n"
+                "bundle: v4.22.0\n"
+                "ocp-version: 4.22.0\n"
+                "cnv-version: '4.22'\n"
+                "arch: amd64\n"
+                "cluster-name: bm15a\n"
+                "cluster-domain: bm15a.example.com\n"
+                "sc: ocs-storagecluster-ceph-rbd\n"
+                "channel: candidate\n"
+            ),
+        )
+        result = CliRunner().invoke(
+            cli=main,
+            args=[
+                "--tests-dir",
+                str(tests_dir),
+                "--config",
+                str(config_path),
+                "--batch-file",
+                str(batch_path),
+                "--dry-run",
+            ],
+        )
+
+        assert result.exit_code == 0, result.output
+        assert "Loaded config defaults from" in result.output, "Expected: config source is reported"
+        assert "TEAM = NETWORK" in result.output, "Expected: config team reaches the run attributes"
+        assert "Missing required run attributes" not in result.output, (
+            "Expected: config file supplies every required attribute"
+        )
+
+    def test_cli_flag_overrides_config(self, tmp_path: Path) -> None:
+        """Verify an explicit CLI flag wins over the config-file value."""
+        tests_dir, batch_path = self._write_batch(tmp_path=tmp_path)
+        config_path = self._write_config(tmp_path=tmp_path, content="team: NETWORK\n")
+        result = CliRunner().invoke(
+            cli=main,
+            args=[
+                *required_attr_args(tests_dir=tests_dir, team="STORAGE"),
+                "--config",
+                str(config_path),
+                "--batch-file",
+                str(batch_path),
+                "--dry-run",
+            ],
+        )
+
+        assert result.exit_code == 0, result.output
+        assert "TEAM = STORAGE" in result.output, "Expected: CLI team wins over the config team"
+
+    def test_retry_replay_ignores_config_attributes(self, tmp_path: Path) -> None:
+        """Verify a retry file's saved attributes are not disturbed by config defaults."""
+        tests_dir, batch_path = self._write_batch(tmp_path=tmp_path)
+        # Simulate a retry file: saved attributes + the same values as metadata.
+        batch_path.write_text(
+            data=(
+                "metadata:\n"
+                "  team: NETWORK\n"
+                "  bundle: v4.22.0\n"
+                "  attributes:\n"
+                "    - key: TEAM\n"
+                "      value: NETWORK\n"
+                "    - key: BUNDLE\n"
+                "      value: v4.22.0\n"
+                "    - key: CNV_XY_VER\n"
+                "      value: '4.21'\n"
+                "    - key: ARCH\n"
+                "      value: amd64\n"
+                "    - key: OCP\n"
+                "      value: 4.22.0\n"
+                "    - key: CLUSTER_NAME\n"
+                "      value: bm15a\n"
+                "    - key: CLUSTER_DOMAIN\n"
+                "      value: bm15a.example.com\n"
+                "    - key: SC\n"
+                "      value: ocs-storagecluster-ceph-rbd\n"
+                "    - key: CHANNEL\n"
+                "      value: candidate\n"
+                "results:\n"
+                "  - test: tests/test_manual_minimal.py::test_minimal\n"
+                "    status: passed\n"
+            ),
+            encoding="utf-8",
+        )
+        config_path = self._write_config(tmp_path=tmp_path, content="team: STORAGE\nbundle: v4.23.0\n")
+        result = CliRunner().invoke(
+            cli=main,
+            args=[
+                "--tests-dir",
+                str(tests_dir),
+                "--config",
+                str(config_path),
+                "--batch-file",
+                str(batch_path),
+                "--dry-run",
+            ],
+        )
+
+        assert result.exit_code == 0, result.output
+        assert "config defaults for bundle, team are ignored" in result.output, (
+            "Expected: config keys saved in the retry file are reported as ignored"
+        )
+        assert "TEAM = NETWORK" in result.output, "Expected: saved team is replayed, not the config team"
+        assert "CNV_XY_VER = 4.21" in result.output, "Expected: saved CNV version is replayed, not re-derived"
+
+    def test_retry_replay_fills_gaps_from_config(self, tmp_path: Path) -> None:
+        """Verify a partially-filled saved attribute list gets config gap-fills."""
+        tests_dir, batch_path = self._write_batch(tmp_path=tmp_path)
+        # Hand-written batch carrying only TEAM in its attributes list.
+        batch_path.write_text(
+            data=(
+                "metadata:\n"
+                "  attributes:\n"
+                "    - key: TEAM\n"
+                "      value: NETWORK\n"
+                "results:\n"
+                "  - test: tests/test_manual_minimal.py::test_minimal\n"
+                "    status: passed\n"
+            ),
+            encoding="utf-8",
+        )
+        config_path = self._write_config(
+            tmp_path=tmp_path,
+            content=(
+                "team: STORAGE\n"
+                "bundle: v4.22.0\n"
+                "cnv-version: '4.22'\n"
+                "arch: amd64\n"
+                "ocp-version: 4.22.0\n"
+                "cluster-name: bm15a\n"
+                "cluster-domain: bm15a.example.com\n"
+                "sc: ocs-storagecluster-ceph-rbd\n"
+                "channel: candidate\n"
+            ),
+        )
+
+        result = CliRunner().invoke(
+            cli=main,
+            args=[
+                "--tests-dir",
+                str(tests_dir),
+                "--config",
+                str(config_path),
+                "--batch-file",
+                str(batch_path),
+                "--dry-run",
+            ],
+        )
+
+        assert result.exit_code == 0, result.output
+        assert "TEAM = NETWORK" in result.output, "Expected: saved TEAM stands over the config team"
+        assert "config defaults for team are ignored" in result.output, (
+            "Expected: only the saved key is reported as ignored"
+        )
+        assert "Missing required run attributes" not in result.output, (
+            "Expected: config fills the gaps the partial saved list leaves"
+        )
+
+    def test_retry_replay_keeps_saved_cnv_when_config_fills_bundle(self, tmp_path: Path) -> None:
+        """Verify a saved CNV version is not re-derived when config fills the missing BUNDLE."""
+        tests_dir, batch_path = self._write_batch(tmp_path=tmp_path)
+        # Saved attributes carry the recorded CNV version but no BUNDLE.
+        batch_path.write_text(
+            data=(
+                "metadata:\n"
+                "  attributes:\n"
+                "    - key: TEAM\n"
+                "      value: NETWORK\n"
+                "    - key: CNV_XY_VER\n"
+                "      value: '4.21'\n"
+                "results:\n"
+                "  - test: tests/test_manual_minimal.py::test_minimal\n"
+                "    status: passed\n"
+            ),
+            encoding="utf-8",
+        )
+        config_path = self._write_config(
+            tmp_path=tmp_path,
+            content=(
+                "team: STORAGE\n"
+                "bundle: v4.23.0\n"
+                "arch: amd64\n"
+                "ocp-version: 4.22.0\n"
+                "cluster-name: bm15a\n"
+                "cluster-domain: bm15a.example.com\n"
+                "sc: ocs-storagecluster-ceph-rbd\n"
+                "channel: candidate\n"
+            ),
+        )
+
+        result = CliRunner().invoke(
+            cli=main,
+            args=[
+                "--tests-dir",
+                str(tests_dir),
+                "--config",
+                str(config_path),
+                "--batch-file",
+                str(batch_path),
+                "--dry-run",
+            ],
+        )
+
+        assert result.exit_code == 0, result.output
+        assert "CNV_XY_VER = 4.21" in result.output, (
+            "Expected: saved CNV version stands, not re-derived from the config bundle"
+        )
+        assert "BUNDLE = v4.23.0" in result.output, "Expected: missing BUNDLE filled from config"
+
+    def test_restored_team_attribute_prevents_no_team_warning(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Verify a restored TEAM attribute counts as the run team (no false warning)."""
+        tests_dir, batch_path = self._write_batch(tmp_path=tmp_path)
+        # Saved attributes carry TEAM plus every required attribute, but
+        # metadata.team is absent. Run without --dry-run so the warning check
+        # (skipped in dry runs) is actually reached; the mocked preflight
+        # fails the run cleanly after the team warning check.
+        saved_attributes = [
+            {"key": "TEAM", "value": "NETWORK"},
+            {"key": "BUNDLE", "value": "v4.22.0"},
+            {"key": "CNV_XY_VER", "value": "4.22"},
+            {"key": "ARCH", "value": "amd64"},
+            {"key": "OCP", "value": "4.22.0"},
+            {"key": "CLUSTER_NAME", "value": "bm15a"},
+            {"key": "CLUSTER_DOMAIN", "value": "bm15a.example.com"},
+            {"key": "SC", "value": "ocs-storagecluster-ceph-rbd"},
+            {"key": "CHANNEL", "value": "candidate"},
+        ]
+        attributes_yaml = "".join(
+            f"    - key: {attr['key']}\n      value: '{attr['value']}'\n" for attr in saved_attributes
+        )
+        batch_path.write_text(
+            data=(
+                "metadata:\n"
+                f"  attributes:\n{attributes_yaml}"
+                "results:\n"
+                "  - test: tests/test_manual_minimal.py::test_minimal\n"
+                "    status: passed\n"
+            ),
+            encoding="utf-8",
+        )
+        monkeypatch.setenv(name="DATADOG_API_KEY", value="test-key")
+        with patch(
+            target="scripts.manual_tests_reporter.manual_tests_reporter.shutil.which",
+            return_value=None,
+        ):
+            result = CliRunner().invoke(
+                cli=main,
+                args=["--tests-dir", str(tests_dir), "--batch-file", str(batch_path)],
+            )
+
+        assert result.exit_code != 0, "Expected: run fails at the mocked datadog-ci preflight"
+        assert "datadog-ci not found" in result.output, "Expected: preflight reached (past the warning check)"
+        assert "Using team from restored attributes: NETWORK" in result.output, (
+            "Expected: restored team used at preflight"
+        )
+        assert "no team provided or inferred" not in result.output, (
+            "Expected: restored TEAM attribute counts as the run team"
+        )
+
+    def test_saved_team_attribute_beats_metadata_team(self, tmp_path: Path) -> None:
+        """Verify a restored TEAM attribute wins over the batch file's metadata team."""
+        tests_dir, batch_path = self._write_batch(tmp_path=tmp_path)
+        # A hand-edited retry file whose metadata team conflicts with the
+        # saved TEAM attribute: the replay must keep the recorded value.
+        batch_path.write_text(
+            data=(
+                "metadata:\n"
+                "  team: STORAGE\n"
+                "  attributes:\n"
+                "    - key: TEAM\n"
+                "      value: NETWORK\n"
+                "results:\n"
+                "  - test: tests/test_manual_minimal.py::test_minimal\n"
+                "    status: passed\n"
+            ),
+            encoding="utf-8",
+        )
+
+        result = CliRunner().invoke(
+            cli=main,
+            args=["--tests-dir", str(tests_dir), "--batch-file", str(batch_path), "--dry-run"],
+        )
+
+        assert result.exit_code == 0, result.output
+        assert "TEAM = NETWORK" in result.output, (
+            "Expected: saved TEAM stands over the metadata team — replay semantics"
+        )
+        assert "Using team from batch file" not in result.output, (
+            "Expected: metadata team not applied when a TEAM attribute is restored"
+        )
+
+    def test_metadata_team_fills_saved_list_without_team(self, tmp_path: Path) -> None:
+        """Verify metadata team fills a restored list that lacks a TEAM attribute."""
+        tests_dir, batch_path = self._write_batch(tmp_path=tmp_path)
+        # Hand-written batch carrying only BUNDLE in its attributes list.
+        batch_path.write_text(
+            data=(
+                "metadata:\n"
+                "  team: STORAGE\n"
+                "  bundle: v4.22.0\n"
+                "  attributes:\n"
+                "    - key: BUNDLE\n"
+                "      value: v4.22.0\n"
+                "results:\n"
+                "  - test: tests/test_manual_minimal.py::test_minimal\n"
+                "    status: passed\n"
+            ),
+            encoding="utf-8",
+        )
+
+        result = CliRunner().invoke(
+            cli=main,
+            args=["--tests-dir", str(tests_dir), "--batch-file", str(batch_path), "--dry-run"],
+        )
+
+        assert result.exit_code == 0, result.output
+        assert "Using team from batch file: STORAGE" in result.output, (
+            "Expected: metadata team fills the gap the saved list leaves"
+        )
+        assert "TEAM = STORAGE" in result.output, "Expected: filled team reaches the attributes"
+
+    def test_retry_replay_without_config_attribute_keys_prints_no_note(self, tmp_path: Path) -> None:
+        """Verify no replay note when the config carries no attribute keys."""
+        tests_dir, batch_path = self._write_batch(tmp_path=tmp_path)
+        batch_path.write_text(
+            data=(
+                "metadata:\n"
+                "  attributes:\n"
+                "    - key: TEAM\n"
+                "      value: NETWORK\n"
+                "results:\n"
+                "  - test: tests/test_manual_minimal.py::test_minimal\n"
+                "    status: passed\n"
+            ),
+            encoding="utf-8",
+        )
+        config_path = self._write_config(tmp_path=tmp_path, content="service: other-service\n")
+
+        result = CliRunner().invoke(
+            cli=main,
+            args=[
+                "--tests-dir",
+                str(tests_dir),
+                "--config",
+                str(config_path),
+                "--batch-file",
+                str(batch_path),
+                "--dry-run",
+            ],
+        )
+
+        assert result.exit_code == 0, result.output
+        assert "are ignored" not in result.output, "Expected: no replay note without config attribute keys"
+        assert "Datadog service: other-service" in result.output, "Expected: non-attribute config keys still apply"
+
+    def test_auto_discovered_config_used_by_main(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Verify a config at the default path is auto-discovered by main."""
+        tests_dir, batch_path = self._write_batch(tmp_path=tmp_path)
+        default_config = tmp_path / "discovered.yaml"
+        default_config.write_text(data=f"tests-dir: {tests_dir}\nteam: NETWORK\n", encoding="utf-8")
+        monkeypatch.setattr(
+            target=reporter_module_config,
+            name="DEFAULT_CONFIG_PATH",
+            value=default_config,
+        )
+
+        result = CliRunner().invoke(
+            cli=main,
+            args=["--batch-file", str(batch_path), "--dry-run"],
+        )
+
+        assert result.exit_code == 0, result.output
+        assert f"Loaded config defaults from {default_config}" in result.output, (
+            "Expected: the default-path config is picked up and its source reported"
+        )
+        assert "TEAM = NETWORK" in result.output, "Expected: discovered config team applies"
+
+    def test_tests_dir_from_config(self, tmp_path: Path) -> None:
+        """Verify the scan directory comes from the config when --tests-dir is absent."""
+        tests_dir = write_minimal_tests_dir(tmp_path=tmp_path)
+        config_path = self._write_config(tmp_path=tmp_path, content=f"tests-dir: {tests_dir}\n")
+
+        result = CliRunner().invoke(
+            cli=main,
+            args=["--config", str(config_path), "--dry-run"],
+        )
+
+        assert f"Scanning {tests_dir}" in result.output, "Expected: config tests-dir is used for the scan"
+
+    def test_config_tests_dir_must_exist(self, tmp_path: Path) -> None:
+        """Verify a config tests-dir pointing nowhere fails cleanly."""
+        config_path = self._write_config(
+            tmp_path=tmp_path,
+            content=f"tests-dir: {tmp_path / 'does-not-exist'}\n",
+        )
+
+        result = CliRunner().invoke(cli=main, args=["--config", str(config_path), "--dry-run"])
+
+        assert result.exit_code != 0, "Expected: nonexistent config tests-dir fails"
+        assert "is not an existing directory" in result.output, "Expected: clean error naming the bad path"
+
+    def test_config_tests_dir_unresolvable_home_fails_cleanly(self, tmp_path: Path) -> None:
+        """Verify a config tests-dir with an unknown ~user fails cleanly, not a traceback."""
+        config_path = self._write_config(
+            tmp_path=tmp_path,
+            content="tests-dir: ~no-such-user-xyz/manual-tests\n",
+        )
+
+        result = CliRunner().invoke(cli=main, args=["--config", str(config_path), "--dry-run"])
+
+        assert result.exit_code != 0, "Expected: unresolvable ~user tests-dir fails"
+        assert "could not be resolved" in result.output, "Expected: clean error naming the raw value"
+        assert result.exception.__class__.__name__ != "RuntimeError", (
+            "Expected: RuntimeError converted to a ClickException"
+        )
+
+    def test_config_team_beats_path_inference(self, tmp_path: Path) -> None:
+        """Verify a config team wins over the team implied by the tests-dir path."""
+        tests_dir = tmp_path / "x" / "tests" / "network"
+        tests_dir.mkdir(parents=True)
+        (tests_dir / "test_network_manual.py").write_text(
+            data=MINIMAL_MANUAL_TEST_SOURCE,
+            encoding="utf-8",
+        )
+        batch_path = tmp_path / "batch.yaml"
+        batch_path.write_text(
+            data=("results:\n  - test: tests/test_network_manual.py::test_minimal\n    status: passed\n"),
+            encoding="utf-8",
+        )
+        config_path = self._write_config(tmp_path=tmp_path, content="team: STORAGE\n")
+
+        result = CliRunner().invoke(
+            cli=main,
+            args=[
+                "--tests-dir",
+                str(tests_dir),
+                "--config",
+                str(config_path),
+                "--batch-file",
+                str(batch_path),
+                "--dry-run",
+            ],
+        )
+
+        assert result.exit_code == 0, result.output
+        assert "Inferred team:" not in result.output, "Expected: config team suppresses path inference"
+        assert "TEAM = STORAGE" in result.output, "Expected: config team beats the path-implied team"
+
+    def test_from_cluster_with_retry_file_still_gets_config_defaults(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Verify --from-cluster over a retry file is not a replay: config defaults apply."""
+        tests_dir, batch_path = self._write_batch(tmp_path=tmp_path)
+        # A retry file with saved attributes that will NOT be restored because
+        # --from-cluster resolves cluster attributes instead.
+        batch_path.write_text(
+            data=(
+                "metadata:\n"
+                "  attributes:\n"
+                "    - key: TEAM\n"
+                "      value: NETWORK\n"
+                "results:\n"
+                "  - test: tests/test_manual_minimal.py::test_minimal\n"
+                "    status: passed\n"
+            ),
+            encoding="utf-8",
+        )
+        config_path = self._write_config(tmp_path=tmp_path, content="arch: s390x\n")
+        monkeypatch.setattr(target=reporter_module, name="_CLUSTER_INFO_IMPORT_ERROR", value=None)
+        monkeypatch.delenv(name="OPENSHIFT_VIRTUALIZATION_TEST_IMAGES_ARCH", raising=False)
+        cluster_attrs = [
+            {"key": "ARCH", "value": "amd64"},
+            {"key": "CLUSTER_NAME", "value": "bm15a"},
+        ]
+        with (
+            patch(
+                target="scripts.manual_tests_reporter.manual_tests_reporter.get_cluster_attributes",
+                return_value=cluster_attrs,
+            ),
+            patch(
+                target="scripts.manual_tests_reporter.manual_tests_reporter.cluster_attributes_to_run_attrs",
+                side_effect=lambda cluster_attrs: cluster_attrs,
+            ),
+        ):
+            result = CliRunner().invoke(
+                cli=main,
+                args=[
+                    "--tests-dir",
+                    str(tests_dir),
+                    "--config",
+                    str(config_path),
+                    "--batch-file",
+                    str(batch_path),
+                    "--from-cluster",
+                    "--dry-run",
+                ],
+            )
+
+        assert result.exit_code == 0, result.output
+        assert "config defaults for" not in result.output, (
+            "Expected: no false replay note — saved attributes were not restored"
+        )
+        assert "1 saved attributes from the batch file are ignored" in result.output, (
+            "Expected: skipped saved attributes are reported, not silently discarded"
+        )
+        assert "ARCH = s390x" in result.output, "Expected: config defaults apply to the from-cluster run"
+
+    def test_from_cluster_with_no_cluster_attributes_replays_saved_run(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Verify --from-cluster yielding zero attributes still replays the saved run."""
+        tests_dir, batch_path = self._write_batch(tmp_path=tmp_path)
+        # A retry file whose saved attributes WILL be restored: --from-cluster
+        # resolved no cluster attributes, so the run is a replay after all.
+        batch_path.write_text(
+            data=(
+                "metadata:\n"
+                "  attributes:\n"
+                "    - key: TEAM\n"
+                "      value: NETWORK\n"
+                "    - key: ARCH\n"
+                "      value: s390x\n"
+                "results:\n"
+                "  - test: tests/test_manual_minimal.py::test_minimal\n"
+                "    status: passed\n"
+            ),
+            encoding="utf-8",
+        )
+        config_path = self._write_config(tmp_path=tmp_path, content="team: STORAGE\narch: amd64\n")
+        monkeypatch.setattr(target=reporter_module, name="_CLUSTER_INFO_IMPORT_ERROR", value=None)
+        monkeypatch.delenv(name="OPENSHIFT_VIRTUALIZATION_TEST_IMAGES_ARCH", raising=False)
+        with (
+            patch(
+                target="scripts.manual_tests_reporter.manual_tests_reporter.get_cluster_attributes",
+                return_value=object(),
+            ),
+            patch(
+                target="scripts.manual_tests_reporter.manual_tests_reporter.cluster_attributes_to_run_attrs",
+                return_value=[],
+            ),
+        ):
+            result = CliRunner().invoke(
+                cli=main,
+                args=[
+                    "--tests-dir",
+                    str(tests_dir),
+                    "--config",
+                    str(config_path),
+                    "--batch-file",
+                    str(batch_path),
+                    "--from-cluster",
+                    "--dry-run",
+                ],
+            )
+
+        assert result.exit_code == 0, result.output
+        assert "Restored 2 attributes from batch file." in result.output, (
+            "Expected: saved attributes restored because no cluster attributes were resolved"
+        )
+        assert "config defaults for arch, team are ignored" in result.output, (
+            "Expected: replay note — the empty from-cluster result does not turn the run fresh"
+        )
+        assert "TEAM = NETWORK" in result.output, "Expected: saved TEAM stands over the config team"
+        assert "ARCH = s390x" in result.output, "Expected: saved ARCH stands over the config arch"
+
+    def test_batch_metadata_team_beats_config(self, tmp_path: Path) -> None:
+        """Verify non-replay batch-file metadata wins over config-file defaults."""
+        tests_dir, batch_path = self._write_batch(tmp_path=tmp_path)
+        batch_path.write_text(
+            data=(
+                "metadata:\n"
+                "  team: NETWORK\n"
+                "results:\n"
+                "  - test: tests/test_manual_minimal.py::test_minimal\n"
+                "    status: passed\n"
+            ),
+            encoding="utf-8",
+        )
+        config_path = self._write_config(tmp_path=tmp_path, content="team: STORAGE\n")
+
+        result = CliRunner().invoke(
+            cli=main,
+            args=[
+                "--tests-dir",
+                str(tests_dir),
+                "--config",
+                str(config_path),
+                "--batch-file",
+                str(batch_path),
+                "--dry-run",
+            ],
+        )
+
+        assert result.exit_code == 0, result.output
+        assert "TEAM = NETWORK" in result.output, "Expected: batch metadata team beats the config team"
+
+    def test_config_value_beats_cluster_attribute(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Verify a config-file attribute overrides a cluster-derived value."""
+        tests_dir, batch_path = self._write_batch(tmp_path=tmp_path)
+        config_path = self._write_config(tmp_path=tmp_path, content="arch: s390x\n")
+        monkeypatch.setattr(target=reporter_module, name="_CLUSTER_INFO_IMPORT_ERROR", value=None)
+        monkeypatch.delenv(name="OPENSHIFT_VIRTUALIZATION_TEST_IMAGES_ARCH", raising=False)
+        cluster_attrs = [
+            {"key": "ARCH", "value": "amd64"},
+            {"key": "CLUSTER_NAME", "value": "bm15a"},
+        ]
+        with (
+            patch(
+                target="scripts.manual_tests_reporter.manual_tests_reporter.get_cluster_attributes",
+                return_value=cluster_attrs,
+            ),
+            patch(
+                target="scripts.manual_tests_reporter.manual_tests_reporter.cluster_attributes_to_run_attrs",
+                side_effect=lambda cluster_attrs: cluster_attrs,
+            ),
+        ):
+            result = CliRunner().invoke(
+                cli=main,
+                args=[
+                    "--tests-dir",
+                    str(tests_dir),
+                    "--config",
+                    str(config_path),
+                    "--batch-file",
+                    str(batch_path),
+                    "--from-cluster",
+                    "--dry-run",
+                ],
+            )
+
+        assert result.exit_code == 0, result.output
+        assert "ARCH = s390x" in result.output, "Expected: config arch beats the cluster-derived arch"
+        assert "ARCH = amd64" not in result.output, "Expected: cluster arch is overridden"
+
+    def test_config_values_are_stripped(self, tmp_path: Path) -> None:
+        """Verify whitespace-padded config values are stripped on load."""
+        config_path = self._write_config(tmp_path=tmp_path, content='team: "  NETWORK  "\n')
+
+        config, _source = load_config(config_path=config_path)
+
+        assert config["team"] == "NETWORK", f"Expected stripped value, got {config['team']!r}"
 
 
 class TestBatchUpload:

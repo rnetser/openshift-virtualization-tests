@@ -33,6 +33,11 @@ from scripts.manual_tests_reporter.collector import (
     ManualTestDetail,
     collect_manual_tests,
 )
+from scripts.manual_tests_reporter.config import (
+    ATTRIBUTE_CONFIG_KEYS,
+    CONFIG_KEY_TO_ATTRIBUTE_KEY,
+    load_config,
+)
 from scripts.manual_tests_reporter.junit_report import (
     VALID_STATUSES,
     DatadogUploadError,
@@ -342,12 +347,15 @@ def _load_batch_file(batch_path: Path) -> tuple[list[ManualTestResult], dict[str
 
     Raises:
         click.ClickException: If the file format is invalid, a status
-            value is unrecognised, an entry field has an invalid type, or a
-            metadata attributes entry is not a dict with string
-            ``key``/``value`` fields.
+            value is unrecognised, an entry field has an invalid type, a
+            metadata attributes entry is not a dict with non-empty string
+            ``key``/``value`` fields, an attribute key is duplicated, or
+            ``attributes`` is not a list.
     """
     try:
         raw = yaml.safe_load(batch_path.read_text(encoding="utf-8"))
+    except UnicodeDecodeError as exc:
+        raise click.ClickException(f"Batch file {batch_path} is not valid UTF-8: {exc}") from exc
     except (OSError, YAMLError) as exc:
         raise click.ClickException(f"Failed to read batch file {batch_path}: {exc}") from exc
 
@@ -420,15 +428,38 @@ def _load_batch_file(batch_path: Path) -> tuple[list[ManualTestResult], dict[str
                 # cannot produce a padded Datadog tag value.
                 metadata[key] = stripped_value
         saved_attrs = raw_metadata.get("attributes")
+        if saved_attrs is not None and not isinstance(saved_attrs, list):
+            raise click.ClickException(
+                f"Invalid attributes type in batch metadata: expected list, got {type(saved_attrs).__name__}"
+            )
         if isinstance(saved_attrs, list):
+            seen_keys: set[str] = set()
+            normalized_attrs: list[dict[str, str]] = []
             for attr in saved_attrs:
+                attr_key = attr.get("key") if isinstance(attr, dict) else None
+                attr_value = attr.get("value") if isinstance(attr, dict) else None
                 if (
                     not isinstance(attr, dict)
-                    or not isinstance(attr.get("key"), str)
-                    or not isinstance(attr.get("value"), str)
+                    or not isinstance(attr_key, str)
+                    or not isinstance(attr_value, str)
+                    or not attr_key.strip()
+                    or not attr_value.strip()
                 ):
-                    raise click.ClickException(f"Invalid attributes entry in batch metadata: {attr}")
-            metadata["attributes"] = saved_attrs
+                    raise click.ClickException(
+                        f"Invalid attributes entry in batch metadata (non-empty string key and value required): {attr}"
+                    )
+                assert isinstance(attr_key, str) and isinstance(attr_value, str), (
+                    "validated above; keeps type-checkers honest"
+                )
+                normalized_key = attr_key.strip()
+                # Attribute keys are upper-case identifiers — catch duplicates
+                # that differ only in case or padding.
+                if normalized_key.upper() in seen_keys:
+                    raise click.ClickException(f"Duplicate attribute key in batch metadata: {normalized_key}")
+                seen_keys.add(normalized_key.upper())
+                # Strip so hand-edited padding cannot reach the Datadog tags.
+                normalized_attrs.append({"key": normalized_key, "value": attr_value.strip()})
+            metadata["attributes"] = normalized_attrs
 
     LOGGER.info(f"Loaded {len(results)} results from batch file {batch_path}")
     return results, metadata
@@ -439,7 +470,7 @@ def _merge_batch_metadata(
     team: str | None,
     bundle: str | None,
     cluster_attrs: list[dict[str, str]] | None,
-) -> tuple[str | None, str | None, list[dict[str, str]] | None]:
+) -> tuple[str | None, str | None, list[dict[str, str]] | None, bool]:
     """Fill missing team, bundle, and cluster attributes from batch metadata.
 
     CLI-provided values win; batch-file metadata fills the gaps; saved
@@ -448,23 +479,45 @@ def _merge_batch_metadata(
 
     Args:
         batch_metadata: Metadata loaded from the batch YAML file.
-        team: Team name from CLI inference, if any.
+        team: Team name from the --team CLI flag, if any.
         bundle: Bundle version from CLI, if any.
         cluster_attrs: Cluster-derived attributes, if any.
 
     Returns:
-        Tuple of (team, bundle, cluster_attrs) with metadata merged in.
+        Tuple of (team, bundle, cluster_attrs, restored) with metadata merged
+        in; ``restored`` is True when the batch file's saved run attributes
+        were restored into ``cluster_attrs`` (i.e. the run is a replay).
     """
-    batch_team = batch_metadata.get("team")
-    if not team and batch_team:
-        team = batch_team
-        click.echo(message=f"Using team from batch file: {team}")
     saved_attrs = batch_metadata.get("attributes")
     restored = False
     if isinstance(saved_attrs, list) and saved_attrs and not cluster_attrs:
-        cluster_attrs = saved_attrs
+        # Copy on restore: later appends (missing BUNDLE fill, config bundle
+        # gap-fill) must not mutate the parsed batch-file metadata.
+        cluster_attrs = [dict(attr) for attr in saved_attrs]
         restored = True
         click.echo(message=f"Restored {len(saved_attrs)} attributes from batch file.")
+    elif isinstance(saved_attrs, list) and saved_attrs:
+        click.echo(
+            message=f"Note: {len(saved_attrs)} saved attributes from the batch file are ignored — "
+            "cluster-derived attributes take precedence."
+        )
+    # Saved attributes carry the recorded run; metadata values fill only what
+    # the saved list lacks (mirroring the BUNDLE fill below), so a replay
+    # never overrides its recorded TEAM with the batch file's metadata.
+    batch_team = batch_metadata.get("team")
+    if not team and batch_team:
+        if restored:
+            assert cluster_attrs is not None, "Restored attributes must be a list when restored is set"
+        if not restored or not any(attr["key"] == "TEAM" for attr in cluster_attrs or []):
+            team = batch_team
+            click.echo(message=f"Using team from batch file: {team}")
+    if restored:
+        assert cluster_attrs is not None, "Restored attributes must be a list when restored is set"
+        if not team:
+            saved_team = next((attr["value"] for attr in cluster_attrs if attr["key"] == "TEAM"), None)
+            if saved_team:
+                team = saved_team
+                click.echo(message=f"Using team from restored attributes: {team}")
     batch_bundle = batch_metadata.get("bundle")
     if batch_bundle and not bundle:
         if restored:
@@ -479,7 +532,7 @@ def _merge_batch_metadata(
         else:
             bundle = batch_bundle
             click.echo(message=f"Using bundle from batch file: {bundle}")
-    return team, bundle, cluster_attrs
+    return team, bundle, cluster_attrs, restored
 
 
 def _save_results_for_retry(
@@ -548,8 +601,9 @@ def _save_results_for_retry(
 @click.option(
     "--tests-dir",
     type=click.Path(exists=True, path_type=Path),
-    default=Path(__file__).resolve().parents[2] / "tests",
-    help="Tests directory to scan (e.g., tests/network/); defaults to this repository's tests directory",
+    default=None,
+    help="Tests directory to scan (e.g., tests/network/); defaults to the config file's "
+    "tests-dir when set, otherwise this repository's tests directory",
 )
 @click.option(
     "-m", "--marker", type=str, default=None, help="Pytest marker expression (e.g., 'gating', 'smoke and not tier3')"
@@ -568,7 +622,7 @@ def _save_results_for_retry(
 @click.option(
     "--service",
     type=str,
-    default=_DEFAULT_SERVICE,
+    default=None,
     help=f"Datadog service name for uploaded results (default: {_DEFAULT_SERVICE})",
 )
 @click.option(
@@ -578,11 +632,19 @@ def _save_results_for_retry(
     help="Batch YAML file with pre-filled results",
 )
 @click.option("--dry-run", is_flag=True, default=False, help="Show what would be uploaded without uploading")
+@click.option(
+    "--config",
+    "config_file",
+    type=click.Path(exists=True, path_type=Path),
+    default=None,
+    help="YAML config file with default run attributes; defaults to "
+    "~/.config/manual_tests_reporter/config.yaml when that file exists",
+)
 def main(
     bundle: str | None,
     team: str | None,
     tier: str | None,
-    tests_dir: Path,
+    tests_dir: Path | None,
     marker: str | None,
     keyword: str | None,
     from_cluster: bool,
@@ -593,9 +655,10 @@ def main(
     cluster_domain: str | None,
     storage_class: str | None,
     channel: str | None,
-    service: str,
+    service: str | None,
     batch_file: Path | None,
     dry_run: bool,
+    config_file: Path | None,
 ) -> None:
     """Collect manual test results and upload them to Datadog.
 
@@ -603,19 +666,39 @@ def main(
     context and the tester marks it pass/fail/skip.  In batch mode a
     YAML file supplies pre-filled verdicts.
     """
-    # ── 0. Infer team from tests_dir if not provided ──
-    if not team:
-        resolved_parts = tests_dir.resolve().parts
-        try:
-            # Use the LAST "tests" component so a repo checked out under a
-            # path that itself contains an earlier "tests" component still
-            # infers the team from the real tests directory.
-            tests_index = len(resolved_parts) - 1 - resolved_parts[::-1].index("tests")
-            if tests_index + 1 < len(resolved_parts):
-                team = resolved_parts[tests_index + 1].upper()
-                click.echo(message=f"Inferred team: {team} (from {tests_dir})")
-        except ValueError:
-            pass  # "tests" not found in path — no inference possible
+    # ── 0a. Load config-file defaults. The config behaves like pre-set CLI
+    # flags: a CLI flag always wins over it, and it overrides cluster-derived
+    # values. Saved batch-file attributes (retries) are exempt — see step 3a. ──
+    config, config_source = load_config(config_path=config_file)
+    if config:
+        click.echo(message=f"Loaded config defaults from {config_source}")
+
+    def _config_default(cli_value: str | None, config_key: str) -> str | None:
+        """Return the config-file value only when the CLI flag was not given."""
+        return cli_value if cli_value is not None else config.get(config_key)
+
+    service = _config_default(cli_value=service, config_key="service") or _DEFAULT_SERVICE
+    if tests_dir is None:
+        config_tests_dir = config.get("tests-dir")
+        if config_tests_dir:
+            try:
+                tests_dir = Path(config_tests_dir).expanduser()
+            except (RuntimeError, OSError) as expand_error:
+                raise click.ClickException(
+                    f"Config tests-dir '{config_tests_dir}' could not be resolved: {expand_error}"
+                ) from expand_error
+            if not tests_dir.is_dir():
+                raise click.ClickException(
+                    f"Config tests-dir '{config_tests_dir}' is not an existing directory "
+                    f"(resolved to {tests_dir.resolve()}; relative paths resolve against the "
+                    "launch directory)"
+                )
+    if tests_dir is None:
+        tests_dir = Path(__file__).resolve().parents[2] / "tests"
+
+    # Team inference from the tests directory runs LAST (step 2c, after
+    # batch metadata and config defaults) so it cannot outrank explicit
+    # sources — and never runs for a replayed retry, whose saved TEAM stands.
 
     # ── 1. Resolve cluster attributes ──
     cluster_attrs: list[dict[str, str]] | None = None
@@ -644,12 +727,18 @@ def main(
     # ── 2. Collect results ──
     collected_tests: list[ManualTestDetail] = []
     skipped_count = 0
+    batch_metadata: dict[str, Any] = {}
+    # Whether the batch file's saved attributes were restored — i.e. the run
+    # is a replay of its recorded attributes. _merge_batch_metadata owns the
+    # restore decision (only when no cluster attributes were resolved), so a
+    # from-cluster run over a retry file is NOT a replay.
+    replaying_saved_run = False
 
     if batch_file:
         results, batch_metadata = _load_batch_file(batch_path=batch_file)
         skipped_count = sum(1 for result in results if result.status == "SKIPPED")
         collected_count = len(results)
-        team, bundle, cluster_attrs = _merge_batch_metadata(
+        team, bundle, cluster_attrs, replaying_saved_run = _merge_batch_metadata(
             batch_metadata=batch_metadata,
             team=team,
             bundle=bundle,
@@ -689,6 +778,70 @@ def main(
 
         collected_count = len(collected_tests)
         click.echo(message=f"Found {collected_count} manual tests.\n")
+
+    # ── 2b. Apply config-file defaults for still-unset run attributes ──
+    # On a replayed retry the saved attributes stand; config defaults only
+    # fill gaps the saved list leaves (e.g. a hand-written batch with only
+    # TEAM), so a partial saved list does not disable the whole config.
+    # Bundle is special: filling it as an explicit override would re-derive
+    # CNV_XY_VER and discard a saved value, so on a replay it is appended to
+    # the restored attributes (mirroring the batch-metadata fill) instead.
+    if replaying_saved_run:
+        assert cluster_attrs is not None, "replay requires saved cluster attributes"
+        saved_attr_keys = {attr["key"] for attr in cluster_attrs}
+        skipped_config_keys = sorted(
+            config_key
+            for config_key in ATTRIBUTE_CONFIG_KEYS
+            if config_key in config and CONFIG_KEY_TO_ATTRIBUTE_KEY[config_key] in saved_attr_keys
+        )
+        if skipped_config_keys:
+            click.echo(
+                message=f"Note: config defaults for {', '.join(skipped_config_keys)} are ignored — "
+                "a higher-precedence source supplies those run attributes."
+            )
+        if "BUNDLE" not in saved_attr_keys and "bundle" in config:
+            cluster_attrs.append({"key": "BUNDLE", "value": config["bundle"]})
+
+        def _replay_config_default(cli_value: str | None, config_key: str) -> str | None:
+            """Fill from config only when the saved attributes lack the key."""
+            if cli_value is not None or CONFIG_KEY_TO_ATTRIBUTE_KEY[config_key] in saved_attr_keys:
+                return cli_value
+            return config.get(config_key)
+
+        team = _replay_config_default(cli_value=team, config_key="team")
+        tier = _replay_config_default(cli_value=tier, config_key="tier")
+        cnv_version = _replay_config_default(cli_value=cnv_version, config_key="cnv-version")
+        arch = _replay_config_default(cli_value=arch, config_key="arch")
+        ocp_version = _replay_config_default(cli_value=ocp_version, config_key="ocp-version")
+        cluster_name = _replay_config_default(cli_value=cluster_name, config_key="cluster-name")
+        cluster_domain = _replay_config_default(cli_value=cluster_domain, config_key="cluster-domain")
+        storage_class = _replay_config_default(cli_value=storage_class, config_key="sc")
+        channel = _replay_config_default(cli_value=channel, config_key="channel")
+    else:
+        team = _config_default(cli_value=team, config_key="team")
+        tier = _config_default(cli_value=tier, config_key="tier")
+        bundle = _config_default(cli_value=bundle, config_key="bundle")
+        cnv_version = _config_default(cli_value=cnv_version, config_key="cnv-version")
+        arch = _config_default(cli_value=arch, config_key="arch")
+        ocp_version = _config_default(cli_value=ocp_version, config_key="ocp-version")
+        cluster_name = _config_default(cli_value=cluster_name, config_key="cluster-name")
+        cluster_domain = _config_default(cli_value=cluster_domain, config_key="cluster-domain")
+        storage_class = _config_default(cli_value=storage_class, config_key="sc")
+        channel = _config_default(cli_value=channel, config_key="channel")
+
+    # ── 2c. Infer team from tests_dir as the last-resort fallback ──
+    if not team and not replaying_saved_run:
+        resolved_parts = tests_dir.resolve().parts
+        try:
+            # Use the LAST "tests" component so a repo checked out under a
+            # path that itself contains an earlier "tests" component still
+            # infers the team from the real tests directory.
+            tests_index = len(resolved_parts) - 1 - resolved_parts[::-1].index("tests")
+            if tests_index + 1 < len(resolved_parts):
+                team = resolved_parts[tests_index + 1].upper()
+                click.echo(message=f"Inferred team: {team} (from {tests_dir})")
+        except ValueError:
+            pass  # "tests" not found in path — no inference possible
 
     # ── 3. Build run attributes ──
     attributes = _build_run_attributes(
@@ -731,7 +884,7 @@ def main(
             missing_flags = ", ".join(sorted(missing.values()))
             raise click.ClickException(
                 f"Missing required run attributes: {missing_names}\n"
-                f"Provide them via CLI flags ({missing_flags}) or use --from-cluster."
+                f"Provide them via CLI flags ({missing_flags}), the config file, or --from-cluster."
             )
         if not team:
             LOGGER.warning("No team provided or inferred — run will not be team-filterable")

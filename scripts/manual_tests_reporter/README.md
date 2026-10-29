@@ -15,7 +15,8 @@ uv run python -m scripts.manual_tests_reporter.manual_tests_reporter \
 
 # With filters and explicit attributes
 # Note: non-dry-run uploads require BUNDLE, OCP, CNV_XY_VER, ARCH,
-# CLUSTER_NAME, CLUSTER_DOMAIN, SC and CHANNEL — provide them via flags
+# CLUSTER_NAME, CLUSTER_DOMAIN, SC and CHANNEL — provide them via flags,
+# a config file (~/.config/manual_tests_reporter/config.yaml or --config),
 # or --from-cluster (see below).
 uv run python -m scripts.manual_tests_reporter.manual_tests_reporter \
     --tests-dir tests/storage -m "gating" -k test_snapshot \
@@ -53,6 +54,53 @@ uv run python -m scripts.manual_tests_reporter.manual_tests_reporter \
 
 See `env.example` for the full list.
 
+## Config file
+
+Optional YAML defaults so repeated runs do not need the same CLI flags:
+
+```yaml
+# ~/.config/manual_tests_reporter/config.yaml (or pass --config <path>)
+tests-dir: tests/network
+team: NETWORK
+tier: TIER-2
+bundle: v4.22.0.rhel9-102
+cnv-version: "4.22"
+arch: amd64
+ocp-version: "4.19.0"
+cluster-name: bm15a
+cluster-domain: bm15a.example.com
+sc: ocs-storagecluster-ceph-rbd
+channel: stable
+service: cnv-manual-tests
+```
+
+Every key is optional; unknown keys are rejected. The file is picked up
+automatically from `~/.config/manual_tests_reporter/config.yaml` when it
+exists, or explicitly via `--config <path>`. A `tests-dir` starting with
+`~` is expanded; like `--tests-dir`, relative paths resolve against the
+directory the tool is launched from. Values must be non-empty strings —
+quote values that look like numbers or booleans (e.g.
+`cnv-version: '4.22'`, `team: 'true'`); unquoted, YAML parses them as
+numbers/booleans and the loader rejects them.
+
+Precedence (highest first):
+
+1. CLI flags
+2. Batch-file metadata and saved attributes (a retry replays its recorded
+   run — config defaults are ignored only for the attributes the retry
+   file restores, with a note listing them, and still fill any gaps the
+   saved attributes leave; the Datadog service and scan directory still
+   come from the current CLI/config. A retry combined with `--from-cluster`
+   is *not* a replay: cluster-derived values replace the saved attributes)
+3. This config file
+4. Cluster-derived values (`--from-cluster`)
+5. Team inference from the tests directory (last-resort fallback, never
+   applied to a replayed retry)
+
+Config values therefore behave like pre-set CLI flags: they override
+cluster-derived attributes on fresh runs, while a one-off CLI flag still
+wins for a single run. `--dry-run` shows the effective values.
+
 ## How it works
 
 1. **Collect** — scans the tests directory for `@pytest.mark.manual` tests
@@ -82,8 +130,8 @@ or `datadog-ci`, invalid batch file or marker expression) exit 1.
 
 Runs that upload (i.e. without `--dry-run`) require the run attributes
 `BUNDLE`, `OCP`, `CNV_XY_VER`, `ARCH`, `CLUSTER_NAME`, `CLUSTER_DOMAIN`,
-`SC` and `CHANNEL`. Provide them via the corresponding CLI flags, or
-auto-fill them from the connected cluster with `--from-cluster`
+`SC` and `CHANNEL`. Provide them via the corresponding CLI flags, a config
+file (see [Config file](#config-file)), or auto-fill them from the connected cluster with `--from-cluster`
 (explicit CLI values override cluster-derived ones).
 
 ### Batch file format
@@ -104,6 +152,10 @@ results:
     comment: "optional"
     issue_type_label: "Product Bug"   # optional, failure classification
 ```
+
+When `attributes` are restored (a retry replay), the saved values win over
+`metadata.team` and `metadata.bundle`; the metadata values fill only keys the
+saved list lacks.
 
 Notes:
 
@@ -126,6 +178,7 @@ system temp directory: it is deleted after a successful upload and kept
 | `manual_tests_reporter.py` | CLI entry point (interactive + batch modes) |
 | `collector.py` | `@pytest.mark.manual` test discovery with full context |
 | `cluster_info.py` | Auto-fill run attributes from a connected cluster |
+| `config.py` | Optional YAML config file with default run attributes |
 | `junit_report.py` | JUnit XML builder + `datadog-ci` uploader |
 
 ## Running Tests
