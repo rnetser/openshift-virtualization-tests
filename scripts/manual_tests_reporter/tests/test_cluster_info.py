@@ -9,6 +9,7 @@ from __future__ import annotations
 from unittest.mock import MagicMock, patch
 
 from kubernetes.client.exceptions import ApiException
+from urllib3.exceptions import HTTPError
 
 from scripts.manual_tests_reporter.cluster_info import (
     ClusterAttributes,
@@ -137,3 +138,23 @@ class TestGetClusterAttributes:
 
         assert attrs.cluster_name == "bm15a", f"Expected 'bm15a', got {attrs.cluster_name!r}"
         assert attrs.cluster_domain is None, "Expected: malformed URL degrades to None, not a traceback"
+
+    def test_transport_error_during_query_degrades_to_warning(self) -> None:
+        """Verify a transport failure mid-query (HTTPError) fails soft per attribute."""
+        with (
+            patch(target=f"{CLUSTER_INFO_MODULE}.cache_admin_client", return_value=MagicMock()),
+            patch(target=f"{CLUSTER_INFO_MODULE}.get_cluster_architecture", side_effect=HTTPError("connection reset")),
+            patch(target=f"{CLUSTER_INFO_MODULE}.get_clusterversion", side_effect=HTTPError("connection reset")),
+            patch(target=f"{CLUSTER_INFO_MODULE}.HyperConverged", side_effect=HTTPError("connection reset")),
+            patch(target=f"{CLUSTER_INFO_MODULE}.get_infrastructure", side_effect=HTTPError("connection reset")),
+            patch(target=f"{CLUSTER_INFO_MODULE}.get_default_storage_class", side_effect=HTTPError("connection reset")),
+            patch(target=f"{CLUSTER_INFO_MODULE}.Subscription", side_effect=HTTPError("connection reset")),
+        ):
+            attrs = get_cluster_attributes()
+
+        assert attrs.arch is None, "Expected: transport error degrades to None, not a traceback"
+        assert attrs.ocp_version is None, "Expected: transport error degrades to None, not a traceback"
+        assert attrs.bundle is None, "Expected: transport error degrades to None, not a traceback"
+        assert attrs.cluster_name is None, "Expected: transport error degrades to None, not a traceback"
+        assert attrs.storage_class is None, "Expected: transport error degrades to None, not a traceback"
+        assert attrs.channel is None, "Expected: transport error degrades to None, not a traceback"

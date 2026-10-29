@@ -455,6 +455,23 @@ class TestMergeBatchMetadata:
         )
         assert restored_attrs == saved_attrs, f"Expected {saved_attrs!r}, got {restored_attrs!r}"
 
+    def test_restored_attributes_missing_bundle_filled_from_metadata(self) -> None:
+        """Verify a restored attributes list without BUNDLE gets it filled from batch metadata."""
+        saved_attrs = [{"key": "TEAM", "value": "NETWORK"}]
+
+        _team, bundle, restored_attrs = _merge_batch_metadata(
+            batch_metadata={"bundle": "v4.22.0", "attributes": saved_attrs},
+            team=None,
+            bundle=None,
+            cluster_attrs=None,
+        )
+
+        assert bundle is None, "Expected: bundle stays unset (no explicit override)"
+        assert restored_attrs is not None, "Expected: restored attributes list"
+        assert {"key": "BUNDLE", "value": "v4.22.0"} in restored_attrs, (
+            "Expected: missing BUNDLE filled from batch metadata so upload validation passes"
+        )
+
     def test_saved_attributes_restored_only_without_cluster_attrs(self) -> None:
         """Verify saved attributes are restored only when no cluster attrs were resolved."""
         saved_attrs = [{"key": "TEAM", "value": "NETWORK"}]

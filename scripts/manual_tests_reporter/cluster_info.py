@@ -107,7 +107,7 @@ def get_cluster_attributes() -> ClusterAttributes:
     try:
         arch_set = get_cluster_architecture()
         attrs.arch = "multiarch" if len(arch_set) > 1 else next(iter(arch_set))
-    except (AttributeError, KeyError, TypeError, UnsupportedCPUArchitectureError, ApiException) as exc:
+    except (AttributeError, KeyError, TypeError, UnsupportedCPUArchitectureError, ApiException, HTTPError) as exc:
         LOGGER.warning(f"Failed to get cluster architecture: {exc}")
 
     # OCP version
@@ -116,7 +116,7 @@ def get_cluster_attributes() -> ClusterAttributes:
     try:
         cluster_version = get_clusterversion(client=client)
         attrs.ocp_version = cluster_version.instance.status.desired.version
-    except (AttributeError, KeyError, TypeError, ApiException) as exc:
+    except (AttributeError, KeyError, TypeError, ApiException, HTTPError) as exc:
         LOGGER.warning(f"Failed to get OCP version: {exc}")
 
     # CNV version (HCO)
@@ -137,7 +137,7 @@ def get_cluster_attributes() -> ClusterAttributes:
             version_parts = hco_version.split(".")
             if len(version_parts) >= 2:
                 attrs.cnv_xy_version = f"{version_parts[0]}.{version_parts[1]}"
-    except (AttributeError, KeyError, IndexError, TypeError, ApiException) as exc:
+    except (AttributeError, KeyError, IndexError, TypeError, ApiException, HTTPError) as exc:
         LOGGER.warning(f"Failed to get CNV/HCO version: {exc}")
 
     # Cluster name and domain
@@ -150,7 +150,7 @@ def get_cluster_attributes() -> ClusterAttributes:
         api_url = infra.instance.status.apiServerURL
         if api_url:
             attrs.cluster_domain = _extract_domain_from_api_url(api_url=api_url)
-    except (AttributeError, KeyError, TypeError, ValueError, ApiException) as exc:
+    except (AttributeError, KeyError, TypeError, ValueError, ApiException, HTTPError) as exc:
         LOGGER.warning(f"Failed to get cluster infrastructure info: {exc}")
 
     # Default storage class
@@ -159,7 +159,7 @@ def get_cluster_attributes() -> ClusterAttributes:
     try:
         default_sc = get_default_storage_class(client=client)
         attrs.storage_class = default_sc.name if default_sc else None
-    except (AttributeError, KeyError, TypeError, ValueError, ApiException) as exc:
+    except (AttributeError, KeyError, TypeError, ValueError, ApiException, HTTPError) as exc:
         LOGGER.warning(f"Failed to get default storage class: {exc}")
 
     # HCO subscription channel
@@ -170,7 +170,7 @@ def get_cluster_attributes() -> ClusterAttributes:
             if "hco" in subscription.name.lower() or "kubevirt" in subscription.name.lower():
                 attrs.channel = subscription.instance.spec.channel
                 break
-    except (AttributeError, KeyError, TypeError, ApiException) as exc:
+    except (AttributeError, KeyError, TypeError, ApiException, HTTPError) as exc:
         LOGGER.warning(f"Failed to get subscription channel: {exc}")
 
     LOGGER.info(f"Cluster attributes: {attrs}")
