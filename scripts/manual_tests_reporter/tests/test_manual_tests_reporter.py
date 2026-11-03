@@ -25,7 +25,10 @@ from scripts.manual_tests_reporter.manual_tests_reporter import (
     _build_run_attributes,
     _load_batch_file,
     _merge_batch_metadata,
+    _migrate_legacy_attributes,
+    _normalize_tier_value,
     _save_results_for_retry,
+    _strip_url_credentials,
     main,
 )
 from scripts.manual_tests_reporter.tests.utils import (
@@ -54,7 +57,7 @@ def isolated_cwd(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
 
 class TestBuildRunAttributes:
     def test_explicit_attrs_emit_short_keys(self) -> None:
-        """Verify explicit CLI args produce short key names."""
+        """Verify explicit CLI args produce the Jenkins-parity tag keys."""
         result = _build_run_attributes(
             team="NETWORK",
             bundle="v4.22.0",
@@ -62,25 +65,37 @@ class TestBuildRunAttributes:
             ocp_version="4.22.0",
             cluster_name="bm15a",
             cluster_domain="bm15a.example.com",
+            cluster_id="bm15a-tjxpz",
             storage_class="ocs-storagecluster-ceph-rbd",
             channel="candidate",
+            tier="TIER-2",
+            owner="tester@redhat.com",
+            marker="smoke",
+            test_case_name="manual.network",
         )
-        keys = {attr["key"] for attr in result}
+        attrs_by_key = {attr["key"]: attr["value"] for attr in result}
 
-        assert "OCP" in keys, "Expected: explicit CLI args produce short key names"
-        assert "CNV_XY_VER" in keys, "Expected: explicit CLI args produce short key names"
-        assert "SC" in keys, "Expected: explicit CLI args produce short key names"
-        assert "BUNDLE" in keys, "Expected: explicit CLI args produce short key names"
-        assert "TEAM" in keys, "Expected: explicit CLI args produce short key names"
-        assert "OCP_VERSION" not in keys, "Expected: explicit CLI args produce short key names"
-        assert "CNV_VERSION" not in keys, "Expected: explicit CLI args produce short key names"
-        assert "STORAGE_CLASS" not in keys, "Expected: explicit CLI args produce short key names"
+        assert attrs_by_key["team"] == "NETWORK", "Expected: Jenkins-parity team tag"
+        assert attrs_by_key["tier"] == "2", "Expected: bare-number tier tag"
+        assert attrs_by_key["ocp_version"] == "4.22.0", "Expected: Jenkins-parity ocp_version tag"
+        assert attrs_by_key["cnv_xy_version"] == "4.22", "Expected: Jenkins-parity cnv_xy_version tag"
+        assert attrs_by_key["cluster"] == "bm15a", "Expected: Jenkins-parity cluster tag"
+        assert attrs_by_key["cluster_domain"] == "bm15a.example.com", "Expected: cluster_domain tag"
+        assert attrs_by_key["cluster_id"] == "bm15a-tjxpz", "Expected: cluster_id tag"
+        assert attrs_by_key["storage_class"] == "ocs-storagecluster-ceph-rbd", "Expected: storage_class tag"
+        assert attrs_by_key["cnv_channel"] == "candidate", "Expected: Jenkins-parity cnv_channel tag"
+        assert attrs_by_key["owner"] == "tester@redhat.com", "Expected: owner tag"
+        assert attrs_by_key["marker"] == "smoke", "Expected: marker tag"
+        assert attrs_by_key["test_case_name"] == "manual.network", "Expected: test_case_name tag"
+        assert "bundle" not in attrs_by_key, "Expected: no bundle tag (Jenkins set has cnv versions)"
+        assert "arch" not in attrs_by_key, "Expected: no arch tag (Jenkins set has none)"
 
     def test_cnv_version_derived_from_bundle(self) -> None:
-        """Verify CNV_XY_VER is auto-derived from BUNDLE when not explicitly set."""
+        """Verify cnv_version/cnv_xy_version are auto-derived from --bundle."""
         result = _build_run_attributes(bundle="v4.22.0.rhel9-102")
         attrs_by_key = {attr["key"]: attr["value"] for attr in result}
-        assert attrs_by_key["CNV_XY_VER"] == "4.22", f"Expected '4.22', got {attrs_by_key['CNV_XY_VER']!r}"
+        assert attrs_by_key["cnv_version"] == "4.22.0", f"Expected '4.22.0', got {attrs_by_key['cnv_version']!r}"
+        assert attrs_by_key["cnv_xy_version"] == "4.22", f"Expected '4.22', got {attrs_by_key['cnv_xy_version']!r}"
 
     def test_explicit_cnv_version_wins_over_bundle_derivation(self) -> None:
         """Explicit --cnv-version is never silently discarded.
@@ -93,61 +108,79 @@ class TestBuildRunAttributes:
             cnv_version="4.21",
         )
         attrs_by_key = {attr["key"]: attr["value"] for attr in result}
-        assert attrs_by_key["CNV_XY_VER"] == "4.21", f"Expected '4.21', got {attrs_by_key['CNV_XY_VER']!r}"
+        assert attrs_by_key["cnv_xy_version"] == "4.21", f"Expected '4.21', got {attrs_by_key['cnv_xy_version']!r}"
 
     def test_cluster_cnv_version_kept_without_explicit_bundle(self) -> None:
-        """Verify cluster-derived CNV_XY_VER is kept when bundle is not explicit."""
+        """Verify cluster-derived cnv versions are kept when bundle is not explicit."""
         result = _build_run_attributes(
             cluster_attrs=[
-                {"key": "BUNDLE", "value": "v4.22.0"},
-                {"key": "CNV_XY_VER", "value": "4.21"},
+                {"key": "cnv_version", "value": "4.22.0"},
+                {"key": "cnv_xy_version", "value": "4.21"},
             ],
         )
         attrs_by_key = {attr["key"]: attr["value"] for attr in result}
-        assert attrs_by_key["CNV_XY_VER"] == "4.21", f"Expected '4.21', got {attrs_by_key['CNV_XY_VER']!r}"
+        assert attrs_by_key["cnv_xy_version"] == "4.21", f"Expected '4.21', got {attrs_by_key['cnv_xy_version']!r}"
+
+    def test_cnv_xy_version_derived_from_cluster_cnv_version(self) -> None:
+        """Verify cnv_xy_version is derived from a cluster-derived cnv_version."""
+        result = _build_run_attributes(
+            cluster_attrs=[
+                {"key": "cnv_version", "value": "4.22.0"},
+            ],
+        )
+        attrs_by_key = {attr["key"]: attr["value"] for attr in result}
+        assert attrs_by_key["cnv_xy_version"] == "4.22", f"Expected '4.22', got {attrs_by_key['cnv_xy_version']!r}"
 
     def test_cnv_version_not_derived_without_bundle(self) -> None:
-        """Verify CNV_XY_VER is not set when BUNDLE is missing."""
+        """Verify cnv versions are not set when bundle and cluster attrs are missing."""
         result = _build_run_attributes()
         attrs_by_key = {attr["key"]: attr["value"] for attr in result}
-        assert "CNV_XY_VER" not in attrs_by_key, "Expected: CNV_XY_VER is not set when BUNDLE is missing"
+        assert "cnv_version" not in attrs_by_key, "Expected: cnv_version not set without a bundle"
+        assert "cnv_xy_version" not in attrs_by_key, "Expected: cnv_xy_version not set without a bundle"
 
     def test_team_preserved_verbatim(self) -> None:
         """Verify a team value is preserved verbatim, not re-cased.
 
         Derived teams are upper-case by construction (every _FOLDER_TO_TEAM
-        value is), while a replayed run must reproduce its recorded TEAM
+        value is), while a replayed run must reproduce its recorded team
         attribute exactly.
         """
         result = _build_run_attributes(team="network")
         attrs_by_key = {attr["key"]: attr["value"] for attr in result}
-        assert attrs_by_key["TEAM"] == "network", f"Expected 'network', got {attrs_by_key['TEAM']!r}"
+        assert attrs_by_key["team"] == "network", f"Expected 'network', got {attrs_by_key['team']!r}"
 
     def test_folder_to_team_values_uppercase(self) -> None:
-        """Verify every derived TEAM value is upper-case (uploaded-tag invariant)."""
+        """Verify every derived team value is upper-case (uploaded-tag invariant)."""
         non_uppercase = sorted(
             folder for folder, team in reporter_module._FOLDER_TO_TEAM.items() if team != team.upper()
         )
         assert not non_uppercase, (
-            f"Folders mapping to non-upper-case TEAM values: {non_uppercase} - "
+            f"Folders mapping to non-upper-case team values: {non_uppercase} - "
             "derived teams must be upper-case so uploaded tags stay canonical"
         )
 
-    def test_tier_uppercased(self) -> None:
-        """Verify tier label is uppercased when provided."""
-        result = _build_run_attributes(tier="tier-2")
-        attrs_by_key = {attr["key"]: attr["value"] for attr in result}
-        assert attrs_by_key["TIER"] == "TIER-2", f"Expected 'TIER-2', got {attrs_by_key['TIER']!r}"
+    def test_tier_normalized_to_bare_number(self) -> None:
+        """Verify tier labels normalize to the bare number Jenkins tags."""
+        for tier_input, expected in (
+            ("tier-2", "2"),
+            ("TIER-2", "2"),
+            ("tier2", "2"),
+            ("2", "2"),
+            (" 3 ", "3"),
+        ):
+            result = _build_run_attributes(tier=tier_input)
+            attrs_by_key = {attr["key"]: attr["value"] for attr in result}
+            assert attrs_by_key["tier"] == expected, f"Expected {expected!r} from {tier_input!r}"
 
     def test_manual_attribute_always_present(self) -> None:
         """Verify the MANUAL run attribute is always emitted as 'true'."""
         result = _build_run_attributes(team="NETWORK")
         attrs_by_key = {attr["key"]: attr["value"] for attr in result}
-        assert attrs_by_key["MANUAL"] == "true", f"Expected 'true', got {attrs_by_key['MANUAL']!r}"
+        assert attrs_by_key["manual"] == "true", f"Expected 'true', got {attrs_by_key['manual']!r}"
 
         result_without_team = _build_run_attributes()
         attrs_by_key_without_team = {attr["key"]: attr["value"] for attr in result_without_team}
-        assert attrs_by_key_without_team["MANUAL"] == "true", "Expected: MANUAL attribute present even without a team"
+        assert attrs_by_key_without_team["manual"] == "true", "Expected: MANUAL attribute present even without a team"
 
 
 class TestLoadBatchFile:
@@ -328,7 +361,7 @@ class TestMainDryRun:
 
         assert result.exit_code == 0, result.output
         assert "No data was uploaded" in result.output, "Expected: dry-run with a batch file exits without uploading"
-        assert "TEAM = NETWORK" in result.output, "Expected: dry-run with a batch file exits without uploading"
+        assert "team = NETWORK" in result.output, "Expected: dry-run with a batch file exits without uploading"
 
 
 class TestSaveResultsForRetry:
@@ -345,7 +378,7 @@ class TestSaveResultsForRetry:
             ),
             ManualTestResult(test="tests/net/test_a.py::TestA::test_three", status="SKIPPED"),
         ]
-        attributes = [{"key": "TEAM", "value": "NETWORK"}]
+        attributes = [{"key": "team", "value": "NETWORK"}]
 
         saved_path = _save_results_for_retry(
             results=results,
@@ -491,7 +524,7 @@ class TestFromClusterImportGuard:
             ),
             patch(
                 target="scripts.manual_tests_reporter.manual_tests_reporter.cluster_attributes_to_run_attrs",
-                return_value=[{"key": "CLUSTER_NAME", "value": "bm15a"}],
+                return_value=[{"key": "cluster", "value": "bm15a"}],
             ),
         ):
             result = CliRunner().invoke(
@@ -537,6 +570,8 @@ class TestFromClusterImportGuard:
                 "ocs",
                 "--channel",
                 "candidate",
+                "--owner",
+                "tester@redhat.com",
             ],
         )
 
@@ -544,6 +579,71 @@ class TestFromClusterImportGuard:
         assert "The bundle 'v4' has no major.minor version; pass --cnv-version explicitly" in result.output, (
             "Expected: the underivable bundle is named as the culprit"
         )
+
+    def test_dry_run_warning_carries_extra_guidance(self, tmp_path: Path) -> None:
+        """Verify the dry-run warning carries the same extra guidance as the hard error.
+
+        An underivable bundle must be named in the dry-run warning too —
+        dry-run is the documented pre-flight mode, so its prediction must
+        match what the real upload error would say.
+        """
+        tests_dir, batch_path = write_minimal_batch(tmp_path=tmp_path)
+        result = CliRunner().invoke(
+            cli=main,
+            args=[
+                "--tests-dir",
+                str(tests_dir),
+                "--batch-file",
+                str(batch_path),
+                "--bundle",
+                "v4",
+                "--dry-run",
+            ],
+        )
+
+        assert result.exit_code == 0, "Expected: dry-run never fails on missing attributes"
+        assert "upload would fail — missing:" in result.stderr, "Expected: warning listing missing attributes"
+        assert "The bundle 'v4' has no major.minor version; pass --cnv-version explicitly" in result.stderr, (
+            "Expected: underivable-bundle guidance in the dry-run warning"
+        )
+
+    def test_dry_run_warning_carries_cluster_access_hint(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Verify the dry-run warning carries the cluster-access hint on zero resolution.
+
+        Dry-run is the documented pre-flight mode: its prediction must
+        match what the real upload error would say when --from-cluster
+        resolved nothing.
+        """
+        tests_dir, batch_path = write_minimal_batch(tmp_path=tmp_path)
+        monkeypatch.setattr(target=reporter_module, name="_CLUSTER_INFO_IMPORT_ERROR", value=None)
+        with (
+            patch(
+                target="scripts.manual_tests_reporter.manual_tests_reporter.get_cluster_attributes",
+                return_value=object(),
+            ),
+            patch(
+                target="scripts.manual_tests_reporter.manual_tests_reporter.cluster_attributes_to_run_attrs",
+                return_value=[],
+            ),
+        ):
+            result = CliRunner().invoke(
+                cli=main,
+                args=[
+                    "--tests-dir",
+                    str(tests_dir),
+                    "--batch-file",
+                    str(batch_path),
+                    "--from-cluster",
+                    "--dry-run",
+                ],
+            )
+
+        assert result.exit_code == 0, "Expected: dry-run never fails on missing attributes"
+        assert "upload would fail — missing:" in result.stderr, "Expected: warning listing missing attributes"
+        assert (
+            "--from-cluster resolved no cluster attributes; check cluster access and permissions (KUBECONFIG)"
+            in result.stderr
+        ), "Expected: cluster-access hint in the dry-run warning"
 
 
 class TestLoadBatchFileAttributes:
@@ -564,6 +664,44 @@ class TestLoadBatchFileAttributes:
         with pytest.raises(expected_exception=ClickException, match="Invalid attributes entry"):
             _load_batch_file(batch_path=batch_path)
 
+    def test_ssh_remote_with_username_only_unchanged(self) -> None:
+        """Verify a username-only userinfo (ssh git remote) is kept.
+
+        The ``git`` user in ``ssh://git@host/org/repo.git`` is not a secret;
+        rewriting it would damage the URL Datadog links the facet to. Only
+        an embedded password is stripped.
+        """
+        ssh_url = "ssh://git@github.com/RedHatQE/openshift-virtualization-tests.git"
+        assert _strip_url_credentials(repository_url=ssh_url) == ssh_url, "Expected: ssh remote unchanged"
+        stripped = _strip_url_credentials(repository_url="https://oauth2:TOKEN@github.com/org/repo.git")
+        assert stripped == "https://github.com/org/repo.git", f"Expected credentials stripped, got {stripped!r}"
+        token_username = _strip_url_credentials(repository_url="https://ghp_SECRETTOKEN@github.com/org/repo.git")
+        assert token_username == "https://github.com/org/repo.git", (
+            f"Expected token-as-username stripped, got {token_username!r}"
+        )
+
+    def test_ipv6_remote_brackets_preserved(self) -> None:
+        """Verify stripping credentials from an IPv6 remote keeps the brackets.
+
+        A component rebuild would drop the mandatory square brackets of an
+        IPv6 literal and produce an unparseable URL.
+        """
+        stripped = _strip_url_credentials(repository_url="https://user:secret@[2001:db8::1]:8443/org/repo.git")
+        assert stripped == "https://[2001:db8::1]:8443/org/repo.git", (
+            f"Expected brackets and port preserved, got {stripped!r}"
+        )
+
+    def test_malformed_url_returns_none(self) -> None:
+        """Verify an unparseable URL yields None so the caller drops the facet.
+
+        urlsplit raises ValueError on a malformed IPv6 literal; the caller
+        must drop the facet rather than fall back to the raw URL, so no
+        ValueError ever escapes to the upload path.
+        """
+        assert _strip_url_credentials(repository_url="https://user:secret@[2001:db8::1/org/repo.git") is None, (
+            "Expected None for an unparseable URL"
+        )
+
 
 class TestMergeBatchMetadata:
     def test_batch_attributes_empty_value_rejected(self, tmp_path: Path) -> None:
@@ -576,7 +714,7 @@ class TestMergeBatchMetadata:
                 "    status: passed\n"
                 "metadata:\n"
                 "  attributes:\n"
-                "    - key: ARCH\n"
+                "    - key: team\n"
                 "      value: ''\n"
             ),
             encoding="utf-8",
@@ -594,9 +732,9 @@ class TestMergeBatchMetadata:
                 "    status: passed\n"
                 "metadata:\n"
                 "  attributes:\n"
-                "    - key: TEAM\n"
+                "    - key: team\n"
                 "      value: NETWORK\n"
-                "    - key: TEAM\n"
+                "    - key: team\n"
                 "      value: STORAGE\n"
             ),
             encoding="utf-8",
@@ -622,7 +760,105 @@ class TestMergeBatchMetadata:
             _load_batch_file(batch_path=batch_path)
 
     def test_batch_attributes_case_duplicate_rejected(self, tmp_path: Path) -> None:
-        """Verify attribute keys differing only in case fail as duplicates."""
+        """Verify exact duplicate attribute keys fail on load.
+
+        Keys converge to the canonical modern form before the duplicate
+        check, so a mixed-case twin (cnv_version + CNV_VERSION) collides
+        too — it would otherwise upload two contradictory tags.
+        """
+        batch_path = tmp_path / "batch.yaml"
+        batch_path.write_text(
+            data=(
+                "results:\n"
+                "  - test: tests/net/test_a.py::TestA::test_one\n"
+                "    status: passed\n"
+                "metadata:\n"
+                "  attributes:\n"
+                "    - key: team\n"
+                "      value: NETWORK\n"
+                "    - key: team\n"
+                "      value: STORAGE\n"
+            ),
+            encoding="utf-8",
+        )
+        with pytest.raises(expected_exception=ClickException, match="Duplicate attribute key"):
+            _load_batch_file(batch_path=batch_path)
+
+    def test_marker_replay_keeps_saved_marker_tag(self, tmp_path: Path) -> None:
+        """Verify a replay with a different -m filter does not retag the marker.
+
+        The CLI marker is only a live collection filter on a replay; the
+        recorded marker attribute stands so the replay reproduces the
+        recorded run (the test_case_name treatment).
+        """
+        attrs_by_key = _build_run_attributes(
+            team=None,
+            bundle=None,
+            cnv_version=None,
+            ocp_version=None,
+            cluster_name=None,
+            cluster_domain=None,
+            cluster_id=None,
+            storage_class=None,
+            channel=None,
+            tier=None,
+            owner=None,
+            marker=None,
+            test_case_name=None,
+            cluster_attrs=[
+                {"key": "team", "value": "NETWORK"},
+                {"key": "cnv_version", "value": "4.22.0"},
+                {"key": "cnv_xy_version", "value": "4.22"},
+                {"key": "ocp_version", "value": "4.22.0"},
+                {"key": "cluster", "value": "bm15a"},
+                {"key": "cluster_domain", "value": "bm15a.example.com"},
+                {"key": "cluster_id", "value": "bm15a-tjxpz"},
+                {"key": "storage_class", "value": "ocs"},
+                {"key": "cnv_channel", "value": "stable"},
+                {"key": "marker", "value": "gating and not tier3"},
+                {"key": "test_case_name", "value": "manual.network"},
+                {"key": "tier", "value": "2"},
+                {"key": "manual", "value": "true"},
+            ],
+        )
+
+        marker_values = [attr["value"] for attr in attrs_by_key if attr["key"] == "marker"]
+        assert marker_values == ["gating and not tier3"], (
+            f"Expected the recorded marker to stand on a replay, got {marker_values!r}"
+        )
+
+    def test_batch_attributes_keys_replayed_verbatim(self, tmp_path: Path) -> None:
+        """Verify unknown attribute keys are preserved verbatim, not re-cased."""
+        batch_path = tmp_path / "batch.yaml"
+        batch_path.write_text(
+            data=(
+                "results:\n"
+                "  - test: tests/net/test_a.py::TestA::test_one\n"
+                "    status: passed\n"
+                "metadata:\n"
+                "  attributes:\n"
+                "    - key: CustomKey\n"
+                "      value: NETWORK\n"
+                "    - key: another_key\n"
+                "      value: STORAGE\n"
+            ),
+            encoding="utf-8",
+        )
+        _results, metadata = _load_batch_file(batch_path=batch_path)
+
+        assert metadata["attributes"] == [
+            {"key": "CustomKey", "value": "NETWORK"},
+            {"key": "another_key", "value": "STORAGE"},
+        ], "Expected: unknown keys preserved verbatim for an exact replay"
+
+    def test_batch_attributes_legacy_keys_migrated(self, tmp_path: Path) -> None:
+        """Verify legacy upper-case attribute keys migrate to the Jenkins-parity names.
+
+        A retry file saved before the tag rename carries TEAM/OCP/SC keys;
+        migrating them on load keeps legacy retries replayable (validation
+        and the team-restoration lookup expect the modern names). Keys with
+        no modern equivalent (ARCH) stay verbatim.
+        """
         batch_path = tmp_path / "batch.yaml"
         batch_path.write_text(
             data=(
@@ -633,13 +869,241 @@ class TestMergeBatchMetadata:
                 "  attributes:\n"
                 "    - key: TEAM\n"
                 "      value: NETWORK\n"
-                "    - key: team\n"
-                "      value: STORAGE\n"
+                "    - key: OCP\n"
+                "      value: 4.22.0\n"
+                "    - key: SC\n"
+                "      value: ocs\n"
+                "    - key: ARCH\n"
+                "      value: amd64\n"
+            ),
+            encoding="utf-8",
+        )
+        _results, metadata = _load_batch_file(batch_path=batch_path)
+
+        attrs_by_key = {attr["key"]: attr["value"] for attr in metadata["attributes"]}
+        assert attrs_by_key == {
+            "team": "NETWORK",
+            "ocp_version": "4.22.0",
+            "storage_class": "ocs",
+            "ARCH": "amd64",
+        }, f"Expected legacy keys migrated, no-equivalent keys verbatim, got {attrs_by_key!r}"
+
+    def test_unsupported_tier_spelling_rejected(self) -> None:
+        """Verify a tier spelling that does not collapse to a number fails fast.
+
+        A value with no digits at all (``prod``) would upload a corrupt tier
+        facet; the no-defensive-programming rule prescribes failing at the
+        trust boundary instead. Separator-heavy spellings (``tier - 2``)
+        still collapse to the bare number.
+        """
+        assert _normalize_tier_value(tier="tier - 2") == "2", (
+            "Expected: separator-heavy spelling collapses to the bare number"
+        )
+        with pytest.raises(expected_exception=ClickException, match="Unsupported tier spelling"):
+            _normalize_tier_value(tier="prod")
+        with pytest.raises(expected_exception=ClickException, match="Unsupported tier spelling"):
+            _normalize_tier_value(tier="٢")
+
+    def test_legacy_non_numeric_tier_kept_with_warning(self, caplog: pytest.LogCaptureFixture) -> None:
+        """Verify a recorded non-numeric tier value is kept, not fatal.
+
+        A replay reproduces the recorded run; the value cannot be re-created
+        by the user, so it stands with a warning (live CLI input still fails
+        fast — see test_unsupported_tier_spelling_rejected).
+        """
+        with caplog.at_level(level="WARNING"):
+            migrated = _migrate_legacy_attributes(attributes=[{"key": "TIER", "value": "TIER-2 (gating)"}])
+        assert migrated == [{"key": "tier", "value": "TIER-2 (gating)"}], (
+            f"Expected the recorded value kept verbatim, got {migrated!r}"
+        )
+        assert [record for record in caplog.records if "kept verbatim" in record.getMessage()], (
+            "Expected: keeping a non-numeric recorded tier warns"
+        )
+
+    def test_explicit_cnv_version_contradiction_warns(self, caplog: pytest.LogCaptureFixture) -> None:
+        """Verify an explicit --cnv-version disagreeing with the bundle warns.
+
+        Both values are uploaded as given; the contradiction is surfaced on
+        both channels instead of silently shipping inconsistent facets.
+        A matching pair stays silent.
+        """
+        with caplog.at_level(level="WARNING"):
+            _build_run_attributes(bundle="v4.22.0.rhel9-102", cnv_version="4.21")
+        contradiction_warnings = [
+            record for record in caplog.records if "conflicts with cnv_version" in record.getMessage()
+        ]
+        assert contradiction_warnings, "Expected: contradiction warning for 4.21 vs bundle 4.22.0"
+
+        caplog.clear()
+        with caplog.at_level(level="WARNING"):
+            _build_run_attributes(bundle="v4.22.0.rhel9-102", cnv_version="4.22")
+        assert not [record for record in caplog.records if "conflicts with cnv_version" in record.getMessage()], (
+            "Expected: matching cnv-version pair stays silent"
+        )
+
+    def test_legacy_bundle_derives_cnv_version_and_keeps_recorded_xy(self) -> None:
+        """Verify a legacy BUNDLE derives cnv_version next to the recorded XY.
+
+        The migration derives cnv_version from the legacy BUNDLE entry and
+        keeps the neighboring legacy CNV_XY_VER verbatim; the resulting
+        contradiction (if any) is surfaced by the unified final check in
+        _build_run_attributes (see test_restored_contradictory_pair_warns).
+        """
+        migrated = _migrate_legacy_attributes(
+            attributes=[
+                {"key": "BUNDLE", "value": "v4.22.0.rhel9-102"},
+                {"key": "CNV_XY_VER", "value": "4.21"},
+            ]
+        )
+        attrs_by_key = {attr["key"]: attr["value"] for attr in migrated}
+        assert attrs_by_key["cnv_version"] == "4.22.0", "Expected: cnv_version derived from the legacy BUNDLE"
+        assert attrs_by_key["cnv_xy_version"] == "4.21", "Expected: recorded legacy XY kept verbatim"
+
+    def test_restored_contradictory_pair_warns(self, caplog: pytest.LogCaptureFixture) -> None:
+        """Verify the unified final check fires for restored attribute pairs.
+
+        Legacy retry files and gap-filled batch attributes reach the
+        contradiction check through cluster_attrs — a restored pair that
+        disagrees must warn, and a matching pair must stay silent.
+        """
+        contradictory_attrs = [
+            {"key": "cnv_version", "value": "4.19.3"},
+            {"key": "cnv_xy_version", "value": "4.18"},
+        ]
+        with caplog.at_level(level="WARNING"):
+            _build_run_attributes(cluster_attrs=contradictory_attrs)
+        assert [record for record in caplog.records if "conflicts with cnv_version" in record.getMessage()], (
+            "Expected: restored contradictory pair warns"
+        )
+
+        caplog.clear()
+        matching_attrs = [
+            {"key": "cnv_version", "value": "4.19.3"},
+            {"key": "cnv_xy_version", "value": "4.19"},
+        ]
+        with caplog.at_level(level="WARNING"):
+            _build_run_attributes(cluster_attrs=matching_attrs)
+        assert not [record for record in caplog.records if "conflicts with cnv_version" in record.getMessage()], (
+            "Expected: matching restored pair stays silent"
+        )
+
+    def test_modern_key_case_converges(self) -> None:
+        """Verify a hand-edited modern key in non-canonical case converges.
+
+        ``CNV_VERSION`` must map to ``cnv_version`` so the duplicate check
+        and the bundle gap-fill see the same key the CLI writes, instead of
+        uploading two contradictory lower-cased cnv_version tags.
+        """
+        migrated = _migrate_legacy_attributes(
+            attributes=[
+                {"key": "CNV_VERSION", "value": "4.21.0"},
+                {"key": "MANUAL", "value": "true"},
+                {"key": "CustomKey", "value": "NETWORK"},
+            ]
+        )
+        attrs_by_key = {attr["key"]: attr["value"] for attr in migrated}
+        assert attrs_by_key["cnv_version"] == "4.21.0", f"Expected canonical cnv_version, got {attrs_by_key!r}"
+        assert attrs_by_key["manual"] == "true", f"Expected canonical manual, got {attrs_by_key!r}"
+        assert attrs_by_key["CustomKey"] == "NETWORK", "Expected: unknown keys stay verbatim"
+
+    def test_duplicate_detection_after_case_convergence(self, tmp_path: Path) -> None:
+        """Verify a mixed-case duplicate collides after case convergence."""
+        batch_path = tmp_path / "batch.yaml"
+        batch_path.write_text(
+            data=(
+                "results:\n"
+                "  - test: tests/net/test_a.py::TestA::test_one\n"
+                "    status: passed\n"
+                "metadata:\n"
+                "  attributes:\n"
+                "    - key: cnv_version\n"
+                "      value: 4.21.0\n"
+                "    - key: CNV_VERSION\n"
+                "      value: 4.22.0\n"
             ),
             encoding="utf-8",
         )
         with pytest.raises(expected_exception=ClickException, match="Duplicate attribute key"):
             _load_batch_file(batch_path=batch_path)
+
+    def test_legacy_tier_value_normalized(self) -> None:
+        """Verify a legacy upper-cased TIER value migrates to a bare number.
+
+        Retry files saved by the previous tool stored ``TIER-2`` values; a
+        migrated replay must upload the same ``tier:2`` tag a fresh run
+        does, not fragment the tier facet with ``tier:TIER-2``.
+        """
+        migrated = _migrate_legacy_attributes(attributes=[{"key": "TIER", "value": "TIER-2"}])
+        assert migrated == [{"key": "tier", "value": "2"}], f"Expected normalized tier, got {migrated!r}"
+
+    def test_lowercase_bundle_key_migrates(self) -> None:
+        """Verify a hand-edited lowercase 'bundle' key migrates, not uploads as a tag."""
+        migrated = _migrate_legacy_attributes(
+            attributes=[
+                {"key": "team", "value": "NETWORK"},
+                {"key": "bundle", "value": "v4.22.0.rhel9-102"},
+            ]
+        )
+        attrs_by_key = {attr["key"]: attr["value"] for attr in migrated}
+        assert "bundle" not in attrs_by_key, "Expected: no bundle tag survives the migration"
+        assert attrs_by_key["cnv_version"] == "4.22.0", f"Expected derived cnv_version, got {attrs_by_key!r}"
+        assert attrs_by_key["cnv_xy_version"] == "4.22", f"Expected derived cnv_xy_version, got {attrs_by_key!r}"
+
+    def test_legacy_retry_file_passes_validation(self, tmp_path: Path) -> None:
+        """Verify a full legacy retry file replays through modern validation.
+
+        A retry file saved before the Jenkins-parity rename carries only
+        upper-case keys and a BUNDLE entry; the migration must derive
+        cnv_version from BUNDLE (a replay suppresses the metadata bundle,
+        so nothing else produces it) or the upload validation hard-fails.
+        """
+        tests_dir, batch_path = write_minimal_batch(tmp_path=tmp_path)
+        batch_path.write_text(
+            data=(
+                "metadata:\n"
+                "  bundle: v4.22.0.rhel9-102\n"
+                "  attributes:\n"
+                "    - key: TEAM\n"
+                "      value: NETWORK\n"
+                "    - key: BUNDLE\n"
+                "      value: v4.22.0.rhel9-102\n"
+                "    - key: CNV_XY_VER\n"
+                "      value: '4.22'\n"
+                "    - key: ARCH\n"
+                "      value: amd64\n"
+                "    - key: OCP\n"
+                "      value: 4.22.0\n"
+                "    - key: CLUSTER_NAME\n"
+                "      value: bm15a\n"
+                "    - key: CLUSTER_DOMAIN\n"
+                "      value: bm15a.example.com\n"
+                "    - key: SC\n"
+                "      value: ocs\n"
+                "    - key: CHANNEL\n"
+                "      value: candidate\n"
+                "results:\n"
+                "  - test: tests/network/test_manual_minimal.py::test_minimal\n"
+                "    status: passed\n"
+            ),
+            encoding="utf-8",
+        )
+        monkeypatch = pytest.MonkeyPatch()
+        monkeypatch.setenv(name="DATADOG_API_KEY", value="test-key")
+        with patch(
+            target="scripts.manual_tests_reporter.manual_tests_reporter.shutil.which",
+            return_value=None,
+        ):
+            result = CliRunner().invoke(
+                cli=main,
+                args=["--tests-dir", str(tests_dir), "--batch-file", str(batch_path)],
+            )
+        monkeypatch.undo()
+
+        assert result.exit_code != 0, "Expected: run stops at the mocked datadog-ci preflight"
+        assert "Missing required run attributes" not in result.output, (
+            "Expected: the migrated legacy attributes satisfy upload validation"
+        )
+        assert "datadog-ci not found" in result.output, "Expected: preflight reached (validation passed)"
 
     def test_batch_attributes_values_stripped(self, tmp_path: Path) -> None:
         """Verify hand-edited padding in attribute keys and values is stripped."""
@@ -658,7 +1122,7 @@ class TestMergeBatchMetadata:
         )
         _results, metadata = _load_batch_file(batch_path=batch_path)
 
-        assert metadata["attributes"] == [{"key": "TEAM", "value": "NETWORK"}], (
+        assert metadata["attributes"] == [{"key": "team", "value": "NETWORK"}], (
             "Expected: padded key and value stripped on load"
         )
 
@@ -692,40 +1156,98 @@ class TestMergeBatchMetadata:
 
     def test_restored_attributes_prevent_bundle_override(self) -> None:
         """Verify a restored retry file's saved CNV version is not re-derived from its bundle."""
+        # Loader-migrated modern keys — the realistic input to
+        # _merge_batch_metadata (a raw legacy list is migrated first).
         saved_attrs = [
-            {"key": "BUNDLE", "value": "v4.22.0"},
-            {"key": "CNV_XY_VER", "value": "4.21"},
+            {"key": "cnv_version", "value": "4.21.0"},
+            {"key": "cnv_xy_version", "value": "4.21"},
         ]
 
         bundle, restored_attrs, restored = _merge_batch_metadata(
-            batch_metadata={"bundle": "v4.22.0", "attributes": saved_attrs},
+            batch_metadata={"bundle": "v4.22.0.rhel9-102", "attributes": saved_attrs},
             bundle=None,
             cluster_attrs=None,
         )
 
         assert bundle is None, (
             "Expected: metadata bundle is not promoted when saved attributes were restored, "
-            "so the saved CNV_XY_VER is not re-derived"
+            "so the saved cnv versions are not re-derived"
         )
         assert restored_attrs == saved_attrs, f"Expected {saved_attrs!r}, got {restored_attrs!r}"
         assert restored is True, "Expected: saved attributes restored"
 
-    def test_restored_attributes_missing_bundle_filled_from_metadata(self) -> None:
-        """Verify a restored attributes list without BUNDLE gets it filled from batch metadata."""
-        saved_attrs = [{"key": "TEAM", "value": "NETWORK"}]
+    def test_restored_attributes_not_refilled_with_bundle(self) -> None:
+        """Verify a replay does not re-derive versions from batch metadata.
+
+        The saved attributes already carry the recorded cnv versions, so
+        the metadata bundle fills nothing on a replay — the recorded run
+        is reproduced exactly.
+        """
+        saved_attrs = [
+            {"key": "team", "value": "NETWORK"},
+            {"key": "cnv_version", "value": "4.22.0"},
+            {"key": "cnv_xy_version", "value": "4.22"},
+        ]
 
         bundle, restored_attrs, restored = _merge_batch_metadata(
-            batch_metadata={"bundle": "v4.22.0", "attributes": saved_attrs},
+            batch_metadata={"bundle": "v4.22.0.rhel9-102", "attributes": saved_attrs},
             bundle=None,
             cluster_attrs=None,
         )
 
         assert restored is True, "Expected: saved attributes restored"
-        assert bundle is None, "Expected: bundle stays unset (no explicit override)"
-        assert restored_attrs is not None, "Expected: restored attributes list"
-        assert {"key": "BUNDLE", "value": "v4.22.0"} in restored_attrs, (
-            "Expected: missing BUNDLE filled from batch metadata so upload validation passes"
+        assert bundle is None, "Expected: bundle stays unset on a replay (recorded versions stand)"
+        assert restored_attrs == saved_attrs, "Expected: restored attributes unchanged"
+
+    def test_restored_partial_attributes_gap_filled_from_bundle(self) -> None:
+        """Verify a replay over a partial saved list gap-fills versions from the bundle.
+
+        A hand-written batch file may carry a partial attributes list (e.g.
+        only the team) plus a metadata bundle; the missing cnv versions are
+        derived from the bundle instead of failing validation — recorded
+        values are never overridden.
+        """
+        saved_attrs = [{"key": "team", "value": "NETWORK"}]
+
+        bundle, restored_attrs, restored = _merge_batch_metadata(
+            batch_metadata={"bundle": "v4.22.0.rhel9-102", "attributes": saved_attrs},
+            bundle=None,
+            cluster_attrs=None,
         )
+
+        assert restored is True, "Expected: saved attributes restored"
+        assert bundle is None, "Expected: bundle not re-applied on a replay"
+        assert restored_attrs is not None, "Expected: restored attributes list"
+        attrs_by_key = {attr["key"]: attr["value"] for attr in restored_attrs}
+        assert attrs_by_key["team"] == "NETWORK", "Expected: saved team kept"
+        assert attrs_by_key["cnv_version"] == "4.22.0", "Expected: cnv_version gap-filled from the bundle"
+        assert attrs_by_key["cnv_xy_version"] == "4.22", "Expected: cnv_xy_version gap-filled from the bundle"
+
+    def test_restored_partial_attributes_gap_fill_per_key(self) -> None:
+        """Verify the gap-fill fills only the missing version key.
+
+        A saved list carrying cnv_xy_version but no cnv_version still gets
+        cnv_version derived from the bundle (mirroring the fresh-run
+        derivation), instead of failing validation over one missing key.
+        """
+        saved_attrs = [
+            {"key": "team", "value": "NETWORK"},
+            {"key": "cnv_xy_version", "value": "4.22"},
+        ]
+
+        bundle, restored_attrs, restored = _merge_batch_metadata(
+            batch_metadata={"bundle": "v4.22.0.rhel9-102", "attributes": saved_attrs},
+            bundle=None,
+            cluster_attrs=None,
+        )
+
+        assert restored is True, "Expected: saved attributes restored"
+        assert bundle is None, "Expected: bundle not re-applied on a replay"
+        assert restored_attrs is not None, "Expected: restored attributes list"
+        attrs_by_key = {attr["key"]: attr["value"] for attr in restored_attrs}
+        assert attrs_by_key["cnv_version"] == "4.22.0", "Expected: only the missing key gap-filled"
+        assert attrs_by_key["cnv_xy_version"] == "4.22", "Expected: recorded value kept verbatim"
+        assert len(restored_attrs) == 3, f"Expected 3 attributes after the gap-fill, got {len(restored_attrs)}"
 
     def test_saved_attributes_restored_only_without_cluster_attrs(self) -> None:
         """Verify saved attributes are restored only when no cluster attrs were resolved."""
@@ -846,7 +1368,7 @@ class TestUploadPreflight:
 
         assert result.exit_code == 1, f"Expected exit code 1, got {result.exit_code!r}"
         assert "Missing required run attributes" in result.output, "Expected: error listing the missing attributes"
-        assert "BUNDLE" in result.output, "Expected: error names the missing BUNDLE attribute"
+        assert "cnv_version" in result.output, "Expected: error names the missing cnv_version attribute"
         assert "Result (p=pass" not in result.output, "Expected: failure happens before the verdict prompt"
 
 
@@ -868,71 +1390,6 @@ class TestDryRunReadinessWarning:
         assert result.exit_code == 0, "Expected: dry-run never fails on missing attributes"
         assert "upload would fail — missing:" in result.stderr, "Expected: warning listing missing attributes"
         assert "No data was uploaded" in result.output, "Expected: dry-run still exits without uploading"
-
-    def test_dry_run_warning_carries_extra_guidance(self, tmp_path: Path) -> None:
-        """Verify the dry-run warning carries the same extra guidance as the hard error.
-
-        An underivable bundle must be named in the dry-run warning too —
-        dry-run is the documented pre-flight mode, so its prediction must
-        match what the real upload error would say.
-        """
-        tests_dir, batch_path = write_minimal_batch(tmp_path=tmp_path)
-        result = CliRunner().invoke(
-            cli=main,
-            args=[
-                "--tests-dir",
-                str(tests_dir),
-                "--batch-file",
-                str(batch_path),
-                "--bundle",
-                "v4",
-                "--dry-run",
-            ],
-        )
-
-        assert result.exit_code == 0, "Expected: dry-run never fails on missing attributes"
-        assert "upload would fail — missing:" in result.stderr, "Expected: warning listing missing attributes"
-        assert "The bundle 'v4' has no major.minor version; pass --cnv-version explicitly" in result.stderr, (
-            "Expected: underivable-bundle guidance in the dry-run warning"
-        )
-
-    def test_dry_run_warning_carries_cluster_access_hint(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-        """Verify the dry-run warning carries the cluster-access hint on zero resolution.
-
-        Dry-run is the documented pre-flight mode: its prediction must
-        match what the real upload error would say when --from-cluster
-        resolved nothing.
-        """
-        tests_dir, batch_path = write_minimal_batch(tmp_path=tmp_path)
-        monkeypatch.setattr(target=reporter_module, name="_CLUSTER_INFO_IMPORT_ERROR", value=None)
-        with (
-            patch(
-                target="scripts.manual_tests_reporter.manual_tests_reporter.get_cluster_attributes",
-                return_value=object(),
-            ),
-            patch(
-                target="scripts.manual_tests_reporter.manual_tests_reporter.cluster_attributes_to_run_attrs",
-                return_value=[],
-            ),
-        ):
-            result = CliRunner().invoke(
-                cli=main,
-                args=[
-                    "--tests-dir",
-                    str(tests_dir),
-                    "--batch-file",
-                    str(batch_path),
-                    "--from-cluster",
-                    "--dry-run",
-                ],
-            )
-
-        assert result.exit_code == 0, "Expected: dry-run never fails on missing attributes"
-        assert "upload would fail — missing:" in result.stderr, "Expected: warning listing missing attributes"
-        assert (
-            "--from-cluster resolved no cluster attributes; check cluster access and permissions (KUBECONFIG)"
-            in result.stderr
-        ), "Expected: cluster-access hint in the dry-run warning"
 
 
 class TestInteractiveFlow:
@@ -1061,7 +1518,7 @@ class TestInteractiveFlow:
         loaded_results, metadata = _load_batch_file(batch_path=retry_files[0])
         assert len(loaded_results) == 1, f"Expected 1 partial result, got {len(loaded_results)!r}"
         assert loaded_results[0].status == "PASSED", "Expected: partial result keeps its verdict"
-        assert {"key": "TEAM", "value": "NETWORK"} in metadata["attributes"], (
+        assert {"key": "team", "value": "NETWORK"} in metadata["attributes"], (
             "Expected: derived team preserved in the saved attributes"
         )
 
@@ -1174,7 +1631,7 @@ class TestInteractiveFlow:
             ],
         )
         assert retry_result.exit_code == 0, retry_result.output
-        assert "TEAM = " not in retry_result.output, "Expected: retry of a team-less run stays team-less"
+        assert "team = " not in retry_result.output, "Expected: retry of a team-less run stays team-less"
 
     def test_interactive_quit_save_failure_still_exits_cleanly(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -1446,7 +1903,7 @@ class TestTeamDerivation:
 
         assert result.exit_code == 0, result.output
         assert "Derived team: STORAGE" in result.output, "Expected: team derived from the tests directory"
-        assert "TEAM = STORAGE" in result.output, "Expected: derived team reaches the run attributes"
+        assert "team = STORAGE" in result.output, "Expected: derived team reaches the run attributes"
 
     def test_team_derived_from_tests_dir_basename(self, tmp_path: Path) -> None:
         """Verify the team is derived from the selected folder's own name."""
@@ -1469,7 +1926,7 @@ class TestTeamDerivation:
 
         assert result.exit_code == 0, result.output
         assert "Derived team: NETWORK" in result.output, "Expected: team derived from the folder name"
-        assert "TEAM = NETWORK" in result.output, "Expected: derived team reaches the run attributes"
+        assert "team = NETWORK" in result.output, "Expected: derived team reaches the run attributes"
 
     def test_team_parent_folder_wins_over_conflicting_basename(self, tmp_path: Path) -> None:
         """Verify a nested dir named after another team derives its parent team.
@@ -1501,7 +1958,7 @@ class TestTeamDerivation:
 
         assert result.exit_code == 0, result.output
         assert "Derived team: IUO" in result.output, "Expected: parent team wins over conflicting basename"
-        assert "TEAM = IUO" in result.output, "Expected: parent team reaches the run attributes"
+        assert "team = IUO" in result.output, "Expected: parent team reaches the run attributes"
         assert "Derived team: STORAGE" not in result.output, "Expected: conflicting basename must not win"
 
     def test_team_derived_from_deep_tests_dir_subfolder(self, tmp_path: Path) -> None:
@@ -1525,7 +1982,7 @@ class TestTeamDerivation:
 
         assert result.exit_code == 0, result.output
         assert "Derived team: NETWORK" in result.output, "Expected: team derived from the tests-root parent"
-        assert "TEAM = NETWORK" in result.output, "Expected: derived team reaches the run attributes"
+        assert "team = NETWORK" in result.output, "Expected: derived team reaches the run attributes"
 
     def test_folder_to_team_covers_all_repo_team_dirs(self) -> None:
         """Verify every top-level tests/ directory maps to a team (drift guard)."""
@@ -1576,7 +2033,7 @@ class TestTeamDerivation:
 
         assert result.exit_code == 0, result.output
         assert "Derived team: STORAGE" in result.output, "Expected: deepest mapped tests child wins by design"
-        assert "TEAM = STORAGE" in result.output, "Expected: derived team reaches the run attributes"
+        assert "team = STORAGE" in result.output, "Expected: derived team reaches the run attributes"
 
     def test_nested_tests_dir_does_not_shadow_team_folder(self, tmp_path: Path) -> None:
         """Verify an unmapped nested 'tests' child falls through to the outer tests child.
@@ -1608,7 +2065,7 @@ class TestTeamDerivation:
 
         assert result.exit_code == 0, result.output
         assert "Derived team: NETWORK" in result.output, "Expected: outer tests root wins over nested tests dir"
-        assert "TEAM = NETWORK" in result.output, "Expected: derived team reaches the run attributes"
+        assert "team = NETWORK" in result.output, "Expected: derived team reaches the run attributes"
 
     def test_unmapped_tests_dir_omits_team(self, tmp_path: Path) -> None:
         """Verify an unmapped tests directory uploads without a TEAM attribute."""
@@ -1645,11 +2102,15 @@ class TestConfigFileIntegration:
         config_lines = []
         expected_lines = []
         for config_key, attr_key in sorted(CONFIG_KEY_TO_ATTRIBUTE_KEY.items()):
+            # TIER normalizes to the bare number; every other key passes
+            # its config value through unchanged.
+            if attr_key == "tier":
+                config_lines.append(f"{config_key}: tier-2")
+                expected_lines.append("tier = 2")
+                continue
             value = f"val-{config_key}"
             config_lines.append(f"{config_key}: {value}")
-            # TEAM and TIER values are uppercased when applied
-            expected_value = value.upper() if attr_key in ("TEAM", "TIER") else value
-            expected_lines.append(f"{attr_key} = {expected_value}")
+            expected_lines.append(f"{attr_key} = {value}")
         config_lines.append("service: drift-guard-service")
         config_path = write_config_file(
             tmp_path=tmp_path,
@@ -1679,13 +2140,13 @@ class TestConfigFileIntegration:
     def test_all_attribute_config_keys_reach_replay_gap_fill(self, tmp_path: Path) -> None:
         """Verify every accepted attribute config key has replay gap-fill wiring (drift guard)."""
         tests_dir, batch_path = write_minimal_batch(tmp_path=tmp_path)
-        # A partial saved list (TEAM only): the replay branch must gap-fill
+        # A partial saved list (team only): the replay branch must gap-fill
         # every other attribute key from the generated config.
         batch_path.write_text(
             data=(
                 "metadata:\n"
                 "  attributes:\n"
-                "    - key: TEAM\n"
+                "    - key: team\n"
                 "      value: NETWORK\n"
                 "results:\n"
                 "  - test: tests/network/test_manual_minimal.py::test_minimal\n"
@@ -1696,11 +2157,15 @@ class TestConfigFileIntegration:
         config_lines = []
         expected_lines = []
         for config_key, attr_key in sorted(CONFIG_KEY_TO_ATTRIBUTE_KEY.items()):
+            # TIER normalizes to the bare number; every other key passes
+            # its config value through unchanged.
+            if attr_key == "tier":
+                config_lines.append(f"{config_key}: tier-2")
+                expected_lines.append("tier = 2")
+                continue
             value = f"val-{config_key}"
             config_lines.append(f"{config_key}: {value}")
-            # TEAM comes from the saved attributes, not the config; TIER is uppercased
-            expected_value = value.upper() if attr_key == "TIER" else value
-            expected_lines.append(f"{attr_key} = {expected_value}")
+            expected_lines.append(f"{attr_key} = {value}")
         config_path = write_config_file(
             tmp_path=tmp_path,
             content="\n".join(config_lines) + "\n",
@@ -1720,10 +2185,8 @@ class TestConfigFileIntegration:
         )
 
         assert result.exit_code == 0, result.output
-        assert "TEAM = NETWORK" in result.output, "Expected: saved TEAM stands over the config team"
+        assert "team = NETWORK" in result.output, "Expected: saved team stands over the config team"
         for expected in expected_lines:
-            if expected.startswith("TEAM ="):
-                continue
             assert expected in result.output, f"Expected: {expected!r} in the dry-run output"
 
     def test_config_supplies_required_attributes(self, tmp_path: Path) -> None:
@@ -1735,6 +2198,7 @@ class TestConfigFileIntegration:
                 "bundle: v4.22.0\n"
                 "ocp-version: 4.22.0\n"
                 "cnv-version: '4.22'\n"
+                "owner: tester@redhat.com\n"
                 "cluster-name: bm15a\n"
                 "cluster-domain: bm15a.example.com\n"
                 "sc: ocs-storagecluster-ceph-rbd\n"
@@ -1756,7 +2220,7 @@ class TestConfigFileIntegration:
 
         assert result.exit_code == 0, result.output
         assert "Loaded config defaults from" in result.output, "Expected: config source is reported"
-        assert "TEAM = NETWORK" in result.output, "Expected: derived team reaches the run attributes"
+        assert "team = NETWORK" in result.output, "Expected: derived team reaches the run attributes"
         assert "Missing required run attributes" not in result.output, (
             "Expected: config file supplies every required attribute"
         )
@@ -1778,7 +2242,7 @@ class TestConfigFileIntegration:
         )
 
         assert result.exit_code == 0, result.output
-        assert "OCP = 4.22.0" in result.output, "Expected: CLI flag wins over the config value"
+        assert "ocp_version = 4.22.0" in result.output, "Expected: CLI flag wins over the config value"
 
     def test_retry_replay_ignores_config_attributes(self, tmp_path: Path) -> None:
         """Verify a retry file's saved attributes are not disturbed by config defaults."""
@@ -1789,23 +2253,19 @@ class TestConfigFileIntegration:
                 "metadata:\n"
                 "  bundle: v4.22.0\n"
                 "  attributes:\n"
-                "    - key: TEAM\n"
+                "    - key: team\n"
                 "      value: NETWORK\n"
-                "    - key: BUNDLE\n"
-                "      value: v4.22.0\n"
-                "    - key: CNV_XY_VER\n"
+                "    - key: cnv_xy_version\n"
                 "      value: '4.21'\n"
-                "    - key: ARCH\n"
-                "      value: amd64\n"
-                "    - key: OCP\n"
+                "    - key: ocp_version\n"
                 "      value: 4.22.0\n"
-                "    - key: CLUSTER_NAME\n"
+                "    - key: cluster\n"
                 "      value: bm15a\n"
-                "    - key: CLUSTER_DOMAIN\n"
+                "    - key: cluster_domain\n"
                 "      value: bm15a.example.com\n"
-                "    - key: SC\n"
+                "    - key: storage_class\n"
                 "      value: ocs-storagecluster-ceph-rbd\n"
-                "    - key: CHANNEL\n"
+                "    - key: cnv_channel\n"
                 "      value: candidate\n"
                 "results:\n"
                 "  - test: tests/network/test_manual_minimal.py::test_minimal\n"
@@ -1813,7 +2273,7 @@ class TestConfigFileIntegration:
             ),
             encoding="utf-8",
         )
-        config_path = write_config_file(tmp_path=tmp_path, content="bundle: v4.23.0\n")
+        config_path = write_config_file(tmp_path=tmp_path, content="cnv-version: '4.23'\n")
         result = CliRunner().invoke(
             cli=main,
             args=[
@@ -1828,22 +2288,21 @@ class TestConfigFileIntegration:
         )
 
         assert result.exit_code == 0, result.output
-        assert "config defaults for bundle are ignored" in result.output, (
+        assert "config defaults for cnv-version are ignored" in result.output, (
             "Expected: config keys saved in the retry file are reported as ignored"
         )
-        assert "TEAM = NETWORK" in result.output, "Expected: saved team is replayed, not the config team"
-        assert "CNV_XY_VER = 4.21" in result.output, "Expected: saved CNV version is replayed, not re-derived"
-        assert "ARCH = amd64" in result.output, "Expected: legacy saved ARCH survives replay (recorded values stand)"
+        assert "team = NETWORK" in result.output, "Expected: saved team is replayed, not the config team"
+        assert "cnv_xy_version = 4.21" in result.output, "Expected: saved CNV version is replayed, not re-derived"
 
     def test_retry_replay_fills_gaps_from_config(self, tmp_path: Path) -> None:
         """Verify a partially-filled saved attribute list gets config gap-fills."""
         tests_dir, batch_path = write_minimal_batch(tmp_path=tmp_path)
-        # Hand-written batch carrying only TEAM in its attributes list.
+        # Hand-written batch carrying only team in its attributes list.
         batch_path.write_text(
             data=(
                 "metadata:\n"
                 "  attributes:\n"
-                "    - key: TEAM\n"
+                "    - key: team\n"
                 "      value: NETWORK\n"
                 "results:\n"
                 "  - test: tests/network/test_manual_minimal.py::test_minimal\n"
@@ -1856,6 +2315,7 @@ class TestConfigFileIntegration:
             content=(
                 "bundle: v4.22.0\n"
                 "cnv-version: '4.22'\n"
+                "owner: tester@redhat.com\n"
                 "ocp-version: 4.22.0\n"
                 "cluster-name: bm15a\n"
                 "cluster-domain: bm15a.example.com\n"
@@ -1878,25 +2338,40 @@ class TestConfigFileIntegration:
         )
 
         assert result.exit_code == 0, result.output
-        assert "TEAM = NETWORK" in result.output, "Expected: saved TEAM stands over the config team"
+        assert "team = NETWORK" in result.output, "Expected: saved TEAM stands over the config team"
         assert "config defaults for team are ignored" not in result.output, (
             "Expected: team is no longer a config key, so no replay note for it"
         )
+        # Assert the effective attributes so the test fails when a gap is
+        # silently left: attribute keys gap-fill from the config file…
+        for expected_line in ("ocp_version = 4.22.0", "owner = tester@redhat.com"):
+            assert expected_line in result.output, f"Expected {expected_line!r} in the effective attributes"
+        # …but the config bundle does not (a replay keeps its recorded run;
+        # only a batch-file metadata bundle gap-fills) — surfaced as a
+        # dry-run warning naming the one missing key.
+        assert "missing: cnv_version" in result.output, (
+            "Expected: the un-fillable cnv_version gap is surfaced as a warning"
+        )
         assert "Missing required run attributes" not in result.output, (
-            "Expected: config fills the gaps the partial saved list leaves"
+            "Expected: dry-run reports the gap as a warning, not an error"
         )
 
-    def test_retry_replay_keeps_saved_cnv_when_config_fills_bundle(self, tmp_path: Path) -> None:
-        """Verify a saved CNV version is not re-derived when config fills the missing BUNDLE."""
+    def test_retry_replay_ignores_config_bundle(self, tmp_path: Path) -> None:
+        """Verify a replay never re-derives versions from a config bundle.
+
+        The saved attributes carry the recorded run; the config bundle is a
+        derivation input for fresh runs only, so a replay keeps its saved
+        cnv versions exactly.
+        """
         tests_dir, batch_path = write_minimal_batch(tmp_path=tmp_path)
-        # Saved attributes carry the recorded CNV version but no BUNDLE.
+        # Saved attributes carry the recorded CNV version but no bundle.
         batch_path.write_text(
             data=(
                 "metadata:\n"
                 "  attributes:\n"
-                "    - key: TEAM\n"
+                "    - key: team\n"
                 "      value: NETWORK\n"
-                "    - key: CNV_XY_VER\n"
+                "    - key: cnv_xy_version\n"
                 "      value: '4.21'\n"
                 "results:\n"
                 "  - test: tests/network/test_manual_minimal.py::test_minimal\n"
@@ -1908,6 +2383,7 @@ class TestConfigFileIntegration:
             tmp_path=tmp_path,
             content=(
                 "bundle: v4.23.0\n"
+                "owner: tester@redhat.com\n"
                 "ocp-version: 4.22.0\n"
                 "cluster-name: bm15a\n"
                 "cluster-domain: bm15a.example.com\n"
@@ -1930,30 +2406,31 @@ class TestConfigFileIntegration:
         )
 
         assert result.exit_code == 0, result.output
-        assert "CNV_XY_VER = 4.21" in result.output, (
+        assert "cnv_xy_version = 4.21" in result.output, (
             "Expected: saved CNV version stands, not re-derived from the config bundle"
         )
-        assert "BUNDLE = v4.23.0" in result.output, "Expected: missing BUNDLE filled from config"
+        assert "cnv_xy_version = 4.23" not in result.output, "Expected: config bundle never re-derives on a replay"
+        assert "cnv_version = " not in result.output, "Expected: no cnv_version derived from the config bundle"
 
     def test_restored_team_attribute_prevents_no_team_warning(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """Verify a restored TEAM attribute counts as the run team (no false warning)."""
+        """Verify a restored team attribute counts as the run team (no false warning)."""
         tests_dir, batch_path = write_minimal_batch(tmp_path=tmp_path)
-        # Saved attributes carry TEAM plus every required attribute, but
+        # Saved attributes carry team plus every required attribute, but
         # metadata.team is absent. Run without --dry-run so the warning check
         # (skipped in dry runs) is actually reached; the mocked preflight
         # fails the run cleanly after the team warning check.
         saved_attributes = [
-            {"key": "TEAM", "value": "NETWORK"},
-            {"key": "BUNDLE", "value": "v4.22.0"},
-            {"key": "CNV_XY_VER", "value": "4.22"},
-            {"key": "ARCH", "value": "amd64"},
-            {"key": "OCP", "value": "4.22.0"},
-            {"key": "CLUSTER_NAME", "value": "bm15a"},
-            {"key": "CLUSTER_DOMAIN", "value": "bm15a.example.com"},
-            {"key": "SC", "value": "ocs-storagecluster-ceph-rbd"},
-            {"key": "CHANNEL", "value": "candidate"},
+            {"key": "team", "value": "NETWORK"},
+            {"key": "cnv_version", "value": "4.22.0"},
+            {"key": "cnv_xy_version", "value": "4.22"},
+            {"key": "ocp_version", "value": "4.22.0"},
+            {"key": "cluster", "value": "bm15a"},
+            {"key": "cluster_domain", "value": "bm15a.example.com"},
+            {"key": "storage_class", "value": "ocs-storagecluster-ceph-rbd"},
+            {"key": "cnv_channel", "value": "candidate"},
+            {"key": "owner", "value": "tester@redhat.com"},
         ]
         attributes_yaml = "".join(
             f"    - key: {attr['key']}\n      value: '{attr['value']}'\n" for attr in saved_attributes
@@ -1994,7 +2471,7 @@ class TestConfigFileIntegration:
                 "metadata:\n"
                 "  team: STORAGE\n"
                 "  attributes:\n"
-                "    - key: TEAM\n"
+                "    - key: team\n"
                 "      value: NETWORK\n"
                 "results:\n"
                 "  - test: tests/network/test_manual_minimal.py::test_minimal\n"
@@ -2009,7 +2486,7 @@ class TestConfigFileIntegration:
         )
 
         assert result.exit_code == 0, result.output
-        assert "TEAM = NETWORK" in result.output, (
+        assert "team = NETWORK" in result.output, (
             "Expected: saved TEAM stands over the metadata team — replay semantics"
         )
         assert "Using team from batch file" not in result.output, (
@@ -2027,8 +2504,8 @@ class TestConfigFileIntegration:
                 "  team: STORAGE\n"
                 "  bundle: v4.22.0\n"
                 "  attributes:\n"
-                "    - key: BUNDLE\n"
-                "      value: v4.22.0\n"
+                "    - key: cnv_xy_version\n"
+                "      value: '4.22'\n"
                 "results:\n"
                 "  - test: tests/network/test_manual_minimal.py::test_minimal\n"
                 "    status: passed\n"
@@ -2043,7 +2520,7 @@ class TestConfigFileIntegration:
 
         assert result.exit_code == 0, result.output
         assert "Using team from batch file" not in result.output, "Expected: metadata team is never applied"
-        assert "TEAM = " not in result.output, "Expected: replay without saved TEAM stays team-less"
+        assert "team = " not in result.output, "Expected: replay without saved TEAM stays team-less"
 
     def test_retry_replay_without_config_attribute_keys_prints_no_note(self, tmp_path: Path) -> None:
         """Verify no replay note when the config carries no attribute keys."""
@@ -2052,7 +2529,7 @@ class TestConfigFileIntegration:
             data=(
                 "metadata:\n"
                 "  attributes:\n"
-                "    - key: TEAM\n"
+                "    - key: team\n"
                 "      value: NETWORK\n"
                 "results:\n"
                 "  - test: tests/network/test_manual_minimal.py::test_minimal\n"
@@ -2172,7 +2649,7 @@ class TestConfigFileIntegration:
 
         assert result.exit_code == 0, result.output
         assert "Derived team: NETWORK" in result.output, "Expected: team derived from the tests directory"
-        assert "TEAM = NETWORK" in result.output, "Expected: derived team reaches the attributes"
+        assert "team = NETWORK" in result.output, "Expected: derived team reaches the attributes"
 
     def test_from_cluster_with_retry_file_still_gets_config_defaults(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -2185,7 +2662,7 @@ class TestConfigFileIntegration:
             data=(
                 "metadata:\n"
                 "  attributes:\n"
-                "    - key: TEAM\n"
+                "    - key: team\n"
                 "      value: NETWORK\n"
                 "results:\n"
                 "  - test: tests/network/test_manual_minimal.py::test_minimal\n"
@@ -2193,10 +2670,11 @@ class TestConfigFileIntegration:
             ),
             encoding="utf-8",
         )
-        config_path = write_config_file(tmp_path=tmp_path, content="sc: ocs\n")
+        config_path = write_config_file(tmp_path=tmp_path, content="ocp-version: 4.22.0\n")
         monkeypatch.setattr(target=reporter_module, name="_CLUSTER_INFO_IMPORT_ERROR", value=None)
         cluster_attrs = [
-            {"key": "CLUSTER_NAME", "value": "bm15a"},
+            {"key": "ocp_version", "value": "4.21.0"},
+            {"key": "cluster", "value": "bm15a"},
         ]
         with (
             patch(
@@ -2229,7 +2707,55 @@ class TestConfigFileIntegration:
         assert "1 saved attributes from the batch file are ignored" in result.output, (
             "Expected: skipped saved attributes are reported, not silently discarded"
         )
-        assert "SC = ocs" in result.output, "Expected: config defaults apply to the from-cluster run"
+        assert "ocp_version = 4.22.0" in result.output, "Expected: config defaults apply to the from-cluster run"
+
+    def test_explicit_cnv_version_drops_contradicting_cluster_cnv_version(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Verify an explicit --cnv-version contradicting cluster values drops the derived full version.
+
+        CLI-over-cluster precedence must be complete: keeping the
+        cluster-derived full cnv_version next to an explicit X.Y override
+        would ship a self-contradictory facet pair. The derived full value
+        is dropped; the X.Y override stands.
+        """
+        tests_dir, batch_path = write_minimal_batch(tmp_path=tmp_path)
+        monkeypatch.setattr(target=reporter_module, name="_CLUSTER_INFO_IMPORT_ERROR", value=None)
+        with (
+            patch(
+                target="scripts.manual_tests_reporter.manual_tests_reporter.get_cluster_attributes",
+                return_value=object(),
+            ),
+            patch(
+                target="scripts.manual_tests_reporter.manual_tests_reporter.cluster_attributes_to_run_attrs",
+                return_value=[
+                    {"key": "cnv_version", "value": "4.22.0"},
+                    {"key": "cluster", "value": "test-cluster"},
+                ],
+            ),
+        ):
+            result = CliRunner().invoke(
+                cli=main,
+                args=[
+                    "--tests-dir",
+                    str(tests_dir),
+                    "--batch-file",
+                    str(batch_path),
+                    "--from-cluster",
+                    "--cnv-version",
+                    "4.21",
+                    "--dry-run",
+                ],
+            )
+
+        assert result.exit_code == 0, result.output
+        assert "Dropping cluster-derived cnv_version 4.22.0" in result.output, (
+            "Expected: the contradicting cluster-derived cnv_version is dropped"
+        )
+        assert "cnv_version = 4.22.0" not in result.output, (
+            "Expected: the dropped full version must not appear in the attribute list"
+        )
+        assert "cnv_xy_version = 4.21" in result.output, "Expected: the explicit X.Y override stands"
 
     def test_from_cluster_with_no_cluster_attributes_replays_saved_run(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -2242,17 +2768,17 @@ class TestConfigFileIntegration:
             data=(
                 "metadata:\n"
                 "  attributes:\n"
-                "    - key: TEAM\n"
+                "    - key: team\n"
                 "      value: NETWORK\n"
-                "    - key: CHANNEL\n"
-                "      value: candidate\n"
+                "    - key: ocp_version\n"
+                "      value: 4.21.0\n"
                 "results:\n"
                 "  - test: tests/network/test_manual_minimal.py::test_minimal\n"
                 "    status: passed\n"
             ),
             encoding="utf-8",
         )
-        config_path = write_config_file(tmp_path=tmp_path, content="channel: stable\n")
+        config_path = write_config_file(tmp_path=tmp_path, content="ocp-version: 4.22.0\n")
         monkeypatch.setattr(target=reporter_module, name="_CLUSTER_INFO_IMPORT_ERROR", value=None)
         with (
             patch(
@@ -2282,11 +2808,11 @@ class TestConfigFileIntegration:
         assert "Restored 2 attributes from batch file." in result.output, (
             "Expected: saved attributes restored because no cluster attributes were resolved"
         )
-        assert "config defaults for channel are ignored" in result.output, (
+        assert "config defaults for ocp-version are ignored" in result.output, (
             "Expected: replay note — the empty from-cluster result does not turn the run fresh"
         )
-        assert "TEAM = NETWORK" in result.output, "Expected: saved TEAM stands over the config team"
-        assert "CHANNEL = candidate" in result.output, "Expected: saved CHANNEL stands over the config channel"
+        assert "team = NETWORK" in result.output, "Expected: saved team stands over the config team"
+        assert "ocp_version = 4.21.0" in result.output, "Expected: saved ocp_version stands over the config value"
 
     def test_batch_metadata_team_ignored_for_fresh_run(self, tmp_path: Path, caplog: pytest.LogCaptureFixture) -> None:
         """Verify non-replay batch-file metadata team is ignored; the derived team wins."""
@@ -2319,7 +2845,7 @@ class TestConfigFileIntegration:
 
         assert result.exit_code == 0, result.output
         assert "Using team from batch file" not in result.output, "Expected: metadata team is never applied"
-        assert "TEAM = NETWORK" in result.output, "Expected: derived team wins over the metadata team"
+        assert "team = NETWORK" in result.output, "Expected: derived team wins over the metadata team"
         ignored_team_warnings = [record for record in caplog.records if "declares metadata.team" in record.getMessage()]
         assert ignored_team_warnings, "Expected: ignored metadata.team surfaces a warning, not silence"
 
@@ -2361,11 +2887,11 @@ class TestConfigFileIntegration:
     def test_config_value_beats_cluster_attribute(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         """Verify a config-file attribute overrides a cluster-derived value."""
         tests_dir, batch_path = write_minimal_batch(tmp_path=tmp_path)
-        config_path = write_config_file(tmp_path=tmp_path, content="sc: ocs\n")
+        config_path = write_config_file(tmp_path=tmp_path, content="ocp-version: 4.22.0\n")
         monkeypatch.setattr(target=reporter_module, name="_CLUSTER_INFO_IMPORT_ERROR", value=None)
         cluster_attrs = [
-            {"key": "SC", "value": "ocs-storagecluster-ceph-rbd"},
-            {"key": "CLUSTER_NAME", "value": "bm15a"},
+            {"key": "ocp_version", "value": "4.21.0"},
+            {"key": "cluster", "value": "bm15a"},
         ]
         with (
             patch(
@@ -2392,8 +2918,8 @@ class TestConfigFileIntegration:
             )
 
         assert result.exit_code == 0, result.output
-        assert "SC = ocs" in result.output, "Expected: config sc beats the cluster-derived sc"
-        assert "SC = ocs-storagecluster-ceph-rbd" not in result.output, "Expected: cluster sc is overridden"
+        assert "ocp_version = 4.22.0" in result.output, "Expected: config ocp_version beats the cluster-derived one"
+        assert "ocp_version = 4.21.0" not in result.output, "Expected: cluster ocp_version is overridden"
 
     def test_config_values_are_stripped(self, tmp_path: Path) -> None:
         """Verify whitespace-padded config values are stripped on load."""
@@ -2446,3 +2972,241 @@ class TestBatchUpload:
         assert uploaded_xml, "Expected: one uploaded report"
         assert "dd_tags[polarion-testcase-id]" in uploaded_xml[0], "Expected: Polarion property in the uploaded XML"
         assert "MOCK-4321" in uploaded_xml[0], "Expected: collected Polarion ID in the uploaded XML"
+
+
+class TestJenkinsParityUpload:
+    def test_upload_carries_jenkins_parity_tags_and_env(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Verify an upload is tagged like a Jenkins run plus manual:true.
+
+        The tag names, suite name, and file name mirror the Jenkins
+        datadog-upload-results pipeline so both run types land on the same
+        Datadog tests; MANUAL is the only intentional difference.
+        """
+        tests_dir, batch_path = write_minimal_batch(tmp_path=tmp_path)
+        monkeypatch.setenv(name="DATADOG_API_KEY", value="test-key")
+        uploaded: dict[str, object] = {}
+
+        def record_upload(
+            xml_path: Path, service: str, tags: list[str], env: dict[str, str] | None = None, cwd: Path | None = None
+        ) -> None:
+            uploaded["path"] = xml_path
+            uploaded["xml"] = xml_path.read_text(encoding="utf-8")
+            uploaded["tags"] = tags
+            uploaded["env"] = env
+            uploaded["cwd"] = cwd
+
+        with (
+            patch(
+                target="scripts.manual_tests_reporter.manual_tests_reporter.shutil.which",
+                return_value="/usr/bin/datadog-ci",
+            ),
+            patch(
+                target="scripts.manual_tests_reporter.manual_tests_reporter.upload_junit_report",
+                side_effect=record_upload,
+            ),
+            patch(
+                target="scripts.manual_tests_reporter.manual_tests_reporter._get_git_env",
+                return_value={"DD_GIT_BRANCH": "main", "DD_GIT_COMMIT_SHA": "abc123"},
+            ),
+        ):
+            result = CliRunner().invoke(
+                cli=main,
+                args=[
+                    *required_attr_args(tests_dir=tests_dir),
+                    "--batch-file",
+                    str(batch_path),
+                    "--tier",
+                    "tier-2",
+                    "--marker",
+                    "manual",
+                ],
+            )
+
+        assert result.exit_code == 0, result.output
+        tags = uploaded["tags"]
+        assert isinstance(tags, list), "Expected: uploaded tags deserialize as a list"
+        for expected_tag in (
+            "manual:true",
+            "team:NETWORK",
+            "tier:2",
+            "cnv_version:4.22.0",
+            "cnv_xy_version:4.22",
+            "ocp_version:4.22.0",
+            "cluster:bm15a",
+            "cluster_domain:example.com",
+            "storage_class:ocs",
+            "cnv_channel:candidate",
+            "owner:tester@redhat.com",
+            "marker:manual",
+            "test_case_name:manual.network",
+        ):
+            assert expected_tag in tags, f"Expected {expected_tag!r} in uploaded tags, got {tags!r}"
+        assert not any(tag.startswith(("arch:", "bundle:")) for tag in tags), (
+            "Expected: no arch/bundle tags in the Jenkins-parity set"
+        )
+        xml_path = uploaded["path"]
+        assert isinstance(xml_path, Path), "Expected: the uploaded XML path deserializes as a Path"
+        assert xml_path.name == "xunit_results.xml", f"Expected the Jenkins upload file name, got {xml_path.name!r}"
+        xml_content = uploaded["xml"]
+        assert isinstance(xml_content, str), "Expected: the uploaded XML content deserializes as a string"
+        assert 'name="pytest"' in xml_content, "Expected: suite name matches the Jenkins uploads"
+        upload_env = uploaded["env"]
+        assert isinstance(upload_env, dict), "Expected: the upload env deserializes as a dict"
+        assert upload_env["DD_ENV"] == "production", "Expected: DD_ENV mirrors the Jenkins pipeline"
+        assert upload_env["DD_GIT_BRANCH"] == "main", "Expected: git metadata env vars reach datadog-ci"
+        assert upload_env["DD_GIT_COMMIT_SHA"] == "abc123", "Expected: git metadata env vars reach datadog-ci"
+        assert uploaded["cwd"] == tests_dir, (
+            f"Expected: datadog-ci runs with cwd=tests_dir (same checkout as the git env), got {uploaded['cwd']!r}"
+        )
+
+    def test_owner_derived_from_git_when_not_overridden(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Verify the owner tag defaults to the tests checkout's git identity."""
+        tests_dir, batch_path = write_minimal_batch(tmp_path=tmp_path)
+        monkeypatch.setattr(
+            target=reporter_module,
+            name="_get_git_user_email",
+            value=lambda tests_dir: "git-derived@redhat.com",
+        )
+        result = CliRunner().invoke(
+            cli=main,
+            args=[
+                "--tests-dir",
+                str(tests_dir),
+                "--batch-file",
+                str(batch_path),
+                "--dry-run",
+            ],
+        )
+
+        assert result.exit_code == 0, result.output
+        assert "Derived owner from git: git-derived@redhat.com" in result.output, (
+            "Expected: git identity becomes the owner attribute"
+        )
+
+    def test_replay_drops_saved_owner_for_current_uploader(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Verify a replay tags the current uploader, not the saved one."""
+        tests_dir, batch_path = write_minimal_batch(tmp_path=tmp_path)
+        batch_path.write_text(
+            data=(
+                "metadata:\n"
+                "  attributes:\n"
+                "    - key: team\n"
+                "      value: NETWORK\n"
+                "    - key: owner\n"
+                "      value: original-runner@redhat.com\n"
+                "results:\n"
+                "  - test: tests/network/test_manual_minimal.py::test_minimal\n"
+                "    status: passed\n"
+            ),
+            encoding="utf-8",
+        )
+        result = CliRunner().invoke(
+            cli=main,
+            args=[
+                "--tests-dir",
+                str(tests_dir),
+                "--batch-file",
+                str(batch_path),
+                "--owner",
+                "replayer@redhat.com",
+                "--dry-run",
+            ],
+        )
+
+        assert result.exit_code == 0, result.output
+        assert "Dropping saved owner original-runner@redhat.com" in result.output, (
+            "Expected: saved owner reported as dropped"
+        )
+        assert "owner = replayer@redhat.com" in result.output, "Expected: the current uploader's owner stands"
+
+    def test_get_git_user_email_reads_tests_checkout(self, tmp_path: Path) -> None:
+        """Verify the git identity is read from the scanned tests directory."""
+        with patch(
+            target="scripts.manual_tests_reporter.manual_tests_reporter.run_command",
+            return_value=(True, "tester@redhat.com\n", ""),
+        ) as mock_run:
+            email = reporter_module._get_git_user_email(tests_dir=tmp_path)
+
+        assert email == "tester@redhat.com", f"Expected the git e-mail, got {email!r}"
+        assert mock_run.call_args_list[0].kwargs["command"][:4] == ["git", "-C", str(tmp_path), "config"], (
+            "Expected: git runs against the tests directory"
+        )
+
+    def test_get_git_user_email_unavailable_returns_none(self, tmp_path: Path) -> None:
+        """Verify a missing git identity returns None instead of raising."""
+        with patch(
+            target="scripts.manual_tests_reporter.manual_tests_reporter.run_command",
+            return_value=(False, "", "not a git repository"),
+        ):
+            email = reporter_module._get_git_user_email(tests_dir=tmp_path)
+
+        assert email is None, "Expected: unavailable git identity yields None"
+
+    def test_get_git_env_collects_repository_metadata(self, tmp_path: Path) -> None:
+        """Verify DD_GIT_* env vars are derived from the tests checkout."""
+        git_values = iter([
+            (True, "https://github.com/RedHatQE/openshift-virtualization-tests\n", ""),
+            (True, "abc123def\n", ""),
+            (True, "main\n", ""),
+        ])
+        with patch(
+            target="scripts.manual_tests_reporter.manual_tests_reporter.run_command",
+            side_effect=lambda **_kwargs: next(git_values),
+        ):
+            git_env = reporter_module._get_git_env(tests_dir=tmp_path)
+
+        assert git_env == {
+            "DD_GIT_REPOSITORY_URL": "https://github.com/RedHatQE/openshift-virtualization-tests",
+            "DD_GIT_COMMIT_SHA": "abc123def",
+            "DD_GIT_BRANCH": "main",
+        }, f"Expected git metadata env vars, got {git_env!r}"
+
+    def test_get_git_env_strips_embedded_credentials(self, tmp_path: Path) -> None:
+        """Verify a credential-carrying remote URL is sanitized before upload.
+
+        Token-style clones (https://oauth2:TOKEN@github.com/...) must never
+        ship their secret to Datadog as the git repository URL facet.
+        """
+        git_values = iter([
+            (True, "https://oauth2:secret-token@github.com/RedHatQE/openshift-virtualization-tests\n", ""),
+            (True, "abc123def\n", ""),
+            (True, "main\n", ""),
+        ])
+        with patch(
+            target="scripts.manual_tests_reporter.manual_tests_reporter.run_command",
+            side_effect=lambda **_kwargs: next(git_values),
+        ):
+            git_env = reporter_module._get_git_env(tests_dir=tmp_path)
+
+        assert git_env["DD_GIT_REPOSITORY_URL"] == ("https://github.com/RedHatQE/openshift-virtualization-tests"), (
+            f"Expected credentials stripped, got {git_env['DD_GIT_REPOSITORY_URL']!r}"
+        )
+
+    def test_get_git_env_keeps_clean_remote_url(self, tmp_path: Path) -> None:
+        """Verify a credential-free remote URL passes through unchanged."""
+        git_values = iter([
+            (True, "https://github.com/RedHatQE/openshift-virtualization-tests\n", ""),
+            (True, "abc123def\n", ""),
+            (True, "main\n", ""),
+        ])
+        with patch(
+            target="scripts.manual_tests_reporter.manual_tests_reporter.run_command",
+            side_effect=lambda **_kwargs: next(git_values),
+        ):
+            git_env = reporter_module._get_git_env(tests_dir=tmp_path)
+
+        assert git_env["DD_GIT_REPOSITORY_URL"] == ("https://github.com/RedHatQE/openshift-virtualization-tests"), (
+            "Expected the clean URL to pass through verbatim"
+        )
+
+    def test_get_git_env_not_a_repository_returns_empty(self, tmp_path: Path) -> None:
+        """Verify a non-git directory uploads without git facets instead of failing."""
+        with patch(
+            target="scripts.manual_tests_reporter.manual_tests_reporter.run_command",
+            return_value=(False, "", "fatal: not a git repository"),
+        ):
+            git_env = reporter_module._get_git_env(tests_dir=tmp_path)
+
+        assert git_env == {}, "Expected: no git metadata yields an empty env dict"

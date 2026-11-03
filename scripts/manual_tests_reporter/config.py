@@ -133,21 +133,24 @@ except RuntimeError:
 # generated drift-guard tests exercise both the fresh-run and replay CLI
 # wiring, so a new attribute cannot be accepted-but-ignored.
 CONFIG_KEY_TO_ATTRIBUTE_KEY = {
-    "tier": "TIER",
-    "bundle": "BUNDLE",
-    "cnv-version": "CNV_XY_VER",
-    "ocp-version": "OCP",
-    "cluster-name": "CLUSTER_NAME",
-    "cluster-domain": "CLUSTER_DOMAIN",
-    "sc": "SC",
-    "channel": "CHANNEL",
+    "tier": "tier",
+    "cnv-version": "cnv_xy_version",
+    "owner": "owner",
+    "cluster-id": "cluster_id",
+    "ocp-version": "ocp_version",
+    "cluster-name": "cluster",
+    "cluster-domain": "cluster_domain",
+    "sc": "storage_class",
+    "channel": "cnv_channel",
 }
 
 # Config keys that set run attributes.
 ATTRIBUTE_CONFIG_KEYS = frozenset(CONFIG_KEY_TO_ATTRIBUTE_KEY)
 
-# Non-attribute config keys.
-_NON_ATTRIBUTE_CONFIG_KEYS = frozenset({"tests-dir", "service"})
+# Non-attribute config keys: bundle feeds CNV-version derivation instead of
+# emitting its own tag (the Jenkins tag set has cnv_version/cnv_xy_version,
+# no bundle).
+_NON_ATTRIBUTE_CONFIG_KEYS = frozenset({"tests-dir", "service", "bundle"})
 
 # All accepted config keys.
 _ACCEPTED_CONFIG_KEYS = ATTRIBUTE_CONFIG_KEYS | _NON_ATTRIBUTE_CONFIG_KEYS
