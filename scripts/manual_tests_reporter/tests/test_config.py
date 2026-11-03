@@ -64,7 +64,7 @@ class TestLoadConfigExplicitPath:
     def test_removed_arch_key_rejected_with_removal_hint(self, tmp_path: Path) -> None:
         """Verify a legacy 'arch' key fails with an actionable removal hint.
 
-        The 'arch' run attribute is no longer uploaded; users carrying an
+        The arch run attribute is no longer uploaded; users carrying an
         'arch' config line must be told to delete it rather than seeing a
         generic unknown-key error.
         """

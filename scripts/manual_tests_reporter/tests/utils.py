@@ -43,7 +43,9 @@ def capture_uploaded_xml(uploaded_xml: list[str]) -> Callable[..., None]:
         A side-effect callable for patching ``upload_junit_report``.
     """
 
-    def record_upload(xml_path: Path, service: str, tags: list[str]) -> None:
+    def record_upload(
+        xml_path: Path, service: str, tags: list[str], env: dict[str, str] | None = None, cwd: Path | None = None
+    ) -> None:
         uploaded_xml.append(xml_path.read_text(encoding="utf-8"))
 
     return record_upload
@@ -88,7 +90,7 @@ def required_attr_args(tests_dir: Path) -> list[str]:
 
     Returns:
         Flag list with ``--tests-dir`` and all required attribute
-        overrides for an upload-ready (non-dry-run) run. TEAM is derived
+        overrides for an upload-ready (non-dry-run) run. The team is derived
         from the tests directory, not passed as a flag.
     """
     args = [
@@ -102,6 +104,8 @@ def required_attr_args(tests_dir: Path) -> list[str]:
         "4.22.0",
         "--cnv-version",
         "4.22",
+        "--owner",
+        "tester@redhat.com",
         "--cluster-name",
         "bm15a",
         "--cluster-domain",

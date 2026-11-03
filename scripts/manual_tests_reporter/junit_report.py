@@ -11,6 +11,7 @@ testcase intentionally reports ``time="0"``.
 
 from __future__ import annotations
 
+import os
 import re
 import subprocess
 from dataclasses import dataclass
@@ -26,6 +27,12 @@ LOGGER = get_logger(name=__name__)
 
 # Characters illegal in XML 1.0 (control chars other than tab/newline/CR)
 _ILLEGAL_XML_CHARS = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f]")
+
+# Datadog tag keys/values allow alphanumerics and _ . : / @ + -; anything
+# else (spaces, quotes, backslashes...) makes datadog-ci reject or mangle
+# the tag. The Jenkins upload pipeline sanitizes its tag values the same
+# way (replacing illegal characters with underscores).
+_ILLEGAL_TAG_CHARS = re.compile(r"[^A-Za-z0-9_.:/@+\-]")
 
 # Verdict status type for a manual test result — single source of truth
 Status = Literal["PASSED", "FAILED", "SKIPPED"]
@@ -84,6 +91,26 @@ def _sanitize_xml_text(text: str) -> str:
     return _ILLEGAL_XML_CHARS.sub(repl="", string=text)
 
 
+def _sanitize_tag_text(text: str) -> str:
+    """Sanitize a value destined for a Datadog tag or a tag-shaped property.
+
+    Both upload channels emit the same Datadog-legal text: the ``--tags``
+    flags (``attributes_to_tags``) and the per-testcase ``<property>``
+    elements, which mirror the run's tag values (Datadog only ingests
+    ``dd_tags[...]``-named properties as tags; plain-named ones still ship
+    in the XML, so they are kept consistent with the tag channel). XML-
+    illegal control characters are removed first, then characters Datadog
+    forbids in tags become ``_``.
+
+    Args:
+        text: User-supplied property name or value.
+
+    Returns:
+        The sanitized, tag-legal text.
+    """
+    return _ILLEGAL_TAG_CHARS.sub(repl="_", string=_ILLEGAL_XML_CHARS.sub(repl="", string=text))
+
+
 def _node_id_to_classname_and_name(node_id: str) -> tuple[str, str]:
     """Split a pytest node ID into JUnit classname and name.
 
@@ -105,13 +132,20 @@ def _node_id_to_classname_and_name(node_id: str) -> tuple[str, str]:
 def attributes_to_tags(attributes: list[dict[str, str]]) -> list[str]:
     """Convert run attributes to Datadog tag strings.
 
+    Keys are lowercased; keys and values run through the same sanitization
+    pipeline as the XML property path (``_sanitize_tag_text``) so both
+    channels emit identical, Datadog-legal tag values.
+
     Args:
         attributes: List of ``{"key": ..., "value": ...}`` run attributes.
 
     Returns:
-        List of ``key:value`` tag strings with lowercase keys.
+        List of ``key:value`` tag strings with sanitized keys and values.
     """
-    return [f"{attr['key'].lower()}:{attr['value']}" for attr in attributes]
+    return [
+        f"{_sanitize_tag_text(text=attr['key'].lower())}:{_sanitize_tag_text(text=attr['value'])}"
+        for attr in attributes
+    ]
 
 
 def build_junit_xml(
@@ -174,8 +208,8 @@ def build_junit_xml(
                 properties,
                 "property",
                 attrib={
-                    "name": _sanitize_xml_text(text=attr["key"].lower()),
-                    "value": _sanitize_xml_text(text=attr["value"]),
+                    "name": _sanitize_tag_text(text=attr["key"].lower()),
+                    "value": _sanitize_tag_text(text=attr["value"]),
                 },
             )
         polarion_id = polarion_lookup.get(result.test)
@@ -224,7 +258,13 @@ def write_junit_report(xml_path: Path, xml_content: str) -> None:
     LOGGER.info(f"Wrote JUnit report to {xml_path}")
 
 
-def upload_junit_report(xml_path: Path, service: str, tags: list[str]) -> None:
+def upload_junit_report(
+    xml_path: Path,
+    service: str,
+    tags: list[str],
+    env: dict[str, str] | None = None,
+    cwd: Path | None = None,
+) -> None:
     """Upload a JUnit XML report to Datadog Test Visibility.
 
     Runs ``datadog-ci junit upload`` which requires the
@@ -232,9 +272,18 @@ def upload_junit_report(xml_path: Path, service: str, tags: list[str]) -> None:
     set; ``DATADOG_SITE`` (or ``DD_SITE``) selects a non-US site.
 
     Args:
-        xml_path: Path to the JUnit XML report file.
+        xml_path: Path to the JUnit XML report file (absolute — the child
+            process may run from a different working directory).
         service: Datadog service name for the uploaded results.
         tags: Run-level tags as ``key:value`` strings.
+        env: Extra environment variables for the datadog-ci child process
+            (e.g. ``DD_ENV`` and the ``DD_GIT_*`` git-metadata vars);
+            merged over the current environment.
+        cwd: Working directory for the child process. Pass the scanned
+            tests directory so datadog-ci's own git detection resolves the
+            same checkout the explicit ``DD_GIT_*`` vars describe — instead
+            of attaching an unrelated repository's git facets when the
+            tests directory is not a git checkout.
 
     Raises:
         DatadogUploadError: If the upload command fails.
@@ -246,6 +295,8 @@ def upload_junit_report(xml_path: Path, service: str, tags: list[str]) -> None:
         command.extend(["--tags", tag])
     command.append(str(xml_path))
 
+    child_env = {**os.environ, **(env or {})}
+
     LOGGER.info(f"Uploading {xml_path} to Datadog (service: {service})")
     try:
         # 300s: large reports on a slow link can take minutes; datadog-ci has
@@ -256,6 +307,8 @@ def upload_junit_report(xml_path: Path, service: str, tags: list[str]) -> None:
             verify_stderr=False,
             capture_output=True,
             timeout=300,
+            env=child_env,
+            cwd=cwd,
         )
     except (OSError, subprocess.SubprocessError) as exc:
         # OSError covers a missing datadog-ci binary (FileNotFoundError) and

@@ -20,11 +20,13 @@ from dataclasses import asdict
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlsplit
 
 import click
 import yaml
 from kubernetes.client.exceptions import ApiException
 from kubernetes.config import ConfigException
+from pyhelper_utils.shell import run_command
 from simple_logger.logger import get_logger
 from urllib3.exceptions import HTTPError
 from yaml import YAMLError
@@ -49,7 +51,7 @@ from scripts.manual_tests_reporter.junit_report import (
     upload_junit_report,
     write_junit_report,
 )
-from scripts.manual_tests_reporter.versions import cnv_xy_version_from_version_string
+from scripts.manual_tests_reporter.versions import cnv_versions_from_version_string
 from utilities.exceptions import UnsupportedCPUArchitectureError
 
 # The cluster_info import transitively pulls the utilities.* chain, which
@@ -84,10 +86,28 @@ _DEFECT_TYPES: dict[str, str] = {
     "5": "No Defect",
 }
 
-_DEFAULT_SERVICE = "cnv-manual-tests"
+# Service used by the Jenkins datadog-upload-results pipeline; manual runs
+# upload under the SAME service so both run types appear together in
+# Datadog CI Visibility. The manual attribute (manual:true tag) is the only
+# intentional difference between a manual and a Jenkins run.
+_DEFAULT_SERVICE = "cnv-qe-tests"
 
-# Tests-directory folder (directly under ``tests/``) → Datadog TEAM attribute.
-# TEAM is derived from the scanned directory, never hand-specified: the
+# Suite name used by Jenkins uploads (datadog-ci derives @test.full_name from
+# the suite name); manual reports reuse it so the same test node ID resolves
+# to the same Datadog test, instead of creating a parallel "Manual - X"
+# test universe.
+_DEFAULT_SUITE_NAME = "pytest"
+
+# XML file name used by Jenkins uploads (**/xunit_results.xml filter); reusing
+# it aligns the @test.module / @test.bundle facets too.
+_JUNIT_FILE_NAME = "xunit_results.xml"
+
+# Environment for the datadog-ci child process, mirroring the Jenkins upload
+# pipeline (DatadogConfig.ENV).
+_DATADOG_ENV = "production"
+
+# Tests-directory folder (directly under ``tests/``) → Datadog ``team`` tag.
+# The team is derived from the scanned directory, never hand-specified: the
 # ``--team`` flag was dropped because the tests directory is the single
 # source of truth — a hand-specified team could contradict the folder that
 # produced the run.
@@ -117,6 +137,45 @@ _FOLDER_TO_TEAM = {
 }
 
 
+def _warn_cnv_version_contradiction(full_version: str, xy_version: str, source: str) -> None:
+    """Warn when a full and an X.Y CNV version describe different releases.
+
+    Args:
+        full_version: Full CNV version (e.g. ``4.22.0``).
+        xy_version: X.Y CNV version (e.g. ``4.21``).
+        source: Where the values came from, for the warning message.
+    """
+    _full_version_xy, derived_xy = cnv_versions_from_version_string(version_string=full_version)
+    if derived_xy is not None and derived_xy != xy_version:
+        message = f"{source} {xy_version} conflicts with cnv_version {full_version} - both are uploaded as given"
+        LOGGER.warning(message)
+        # The logger may be routed away from the terminal; mirror the
+        # established dual-channel pattern so the tester sees it too.
+        click.echo(message=f"Warning: {message}", err=True)
+
+
+def _normalize_tier_value(tier: str) -> str:
+    """Normalize a tier label to the bare tier number Jenkins tags.
+
+    Args:
+        tier: Tier label in any accepted spelling (``2``, ``TIER-2``,
+            ``tier2``, ``tier 2``).
+
+    Returns:
+        The bare tier number (e.g. ``2``).
+
+    Raises:
+        click.ClickException: When the spelling does not collapse to a bare
+            number — a mangled value would fragment the tier facet.
+    """
+    normalized = tier.strip().lower().removeprefix("tier").strip().lstrip("-_").strip()
+    # isascii: str.isdigit accepts non-ASCII digits (e.g. ``٢``) that
+    # Jenkins never tags — they would fragment the tier facet.
+    if not (normalized.isascii() and normalized.isdigit()):
+        raise click.ClickException(f"Unsupported tier spelling: {tier!r} - expected e.g. 2, TIER-2, tier2")
+    return normalized
+
+
 def _build_run_attributes(
     team: str | None = None,
     bundle: str | None = None,
@@ -124,28 +183,43 @@ def _build_run_attributes(
     ocp_version: str | None = None,
     cluster_name: str | None = None,
     cluster_domain: str | None = None,
+    cluster_id: str | None = None,
     storage_class: str | None = None,
     channel: str | None = None,
     tier: str | None = None,
+    owner: str | None = None,
+    marker: str | None = None,
+    test_case_name: str | None = None,
     cluster_attrs: list[dict[str, str]] | None = None,
 ) -> list[dict[str, str]]:
     """Build run attribute list from CLI args and optional cluster attributes.
 
+    Attribute keys mirror the tag names the Jenkins ``datadog-upload-results``
+    pipeline emits for CI runs (``team``, ``tier``, ``cnv_xy_version``,
+    ``cnv_version``, ``ocp_version``, ``cluster``, ``cluster_domain``,
+    ``cluster_id``, ``storage_class``, ``cnv_channel``, ``owner``,
+    ``test_case_name``, ``marker``), so a manual run is tagged exactly like a
+    Jenkins run — with ``manual`` as the only intentional difference.
+
     Cluster-derived attributes serve as defaults; explicit CLI values
-    override them.  ``MANUAL`` is always present; ``TEAM`` is present when
+    override them.  ``manual`` is always present; ``team`` is present when
     derived from the tests directory, or restored from a replayed run's
     saved attributes.
 
     Args:
         team: Team name (e.g. ``NETWORK``).
-        bundle: Bundle version string.
+        bundle: Bundle version string (derives ``cnv_version``/``cnv_xy_version``).
         cnv_version: CNV X.Y version override.
         ocp_version: OCP version override.
         cluster_name: Cluster name override.
         cluster_domain: Cluster domain override.
+        cluster_id: Cluster ID override (e.g. ``CLUSTER_NAME-HASH``).
         storage_class: Storage-class label override.
         channel: Channel override.
-        tier: Tier label (e.g. ``TIER-2``).
+        tier: Tier label (e.g. ``TIER-2`` or ``2``); stored as the bare number.
+        owner: Uploader identity (git e-mail or override).
+        marker: Pytest marker expression used to filter the run.
+        test_case_name: Run label (e.g. ``manual.network``).
         cluster_attrs: Attributes auto-populated from ``--from-cluster``.
 
     Returns:
@@ -159,45 +233,193 @@ def _build_run_attributes(
 
     # Map explicit CLI overrides to their attribute keys
     overrides: dict[str, str | None] = {
-        "BUNDLE": bundle,
-        "CNV_XY_VER": cnv_version,
-        "OCP": ocp_version,
-        "CLUSTER_NAME": cluster_name,
-        "CLUSTER_DOMAIN": cluster_domain,
-        "SC": storage_class,
-        "CHANNEL": channel,
+        "cnv_xy_version": cnv_version,
+        "ocp_version": ocp_version,
+        "cluster": cluster_name,
+        "cluster_domain": cluster_domain,
+        "cluster_id": cluster_id,
+        "storage_class": storage_class,
+        "cnv_channel": channel,
+        "owner": owner,
+        "marker": marker,
+        "test_case_name": test_case_name,
     }
 
     for key, value in overrides.items():
         if value is not None:
             attrs_by_key[key] = value
 
-    # Auto-derive CNV_XY_VER from BUNDLE
-    # Explicit --cnv-version always wins (never silently discarded).
-    # An explicit --bundle overrides cluster-derived CNV_XY_VER; a cluster-derived
-    # bundle only fills CNV_XY_VER when it is missing.
-    if cnv_version is None and "BUNDLE" in attrs_by_key and (bundle is not None or "CNV_XY_VER" not in attrs_by_key):
-        derived_xy = cnv_xy_version_from_version_string(version_string=attrs_by_key["BUNDLE"])
+    # Auto-derive CNV versions from the bundle. Explicit --cnv-version always
+    # wins (never silently discarded). An explicit --bundle overrides
+    # cluster-derived versions; a cluster-derived set only fills gaps.
+    if bundle is not None:
+        derived_cnv_version, derived_cnv_xy_version = cnv_versions_from_version_string(version_string=bundle)
+        if derived_cnv_version is not None:
+            attrs_by_key["cnv_version"] = derived_cnv_version
+        if cnv_version is None and derived_cnv_xy_version is not None:
+            attrs_by_key["cnv_xy_version"] = derived_cnv_xy_version
+    elif cnv_version is None and "cnv_version" in attrs_by_key and "cnv_xy_version" not in attrs_by_key:
+        _derived_full, derived_xy = cnv_versions_from_version_string(version_string=attrs_by_key["cnv_version"])
         if derived_xy is not None:
-            attrs_by_key["CNV_XY_VER"] = derived_xy
+            attrs_by_key["cnv_xy_version"] = derived_xy
+
+    # Final consistency check: however the pair was assembled (explicit CLI
+    # values, cluster derivation, replayed attributes, bundle gap-fill),
+    # mutually inconsistent CNV version facets are surfaced instead of
+    # silently uploaded.
+    if "cnv_version" in attrs_by_key and "cnv_xy_version" in attrs_by_key:
+        _warn_cnv_version_contradiction(
+            full_version=attrs_by_key["cnv_version"],
+            xy_version=attrs_by_key["cnv_xy_version"],
+            source="cnv_xy_version",
+        )
 
     # Mandatory attributes
     # Run-type tag (Datadog: manual:true), mirroring the always-emitted
     # MANUAL attribute of the previous ReportPortal manual reporter.
-    attrs_by_key["MANUAL"] = "true"
+    attrs_by_key["manual"] = "true"
 
     if team:
         # Preserved verbatim: a derived team is already upper-case (every
         # _FOLDER_TO_TEAM value is), while a replayed run must reproduce its
-        # recorded TEAM attribute exactly — re-casing here would make the
+        # recorded team attribute exactly — re-casing here would make the
         # "Using team from restored attributes" echo disagree with the
-        # uploaded tag. The suite-name label normalizes for display instead.
-        attrs_by_key["TEAM"] = team
+        # uploaded tag.
+        attrs_by_key["team"] = team
 
     if tier is not None:
-        attrs_by_key["TIER"] = tier.upper()
+        # Jenkins tags the bare tier number (e.g. ``2``); accept ``2``,
+        # ``TIER-2`` and the hyphen-less ``tier2`` spellings.
+        attrs_by_key["tier"] = _normalize_tier_value(tier=tier)
 
     return [{"key": key, "value": value} for key, value in attrs_by_key.items()]
+
+
+def _git_query_output(tests_dir: Path, git_args: list[str]) -> str | None:
+    """Run a git query in the tests checkout and return its stripped stdout.
+
+    Args:
+        tests_dir: The scanned tests directory (a git checkout).
+        git_args: Git arguments after the ``-C <tests_dir>`` prefix.
+
+    Returns:
+        The stripped stdout, or None when the query failed or printed
+        nothing (e.g. the directory is not a git checkout).
+    """
+    try:
+        success, stdout, _ = run_command(
+            command=["git", "-C", str(tests_dir), *git_args],
+            check=False,
+            verify_stderr=False,
+            capture_output=True,
+            log_errors=False,
+        )
+    except OSError:
+        # A host without git on PATH degrades like a non-git checkout —
+        # the callers' single warning covers it (per-query ERROR noise off).
+        return None
+    stripped_output = stdout.strip()
+    return stripped_output if success and stripped_output else None
+
+
+def _get_git_user_email(tests_dir: Path) -> str | None:
+    """Read the uploader's git e-mail from the scanned tests checkout.
+
+    Jenkins tags every uploaded run with ``owner``; for manual runs the
+    uploader is the tester running this tool, so the git identity of the
+    scanned checkout is the equivalent.
+
+    Args:
+        tests_dir: The scanned tests directory (a git checkout).
+
+    Returns:
+        The configured ``user.email``, or None when unavailable.
+    """
+    return _git_query_output(tests_dir=tests_dir, git_args=["config", "user.email"])
+
+
+def _strip_url_credentials(repository_url: str) -> str | None:
+    """Remove embedded credentials from a git remote URL.
+
+    Token-style clones (e.g. ``https://oauth2:TOKEN@github.com/...``) must
+    never ship their secret to Datadog as the ``git.repository_url`` facet.
+    The conventional SSH user (``ssh://git@host/org/repo.git`` — ``git`` is
+    not a secret) is kept: rewriting it would damage the repository URL
+    Datadog normalizes to link the facet. Any other username is treated as
+    a token (GitHub and Azure DevOps PATs clone as token-as-username with
+    no password) and stripped along with an embedded password.
+
+    Args:
+        repository_url: Raw remote URL, possibly with userinfo.
+
+    Returns:
+        The URL without the userinfo when a password or a non-``git``
+        username (a likely token) is embedded; otherwise the URL unchanged;
+        None when the URL cannot be parsed (a malformed IPv6 literal) — the
+        caller must then drop the facet rather than fall back to the raw
+        URL, so credentials can never leak through it.
+    """
+    try:
+        parts = urlsplit(url=repository_url)
+    except ValueError:
+        return None
+    if parts.password is None and (parts.username is None or parts.username == "git"):
+        return repository_url
+    # Keep the netloc verbatim after the userinfo (rpartition matches
+    # urlsplit's own last-@ split): a component rebuild would drop IPv6
+    # brackets and drift hostname case. Rebuilt by hand instead of
+    # urlunsplit: its components parameter is positional-only in Python
+    # 3.14, which the fcn keyword-argument rule cannot express. A URL
+    # with userinfo always carries a scheme.
+    host_and_port = parts.netloc.rpartition("@")[2]
+    stripped_url = f"{parts.scheme}://{host_and_port}{parts.path}"
+    if parts.query:
+        stripped_url = f"{stripped_url}?{parts.query}"
+    if parts.fragment:
+        stripped_url = f"{stripped_url}#{parts.fragment}"
+    return stripped_url
+
+
+def _get_git_env(tests_dir: Path) -> dict[str, str]:
+    """Build datadog-ci git-metadata env vars from the scanned checkout.
+
+    Jenkins uploads run inside the contra/cnv checkout, so datadog-ci
+    reports that repository's git facets (``@git.branch``, ``@git.commit.sha``,
+    ``@git.repository_url``). Manual runs pass the scanned tests checkout's
+    git metadata explicitly via the documented ``DD_GIT_*`` env vars — the
+    honest source for a manual run.
+
+    Args:
+        tests_dir: The scanned tests directory (a git checkout).
+
+    Returns:
+        Dict of ``DD_GIT_*`` env vars; empty when the directory is not a
+        usable git checkout (the run uploads without git facets).
+    """
+    git_queries: dict[str, list[str]] = {
+        "DD_GIT_REPOSITORY_URL": ["remote", "get-url", "origin"],
+        "DD_GIT_COMMIT_SHA": ["rev-parse", "HEAD"],
+        "DD_GIT_BRANCH": ["branch", "--show-current"],
+    }
+    git_env: dict[str, str] = {}
+    for env_key, git_args in git_queries.items():
+        value = _git_query_output(tests_dir=tests_dir, git_args=git_args)
+        if value is None:
+            continue
+        if env_key == "DD_GIT_REPOSITORY_URL":
+            sanitized_url = _strip_url_credentials(repository_url=value)
+            if sanitized_url is None:
+                # Unparseable remote: drop the facet entirely — falling back
+                # to the raw URL could leak its credentials.
+                LOGGER.warning("Dropping DD_GIT_REPOSITORY_URL: the remote URL could not be rebuilt safely")
+                continue
+            if sanitized_url != value:
+                LOGGER.warning("Stripped embedded credentials from the git remote URL before upload")
+            value = sanitized_url
+        git_env[env_key] = value
+    if not git_env:
+        LOGGER.warning(f"No git metadata available for {tests_dir} - uploading without git facets")
+    return git_env
 
 
 def _display_test_detail(test: ManualTestDetail, index: int, total: int) -> None:
@@ -358,6 +580,104 @@ def _run_interactive_mode(tests: list[ManualTestDetail]) -> tuple[list[ManualTes
     return results, skipped_count, False, False
 
 
+# Legacy retry files (saved before the Jenkins-parity tag rename) carry the
+# old upper-case attribute keys. Migrate them on load so a legacy retry
+# replays cleanly through validation and the team-restoration lookup.
+# A legacy BUNDLE entry converts to the cnv_version/cnv_xy_version it would
+# derive on a fresh run (a replay suppresses the metadata bundle, so nothing
+# else could produce them). Keys with no modern equivalent (ARCH) and
+# unknown keys stay verbatim — a replay reproduces the recorded run.
+# Modern attribute keys in their canonical form. A hand-edited key in
+# non-canonical case (``CNV_VERSION``) converges to the canonical form so
+# the duplicate check and the bundle gap-fill see the same key the CLI
+# writes; unknown keys stay verbatim.
+_MODERN_KEY_BY_LOWER = {
+    modern_key.lower(): modern_key
+    for modern_key in (
+        "team",
+        "tier",
+        "cnv_version",
+        "cnv_xy_version",
+        "ocp_version",
+        "cluster",
+        "cluster_domain",
+        "cluster_id",
+        "storage_class",
+        "cnv_channel",
+        "owner",
+        "marker",
+        "test_case_name",
+        "manual",
+    )
+}
+
+# Legacy keys whose lower-case form is already a modern key (TEAM, TIER,
+# CLUSTER_DOMAIN) converge via _MODERN_KEY_BY_LOWER in the migration
+# lookup — only keys with no modern lower-case twin need an explicit entry.
+_LEGACY_ATTRIBUTE_KEY_MAP = {
+    "CNV_XY_VER": "cnv_xy_version",
+    "OCP": "ocp_version",
+    "CLUSTER_NAME": "cluster",
+    "SC": "storage_class",
+    "CHANNEL": "cnv_channel",
+}
+
+
+def _migrate_legacy_attributes(attributes: list[dict[str, str]]) -> list[dict[str, str]]:
+    """Migrate legacy attribute entries to the Jenkins-parity key names.
+
+    Args:
+        attributes: Normalized attribute entries from a batch file.
+
+    Returns:
+        The attribute list with legacy keys renamed, a legacy BUNDLE entry
+        converted to its derived cnv_version/cnv_xy_version entries, and
+        entries without a modern equivalent left verbatim.
+    """
+    migrated = [
+        {
+            "key": _MODERN_KEY_BY_LOWER.get(
+                attr["key"].lower(),
+                _LEGACY_ATTRIBUTE_KEY_MAP.get(attr["key"].upper(), attr["key"]),
+            ),
+            "value": attr["value"],
+        }
+        for attr in attributes
+    ]
+    # A legacy TIER entry carries the old upper-cased value (``TIER-2``);
+    # normalize it so a legacy replay uploads the same bare-number tag a
+    # fresh run does. A recorded value that does not collapse to a number is
+    # kept with a warning — a replay reproduces the recorded run instead of
+    # hard-failing on data the user cannot re-create (live CLI/config input
+    # still fails fast).
+    for attr in migrated:
+        if attr["key"] == "tier":
+            try:
+                attr["value"] = _normalize_tier_value(tier=attr["value"])
+            except click.ClickException:
+                # Purpose-built message: the fail-fast remediation text does
+                # not apply here (the recorded value is uploaded as-is).
+                message = (
+                    f"Recorded tier value {attr['value']!r} is not a bare number - kept verbatim "
+                    "for the replay (live --tier input would be rejected)"
+                )
+                LOGGER.warning(message)
+                click.echo(message=f"Warning: {message}", err=True)
+    bundle_entry = next((attr for attr in migrated if attr["key"].upper() == "BUNDLE"), None)
+    if bundle_entry is not None:
+        migrated = [attr for attr in migrated if attr["key"].upper() != "BUNDLE"]
+        cnv_version, cnv_xy_version = cnv_versions_from_version_string(version_string=bundle_entry["value"])
+        migrated_keys = {attr["key"] for attr in migrated}
+        if cnv_version is not None and "cnv_version" not in migrated_keys:
+            migrated.append({"key": "cnv_version", "value": cnv_version})
+        if cnv_xy_version is not None and "cnv_xy_version" not in migrated_keys:
+            migrated.append({"key": "cnv_xy_version", "value": cnv_xy_version})
+        # A derived-versus-recorded contradiction (legacy BUNDLE vs the
+        # neighboring CNV_XY_VER, or vice versa) is surfaced by the final
+        # consistency check in _build_run_attributes once both keys exist.
+    return migrated
+
+
 def _load_batch_file(batch_path: Path) -> tuple[list[ManualTestResult], dict[str, Any]]:
     """Load test results and metadata from a batch YAML file.
 
@@ -376,7 +696,7 @@ def _load_batch_file(batch_path: Path) -> tuple[list[ManualTestResult], dict[str
     Returns:
         Tuple of (results list, metadata dict). Metadata may contain
         ``bundle`` and ``attributes`` from a previous session's saved
-        file. A ``team`` metadata key is ignored — TEAM is derived from
+        file. A ``team`` metadata key is ignored — the team is derived from
         the tests directory.
 
     Raises:
@@ -456,8 +776,8 @@ def _load_batch_file(batch_path: Path) -> tuple[list[ManualTestResult], dict[str
         if declared_team:
             LOGGER.warning(
                 f"Batch file {batch_path} declares metadata.team {declared_team!r} - it is ignored; "
-                "TEAM is derived from the tests directory (a replayed retry uses its saved TEAM "
-                "attribute; add a TEAM entry to metadata.attributes to restore one)"
+                "the team is derived from the tests directory (a replayed retry uses its saved team "
+                "attribute; add a team entry to metadata.attributes to restore one)"
             )
         raw_bundle = raw_metadata.get("bundle")
         if raw_bundle is not None:
@@ -476,7 +796,6 @@ def _load_batch_file(batch_path: Path) -> tuple[list[ManualTestResult], dict[str
                 f"Invalid attributes type in batch metadata: expected list, got {type(saved_attrs).__name__}"
             )
         if isinstance(saved_attrs, list):
-            seen_keys: set[str] = set()
             normalized_attrs: list[dict[str, str]] = []
             for attr in saved_attrs:
                 attr_key = attr.get("key") if isinstance(attr, dict) else None
@@ -494,15 +813,28 @@ def _load_batch_file(batch_path: Path) -> tuple[list[ManualTestResult], dict[str
                 assert isinstance(attr_key, str) and isinstance(attr_value, str), (
                     "validated above; keeps type-checkers honest"
                 )
-                # Attribute keys are upper-case identifiers — normalize on load
-                # so hand-edited lowercase keys reach every consumer correctly.
-                normalized_key = attr_key.strip().upper()
-                if normalized_key in seen_keys:
-                    raise click.ClickException(f"Duplicate attribute key in batch metadata: {normalized_key}")
-                seen_keys.add(normalized_key)
-                # Strip so hand-edited padding cannot reach the Datadog tags.
-                normalized_attrs.append({"key": normalized_key, "value": attr_value.strip()})
-            metadata["attributes"] = normalized_attrs
+                # Strip so hand-edited padding cannot reach the Datadog tags;
+                # the legacy migration then renames old keys to their modern
+                # equivalents (see _migrate_legacy_attributes).
+                normalized_attrs.append({"key": attr_key.strip(), "value": attr_value.strip()})
+            migrated_attrs = _migrate_legacy_attributes(attributes=normalized_attrs)
+            # Duplicate detection runs on the FINAL keys: a legacy file can
+            # carry TEAM alongside a hand-added team, colliding only after
+            # the migration renames them. The lowercased form collides too —
+            # attributes_to_tags lowercases keys, so CustomKey + customkey
+            # would upload two values under one tag name.
+            final_keys = [attr["key"] for attr in migrated_attrs]
+            duplicated_keys = {key for key in final_keys if final_keys.count(key) > 1}
+            if not duplicated_keys:
+                lowered_keys = [key.lower() for key in final_keys]
+                duplicated_keys = {
+                    original for original, lowered in zip(final_keys, lowered_keys) if lowered_keys.count(lowered) > 1
+                }
+            if duplicated_keys:
+                raise click.ClickException(
+                    f"Duplicate attribute key in batch metadata: {', '.join(sorted(duplicated_keys))}"
+                )
+            metadata["attributes"] = migrated_attrs
 
     LOGGER.info(f"Loaded {len(results)} results from batch file {batch_path}")
     return results, metadata
@@ -517,7 +849,7 @@ def _merge_batch_metadata(
 
     CLI-provided values win; batch-file metadata fills the gaps; saved
     run attributes from a retry file are restored only when no cluster
-    attributes were resolved. TEAM is never taken from metadata — it is
+    attributes were resolved. The team is never taken from metadata — it is
     derived from the tests directory (or restored with the saved run).
 
     Args:
@@ -533,8 +865,8 @@ def _merge_batch_metadata(
     saved_attrs = batch_metadata.get("attributes")
     restored = False
     if isinstance(saved_attrs, list) and saved_attrs and not cluster_attrs:
-        # Copy on restore: later appends (missing BUNDLE fill, config bundle
-        # gap-fill) must not mutate the parsed batch-file metadata.
+        # Copy on restore: later mutations must not affect the parsed
+        # batch-file metadata.
         cluster_attrs = [dict(attr) for attr in saved_attrs]
         restored = True
         click.echo(message=f"Restored {len(saved_attrs)} attributes from batch file.")
@@ -546,14 +878,26 @@ def _merge_batch_metadata(
     batch_bundle = batch_metadata.get("bundle")
     if batch_bundle and not bundle:
         if restored:
-            # Saved attributes carry the recorded run; do NOT promote the metadata
-            # bundle to an explicit override — that would re-derive CNV_XY_VER and
-            # discard the saved value. Fill BUNDLE only when the saved list lacks it
-            # (e.g. a hand-written batch file with only TEAM).
+            # A real retry file carries its recorded cnv versions, so the
+            # metadata bundle is not re-applied (the recorded run stands).
+            # Gap-fill only: a hand-written batch with a partial saved list
+            # derives any CNV version it lacks from the bundle instead of
+            # failing validation — recorded values are never overridden.
             assert cluster_attrs is not None, "Restored attributes must be a list when restored is set"
-            if not any(attr["key"] == "BUNDLE" for attr in cluster_attrs):
-                cluster_attrs.append({"key": "BUNDLE", "value": batch_bundle})
-                click.echo(message=f"Filled missing BUNDLE attribute from batch file: {batch_bundle}")
+            saved_keys = {attr["key"] for attr in cluster_attrs}
+            if "cnv_version" not in saved_keys or "cnv_xy_version" not in saved_keys:
+                derived_cnv_version, derived_cnv_xy_version = cnv_versions_from_version_string(
+                    version_string=batch_bundle
+                )
+                gap_filled_keys = []
+                if "cnv_version" not in saved_keys and derived_cnv_version is not None:
+                    cluster_attrs.append({"key": "cnv_version", "value": derived_cnv_version})
+                    gap_filled_keys.append("cnv_version")
+                if "cnv_xy_version" not in saved_keys and derived_cnv_xy_version is not None:
+                    cluster_attrs.append({"key": "cnv_xy_version", "value": derived_cnv_xy_version})
+                    gap_filled_keys.append("cnv_xy_version")
+                if gap_filled_keys:
+                    click.echo(message=f"Derived {', '.join(gap_filled_keys)} from batch file bundle: {batch_bundle}")
         else:
             bundle = batch_bundle
             click.echo(message=f"Using bundle from batch file: {bundle}")
@@ -575,7 +919,7 @@ def _save_results_for_retry(
     Args:
         results: List of ``ManualTestResult`` objects to save.
         bundle: Bundle version.
-        attributes: Run attributes to preserve for retry. The TEAM
+        attributes: Run attributes to preserve for retry. The team
             attribute, when present, preserves the team for the retry.
 
     Returns:
@@ -612,8 +956,13 @@ def _save_results_for_retry(
     epilog="Collects manual test results for @pytest.mark.manual tests and "
     "uploads them to Datadog Test Optimization via `datadog-ci junit upload`.",
 )
-@click.option("--bundle", type=str, default=None, help="Bundle version prefix (e.g., v4.22.0.rhel9-102)")
-@click.option("--tier", type=str, default=None, help="Tier label (e.g., TIER-2)")
+@click.option(
+    "--bundle",
+    type=str,
+    default=None,
+    help="Bundle version prefix (e.g., v4.22.0.rhel9-102); derives the CNV version tags",
+)
+@click.option("--tier", type=str, default=None, help="Tier number (e.g., 2 or tier-2)")
 @click.option(
     "--tests-dir",
     type=click.Path(exists=True, path_type=Path),
@@ -632,6 +981,19 @@ def _save_results_for_retry(
 @click.option("--cnv-version", type=str, default=None, help="Override CNV X.Y version")
 @click.option("--cluster-name", type=str, default=None, help="Override cluster name")
 @click.option("--cluster-domain", type=str, default=None, help="Override cluster domain")
+@click.option(
+    "--cluster-id",
+    type=str,
+    default=None,
+    help="Cluster ID (CLUSTER_NAME-HASH, e.g. infd-vrf-412t0-n47k6); with --from-cluster it is "
+    "derived from the cluster's node names",
+)
+@click.option(
+    "--owner",
+    type=str,
+    default=None,
+    help="Uploader e-mail for the owner tag; defaults to the git user.email of the tests checkout",
+)
 @click.option("--sc", "storage_class", type=str, default=None, help="Override storage class label")
 @click.option("--channel", type=str, default=None, help="Override channel")
 @click.option(
@@ -666,6 +1028,8 @@ def main(
     cnv_version: str | None,
     cluster_name: str | None,
     cluster_domain: str | None,
+    cluster_id: str | None,
+    owner: str | None,
     storage_class: str | None,
     channel: str | None,
     service: str | None,
@@ -711,7 +1075,7 @@ def main(
 
     # Team inference from the tests directory runs LAST (step 2c, after
     # batch metadata and config defaults) so it cannot outrank explicit
-    # sources — and never runs for a replayed retry, whose saved TEAM stands.
+    # sources — and never runs for a replayed retry, whose saved team stands.
 
     # ── 1. Resolve cluster attributes ──
     cluster_attrs: list[dict[str, str]] | None = None
@@ -755,10 +1119,16 @@ def main(
             cluster_attrs=cluster_attrs,
         )
         if replaying_saved_run and cluster_attrs:
-            # A replay reproduces the recorded run: keep its TEAM, if any.
-            team = next((attr["value"] for attr in cluster_attrs if attr["key"] == "TEAM"), None)
+            # A replay reproduces the recorded run: keep its team, if any.
+            # owner is the one exception — it always reflects the user
+            # pushing THIS run, so a saved owner never survives a replay.
+            team = next((attr["value"] for attr in cluster_attrs if attr["key"] == "team"), None)
             if team:
                 click.echo(message=f"Using team from restored attributes: {team}")
+            saved_owner = next((attr["value"] for attr in cluster_attrs if attr["key"] == "owner"), None)
+            if saved_owner:
+                cluster_attrs = [attr for attr in cluster_attrs if attr["key"] != "owner"]
+                click.echo(message=f"Dropping saved owner {saved_owner} - the current uploader is tagged instead.")
         # Re-collect manual tests to rebuild the node_id → Polarion ID
         # lookup so retried reports keep their Polarion linkage.
         collected_tests = collect_manual_tests(
@@ -797,10 +1167,9 @@ def main(
     # ── 2b. Apply config-file defaults for still-unset run attributes ──
     # On a replayed retry the saved attributes stand; config defaults only
     # fill gaps the saved list leaves (e.g. a hand-written batch with only
-    # TEAM), so a partial saved list does not disable the whole config.
-    # Bundle is special: filling it as an explicit override would re-derive
-    # CNV_XY_VER and discard a saved value, so on a replay it is appended to
-    # the restored attributes (mirroring the batch-metadata fill) instead.
+    # team), so a partial saved list does not disable the whole config.
+    # The config bundle is never applied on a replay: deriving versions
+    # from it would discard the saved, recorded values.
     if replaying_saved_run:
         assert cluster_attrs is not None, "replay requires saved cluster attributes"
         saved_attr_keys = {attr["key"] for attr in cluster_attrs}
@@ -814,8 +1183,6 @@ def main(
                 message=f"Note: config defaults for {', '.join(skipped_config_keys)} are ignored — "
                 "a higher-precedence source supplies those run attributes."
             )
-        if "BUNDLE" not in saved_attr_keys and "bundle" in config:
-            cluster_attrs.append({"key": "BUNDLE", "value": config["bundle"]})
 
         def _replay_config_default(cli_value: str | None, config_key: str) -> str | None:
             """Fill from config only when the saved attributes lack the key."""
@@ -828,6 +1195,8 @@ def main(
         ocp_version = _replay_config_default(cli_value=ocp_version, config_key="ocp-version")
         cluster_name = _replay_config_default(cli_value=cluster_name, config_key="cluster-name")
         cluster_domain = _replay_config_default(cli_value=cluster_domain, config_key="cluster-domain")
+        cluster_id = _replay_config_default(cli_value=cluster_id, config_key="cluster-id")
+        owner = _replay_config_default(cli_value=owner, config_key="owner")
         storage_class = _replay_config_default(cli_value=storage_class, config_key="sc")
         channel = _replay_config_default(cli_value=channel, config_key="channel")
     else:
@@ -837,8 +1206,17 @@ def main(
         ocp_version = _config_default(cli_value=ocp_version, config_key="ocp-version")
         cluster_name = _config_default(cli_value=cluster_name, config_key="cluster-name")
         cluster_domain = _config_default(cli_value=cluster_domain, config_key="cluster-domain")
+        cluster_id = _config_default(cli_value=cluster_id, config_key="cluster-id")
+        owner = _config_default(cli_value=owner, config_key="owner")
         storage_class = _config_default(cli_value=storage_class, config_key="sc")
         channel = _config_default(cli_value=channel, config_key="channel")
+
+    # Owner always reflects the user pushing THIS run: CLI/config override,
+    # else the git identity of the scanned checkout.
+    if owner is None:
+        owner = _get_git_user_email(tests_dir=tests_dir)
+        if owner:
+            click.echo(message=f"Derived owner from git: {owner}")
 
     # ── 2c. Derive team from the scanned tests directory ──
     if not team and not replaying_saved_run:
@@ -864,13 +1242,20 @@ def main(
                 click.echo(message=f"Derived team: {team} (from {tests_dir})")
                 break
         else:
-            LOGGER.warning(f"Tests directory {tests_dir} maps to no team - TEAM attribute will be omitted")
+            LOGGER.warning(f"Tests directory {tests_dir} maps to no team - team attribute will be omitted")
             click.echo(
                 message=f"Warning: {tests_dir} maps to no team - the run will not be team-filterable.",
                 err=True,
             )
 
     # ── 3. Build run attributes ──
+    # test_case_name labels the run the way Jenkins jobs do (tier + job
+    # name); the manual analog is the scanned tests directory. A replay
+    # restores the recorded value from its saved attributes — likewise the
+    # marker tag: the CLI -m is only a live collection filter there, and the
+    # recorded marker stands so the replay cannot retag the run.
+    test_case_name = None if replaying_saved_run else f"manual.{tests_dir.resolve().name}"
+    marker_tag = None if replaying_saved_run else marker
     attributes = _build_run_attributes(
         team=team,
         bundle=bundle,
@@ -878,28 +1263,45 @@ def main(
         ocp_version=ocp_version,
         cluster_name=cluster_name,
         cluster_domain=cluster_domain,
+        cluster_id=cluster_id,
         storage_class=storage_class,
         channel=channel,
         tier=tier,
+        owner=owner,
+        marker=marker_tag,
+        test_case_name=test_case_name,
         cluster_attrs=cluster_attrs,
     )
 
-    # If bundle wasn't provided via CLI, extract from built attributes (may come from cluster)
-    if not bundle:
-        for attr in attributes:
-            if attr["key"] == "BUNDLE":
-                bundle = attr["value"]
-                break
+    # An explicit --cnv-version overrides cluster-derived values outright (the
+    # CLI-over-cluster precedence rule): when it disagrees with the
+    # cluster-derived full cnv_version, the derived value is dropped so the
+    # pair never ships contradictory facets — validation then asks for
+    # --bundle if the full version is required. A replay keeps its recorded
+    # values (the recorded run stands), and an explicit --bundle pair is
+    # surfaced by the warning in _build_run_attributes instead.
+    if cnv_version is not None and not replaying_saved_run and bundle is None:
+        recorded_cnv_version = next((attr["value"] for attr in attributes if attr["key"] == "cnv_version"), None)
+        if recorded_cnv_version is not None:
+            _derived_full, derived_xy = cnv_versions_from_version_string(version_string=recorded_cnv_version)
+            if derived_xy is not None and derived_xy != cnv_version:
+                attributes = [attr for attr in attributes if attr["key"] != "cnv_version"]
+                click.echo(
+                    message=f"Dropping cluster-derived cnv_version {recorded_cnv_version} - "
+                    f"it contradicts the explicit --cnv-version {cnv_version}"
+                )
 
     # ── 4. Validate upload readiness ──
+    # Jenkins-parity tag set: every tag a Jenkins upload always carries.
     required_attr_keys = {
-        "BUNDLE": "--bundle",
-        "OCP": "--ocp-version",
-        "CNV_XY_VER": "--cnv-version",
-        "CLUSTER_NAME": "--cluster-name",
-        "CLUSTER_DOMAIN": "--cluster-domain",
-        "SC": "--sc",
-        "CHANNEL": "--channel",
+        "cnv_version": "--bundle",
+        "cnv_xy_version": "--cnv-version",
+        "ocp_version": "--ocp-version",
+        "cluster": "--cluster-name",
+        "cluster_domain": "--cluster-domain",
+        "storage_class": "--sc",
+        "cnv_channel": "--channel",
+        "owner": "--owner (or git user.email in the tests checkout)",
     }
     present_keys = {attr["key"] for attr in attributes}
     missing = {key: flag for key, flag in required_attr_keys.items() if key not in present_keys}
@@ -907,28 +1309,40 @@ def main(
     # warning when the generic remedy line would mislead.
     extra_guidance = ""
     if from_cluster and not cluster_attr_count:
-        # --from-cluster resolved nothing, so the "or --from-cluster"
-        # advice below would mislead a user who already passed the flag:
-        # point at cluster access instead. Restored retry-file attributes
-        # do NOT suppress this — the count reflects only what the cluster
-        # itself resolved.
+        # --from-cluster resolved nothing, so the remedy line would mislead
+        # a user who already passed the flag: point at cluster access
+        # instead. Restored retry-file attributes do NOT suppress this —
+        # the count reflects only what the cluster itself resolved.
         extra_guidance = (
             "\n--from-cluster resolved no cluster attributes; check cluster access and permissions (KUBECONFIG)."
         )
-    if "CNV_XY_VER" in missing and cnv_version is None and bundle:
-        # A bundle was supplied (CLI, config, cluster, batch metadata, or a
-        # restored retry file — the step-3 backfill above normalizes them
-        # all into `bundle`) but its X.Y version was underivable — name the
+    if ("cnv_version" in missing or "cnv_xy_version" in missing) and cnv_version is None and bundle:
+        # A bundle was supplied (CLI, config, or batch metadata — the
+        # derivation inputs) but its versions were underivable — name the
         # culprit instead of a bare missing-attribute error.
         extra_guidance += f"\nThe bundle '{bundle}' has no major.minor version; pass --cnv-version explicitly."
     if not dry_run:
         if missing:
             missing_names = ", ".join(sorted(missing.keys()))
             missing_flags = ", ".join(sorted(missing.values()))
+            # The remedy list differs on a replay: recorded attributes
+            # stand, config-file defaults fill only attribute-key gaps the
+            # saved list leaves, and the config bundle (a derivation input)
+            # is not applied — only a batch-file metadata bundle fills
+            # missing CNV versions.
+            replay_note = (
+                "Provide them via CLI flags ({flags}) or --from-cluster."
+                if not replaying_saved_run
+                else "Provide them via CLI flags ({flags}) or by adding the missing "
+                "key to the config file — a replay keeps its recorded attributes; "
+                "config defaults fill only keys the saved list lacks, and the "
+                "config bundle is not applied (only a batch-file metadata bundle "
+                "fills missing CNV versions)."
+            )
             raise click.ClickException(
                 f"Missing required run attributes: {missing_names}\n"
-                f"Provide them via CLI flags ({missing_flags}), the config file, or --from-cluster."
-                f"{extra_guidance}"
+                + replay_note.format(flags=missing_flags)
+                + extra_guidance
             )
         # Preflight upload prerequisites before the tester spends time on
         # verdicts; dry-run skips these since nothing is uploaded.
@@ -987,8 +1401,8 @@ def main(
     # ── 7. Quit early: keep partial results, upload nothing ──
     team_label = team.upper() if team else "ALL"
     if quit_early:
-        # The saved TEAM attribute (when present) keeps the team for the
-        # retry; a team-less session saves no TEAM and stays team-less.
+        # The saved team attribute (when present) keeps the team for the
+        # retry; a team-less session saves no team and stays team-less.
         saved_path = _save_results_for_retry(
             results=results,
             bundle=bundle,
@@ -1007,9 +1421,10 @@ def main(
         sys.exit(0)
 
     # ── 8. Build and upload JUnit report ──
-    suite_name = f"Manual - {team_label}"
-    if bundle:
-        suite_name = f"{suite_name} - {bundle}"
+    # Suite name and file name mirror the Jenkins uploads exactly so the
+    # same test node ID resolves to the same Datadog test (@test.full_name,
+    # @test.module) instead of creating a parallel "Manual - X" universe.
+    suite_name = _DEFAULT_SUITE_NAME
 
     polarion_lookup: dict[str, str] = {}
     for test in collected_tests:
@@ -1021,11 +1436,14 @@ def main(
     # behind in the working directory; the file is only kept on failure.
     # Created inside the try so an OSError from mkdtemp (e.g. a full or
     # read-only TMPDIR) reaches the same retry-save path as upload failures.
+    # The file name matches the Jenkins upload filter (**/xunit_results.xml)
+    # so the @test.module facet aligns; the timestamped dir keeps parallel
+    # runs distinct.
     xml_dir: Path | None = None
     xml_path: Path | None = None
     try:
-        xml_dir = Path(tempfile.mkdtemp(prefix="manual_tests_reporter_"))
-        xml_path = xml_dir / f"manual_tests_report_{timestamp}.xml"
+        xml_dir = Path(tempfile.mkdtemp(prefix=f"manual_tests_reporter_{timestamp}_"))
+        xml_path = xml_dir / _JUNIT_FILE_NAME
         xml_content = build_junit_xml(
             results=results,
             suite_name=suite_name,
@@ -1038,6 +1456,8 @@ def main(
             xml_path=xml_path,
             service=service,
             tags=attributes_to_tags(attributes=attributes),
+            env={"DD_ENV": _DATADOG_ENV, **_get_git_env(tests_dir=tests_dir)},
+            cwd=tests_dir,
         )
         click.echo(message=f"\n✓ Uploaded {len(results)} results to Datadog (service: {service})")
         click.echo(message="  View results in Datadog Test Optimization (CI Test Runs).")

@@ -21,6 +21,16 @@ from scripts.manual_tests_reporter.cluster_info import (
 CLUSTER_INFO_MODULE = "scripts.manual_tests_reporter.cluster_info"
 
 
+def _node_name_patch(*node_names: str):
+    """Build a patch of Node.get yielding nodes with the given names."""
+    node_mocks = []
+    for node_name in node_names:
+        node_mock = MagicMock()
+        node_mock.name = node_name
+        node_mocks.append(node_mock)
+    return patch(target=f"{CLUSTER_INFO_MODULE}.Node.get", return_value=iter(node_mocks))
+
+
 class TestExtractDomainFromApiUrl:
     def test_api_prefix_stripped_with_port(self) -> None:
         """Verify the api. prefix is stripped and the port is ignored."""
@@ -47,10 +57,11 @@ class TestClusterAttributesToRunAttrs:
     def test_none_fields_excluded(self) -> None:
         """Verify None fields are omitted from the run attributes."""
         result = cluster_attributes_to_run_attrs(
-            cluster_attrs=ClusterAttributes(ocp_version="4.22.0"),
+            cluster_attrs=ClusterAttributes(cluster_id="bm15a-tjxpz", ocp_version="4.22.0"),
         )
         assert result == [
-            {"key": "OCP", "value": "4.22.0"},
+            {"key": "ocp_version", "value": "4.22.0"},
+            {"key": "cluster_id", "value": "bm15a-tjxpz"},
         ], f"Expected only the filled fields, got {result!r}"
 
     def test_full_mapping(self) -> None:
@@ -58,9 +69,10 @@ class TestClusterAttributesToRunAttrs:
         result = cluster_attributes_to_run_attrs(
             cluster_attrs=ClusterAttributes(
                 ocp_version="4.22.0",
+                cnv_version="4.22.0",
                 cnv_xy_version="4.22",
-                bundle="v4.22.0.rhel9-102",
                 cluster_name="bm15a",
+                cluster_id="bm15a-tjxpz",
                 cluster_domain="bm15a.example.com",
                 storage_class="OCS",
                 channel="candidate",
@@ -68,19 +80,20 @@ class TestClusterAttributesToRunAttrs:
         )
         attrs_by_key = {attr["key"]: attr["value"] for attr in result}
         assert attrs_by_key == {
-            "OCP": "4.22.0",
-            "CNV_XY_VER": "4.22",
-            "BUNDLE": "v4.22.0.rhel9-102",
-            "CLUSTER_NAME": "bm15a",
-            "CLUSTER_DOMAIN": "bm15a.example.com",
-            "SC": "OCS",
-            "CHANNEL": "candidate",
+            "ocp_version": "4.22.0",
+            "cnv_version": "4.22.0",
+            "cnv_xy_version": "4.22",
+            "cluster": "bm15a",
+            "cluster_id": "bm15a-tjxpz",
+            "cluster_domain": "bm15a.example.com",
+            "storage_class": "OCS",
+            "cnv_channel": "candidate",
         }, f"Expected full mapping, got {attrs_by_key!r}"
 
     def test_manual_attribute_not_added_here(self) -> None:
         """Verify the MANUAL attribute is not injected by this converter."""
-        result = cluster_attributes_to_run_attrs(cluster_attrs=ClusterAttributes(ocp_version="4.22.0"))
-        assert all(attr["key"] != "MANUAL" for attr in result), (
+        result = cluster_attributes_to_run_attrs(cluster_attrs=ClusterAttributes(cluster_id="bm15a-tjxpz"))
+        assert all(attr["key"] != "manual" for attr in result), (
             "Expected: MANUAL is added by _build_run_attributes, not here"
         )
 
@@ -100,6 +113,7 @@ class TestGetClusterAttributes:
         """Verify per-query failures warn and leave only the filled fields."""
         with (
             patch(target=f"{CLUSTER_INFO_MODULE}.cache_admin_client", return_value=MagicMock()),
+            _node_name_patch("bm15a-tjxpz-master-0"),
             patch(target=f"{CLUSTER_INFO_MODULE}.get_clusterversion", side_effect=ApiException(status=403)),
             patch(target=f"{CLUSTER_INFO_MODULE}.HyperConverged", side_effect=ApiException(status=403)),
             patch(target=f"{CLUSTER_INFO_MODULE}.get_infrastructure", side_effect=ApiException(status=403)),
@@ -108,11 +122,100 @@ class TestGetClusterAttributes:
         ):
             attrs = get_cluster_attributes()
 
+        assert attrs.cluster_id == "bm15a-tjxpz", f"Expected 'bm15a-tjxpz', got {attrs.cluster_id!r}"
         assert attrs.ocp_version is None, "Expected: failed queries leave fields as None"
-        assert attrs.bundle is None, "Expected: failed queries leave fields as None"
+        assert attrs.cnv_version is None, "Expected: failed queries leave fields as None"
         assert attrs.cluster_name is None, "Expected: failed queries leave fields as None"
         assert attrs.storage_class is None, "Expected: failed queries leave fields as None"
         assert attrs.channel is None, "Expected: failed queries leave fields as None"
+
+    def test_cluster_id_from_node_name_prefix(self) -> None:
+        """Verify cluster_id is the node-name prefix (Jenkins CLUSTER_ID format)."""
+        with (
+            patch(target=f"{CLUSTER_INFO_MODULE}.cache_admin_client", return_value=MagicMock()),
+            _node_name_patch("infd-vrf-412t0-n47k6-master-0"),
+            patch(target=f"{CLUSTER_INFO_MODULE}.get_clusterversion", side_effect=ApiException(status=403)),
+            patch(target=f"{CLUSTER_INFO_MODULE}.HyperConverged", side_effect=ApiException(status=403)),
+            patch(target=f"{CLUSTER_INFO_MODULE}.get_infrastructure", side_effect=ApiException(status=403)),
+            patch(target=f"{CLUSTER_INFO_MODULE}.get_default_storage_class", side_effect=ApiException(status=403)),
+            patch(target=f"{CLUSTER_INFO_MODULE}.Subscription.get", side_effect=ApiException(status=403)),
+        ):
+            attrs = get_cluster_attributes()
+
+        assert attrs.cluster_id == "infd-vrf-412t0-n47k6", f"Expected the node-name prefix, got {attrs.cluster_id!r}"
+
+    def test_cluster_id_from_worker_node(self) -> None:
+        """Verify a worker-only node list still yields the cluster id."""
+        with (
+            patch(target=f"{CLUSTER_INFO_MODULE}.cache_admin_client", return_value=MagicMock()),
+            _node_name_patch("infd-vrf-412t0-n47k6-worker-0"),
+            patch(target=f"{CLUSTER_INFO_MODULE}.get_clusterversion", side_effect=ApiException(status=403)),
+            patch(target=f"{CLUSTER_INFO_MODULE}.HyperConverged", side_effect=ApiException(status=403)),
+            patch(target=f"{CLUSTER_INFO_MODULE}.get_infrastructure", side_effect=ApiException(status=403)),
+            patch(target=f"{CLUSTER_INFO_MODULE}.get_default_storage_class", side_effect=ApiException(status=403)),
+            patch(target=f"{CLUSTER_INFO_MODULE}.Subscription.get", side_effect=ApiException(status=403)),
+        ):
+            attrs = get_cluster_attributes()
+
+        assert attrs.cluster_id == "infd-vrf-412t0-n47k6", (
+            f"Expected the worker node-name prefix, got {attrs.cluster_id!r}"
+        )
+
+    def test_cluster_id_skips_infra_node_sorted_first(self) -> None:
+        """Verify an infra node sorting before masters does not defeat the derivation.
+
+        Node.get returns name-sorted nodes; "<id>-infra-0" sorts before
+        "<id>-master-0", so the derivation must scan past non-master/worker
+        nodes instead of giving up on the first one.
+        """
+        with (
+            patch(target=f"{CLUSTER_INFO_MODULE}.cache_admin_client", return_value=MagicMock()),
+            _node_name_patch("bm15a-tjxpz-infra-0", "bm15a-tjxpz-master-0", "bm15a-tjxpz-worker-0"),
+            patch(target=f"{CLUSTER_INFO_MODULE}.get_clusterversion", side_effect=ApiException(status=403)),
+            patch(target=f"{CLUSTER_INFO_MODULE}.HyperConverged", side_effect=ApiException(status=403)),
+            patch(target=f"{CLUSTER_INFO_MODULE}.get_infrastructure", side_effect=ApiException(status=403)),
+            patch(target=f"{CLUSTER_INFO_MODULE}.get_default_storage_class", side_effect=ApiException(status=403)),
+            patch(target=f"{CLUSTER_INFO_MODULE}.Subscription.get", side_effect=ApiException(status=403)),
+        ):
+            attrs = get_cluster_attributes()
+
+        assert attrs.cluster_id == "bm15a-tjxpz", (
+            f"Expected the master node prefix past the infra node, got {attrs.cluster_id!r}"
+        )
+
+    def test_cluster_id_none_on_bare_role_node_name(self) -> None:
+        """Verify a bare role node name (SNO "master-0") yields no cluster_id.
+
+        A bare role name has no cluster prefix; cluster_id stays unset
+        instead of emitting an empty tag.
+        """
+        with (
+            patch(target=f"{CLUSTER_INFO_MODULE}.cache_admin_client", return_value=MagicMock()),
+            _node_name_patch("master-0", "worker-0"),
+            patch(target=f"{CLUSTER_INFO_MODULE}.get_clusterversion", side_effect=ApiException(status=403)),
+            patch(target=f"{CLUSTER_INFO_MODULE}.HyperConverged", side_effect=ApiException(status=403)),
+            patch(target=f"{CLUSTER_INFO_MODULE}.get_infrastructure", side_effect=ApiException(status=403)),
+            patch(target=f"{CLUSTER_INFO_MODULE}.get_default_storage_class", side_effect=ApiException(status=403)),
+            patch(target=f"{CLUSTER_INFO_MODULE}.Subscription.get", side_effect=ApiException(status=403)),
+        ):
+            attrs = get_cluster_attributes()
+
+        assert attrs.cluster_id is None, "Expected: bare role node names leave cluster_id as None"
+
+    def test_cluster_id_none_on_empty_node_list(self) -> None:
+        """Verify cluster_id is omitted when the cluster has no nodes."""
+        with (
+            patch(target=f"{CLUSTER_INFO_MODULE}.cache_admin_client", return_value=MagicMock()),
+            patch(target=f"{CLUSTER_INFO_MODULE}.Node.get", return_value=iter(())),
+            patch(target=f"{CLUSTER_INFO_MODULE}.get_clusterversion", side_effect=ApiException(status=403)),
+            patch(target=f"{CLUSTER_INFO_MODULE}.HyperConverged", side_effect=ApiException(status=403)),
+            patch(target=f"{CLUSTER_INFO_MODULE}.get_infrastructure", side_effect=ApiException(status=403)),
+            patch(target=f"{CLUSTER_INFO_MODULE}.get_default_storage_class", side_effect=ApiException(status=403)),
+            patch(target=f"{CLUSTER_INFO_MODULE}.Subscription.get", side_effect=ApiException(status=403)),
+        ):
+            attrs = get_cluster_attributes()
+
+        assert attrs.cluster_id is None, "Expected: empty node list leaves cluster_id as None"
 
     def test_malformed_api_server_url_degrades_to_warning(self) -> None:
         """Verify a malformed apiServerURL fails soft instead of aborting the run."""
@@ -122,6 +225,7 @@ class TestGetClusterAttributes:
 
         with (
             patch(target=f"{CLUSTER_INFO_MODULE}.cache_admin_client", return_value=MagicMock()),
+            _node_name_patch("bm15a-tjxpz-master-0"),
             patch(target=f"{CLUSTER_INFO_MODULE}.get_clusterversion", side_effect=ApiException(status=403)),
             patch(target=f"{CLUSTER_INFO_MODULE}.HyperConverged", side_effect=ApiException(status=403)),
             patch(target=f"{CLUSTER_INFO_MODULE}.get_infrastructure", return_value=infra_mock),
@@ -137,6 +241,7 @@ class TestGetClusterAttributes:
         """Verify a transport failure mid-query (HTTPError) fails soft per attribute."""
         with (
             patch(target=f"{CLUSTER_INFO_MODULE}.cache_admin_client", return_value=MagicMock()),
+            patch(target=f"{CLUSTER_INFO_MODULE}.Node.get", side_effect=HTTPError("connection reset")),
             patch(target=f"{CLUSTER_INFO_MODULE}.get_clusterversion", side_effect=HTTPError("connection reset")),
             patch(target=f"{CLUSTER_INFO_MODULE}.HyperConverged", side_effect=HTTPError("connection reset")),
             patch(target=f"{CLUSTER_INFO_MODULE}.get_infrastructure", side_effect=HTTPError("connection reset")),
@@ -145,8 +250,9 @@ class TestGetClusterAttributes:
         ):
             attrs = get_cluster_attributes()
 
+        assert attrs.cluster_id is None, "Expected: transport error degrades to None, not a traceback"
         assert attrs.ocp_version is None, "Expected: transport error degrades to None, not a traceback"
-        assert attrs.bundle is None, "Expected: transport error degrades to None, not a traceback"
+        assert attrs.cnv_version is None, "Expected: transport error degrades to None, not a traceback"
         assert attrs.cluster_name is None, "Expected: transport error degrades to None, not a traceback"
         assert attrs.storage_class is None, "Expected: transport error degrades to None, not a traceback"
         assert attrs.channel is None, "Expected: transport error degrades to None, not a traceback"

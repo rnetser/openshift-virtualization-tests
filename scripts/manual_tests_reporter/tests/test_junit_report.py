@@ -6,6 +6,7 @@ See scripts/manual_tests_reporter/README.md for the tool this module belongs to.
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from unittest.mock import patch
 from xml.etree.ElementTree import fromstring
@@ -67,6 +68,44 @@ class TestAttributesToTags:
         )
         assert result == ["team:NETWORK", "bundle:v4.22.0"], (
             f"Expected ['team:NETWORK', 'bundle:v4.22.0'], got {result!r}"
+        )
+
+    def test_attributes_to_tags_sanitizes_illegal_characters(self) -> None:
+        """Verify illegal tag characters are replaced with underscores.
+
+        Datadog tag values cannot contain spaces or quotes; the README's own
+        marker example ("gating and not tier3") must survive as a valid tag.
+        """
+        result = attributes_to_tags(
+            attributes=[
+                {"key": "marker", "value": "gating and not tier3"},
+                {"key": "owner", "value": "tester@redhat.com"},
+                {"key": "bad key!", "value": "it's a 'value'"},
+            ]
+        )
+        assert result == [
+            "marker:gating_and_not_tier3",
+            "owner:tester@redhat.com",
+            "bad_key_:it_s_a__value_",
+        ], f"Expected sanitized tags, got {result!r}"
+
+    def test_property_path_matches_tags_sanitization(self) -> None:
+        """Verify XML property values carry the same tag sanitization as --tags.
+
+        datadog-ci converts <property> elements into tags on test spans, so
+        a multi-word marker must reach Datadog identically through both
+        paths — sanitized to underscores, not mangled or rejected.
+        """
+        attributes = [{"key": "marker", "value": "gating and not tier3"}]
+        xml_content = build_junit_xml(
+            suite_name="pytest",
+            results=[ManualTestResult(test="tests/net/test_a.py::TestA::test_one", status="PASSED")],
+            attributes=attributes,
+        )
+        tags = attributes_to_tags(attributes=attributes)
+        expected_tag = tags[0].split(":", 1)[1]
+        assert f'value="{expected_tag}"' in xml_content, (
+            f"Expected the property value to match the sanitized tag value {expected_tag!r}, got:\n{xml_content}"
         )
 
 
@@ -158,22 +197,47 @@ class TestWriteJunitReport:
 
 
 class TestUploadJunitReport:
-    def test_upload_success(self, tmp_path: Path) -> None:
-        """Verify successful upload runs datadog-ci with service, tags, and a timeout."""
+    def test_upload_success(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Verify successful upload runs datadog-ci with service, tags, env, and a timeout.
+
+        The explicit env (DD_ENV, DD_GIT_*) must win over ambient variables —
+        a tester with DD_ENV=staging exported still uploads as production.
+        """
         xml_path = tmp_path / "report.xml"
         xml_path.write_text(data="<testsuites/>", encoding="utf-8")
+        monkeypatch.setenv(name="DD_ENV", value="staging")
         with patch(
             target="scripts.manual_tests_reporter.junit_report.run_command",
             return_value=(True, "uploaded", ""),
         ) as mock_run:
-            upload_junit_report(xml_path=xml_path, service="svc", tags=["team:NETWORK"])
-        mock_run.assert_called_once_with(
-            command=["datadog-ci", "junit", "upload", "--service", "svc", "--tags", "team:NETWORK", str(xml_path)],
-            check=False,
-            verify_stderr=False,
-            capture_output=True,
-            timeout=300,
-        )
+            upload_junit_report(
+                xml_path=xml_path,
+                service="svc",
+                tags=["team:NETWORK"],
+                env={"DD_ENV": "production", "DD_GIT_BRANCH": "main"},
+                cwd=tmp_path,
+            )
+        assert mock_run.call_count == 1, "Expected exactly one datadog-ci invocation"
+        passed_env = mock_run.call_args.kwargs["env"]
+        assert passed_env["DD_ENV"] == "production", "Expected: explicit env wins over the ambient DD_ENV"
+        assert passed_env["DD_GIT_BRANCH"] == "main", "Expected: git metadata env vars reach datadog-ci"
+        assert passed_env.get("DD_SITE") == os.environ.get("DD_SITE"), "Expected: ambient vars pass through"
+        call_kwargs = mock_run.call_args.kwargs
+        assert call_kwargs["command"] == [
+            "datadog-ci",
+            "junit",
+            "upload",
+            "--service",
+            "svc",
+            "--tags",
+            "team:NETWORK",
+            str(xml_path),
+        ], f"Expected the datadog-ci command, got {call_kwargs['command']!r}"
+        assert call_kwargs["check"] is False, "Expected: datadog-ci failures surface via return code handling"
+        assert call_kwargs["verify_stderr"] is False, "Expected: datadog-ci stderr is not treated as failure"
+        assert call_kwargs["capture_output"] is True, "Expected: upload output captured for the error report"
+        assert call_kwargs["timeout"] == 300, "Expected: the 300s hang guard on the upload"
+        assert call_kwargs["cwd"] == tmp_path, f"Expected cwd forwarded, got {call_kwargs['cwd']!r}"
 
     def test_upload_multiple_tags_one_flag_each(self, tmp_path: Path) -> None:
         """Verify each tag gets its own --tags flag (datadog-ci array option)."""

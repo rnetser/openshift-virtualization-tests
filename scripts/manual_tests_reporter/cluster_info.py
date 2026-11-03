@@ -3,7 +3,8 @@
 
 Queries the OpenShift cluster for versions, storage class,
 and cluster identity. The attributes are attached to the manual test
-results report as JUnit properties and Datadog tags.
+results report as JUnit properties and Datadog tags, using the same tag
+names as the Jenkins datadog-upload-results pipeline.
 """
 
 from __future__ import annotations
@@ -14,11 +15,12 @@ from urllib.parse import urlparse
 from kubernetes.client.exceptions import ApiException
 from kubernetes.config import ConfigException
 from ocp_resources.hyperconverged import HyperConverged
+from ocp_resources.node import Node
 from ocp_resources.subscription import Subscription
 from simple_logger.logger import get_logger
 from urllib3.exceptions import HTTPError
 
-from scripts.manual_tests_reporter.versions import cnv_xy_version_from_version_string
+from scripts.manual_tests_reporter.versions import cnv_versions_from_version_string
 from utilities.cluster import cache_admin_client
 from utilities.constants.namespaces import NamespacesNames
 from utilities.infra import get_clusterversion, get_infrastructure
@@ -31,20 +33,27 @@ LOGGER = get_logger(name=__name__)
 class ClusterAttributes:
     """Run attributes auto-filled from a connected cluster.
 
+    Attribute keys mirror the tags the Jenkins ``datadog-upload-results``
+    pipeline attaches to CI runs, so a manual run is tagged exactly like a
+    Jenkins run.
+
     Attributes:
         ocp_version: OpenShift version (e.g., "4.22.0-ec.4").
+        cnv_version: Full CNV version (e.g., "4.22.0").
         cnv_xy_version: CNV major.minor version (e.g., "4.22").
-        bundle: Full CNV bundle version (e.g., "v4.22.0.rhel9-102").
         cluster_name: Cluster infrastructure name (e.g., "bm15a-tlv2").
+        cluster_id: Provisioned cluster name from the node-name prefix
+            (e.g., "infd-vrf-412t0-n47k6", the Jenkins ``CLUSTER_ID`` format).
         cluster_domain: Cluster base domain (e.g., "bm15a-tlv2.abi.cnv-qe.rhood.us").
         storage_class: Default storage class label (e.g., "OCS").
         channel: HCO subscription channel (e.g., "candidate").
     """
 
     ocp_version: str | None = None
+    cnv_version: str | None = None
     cnv_xy_version: str | None = None
-    bundle: str | None = None
     cluster_name: str | None = None
+    cluster_id: str | None = None
     cluster_domain: str | None = None
     storage_class: str | None = None
     channel: str | None = None
@@ -121,12 +130,11 @@ def get_cluster_attributes() -> ClusterAttributes:
         )
         if hco.exists:
             hco_version = hco.instance.status.versions[0].version
-            attrs.bundle = f"v{hco_version}"
-            attrs.cnv_xy_version = cnv_xy_version_from_version_string(version_string=hco_version)
+            attrs.cnv_version, attrs.cnv_xy_version = cnv_versions_from_version_string(version_string=hco_version)
     except (AttributeError, KeyError, IndexError, TypeError, ApiException, HTTPError) as exc:
         LOGGER.warning(f"Failed to get CNV/HCO version: {exc}")
 
-    # Cluster name and domain
+    # Cluster name, domain, and ID
     # AttributeError/KeyError: infrastructureName/apiServerURL absent while
     # the Infrastructure CR status is still populating; ApiException: unreachable cluster;
     # ValueError: malformed apiServerURL (e.g. invalid IPv6 URL) from urlparse.
@@ -138,6 +146,33 @@ def get_cluster_attributes() -> ClusterAttributes:
             attrs.cluster_domain = _extract_domain_from_api_url(api_url=api_url)
     except (AttributeError, KeyError, TypeError, ValueError, ApiException, HTTPError) as exc:
         LOGGER.warning(f"Failed to get cluster infrastructure info: {exc}")
+
+    # Cluster ID: the provisioned cluster name in the Jenkins CLUSTER_ID
+    # format (e.g. "infd-vrf-412t0-n47k6") — the common prefix of every
+    # node name (nodes are "<cluster_id>-master-0", "<cluster_id>-worker-N").
+    # The Infrastructure CR's infrastructureName carries only the short form
+    # (e.g. "infd-vrf-412t0"), which is what the `cluster` tag uses.
+    # ApiException: unreachable cluster. Non-master/worker nodes (e.g.
+    # "<cluster_id>-infra-0") are skipped — their prefix is the same.
+    try:
+        node_names = [node.name for node in Node.get(client=client)]
+        for node_name in node_names:
+            for node_role in ("-master-", "-worker-"):
+                if node_role in node_name:
+                    # A bare role name (e.g. SNO "master-0") has no cluster
+                    # prefix — leave cluster_id unset instead of emitting an
+                    # empty tag.
+                    prefix = node_name.split(node_role)[0]
+                    attrs.cluster_id = prefix or None
+                    break
+            if attrs.cluster_id:
+                break
+        if not attrs.cluster_id and node_names:
+            LOGGER.warning(
+                f"No node name carries a cluster-id prefix - cluster_id not derived (first node: {node_names[0]})"
+            )
+    except (AttributeError, TypeError, ApiException, HTTPError) as exc:
+        LOGGER.warning(f"Failed to get cluster ID from node names: {exc}")
 
     # Default storage class
     # AttributeError/ValueError: no default storage class configured (e.g.
@@ -173,12 +208,13 @@ def cluster_attributes_to_run_attrs(cluster_attrs: ClusterAttributes) -> list[di
         List of attribute dicts, excluding None values.
     """
     mapping: dict[str, str | None] = {
-        "OCP": cluster_attrs.ocp_version,
-        "CNV_XY_VER": cluster_attrs.cnv_xy_version,
-        "BUNDLE": cluster_attrs.bundle,
-        "CLUSTER_NAME": cluster_attrs.cluster_name,
-        "CLUSTER_DOMAIN": cluster_attrs.cluster_domain,
-        "SC": cluster_attrs.storage_class,
-        "CHANNEL": cluster_attrs.channel,
+        "ocp_version": cluster_attrs.ocp_version,
+        "cnv_version": cluster_attrs.cnv_version,
+        "cnv_xy_version": cluster_attrs.cnv_xy_version,
+        "cluster": cluster_attrs.cluster_name,
+        "cluster_id": cluster_attrs.cluster_id,
+        "cluster_domain": cluster_attrs.cluster_domain,
+        "storage_class": cluster_attrs.storage_class,
+        "cnv_channel": cluster_attrs.channel,
     }
     return [{"key": key, "value": value} for key, value in mapping.items() if value is not None]
